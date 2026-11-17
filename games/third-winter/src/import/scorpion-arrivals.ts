@@ -12,19 +12,22 @@ export interface ArrivalBlock {
 export interface UnitArrival extends ScorpionArrival {
   definition: string
   face?: string
+  stepsLost?: number
   note?: string
   organicTruck?: 'full' | 'empty'
 }
 
-export const scorpionFixedSupply = [
-  { turn: 1, side: 'soviet', sp: 2, destinations: ['s22.02'], page: 55 },
-  { turn: 3, side: 'axis', sp: 2, destinations: ['s1.03', 's1.06', 's7.01'], page: 56 },
-] as const
-
-const optionalTrucks = [
+const printedTrucks = [
   { turn: 2, side: 'soviet', ref: 'Sov 5.Gd Cav Truck', entry: 's22.09', load: 'empty' },
   { turn: 4, side: 'axis', ref: 'Ge 24.Pz Truck', entry: 's15.01', load: 'full' },
+  { turn: 2, side: 'soviet', ref: 'Sov 20.Tk Truck', entry: 's20.01', load: 'empty' },
+  { turn: 4, side: 'soviet', ref: 'Sov 16.Tk Truck', entry: 's2.16', load: 'empty' },
+  { turn: 5, side: 'axis', ref: 'Ge 1.Pz Truck', entry: ['s1.03', 's1.06', 's7.01'], load: 'full' },
+  { turn: 5, side: 'axis', ref: 'Ge 1.SS Pz Truck', entry: ['s1.03', 's1.06', 's7.01'], load: 'full' },
+  { turn: 6, side: 'axis', ref: 'Ge 10.PG Truck', entry: 's15.01', load: 'full' },
 ] as const
+const optionalTruckRefs = new Set(['Sov 5.Gd Cav Truck', 'Ge 24.Pz Truck'])
+const printedTwoStepLosses = new Set(['Ge 376 Inf Div', 'Ge 82 Inf Div'])
 
 /** Read the published list and resolve the legacy JSON's unit references through TTW's catalog. */
 export function scorpionArrivalCatalog(
@@ -49,6 +52,7 @@ export function scorpionArrivalCatalog(
     ids.add(id)
     arrivals.push({
       id, side, turn, destinations, definition: definition.key, face: row.face, note: row.note, organicTruck,
+      stepsLost: printedTwoStepLosses.has(row.ref) ? 2 : row.face === 'reduced' ? 1 : undefined,
       optionalForce: row.vp_cost === 5 ? optionalBySide[side] : undefined,
     })
   }
@@ -58,19 +62,23 @@ export function scorpionArrivalCatalog(
       throw new Error('Invalid Scorpion reinforcement block')
     }
     for (const row of block.entries) {
-      const truck = optionalTrucks.find(({ side, turn, ref }) =>
+      const truck = printedTrucks.find(({ side, turn, ref }) =>
         side === block.side && turn === block.turn && ref === row.ref,
       )
-      add(block.side, block.turn, truck ? { ...row, vp_cost: 5 } : row, truck?.load)
+      add(block.side, block.turn, truck
+        ? { ...row, vp_cost: optionalTruckRefs.has(truck.ref) ? 5 : undefined }
+        : row, truck?.load)
     }
   }
-  // Scenario Book pp.55–56. The old export may omit the trucks from these two forces.
-  for (const truck of optionalTrucks) {
+  // Scenario Book pp.55–56. The old export may omit printed organic trucks.
+  for (const truck of printedTrucks) {
     const alreadyListed = blocks.some((block) =>
       block.turn === truck.turn && block.side === truck.side &&
       block.entries.some((entry) => entry.ref === truck.ref),
     )
-    if (!alreadyListed) add(truck.side, truck.turn, { ...truck, vp_cost: 5 }, truck.load)
+    if (!alreadyListed) add(truck.side, truck.turn, {
+      ...truck, vp_cost: optionalTruckRefs.has(truck.ref) ? 5 : undefined,
+    }, truck.load)
   }
   return arrivals
 }

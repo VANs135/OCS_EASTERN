@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { campaignHexKey, scorpionGridKey, scorpionPrintedHex } from '../src/import/hex-id.ts'
 import { catalogSources, unitCatalog } from '../src/import/unit-catalog.ts'
-import { scorpionArrivalCatalog, scorpionFixedSupply } from '../src/import/scorpion-arrivals.ts'
+import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
+import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data -- <TTW source directory>')
@@ -52,11 +53,9 @@ const missingSetupHexes = [...new Set(
     .filter(({ at }) => !scorpionGrid.has(`${at.col},${at.row}`))
     .map(({ at }) => scorpionPrintedHex(at.col, at.row)),
 )]
-const missingArrivalHexes = [...new Set(reinforcement.flatMap(({ entries }) =>
-  entries.flatMap(({ entry }) => entry).filter((entry) =>
-    typeof entry === 'string' && /^s\d+\.\d+$/i.test(entry) &&
-    !scorpionGrid.has(scorpionGridKey(entry)),
-  ),
+const placementHexes = [...playableArrivals, ...scorpionFixedSupply].flatMap(({ destinations }) => destinations)
+const missingArrivalHexes = [...new Set(placementHexes.filter((hex) =>
+  !scorpionGrid.has(scorpionGridKey(hex)),
 ))]
 const report = {
   definitions: definitions.size,

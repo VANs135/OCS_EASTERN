@@ -26,7 +26,7 @@ export function placeScorpionArrival(
   turn: number,
   side: Side,
   destination: string,
-  destinationIsLegal: (hex: string) => boolean,
+  eligibleDestinations: readonly string[],
 ): ScorpionArrivalState {
   if (side !== arrival.side || state.placed.includes(arrival.id)) {
     throw new Error('Arrival is unavailable to this side')
@@ -36,7 +36,7 @@ export function placeScorpionArrival(
   if (!onTime || (force && forceOwner[force] !== side)) {
     throw new Error('Arrival is unavailable on this turn')
   }
-  if (!arrival.destinations.includes(destination) || !destinationIsLegal(destination)) {
+  if (!eligibleDestinations.includes(destination)) {
     throw new Error('Arrival destination is not legal')
   }
 

@@ -3,17 +3,12 @@ import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { answerRetention, chooseFirstPlayer } from '../ttw/scorpion/initiative-step.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
+import type { SupplyDump } from './scorpion-reinforcement-state.ts'
 
 type InitiativeCommand =
   | { type: 'retain-initiative'; dumpId: string }
   | { type: 'roll-initiative' }
   | { type: 'choose-first'; first: Side }
-
-interface SupplyDump {
-  side: Side
-  tokens: number
-  location: 'on-map' | 'off-map'
-}
 
 interface ScorpionPreTurnState {
   turn: ScorpionTurn

@@ -38,26 +38,28 @@ test('Soviet roll of 8 awards 7 SP per the Scorpion map ruling', () => {
 test('optional formations charge each side five VP once, at the first accepted arrival', () => {
   const start = { placed: [], mobilized: [], sovietVp: 0 }
   const unit = { id: 'A', side: 'axis', turn: 4, destinations: ['s15.01'], optionalForce: 'axis-24-panzer' }
-  const allowed = () => true
+  const allowed = ['s15.01']
   assert.throws(() => placeScorpionArrival(start, unit, 3, 'axis', 's15.01', allowed), /turn/)
   assert.throws(() => placeScorpionArrival(start, unit, 4, 'axis', 's1.03', allowed), /destination/)
-  assert.throws(() => placeScorpionArrival(start, unit, 4, 'axis', 's15.01', () => false), /destination/)
+  assert.throws(() => placeScorpionArrival(start, unit, 4, 'axis', 's15.01', []), /destination/)
   const paid = placeScorpionArrival(start, unit, 5, 'axis', 's15.01', allowed)
   assert.equal(paid.sovietVp, 5)
   assert.throws(() => placeScorpionArrival(paid, unit, 5, 'axis', 's15.01', allowed), /unavailable/)
   const next = placeScorpionArrival(paid, {...unit, id: 'B'}, 6, 'axis', 's15.01', allowed)
   assert.equal(next.sovietVp, 5)
   const soviet = { id: 'S', side: 'soviet', turn: 2, destinations: ['s22.09'], optionalForce: 'soviet-5-guards-cavalry' }
-  assert.equal(placeScorpionArrival(next, soviet, 6, 'soviet', 's22.09', allowed).sovietVp, 0)
+  assert.equal(placeScorpionArrival(next, soviet, 6, 'soviet', 's22.09', soviet.destinations).sovietVp, 0)
 })
 
 test('ordinary scheduled arrivals are restricted to their own side and turn', () => {
   const start = { placed: [], mobilized: [], sovietVp: 0 }
   const unit = { id: '1', side: 'soviet', turn: 1, destinations: ['s1.12'] }
-  const allowed = () => true
+  const allowed = unit.destinations
   assert.throws(() => placeScorpionArrival(start, unit, 1, 'axis', 's1.12', allowed), /side/)
   assert.throws(() => placeScorpionArrival(start, unit, 2, 'soviet', 's1.12', allowed), /turn/)
   assert.deepEqual(placeScorpionArrival(start, unit, 1, 'soviet', 's1.12', allowed).placed, ['1'])
+  // A blocked map-edge arrival can be directed to an eligible substitute under OCS 13.6b.
+  assert.deepEqual(placeScorpionArrival(start, unit, 1, 'soviet', 's1.13', ['s1.13']).placed, ['1'])
 })
 
 test('the SP award is split among legal sources or the own air box', () => {
