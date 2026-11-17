@@ -1,34 +1,26 @@
-export const catalogSources = [
-  ['land', 'units_inf_div.json', 'units'],
-  ['hq', 'units_hq.json', 'units'],
-  ['transport', 'units_transport.json', 'units'],
-  ['aircraft', 'units_air.json', 'units'],
-  ['air-army-hq', 'units_air_army_hq.json', 'units'],
-  ['luftflotte-hq', 'units_luftflotte_hq.json', 'units'],
-  ['formation', 'units_formation.json', 'units'],
-  ['marker', 'units_markers.json', 'markers'],
-] as const
+export type CatalogKind = 'land' | 'hq' | 'transport' | 'aircraft' | 'air-army-hq' |
+  'luftflotte-hq' | 'formation' | 'marker'
 
-type CatalogKind = (typeof catalogSources)[number][0]
-
-interface SourceUnit {
+export interface SourceUnit {
   id?: string | number | null
   name: string
 }
 
-export interface Definition {
+export interface Definition<Unit extends SourceUnit = SourceUnit> {
   key: string
   kind: CatalogKind
   sourceFile: string
   sourceId: string | null
-  source: Readonly<SourceUnit>
+  source: Readonly<Unit>
 }
 
 /** Keep original face data and provenance. Old names are import aliases scoped to TTW. */
-export function unitCatalog(records: readonly { kind: CatalogKind; file: string; rows: readonly SourceUnit[] }[]) {
-  const definitions = new Map<string, Definition>()
-  const aliases = new Map<string, Definition[]>()
-  const rawIds = new Map<string, Definition[]>()
+export function unitCatalog<Unit extends SourceUnit>(
+  records: readonly { kind: CatalogKind; file: string; rows: readonly Unit[] }[],
+) {
+  const definitions = new Map<string, Definition<Unit>>()
+  const aliases = new Map<string, Definition<Unit>[]>()
+  const rawIds = new Map<string, Definition<Unit>[]>()
   for (const { kind, file, rows } of records) {
     for (const source of rows) {
       if (!source.name?.trim()) throw new Error(`Unnamed definition in ${file}`)
@@ -45,7 +37,9 @@ export function unitCatalog(records: readonly { kind: CatalogKind; file: string;
   return { definitions, aliases, rawIds }
 }
 
-function indexDefinition(index: Map<string, Definition[]>, key: string, item: Definition) {
+function indexDefinition<Unit extends SourceUnit>(
+  index: Map<string, Definition<Unit>[]>, key: string, item: Definition<Unit>,
+) {
   const matches = index.get(key)
   if (matches) matches.push(item)
   else index.set(key, [item])

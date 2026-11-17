@@ -1,23 +1,23 @@
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { campaignHexKey, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
+import { scorpionGroundDeployment } from '../src/import/scorpion-deployment.ts'
 import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
-import { catalogSources, unitCatalog } from '../src/import/unit-catalog.ts'
+import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionAxisSources, scorpionInitialRailGauge } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 
 const root = process.argv[2]
-if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW source directory>')
-const read = async (...path) => JSON.parse((await readFile(join(root, ...path), 'utf8')).replace(/^\uFEFF/, ''))
-
-const catalogs = await Promise.all(catalogSources.map(async ([kind, file, key]) => ({
-  kind, file, rows: (await read('data', file))[key],
-})))
-const { definitions, aliases, rawIds } = unitCatalog(catalogs)
+if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
+const unitRoot = process.argv[3] ?? join(dirname(resolve(root)), 'DATA备份')
+const readAt = async (folder, ...path) => JSON.parse((await readFile(join(folder, ...path), 'utf8')).replace(/^\uFEFF/, ''))
+const read = (...path) => readAt(root, ...path)
 const scenarioPath = ['data', 'scenarios', '08-scorpion']
-const [setup, reinforcement, map, hexes, edges] = await Promise.all([
+const [{ definitions, aliases, rawIds }, setup, reinforcement, map, hexes, edges] = await Promise.all([
+  loadScorpionUnits((file) => readAt(unitRoot, file)),
   read(...scenarioPath, 'setup.json'),
   read(...scenarioPath, 'reinforcements.json'),
   loadScorpionMap(read),
@@ -57,6 +57,19 @@ const placementHexes = [...playableArrivals, ...scorpionFixedSupply].flatMap(({ 
 const missingArrivalHexes = [...new Set(placementHexes.filter((hex) =>
   !map.hexes.has(scorpionHexId(hex)),
 ))]
+const deployment = unresolved.length === 0 && missingSetupHexes.length === 0
+  ? scorpionGroundDeployment(setup.units, aliases, map)
+  : { units: {}, lossChoices: [] }
+function unknownMovement(keys) {
+  return [...new Set(keys)].flatMap((key) => {
+    const definition = definitions.get(key)
+    if (!definition || !['land', 'hq', 'transport'].includes(definition.kind)) return []
+    const unknownModes = ['combat', 'move'].filter((mode) => !scorpionGroundProfile(definition, mode))
+    return unknownModes.length ? [{ name: definition.source.name, modes: unknownModes }] : []
+  })
+}
+const unknownSetupMovement = unknownMovement(Object.values(deployment.units).map(({ definition }) => definition))
+const unknownArrivalMovement = unknownMovement(playableArrivals.map(({ definition }) => definition))
 const railGauge = scorpionInitialRailGauge(map)
 const axisSources = new Set(scorpionAxisSources)
 const empty = new Set()
@@ -78,6 +91,11 @@ const report = {
     reinforcementRefs: references(reinforcement).length,
     playableArrivals: playableArrivals.length,
     fixedSupplyDeliveries: scorpionFixedSupply.length,
+    groundCounters: Object.keys(deployment.units).length,
+    printedStepLossChoices: deployment.lossChoices.length,
+    fullOrganicTrucks: Object.values(deployment.units).filter((unit) => unit.organicTruck === 'full').length,
+    unknownSetupMovement,
+    unknownArrivalMovement,
     unresolved,
     missingSetupHexes,
     missingArrivalHexes,
@@ -94,4 +112,5 @@ const report = {
 }
 console.log(JSON.stringify(report, null, 2))
 if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length ||
+    unknownSetupMovement.length || unknownArrivalMovement.length ||
     missingSetupHexes.length || missingArrivalHexes.length) process.exitCode = 1
