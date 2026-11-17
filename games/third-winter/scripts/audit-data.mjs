@@ -1,12 +1,15 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { campaignHexKey, scorpionGridKey, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { campaignHexKey, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { catalogSources, unitCatalog } from '../src/import/unit-catalog.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
+import { scorpionAxisSources, scorpionInitialRailGauge } from '../src/ttw/scorpion/initial-map.ts'
+import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 
 const root = process.argv[2]
-if (!root) throw new Error('Usage: npm run audit:data -- <TTW source directory>')
+if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW source directory>')
 const read = async (...path) => JSON.parse((await readFile(join(root, ...path), 'utf8')).replace(/^\uFEFF/, ''))
 
 const catalogs = await Promise.all(catalogSources.map(async ([kind, file, key]) => ({
@@ -14,11 +17,10 @@ const catalogs = await Promise.all(catalogSources.map(async ([kind, file, key]) 
 })))
 const { definitions, aliases, rawIds } = unitCatalog(catalogs)
 const scenarioPath = ['data', 'scenarios', '08-scorpion']
-const [setup, reinforcement, scorpionHexes, scorpionEdges, hexes, edges] = await Promise.all([
+const [setup, reinforcement, map, hexes, edges] = await Promise.all([
   read(...scenarioPath, 'setup.json'),
   read(...scenarioPath, 'reinforcements.json'),
-  read('data', 'terrain_hexes.json'),
-  read('data', 'terrain_hexsides.json'),
+  loadScorpionMap(read),
   read('地图数据库', 'map_hexes.json'),
   read('地图数据库', 'map_edges.json'),
 ])
@@ -47,16 +49,22 @@ function references(value) {
 const sourceRefs = [...references(setup), ...references(reinforcement)]
 const unresolved = [...new Set(sourceRefs.filter((name) => aliases.get(name)?.length !== 1))]
 const playableArrivals = unresolved.length === 0 ? scorpionArrivalCatalog(reinforcement, aliases) : []
-const scorpionGrid = new Set(Object.keys(scorpionHexes.hexes))
 const missingSetupHexes = [...new Set(
   [setup.units, setup.air, setup.markers].flat().filter(({ at }) => at)
-    .filter(({ at }) => !scorpionGrid.has(`${at.col},${at.row}`))
-    .map(({ at }) => scorpionPrintedHex(at.col, at.row)),
+    .map(({ at }) => scorpionPrintedHex(at.col, at.row)).filter((hex) => !map.hexes.has(hex)),
 )]
 const placementHexes = [...playableArrivals, ...scorpionFixedSupply].flatMap(({ destinations }) => destinations)
 const missingArrivalHexes = [...new Set(placementHexes.filter((hex) =>
-  !scorpionGrid.has(scorpionGridKey(hex)),
+  !map.hexes.has(scorpionHexId(hex)),
 ))]
+const railGauge = scorpionInitialRailGauge(map)
+const axisSources = new Set(scorpionAxisSources)
+const empty = new Set()
+const axisTrace = { side: 'axis', sources: axisSources, controlled: empty, enemyCombat: empty,
+  unnegatedEnemyZoc: empty, railGauge, detrainableFacilities: empty, headquarters: [], weather: 'freeze' }
+const unusableAxisSources = scorpionAxisSources.filter((hex) =>
+  !scorpionTraceOptions(map, axisTrace, hex).some(({ source }) => source === hex),
+)
 const report = {
   definitions: definitions.size,
   legacyIdCollisions: [...rawIds].filter(([, rows]) => rows.length > 1).map(([id, rows]) => ({
@@ -64,6 +72,8 @@ const report = {
   })),
   missingLegacyIds: [...definitions.values()].filter((entry) => entry.sourceId === null).length,
   scorpion: {
+    sourceHexes: map.hexes.size,
+    sourceEdges: map.edgeCount,
     setupRefs: references(setup).length,
     reinforcementRefs: references(reinforcement).length,
     playableArrivals: playableArrivals.length,
@@ -71,8 +81,7 @@ const report = {
     unresolved,
     missingSetupHexes,
     missingArrivalHexes,
-    edgesOutsideOldGrid: Object.keys(scorpionEdges.hexsides)
-      .filter((key) => key.split('|').some((hex) => !scorpionGrid.has(hex))).length,
+    unusableAxisSources,
   },
   campaign: {
     sourceHexes: hexes.items.length,
@@ -84,5 +93,5 @@ const report = {
   },
 }
 console.log(JSON.stringify(report, null, 2))
-if (unresolved.length || danglingEdges.length || seamIssues.length ||
+if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length ||
     missingSetupHexes.length || missingArrivalHexes.length) process.exitCode = 1

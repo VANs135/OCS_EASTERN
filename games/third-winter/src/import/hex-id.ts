@@ -10,8 +10,8 @@ export function scorpionPrintedHex(col: number, programRow: number): string {
   return `s${col}.${String(11 - programRow).padStart(2, '0')}`
 }
 
-export function scorpionGridKey(printed: string): string {
-  const match = /^s(\d+)\.(\d+)$/i.exec(printed)
-  if (!match) throw new Error(`Invalid printed Scorpion hex: ${printed}`)
-  return `${Number(match[1])},${11 - Number(match[2])}`
+export function scorpionHexId(source: string): string {
+  const match = /^s(\d+)\.(\d{1,2})$/i.exec(source)
+  if (!match) throw new Error(`Invalid printed Scorpion hex: ${source}`)
+  return `s${Number(match[1])}.${match[2]!.padStart(2, '0')}`
 }
