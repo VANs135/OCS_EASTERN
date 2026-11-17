@@ -4,6 +4,8 @@ import type { Definition } from '../import/unit-catalog.ts'
 import type { ScorpionBoxPiece } from '../match/scorpion-box-pieces.ts'
 import { currentScorpionTurn } from '../match/scorpion-round.ts'
 import type { ScorpionPlayerProgress } from '../match/scorpion-round.ts'
+import { scorpionFirstTurn } from '../match/scorpion-session.ts'
+import type { ScorpionSession } from '../match/scorpion-session.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionDates } from '../ttw/scorpion/weather.ts'
 import type { SurfaceLayout } from './calibrated-surface.ts'
@@ -14,6 +16,13 @@ const inventoryCells = { axis: { dead: 19, air: 20 }, soviet: { dead: 27, air: 2
 
 type DefinitionIndex = ReadonlyMap<string, Definition<BackupUnit>>
 type AliasIndex = ReadonlyMap<string, readonly Definition<BackupUnit>[]>
+
+export function scorpionSessionBoxFrame(
+  state: Readonly<ScorpionSession>, catalog: { definitions: DefinitionIndex; aliases: AliasIndex }, viewer?: Side,
+) {
+  if (state.kind === 'setup') return scorpionBoxFrame(scorpionFirstTurn(), state.opening.pieces, catalog, undefined, viewer)
+  return scorpionBoxFrame(state.turn, state.pieces, catalog, state, viewer)
+}
 
 export function scorpionBoxFrame(
   turn: Readonly<ScorpionTurn>, pieces: readonly ScorpionBoxPiece[],

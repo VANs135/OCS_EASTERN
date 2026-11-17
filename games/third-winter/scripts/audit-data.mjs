@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { campaignHexKey, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
+import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionGroundDeployment } from '../src/import/scorpion-deployment.ts'
 import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
@@ -9,6 +10,7 @@ import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionAxisSources, scorpionInitialRailGauge } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
+import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -70,6 +72,45 @@ function unknownMovement(keys) {
 }
 const unknownSetupMovement = unknownMovement(Object.values(deployment.units).map(({ definition }) => definition))
 const unknownArrivalMovement = unknownMovement(playableArrivals.map(({ definition }) => definition))
+let opening
+if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalHexes.length === 0) {
+  const assets = { map, catalog: { definitions, aliases } }
+  const { before, started } = sampleScorpionOpening(setup, assets)
+  let record = started
+  // First-turn source entries printed in Scorpion p.55. The general front-line control module is separate.
+  const reinforcements = () => ({ catalog: playableArrivals, supplySources: { axis: new Set(), soviet: new Set() },
+    controlOf: (id) => id === 's22.02' ? 'soviet' : null, arrivalDestinations: (entry) => entry.destinations,
+    alertDestinations: () => [] })
+  const movement = ({ units }) => ({ enemyCombat: (id, side) => Object.values(units).some((unit) =>
+    unit.hex === id && unit.side !== side && unit.combat), enemySupplySource: (id, side) =>
+    side === 'soviet' && scorpionAxisSources.includes(id), unnegatedEnemyZoc: () => false })
+  function submit(action) {
+    const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, 'soviet', command, assets, { reinforcements, movement }).record
+  }
+  submit({ type: 'complete-refit' })
+  for (const { id, destinations } of playableArrivals.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
+    submit({ type: 'place-arrival', arrivalId: id, hex: destinations[0] })
+  }
+  submit({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
+  submit({ type: 'finish-scheduled-arrivals' })
+  submit({ type: 'complete-reinforcement' })
+  // A Soviet leg unit makes this single move in its own opening area. It is unaffected by the truck ZOC rule.
+  const [unitId] = Object.entries(record.state.units).find(([, unit]) =>
+    definitions.get(unit.definition)?.source.name === 'Sov 58 Rifle Div')
+  submit({ type: 'ground-move', unitId, path: ['s1.12'] })
+  opening = {
+    startPhase: started.state.cursor.phase,
+    startGroundCounters: Object.keys(started.state.units).length,
+    airUnitsPlaced: started.state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.location.kind !== 'air-setup').length,
+    setupAlerts: before.state.opening.drawnAlerts.length,
+    reserveAlerts: started.state.availableAlerts.length,
+    startSupplyTokens: Object.values(started.state.dumps).reduce((sum, dump) => sum + dump.tokens, 0),
+    followingPhase: record.state.cursor.phase,
+    followingGroundCounters: Object.keys(record.state.units).length,
+    firstMoveDestination: record.state.units[unitId].hex,
+  }
+}
 const railGauge = scorpionInitialRailGauge(map)
 const axisSources = new Set(scorpionAxisSources)
 const empty = new Set()
@@ -100,6 +141,7 @@ const report = {
     missingSetupHexes,
     missingArrivalHexes,
     unusableAxisSources,
+    opening,
   },
   campaign: {
     sourceHexes: hexes.items.length,

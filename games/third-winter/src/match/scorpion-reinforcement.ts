@@ -27,11 +27,11 @@ export function submitScorpionReinforcement(
   pickIndex: (size: number) => number,
 ) {
   return acceptCommand(record, side, command, (state, actor, action) =>
-    applyReinforcement(state, actor, action, board, roll, pickIndex),
+    applyScorpionReinforcement(state, actor, action, board, roll, pickIndex),
   )
 }
 
-function applyReinforcement(
+export function applyScorpionReinforcement(
   state: ReinforcementState,
   side: Side,
   action: ReinforcementCommand,
@@ -87,6 +87,7 @@ function applyReinforcement(
     }
   }
 
+  if (action.type !== 'complete-reinforcement') throw new Error('Unknown Scorpion reinforcement action')
   if (window.stage !== 'variable' || window.variableTokens || window.pendingAlert) {
     throw new Error('Complete the variable reinforcement award first')
   }

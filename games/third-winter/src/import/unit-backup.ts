@@ -26,6 +26,7 @@ export interface BackupFace {
 
 export interface BackupUnit extends SourceUnit {
   side: Side | null
+  re?: number | null
   kind?: Exclude<BackupKind, 'marker'>
   faces: { combat: BackupFace | null; move: BackupFace | null }
   abilities?: readonly string[]
@@ -65,6 +66,7 @@ function isUnit(value: unknown): value is BackupUnit {
   return record(value) && typeof value.name === 'string' &&
     (value.id == null || typeof value.id === 'number' || typeof value.id === 'string') &&
     (value.side === 'soviet' || value.side === 'axis' || value.side === null) &&
+    (value.re == null || (typeof value.re === 'number' && Number.isFinite(value.re) && value.re >= 0)) &&
     (value.kind === undefined || typeof value.kind === 'string') &&
     record(value.faces) && isFace(value.faces.combat) && isFace(value.faces.move) &&
     (value.abilities === undefined || (Array.isArray(value.abilities) &&

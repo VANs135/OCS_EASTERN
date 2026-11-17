@@ -11,12 +11,13 @@ export interface GroundSetupRow {
   face?: 'reduced'
 }
 
-interface DeployedCounter extends GroundProfile {
+export interface DeployedCounter extends GroundProfile {
   definition: string
   hex: string
+  printedRe: number
   stepsLost: number
   fueled: boolean
-  organicTruck?: 'full'
+  organicTruck?: 'full' | 'empty'
 }
 
 type Aliases = ReadonlyMap<string, readonly Definition<BackupUnit>[]>
@@ -44,6 +45,16 @@ const multipleLosses: ReadonlyMap<string, number> = new Map([
   ['Ge 112 Inf Div', 2], ['Ge 106 Inf Div', 2], ['Ge 167 Inf Div', 3], ['Ge 57 Inf Div', 2],
 ])
 
+export function deployScorpionGroundCounter(
+  definition: Definition<BackupUnit>, hex: string, stepsLost: number, organicTruck?: 'full' | 'empty',
+): DeployedCounter {
+  const profile = scorpionGroundProfile(definition, 'combat')
+  const printedRe = profile?.combat ? definition.source.re : 0
+  if (!profile || printedRe == null || stepsLost < 0 || !Number.isSafeInteger(stepsLost) ||
+    (stepsLost > 0 && stepsLost >= printedRe)) throw new Error(`Invalid ground counter: ${definition.source.name}`)
+  return { ...profile, definition: definition.key, hex, printedRe, stepsLost, fueled: false, organicTruck }
+}
+
 /** Project the listed ground counters onto the new map, retaining each physical copy. */
 export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], aliases: Aliases, map: ScorpionMap) {
   const units: Record<string, DeployedCounter> = {}
@@ -52,13 +63,12 @@ export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], alias
   function add(ref: string, hex: string, stepsLost: number, organicTruck?: 'full') {
     const candidates = aliases.get(ref)
     const definition = candidates?.length === 1 ? candidates[0] : undefined
-    const profile = definition && scorpionGroundProfile(definition, 'combat')
-    if (!profile || !definition || !map.hexes.has(hex)) {
+    if (!definition || !map.hexes.has(hex)) {
       throw new Error(`Invalid Scorpion ground deployment: ${ref} at ${hex}`)
     }
     const copies = byRef.get(definition.source.name) ?? []
     const id = `setup:${definition.key}:${copies.length + 1}`
-    units[id] = { ...profile, fueled: false, definition: definition.key, hex, stepsLost, organicTruck }
+    units[id] = deployScorpionGroundCounter(definition, hex, stepsLost, organicTruck)
     copies.push(id)
     byRef.set(definition.source.name, copies)
   }

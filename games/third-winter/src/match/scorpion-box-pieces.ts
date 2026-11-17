@@ -13,6 +13,7 @@ export interface ScorpionBoxPiece {
   definition: string
   location: ScorpionPieceLocation
   reduced?: boolean
+  active?: boolean
 }
 
 /** TTW Scenarios pp.54–56. Aircraft leave the setup list only once a basing choice has been made. */
@@ -32,7 +33,7 @@ export function scorpionSetupBoxPieces(
     copies.set(definition.key, copy)
     return { id: `${location}:${definition.key}:${copy}`, side: definition.source.side, definition: definition.key,
       kind: location === 'air-setup' ? 'aircraft' : 'ground', location: { kind: location },
-      reduced: reducedGroups.has(ref) && copy === 1 }
+      reduced: reducedGroups.has(ref) && copy === 1, active: location === 'air-setup' ? true : undefined }
   }
 
   return [...setup.dead_pile.map(({ ref }) => piece(ref, 'dead-pile')),
@@ -44,7 +45,7 @@ export function placeScorpionOffMapAircraft(
   pieces: readonly ScorpionBoxPiece[], actor: Side, id: string,
 ): ScorpionBoxPiece[] {
   const piece = pieces.find((item) => item.id === id)
-  if (!piece || piece.side !== actor || piece.kind !== 'aircraft' || piece.location.kind !== 'air-setup') {
+  if (!piece || piece.side !== actor || piece.kind !== 'aircraft' || piece.location.kind === 'dead-pile') {
     throw new Error('This aircraft cannot be placed off-map during setup')
   }
   return pieces.map((item) => item.id === id ? { ...item, location: { kind: 'off-map-air' } } : item)

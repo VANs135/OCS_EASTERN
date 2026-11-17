@@ -1,4 +1,5 @@
 import type { DiceRoll, RngState } from './state-types.ts'
+import type { Die } from './dice.ts'
 
 /**
  * 随机数与种子管理（B2）
@@ -91,12 +92,12 @@ const DICE_LIMIT = Math.floor(2 ** 32 / DIE_FACES) * DIE_FACES
  * 拒绝采样消除取模偏差：`2^32` 不是 6 的倍数，直接取模会让前几个面略多；
  * 这里丢弃落在尾部余数区间的取值（概率约 1e-9），保证六面等概率。
  */
-export function rollDie(rng: RngState): RngDraw<number> {
+export function rollDie(rng: RngState): RngDraw<Die> {
   let draw = nextUint32(rng)
   while (draw.value >= DICE_LIMIT) {
     draw = nextUint32(draw.rng)
   }
-  return { rng: draw.rng, value: (draw.value % DIE_FACES) + 1 }
+  return { rng: draw.rng, value: (draw.value % DIE_FACES + 1) as Die }
 }
 
 /**

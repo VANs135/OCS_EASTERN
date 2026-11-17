@@ -4,16 +4,15 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
+import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
-import { placeScorpionOffMapAircraft, scorpionSetupBoxPieces } from '../src/match/scorpion-box-pieces.ts'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
 import { completeScorpionCleanup } from '../src/match/scorpion-round.ts'
 import { answerRetention, chooseFirstPlayer, rollInitiative } from '../src/ttw/scorpion/initiative-step.ts'
-import { openScorpionTurn } from '../src/ttw/scorpion/pre-turn.ts'
-import { scorpionWeather } from '../src/ttw/scorpion/weather.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
-import { scorpionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
+import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
+import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
 const [root, ...options] = process.argv.slice(2)
 if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path]')
@@ -21,16 +20,22 @@ const renderOption = options.find((arg) => arg.startsWith('--render='))
 const unitRoot = options.find((arg) => !arg.startsWith('--')) ?? join(dirname(resolve(root)), 'DATA备份')
 const json = async (...path) => JSON.parse((await readFile(join(...path), 'utf8')).replace(/^\uFEFF/, ''))
 const scenario = [root, 'data', 'scenarios', '08-scorpion']
-const [calibration, catalog, setup, arrivals] = await Promise.all([
+const [calibration, catalog, setup, arrivals, groundMap] = await Promise.all([
   json(root, '地图标定', 'hex-calib-瓶中蝎.json'), loadScorpionUnits((file) => json(unitRoot, file)),
   json(...scenario, 'setup.json'), json(...scenario, 'reinforcements.json'),
+  loadScorpionMap((...path) => json(root, ...path)),
 ])
 const surface = calibratedSurface(calibration)
 const boxes = scorpionSurfaceBoxes(surface)
 const imageDirectory = resolve(root, 'vmod', 'images')
 const map = join(imageDirectory, 'Scorpion-Map-200929.png')
-const frames = []
-let pieces = scorpionSetupBoxPieces(setup, catalog.aliases)
+const { before, axisConfirmed, started } = sampleScorpionOpening(setup, { map: groundMap, catalog })
+const { pieces, turn: initial } = started.state
+const frames = [
+  { caption: '开局 · 轴心部署', ...scorpionSessionBoxFrame(before.state, catalog) },
+  { caption: '轴心已确认 · 苏军部署', ...scorpionSessionBoxFrame(axisConfirmed.state, catalog) },
+  { caption: '双方部署已确认 · 1 月 26 日苏军先行', ...scorpionSessionBoxFrame(started.state, catalog) },
+]
 
 function frame(caption, turn, player) {
   frames.push({ caption, ...scorpionBoxFrame(turn, pieces, catalog, player) })
@@ -60,13 +65,6 @@ function nextRound(turn, riverSteps, ...rolls) {
     secondCursor.phasing, riverSteps, 'soviet', dice(...rolls)).turn
 }
 
-const initial = openScorpionTurn(1, scorpionWeather(1, false, dice()), 0, 'soviet', 0, 'soviet')
-frame('开局 · 1 月 26 日', initial)
-for (const side of ['axis', 'soviet']) {
-  const aircraft = pieces.find((piece) => piece.side === side && piece.kind === 'aircraft')
-  pieces = placeScorpionOffMapAircraft(pieces, side, aircraft.id)
-}
-frame('双方各部署一架地图外飞机', initial)
 const second = nextRound(initial, 0, 6, 6)
 frame('1 月 29 日 · 正常飞行', second)
 const third = nextRound(ready(second), 2, 1, 3, 4)
