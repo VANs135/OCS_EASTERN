@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { campaignHexKey, scorpionGridKey, scorpionPrintedHex } from '../src/import/hex-id.ts'
 import { catalogSources, unitCatalog } from '../src/import/unit-catalog.ts'
+import { scorpionArrivalCatalog, scorpionFixedSupply } from '../src/import/scorpion-arrivals.ts'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data -- <TTW source directory>')
@@ -44,6 +45,7 @@ function references(value) {
 }
 const sourceRefs = [...references(setup), ...references(reinforcement)]
 const unresolved = [...new Set(sourceRefs.filter((name) => aliases.get(name)?.length !== 1))]
+const playableArrivals = unresolved.length === 0 ? scorpionArrivalCatalog(reinforcement, aliases) : []
 const scorpionGrid = new Set(Object.keys(scorpionHexes.hexes))
 const missingSetupHexes = [...new Set(
   [setup.units, setup.air, setup.markers].flat().filter(({ at }) => at)
@@ -65,6 +67,8 @@ const report = {
   scorpion: {
     setupRefs: references(setup).length,
     reinforcementRefs: references(reinforcement).length,
+    playableArrivals: playableArrivals.length,
+    fixedSupplyDeliveries: scorpionFixedSupply.length,
     unresolved,
     missingSetupHexes,
     missingArrivalHexes,
