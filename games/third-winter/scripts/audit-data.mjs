@@ -8,7 +8,7 @@ import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
-import { scorpionAxisSources, scorpionInitialRailGauge } from '../src/ttw/scorpion/initial-map.ts'
+import { scorpionAxisSources, scorpionInitialRailGauge, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
@@ -78,15 +78,13 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const { before, started } = sampleScorpionOpening(setup, assets)
   let record = started
   // First-turn source entries printed in Scorpion p.55. The general front-line control module is separate.
-  const reinforcements = () => ({ catalog: playableArrivals, supplySources: { axis: new Set(), soviet: new Set() },
+  const reinforcements = () => ({ catalog: playableArrivals,
+    supplySources: { axis: new Set(scorpionAxisSources), soviet: new Set(scorpionSovietSources) },
     controlOf: (id) => id === 's22.02' ? 'soviet' : null, arrivalDestinations: (entry) => entry.destinations,
     alertDestinations: () => [] })
-  const movement = ({ units }) => ({ enemyCombat: (id, side) => Object.values(units).some((unit) =>
-    unit.hex === id && unit.side !== side && unit.combat), enemySupplySource: (id, side) =>
-    side === 'soviet' && scorpionAxisSources.includes(id), unnegatedEnemyZoc: () => false })
   function submit(action) {
     const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, 'soviet', command, assets, { reinforcements, movement }).record
+    record = submitScorpionSession(record, 'soviet', command, assets, { reinforcements }).record
   }
   submit({ type: 'complete-refit' })
   for (const { id, destinations } of playableArrivals.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
@@ -110,6 +108,26 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     followingGroundCounters: Object.keys(record.state.units).length,
     firstMoveDestination: record.state.units[unitId].hex,
   }
+  submit({ type: 'complete-movement' })
+  for (const { formation, anchors } of record.state.supply.splits) {
+    submit({ type: 'choose-formation-trace', formation, anchor: anchors[0] })
+  }
+  submit({ type: 'check-attrition' })
+  opening.attritionChecks = record.state.supply.attrition.length
+  for (const stack of record.state.supply.attrition.filter(({ assigned }) => !assigned)) {
+    let remainder = stack.losses
+    const allocation = []
+    for (const id of stack.units) {
+      const unit = record.state.units[id]
+      const steps = Math.min(remainder, Math.max(1, unit.printedRe - unit.stepsLost))
+      if (!steps) break
+      allocation.push({ unitId: id, steps })
+      remainder -= steps
+    }
+    submit({ type: 'assign-attrition', hex: stack.hex, allocation })
+  }
+  submit({ type: 'complete-supply' })
+  opening.phaseAfterSupply = record.state.cursor.phase
 }
 const railGauge = scorpionInitialRailGauge(map)
 const axisSources = new Set(scorpionAxisSources)
@@ -118,6 +136,10 @@ const axisTrace = { side: 'axis', sources: axisSources, controlled: empty, enemy
   unnegatedEnemyZoc: empty, railGauge, detrainableFacilities: empty, headquarters: [], weather: 'freeze' }
 const unusableAxisSources = scorpionAxisSources.filter((hex) =>
   !scorpionTraceOptions(map, axisTrace, hex).some(({ source }) => source === hex),
+)
+const sovietTrace = { ...axisTrace, side: 'soviet', sources: new Set(scorpionSovietSources) }
+const unusableSovietSources = scorpionSovietSources.filter((hex) =>
+  !scorpionTraceOptions(map, sovietTrace, hex).some(({ source }) => source === hex),
 )
 const report = {
   definitions: definitions.size,
@@ -141,6 +163,8 @@ const report = {
     missingSetupHexes,
     missingArrivalHexes,
     unusableAxisSources,
+    sovietSupplyEntrances: scorpionSovietSources.length,
+    unusableSovietSources,
     opening,
   },
   campaign: {
@@ -153,6 +177,6 @@ const report = {
   },
 }
 console.log(JSON.stringify(report, null, 2))
-if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length ||
+if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length || unusableSovietSources.length ||
     unknownSetupMovement.length || unknownArrivalMovement.length ||
     missingSetupHexes.length || missingArrivalHexes.length) process.exitCode = 1

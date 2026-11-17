@@ -2,21 +2,30 @@ import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import { pickIndex, rollDie } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
+import { scorpionHexId } from '../import/hex-id.ts'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
+import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
+import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
+import type { AssignAttrition } from './scorpion-attrition.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { applyScorpionGroundMove } from './scorpion-movement.ts'
 import type { MoveCommand, MovementBoard } from './scorpion-movement.ts'
-import { startScorpionPlayerTurns } from './scorpion-player-turn.ts'
+import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-player-turn.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
 import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
+import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
+import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
+import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
+import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { moveScorpionWithFuel } from './scorpion-unit-fuel.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
   kind: 'playing'
@@ -27,14 +36,19 @@ export interface ScorpionInPlay extends ReinforcementState {
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
+  supply: ScorpionSupplyWindow | null
+  railControl: Readonly<Record<string, Side>>
 }
 
 export type ScorpionSession = { kind: 'setup'; opening: ScorpionSetup } | ScorpionInPlay
-export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ({ type: 'ground-move' } & MoveCommand)
+export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ({ type: 'ground-move'; fuelDumpId?: string } & MoveCommand)
+  | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
+  | FeedUnits | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies {
   reinforcements?: (state: Readonly<ScorpionInPlay>) => ReinforcementBoard
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather'>
+  supplyRail?: SupplyRailBoard
 }
 
 export function createScorpionSession(data: ScorpionSetupData, assets: ScorpionSetupAssets, seed: number): ScorpionSessionRecord {
@@ -55,10 +69,42 @@ export function submitScorpionSession(
         const opening = applyScorpionSetup(state.opening, actor, action, assets)
         return opening ? { kind: 'setup', opening } : startMatch(state.opening)
       }
-      case 'ground-move':
-        if (state.kind !== 'playing' || state.victory || !board.movement) throw new Error('Scorpion movement is unavailable')
-        return applyScorpionGroundMove(state, actor, action,
-          { ...board.movement(state), map: assets.map, weather: state.turn.weather.ground })
+      case 'ground-move': {
+        if (state.kind !== 'playing' || state.victory) throw new Error('Scorpion movement is unavailable')
+        const facts = scorpionSupplyPosition(state, assets.map, actor, board.supplyRail, true)
+        const movement = board.movement?.(state) ?? {
+          enemyCombat: (hex: string) => facts.enemyCombat.has(hex),
+          enemySupplySource: (hex: string, side: Side) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis']
+            .some((source) => source === hex),
+          unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
+        }
+        const rules = { ...movement, map: assets.map, weather: state.turn.weather.ground }
+        const moved = action.fuelDumpId === undefined ? applyScorpionGroundMove<ScorpionInPlay>(state, actor, action, rules)
+          : moveScorpionWithFuel(state, actor, action, action.fuelDumpId, rules, facts)
+        if (!moved.units[action.unitId]?.combat) return moved
+        const occupied = Object.fromEntries(action.path.map((hex) => [scorpionHexId(hex), actor]))
+        return { ...moved, railControl: { ...moved.railControl, ...occupied } }
+      }
+      case 'complete-movement':
+        if (state.kind !== 'playing' || state.victory) throw new Error('Scorpion supply is unavailable')
+        return openScorpionSupply(state, actor, assets.map, board.supplyRail)
+      case 'choose-formation-trace':
+      case 'feed-units':
+      case 'check-attrition':
+      case 'assign-attrition':
+      case 'complete-supply': {
+        if (state.kind !== 'playing' || state.victory || state.cursor.phase !== 'supply' ||
+          actor !== state.cursor.phasing || !state.supply) throw new Error('Scorpion supply is unavailable')
+        const window = state.supply
+        if (action.type === 'choose-formation-trace') return selectTraceAnchor(state, window, action.formation, action.anchor)
+        if (action.type === 'feed-units') return feedScorpionUnits(state, window, action, assets.map, board.supplyRail)
+        if (action.type === 'check-attrition') return checkScorpionAttrition(state, window)
+        if (action.type === 'assign-attrition') return assignScorpionAttrition(state, window, action, assets)
+        if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
+        const cursor = advanceScorpionPhase(state.cursor, actor)
+        if (!cursor || cursor.phase !== 'reaction') throw new Error('Invalid supply phase completion')
+        return { ...state, cursor, supply: null }
+      }
       default:
         if (state.kind !== 'playing' || !board.reinforcements) throw new Error('Scorpion reinforcements are unavailable')
         return resolveReinforcements(state, actor, action, assets, board.reinforcements(state))
@@ -73,9 +119,11 @@ export function scorpionFirstTurn(): ScorpionTurn {
 
 function startMatch(opening: ScorpionSetup): ScorpionInPlay {
   const turn = scorpionFirstTurn()
+  const railControl = Object.fromEntries(Object.values(opening.units).filter((unit) => unit.combat)
+    .map(({ side, hex }) => [hex, side]))
   return { kind: 'playing', turn, cursor: startScorpionPlayerTurns(turn), rng: opening.rng,
     rerollHolder: 'soviet', airBases: scorpionOpeningAirBases, units: opening.units, pieces: opening.pieces,
-    moved: [], dumps: opening.dumps,
+    moved: [], supply: null, railControl, dumps: opening.dumps,
     arrival: { placed: [], mobilized: [], sovietVp: turn.vp }, arrivalsOnMap: [], window: null,
     pax: { axis: 0, soviet: 0 }, availableAlerts: opening.availableAlerts, placedAlerts: [], victory: null }
 }
@@ -95,6 +143,7 @@ function resolveReinforcements(
     return draw.value
   })
   let units = state.units
+  let railControl = state.railControl
   const arrival = result.arrivalsOnMap[state.arrivalsOnMap.length]
   const alert = result.placedAlerts[state.placedAlerts.length]
   const placed = arrival ? { id: arrival.arrival.id, definition: arrival.arrival.definition, hex: arrival.hex,
@@ -107,6 +156,7 @@ function resolveReinforcements(
     }
     const counter = deployScorpionGroundCounter(definition, placed.hex, placed.stepsLost, placed.organicTruck)
     units = { ...units, [placed.id]: counter }
+    if (counter.combat) railControl = { ...railControl, [placed.hex]: actor }
   }
-  return { ...state, ...result, rng, units }
+  return { ...state, ...result, rng, units, railControl }
 }

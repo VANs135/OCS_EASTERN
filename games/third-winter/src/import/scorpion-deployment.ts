@@ -4,6 +4,7 @@ import { scorpionPrintedHex } from './hex-id.ts'
 import type { ScorpionMap } from './scorpion-map.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
+import type { Mobility } from '@ocs-eastern/series/ground-map'
 
 export interface GroundSetupRow {
   ref: string
@@ -15,6 +16,12 @@ export interface DeployedCounter extends GroundProfile {
   definition: string
   hex: string
   printedRe: number
+  actionRating: number
+  attackCapable: boolean
+  formation?: string
+  headquarters?: { throwRange: number; mobility: Mobility; kessel: boolean }
+  traceDrawMobility?: Mobility
+  outOfSupply?: boolean
   stepsLost: number
   fueled: boolean
   organicTruck?: 'full' | 'empty'
@@ -50,9 +57,27 @@ export function deployScorpionGroundCounter(
 ): DeployedCounter {
   const profile = scorpionGroundProfile(definition, 'combat')
   const printedRe = profile?.combat ? definition.source.re : 0
+  // The merged TTW backup stores the printed ground Action Rating in artRange.
+  const stats = definition.source.faces.combat?.stats
+  const rating = profile?.combat ? stats?.artRange : 0
+  const formation = definition.source.org?.parentFmt
   if (!profile || printedRe == null || stepsLost < 0 || !Number.isSafeInteger(stepsLost) ||
-    (stepsLost > 0 && stepsLost >= printedRe)) throw new Error(`Invalid ground counter: ${definition.source.name}`)
-  return { ...profile, definition: definition.key, hex, printedRe, stepsLost, fueled: false, organicTruck }
+    (stepsLost > 0 && stepsLost >= printedRe) || typeof rating !== 'number' || !Number.isInteger(rating) || rating < 0 || rating > 5) {
+    throw new Error(`Invalid ground counter: ${definition.source.name}`)
+  }
+  const range = stats?.dropRange
+  const kessel = definition.source.abilities?.includes('kessel_supply') === true
+  if (definition.kind === 'hq' && (typeof range !== 'number' || !Number.isInteger(range) || range < 0)) {
+    throw new Error(`Missing throw range: ${definition.source.name}`)
+  }
+  // Scorpion HQ counters have black throw values, except the two white Kessel HQs.
+  const headquarters = definition.kind === 'hq' && typeof range === 'number'
+    ? { throwRange: range, mobility: kessel ? 'leg' as const : 'truck' as const, kessel } : undefined
+  const attackCapable = typeof stats?.attack === 'number' && stats.attack > 0 &&
+    stats.defensiveOnly !== true && !headquarters && typeof stats.barrage !== 'number' && profile.combat
+  return { ...profile, definition: definition.key, hex, printedRe, actionRating: rating, attackCapable,
+    formation: typeof formation === 'string' && formation ? formation : undefined, headquarters,
+    traceDrawMobility: headquarters?.mobility, stepsLost, fueled: false, organicTruck }
 }
 
 /** Project the listed ground counters onto the new map, retaining each physical copy. */

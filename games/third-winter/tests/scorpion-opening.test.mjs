@@ -8,7 +8,7 @@ const units = {
   'setup:soviet-b': { side: 'soviet', hex: 's1.11', printedRe: 3, stepsLost: 0 },
 }
 const definition = { key: 'alert', kind: 'land', source: { name: 'Alert', side: 'axis', re: 1,
-  faces: { combat: { stats: { move: 3 }, maColor: 'white' }, move: null } } }
+  faces: { combat: { stats: { move: 3, artRange: 2 }, maColor: 'white' }, move: null } } }
 const assets = { map: { hexes: new Map([['s1.09', {}], ['s1.11', {}]]) },
   catalog: { definitions: new Map([['alert', definition]]) } }
 const fixture = (pieces) => ({ revision: 0, receipts: [], state: { kind: 'setup', opening: { seat: 'axis', pieces,
