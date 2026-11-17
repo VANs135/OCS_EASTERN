@@ -1,0 +1,17 @@
+{
+  "name": "@ocs-eastern/third-winter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {"node": ">=22.12"},
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm test",
+    "audit:data": "node --experimental-strip-types scripts/audit-data.mjs"
+  },
+  "dependencies": {
+    "@ocs-eastern/series": "0.1.0",
+    "@ocs-eastern/match-core": "0.1.0"
+  }
+}
