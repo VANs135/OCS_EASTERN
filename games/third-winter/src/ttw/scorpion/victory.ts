@@ -14,9 +14,13 @@ export function scorpionSuddenDeath(turn: number, vp: number): Victory | null {
 
 /** Award the reroll counter to its holder only at game end. */
 export function scorpionFinalVictory(vp: number, rerollHolder: Side | null): Victory {
-  const finalVp = vp + (rerollHolder === 'soviet' ? 1 : rerollHolder === 'axis' ? -1 : 0)
+  const finalVp = scorpionFinalPoints(vp, rerollHolder)
   if (finalVp <= 0) return { outcome: 'axis', level: 'major' }
   if (finalVp <= 4) return { outcome: 'axis', level: 'minor' }
   if (finalVp <= 10) return { outcome: 'draw' }
   return { outcome: 'soviet', level: finalVp <= 14 ? 'minor' : 'major' }
+}
+
+export function scorpionFinalPoints(vp: number, rerollHolder: Side | null): number {
+  return vp + (rerollHolder === 'soviet' ? 1 : rerollHolder === 'axis' ? -1 : 0)
 }

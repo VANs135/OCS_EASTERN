@@ -2,7 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { Flight, ScorpionGround, ScorpionWeather } from './weather.ts'
 import type { Retention } from './initiative.ts'
 import type { Victory } from './victory.ts'
-import { scorpionFinalVictory, scorpionSuddenDeath } from './victory.ts'
+import { scorpionFinalPoints, scorpionFinalVictory, scorpionSuddenDeath } from './victory.ts'
 
 export type PreTurn =
   | { kind: 'retention'; responder: Side; retention: 'axis' | 'soviet' }
@@ -37,7 +37,7 @@ export function openScorpionTurn(
   const suddenDeath = scorpionSuddenDeath(turn, vp)
   if (suddenDeath) return { ...base, step: { kind: 'ended', result: suddenDeath } }
   if (weather.endGame) {
-    return { ...base, step: { kind: 'ended', result: scorpionFinalVictory(vp, rerollHolder) } }
+    return closeScorpionGame({ ...base, step: { kind: 'roll', retention } }, rerollHolder)
   }
   if (turn === 1) {
     return { ...base, step: { kind: 'player-turn', first: 'soviet', retention: 'soviet' } }
@@ -53,4 +53,14 @@ export function openScorpionTurn(
     ? { kind: 'roll', retention }
     : { kind: 'retention', responder: retention, retention }
   return { ...base, vp: adjustedVp, step }
+}
+
+/** Ordinary end of play, including the immediate end before Feb 19 when it thaws. */
+export function closeScorpionGame(turn: Readonly<ScorpionTurn>, rerollHolder: Side | null): ScorpionTurn {
+  if (turn.step.kind === 'ended') return turn
+  return {
+    ...turn,
+    vp: scorpionFinalPoints(turn.vp, rerollHolder),
+    step: { kind: 'ended', result: scorpionFinalVictory(turn.vp, rerollHolder) },
+  }
 }

@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "check": "npm run typecheck && npm test",
-    "audit:data": "node --experimental-strip-types scripts/audit-data.mjs"
+    "audit:data": "node --experimental-strip-types scripts/audit-data.mjs",
+    "preview:map": "node --experimental-strip-types scripts/scorpion-map-preview.mjs"
   },
   "dependencies": {
     "@ocs-eastern/series": "0.1.0",
