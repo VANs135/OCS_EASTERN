@@ -28,9 +28,12 @@ export function combatTerrainCategory(terrain: Terrain) {
 
 export function combatStrength(unit: DeployedCounter, attacking: boolean, terrain: AttackTerrain,
   frozen: boolean, supplied: boolean, enemyAntiTank: number): number {
-  const base = unit.strength * (unit.disorganized ? 0.5 : 1) * (unit.outOfSupply ? 0.5 : 1) *
+  const artilleryDivision = !attacking && unit.artillery?.independentRe
+  const strength = artilleryDivision ? unit.printedRe - unit.stepsLost : unit.strength
+  const base = strength * (unit.disorganized ? 0.5 : 1) * (unit.outOfSupply ? 0.5 : 1) *
     (!attacking && unit.reserve ? 0.5 : 1)
-  const steps = (attacking && unit.stepsLost > 0) || (!attacking && unit.stepsLost > 0 && unit.stepsLost >= unit.printedRe / 2)
+  const steps = !artilleryDivision && ((attacking && unit.stepsLost > 0) ||
+    (!attacking && unit.stepsLost > 0 && unit.stepsLost >= unit.printedRe / 2))
   const index = classIndex[unit.combatClass]
   let list: Multipliers | undefined
   if (terrain === 'minor-river') list = frozen ? [0.5, 1, 1] : [0.5, 0.5, 0.5]

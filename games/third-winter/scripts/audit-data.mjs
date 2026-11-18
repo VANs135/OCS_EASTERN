@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
-import { campaignHexKey, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
+import { campaignHexKey, scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionGroundDeployment } from '../src/import/scorpion-deployment.ts'
@@ -87,9 +89,12 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     alertDestinations: () => [] })
   const tablePath = process.env.OCS_V43_CRT
   const combat = tablePath ? { table: await readAt(dirname(resolve(tablePath)), basename(tablePath)) } : undefined
+  const barragePath = process.env.OCS_V43_BARRAGE
+  const barrage = barragePath ? await readAt(dirname(resolve(barragePath)), basename(barragePath)) : undefined
+  const board = { reinforcements, combat, barrage }
   function submit(action, seat = record.state.cursor.phasing) {
     const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, { reinforcements, combat }).record
+    record = submitScorpionSession(record, seat, command, assets, board).record
   }
   submit({ type: 'complete-refit' })
   for (const { id, destinations } of playableArrivals.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
@@ -151,6 +156,11 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   opening.attritionChecks = finishSupply()
   opening.phaseAfterSupply = record.state.cursor.phase
   submit({ type: 'complete-reaction' }, 'axis')
+  if (barrage) {
+    const beforeBarrage = record
+    opening.sampleArtillery = sampleArtillery(record.state, map, barrage, submit, () => record.state)
+    record = beforeBarrage
+  }
   if (combat) opening.sampleBattle = sampleBattle(record.state, map, submit, () => record.state)
   submit({ type: 'complete-combat' })
   submit({ type: 'complete-exploitation' })
@@ -171,6 +181,41 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'choose-first', first: 'soviet' }, 'soviet')
   opening.nextTurn = record.state.turn.number
   opening.nextPhase = record.state.cursor.phase
+}
+
+function sampleArtillery(state, map, table, submit, latest) {
+  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, 'soviet'))
+  const enemies = [...new Set(Object.values(state.units).filter((unit) => unit.side === 'axis' && unit.combat).map(({ hex }) => hex))]
+  for (const [unitId, unit] of Object.entries(state.units)) {
+    if (unit.side !== 'soviet' || unit.reserve || !unit.artillery?.strength) continue
+    const { artillery } = unit
+    const strength = artillery.strength * (artillery.independentRe ? remainingSteps(unit) / unit.printedRe : 1) *
+      (unit.disorganized ? 0.5 : 1)
+    if (strength < 1 || !artillery.range) continue
+    const { cost } = barrageColumn(table, strength)
+    const dumpId = Object.keys(state.dumps).find((id) => id.startsWith('soviet:hex:') && state.dumps[id].tokens >= cost &&
+      network.canDrawDump(unit.hex, id.split(':')[2]))
+    const target = enemies.find((hex) => scorpionHexDistance(unit.hex, hex) <= artillery.range)
+    if (!target || !dumpId) continue
+    submit({ type: 'declare-artillery-barrage', target, batteries: [{ unitId }],
+      supply: { kind: 'direct', payments: [{ dumpId, tokens: cost }] } })
+    submit({ type: 'choose-barrage-terrain', terrain: map.hexes.get(target).terrains[0] }, 'axis')
+    const shot = latest().barrageHistory.at(-1)
+    if (shot.lossesDue) {
+      let remainder = shot.lossesDue
+      const allocation = []
+      for (const [id, defender] of Object.entries(latest().units)) {
+        if (!remainder) break
+        if (!defender.combat || defender.side !== 'axis' || defender.hex !== target) continue
+        const steps = Math.min(remainder, remainingSteps(defender))
+        allocation.push({ unitId: id, steps })
+        remainder -= steps
+      }
+      submit({ type: 'assign-barrage-loss', allocation }, 'axis')
+    }
+    return { from: unit.hex, target, strength, tokensSpent: cost, result: shot.roll.code, losses: shot.lossesDue }
+  }
+  throw new Error('No eligible opening artillery barrage for the audit')
 }
 
 function sampleBattle(state, map, submit, latest) {
@@ -246,6 +291,13 @@ const report = {
     fullOrganicTrucks: Object.values(deployment.units).filter((unit) => unit.organicTruck === 'full').length,
     unknownSetupMovement,
     unknownArrivalMovement,
+    unknownArtilleryFaces: [...new Set([...Object.values(deployment.units).map((unit) => unit.definition),
+      ...playableArrivals.map((entry) => entry.definition)])]
+      .map((id) => definitions.get(id)).filter((definition) => definition && scorpionArtillery(definition, 'combat'))
+      .filter((definition) => {
+        const face = scorpionArtillery(definition, 'move')
+        return face.strength === undefined || face.range === undefined
+      }).map(({ source }) => source.name),
     unresolved,
     missingSetupHexes,
     missingArrivalHexes,

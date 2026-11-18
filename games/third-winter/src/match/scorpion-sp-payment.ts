@@ -36,7 +36,7 @@ export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, m
       dumps[row.dumpId] = { ...dump, tokens: dump.tokens - row.tokens }
     }
   }
-  return { dumps, canUse, available, spend }
+  return { dumps, canUse, available, spend, network }
 }
 
 export function totalTokens(payments: readonly SupplyPayment[]) {

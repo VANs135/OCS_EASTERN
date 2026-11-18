@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
+import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 
@@ -26,6 +27,12 @@ const fixture = (phase, units) => ({ revision: 0, receipts: [], state: { kind: '
 } })
 const command = (record, action) => ({ id: `battle-${record.revision}`, expectedRevision: record.revision, action })
 const submit = (record, side, action, option) => submitScorpionSession(record, side, command(record, action), assets, option ?? board()).record
+
+const artilleryTable = (code) => ({
+  columns: ['1 or less', '2', '3-4', '5-7', '8-11', '12-16', '17-24', '25+'],
+  costs: [1, 1, 2, 2, 2, 3, 3, 4],
+  matrix: Array.from({ length: 11 }, () => Array(8).fill(code)),
+})
 
 test('regular combat discloses each decision in order, updates the dead pile and permits advancement', () => {
   let record = fixture('combat', { infantry: unit('soviet', 's10.01'), defense: unit('axis', 's10.02') })
@@ -228,4 +235,94 @@ test('only the defender spending its own internal stocks defends at supplied str
   record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'ready' })
   record = submit(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } })
   assert.equal(record.state.combat.roll.initialColumn, columns.indexOf('2:1'))
+})
+
+test('artillery pays before the target chooses terrain and its losses reach the dead pile and VP', () => {
+  const option = { ...board(), barrage: artilleryTable('1') }
+  const dumpId = 'soviet:hex:s10.01'
+  const attack = { type: 'declare-artillery-barrage', target: 's10.02', batteries: [{ unitId: 'battery' }],
+    supply: { kind: 'direct', payments: [{ dumpId, tokens: 3 }] } }
+  const record = fixture('combat', {
+    battery: unit('soviet', 's10.01', { artillery: { strength: 14, range: 2 }, outOfSupply: true }),
+    target: unit('axis', 's10.02', { reserve: 'target' }),
+    truck: unit('axis', 's10.02', { combat: false, organicTruck: 'full', reserve: 'truck' }),
+  })
+  const pending = submit(record, 'soviet', attack, option)
+  assert.equal(pending.state.dumps[dumpId].tokens, 7)
+  assert.equal(pending.state.barrage.strength, 14)
+  assert.throws(() => submit(pending, 'soviet', { type: 'complete-combat' }, option), /pending barrage/)
+  const terrain = { type: 'choose-barrage-terrain', terrain: 'Open' }
+  assert.throws(() => submit(pending, 'soviet', terrain, option), /targeted player/)
+  const restored = JSON.parse(JSON.stringify(pending))
+  const rolled = submit(restored, 'axis', terrain, option)
+  assert.equal(rolled.state.units.target.disorganized, true)
+  assert.equal(rolled.state.units.target.reserve, undefined)
+  assert.equal(rolled.state.units.truck.reserve, undefined)
+  assert.equal(rolled.state.barrage.lossesDue, 1)
+  assert.equal(rolled.state.barrageHistory[0].roll.column, 4)
+  const losses = { type: 'assign-barrage-loss', allocation: [{ unitId: 'target', steps: 1 }] }
+  const settled = submit(rolled, 'axis', losses, option)
+  assert.equal(settled.state.barrage, null)
+  assert.equal(settled.state.arrival.sovietVp, 1)
+  assert.equal(settled.state.pieces[0].location.kind, 'dead-pile')
+  assert.equal(submitScorpionSession(settled, 'axis', command(rolled, losses), assets, option).duplicate, true)
+})
+
+test('reaction artillery requires released reserves and a Soviet division can split only its surviving RE', () => {
+  const option = { ...board(), barrage: artilleryTable('-') }
+  const dumpId = 'soviet:hex:s10.02'
+  const record = fixture('reaction', {
+    division: unit('soviet', 's10.02', { printedRe: 3, stepsLost: 1, reserve: 'division',
+      artillery: { strength: 42, range: 2, independentRe: true } }),
+    left: unit('axis', 's10.01'), right: unit('axis', 's10.03'),
+  })
+  record.state.cursor.phasing = 'axis'
+  record.state.dumps[dumpId] = { location: 'on-map', side: 'soviet', tokens: 12 }
+  const fire = (target, re = 1) => ({ type: 'declare-artillery-barrage', target, batteries: [{ unitId: 'division', re }],
+    supply: { kind: 'direct', payments: [{ dumpId, tokens: 3 }] } })
+  assert.throws(() => submit(record, 'soviet', fire('s10.01'), option), /eligible artillery/)
+  const released = submit(record, 'soviet', { type: 'release-reserve', unitId: 'division' }, option)
+  const terrain = { type: 'choose-barrage-terrain', terrain: 'Open' }
+  const first = submit(submit(released, 'soviet', fire('s10.01'), option), 'axis', terrain, option)
+  assert.throws(() => submit(first, 'soviet', fire('s10.01'), option), /once per phase/)
+  assert.throws(() => submit(first, 'soviet', { type: 'ground-move', unitId: 'division', path: ['s10.03'] }, option),
+    /Movement Segment has ended/)
+  assert.throws(() => submit(first, 'soviet', fire('s10.03', 2), option), /unused artillery RE/)
+  const second = submit(submit(first, 'soviet', fire('s10.03'), option), 'axis', terrain, option)
+  assert.equal(second.state.barrageHistory.length, 2)
+  assert.equal(second.state.dumps[dumpId].tokens, 6)
+})
+
+test('barrage density caps a formation and bracketed half losses depend on a spotter and hedgehogs', () => {
+  const density = barrageDensity([{ re: 3, formation: 'one' }, { re: 2, formation: 'one' }, { re: 5 }])
+  assert.equal(density, 6)
+  const crt = artilleryTable('[1/2]')
+  const { initialColumn, cost } = barrageColumn(crt, 16)
+  const facts = { density, hedgehog: 1, terrain: 'Close', spotter: true }
+  const result = rollGroundBarrage(crt, initialColumn, facts, () => 4)
+  assert.equal(cost, 3)
+  assert.equal(result.column, initialColumn + 1)
+  assert.equal(result.loss, 1)
+  assert.equal(rollGroundBarrage(crt, initialColumn, { ...facts, hedgehog: 3 }, () => 6).halfDie, null)
+  assert.equal(rollGroundBarrage(crt, initialColumn, { ...facts, spotter: false }, () => 6).loss, 0)
+})
+
+test('two batteries may use multiple dumps only through a common HQ', () => {
+  const option = { ...board(), barrage: artilleryTable('-') }
+  const artillery = { strength: 8, range: 2 }
+  const record = fixture('combat', { first: unit('soviet', 's10.01', { artillery }),
+    second: unit('soviet', 's10.02', { artillery }),
+    hq: unit('soviet', 's10.01', { headquarters: { throwRange: 2, mobility: 'truck', kessel: false } }),
+    target: unit('axis', 's10.03') })
+  const firstDump = 'soviet:hex:s10.01'
+  const secondDump = 'soviet:hex:s10.02'
+  record.state.dumps[secondDump] = { location: 'on-map', side: 'soviet', tokens: 2 }
+  const payments = [{ dumpId: firstDump, tokens: 1 }, { dumpId: secondDump, tokens: 2 }]
+  const attack = { type: 'declare-artillery-barrage', target: 's10.03', batteries: [{ unitId: 'first' }, { unitId: 'second' }] }
+  assert.throws(() => submit(record, 'soviet', { ...attack, supply: { kind: 'direct', payments } }, option), /shared dump/)
+  assert.throws(() => submit(record, 'soviet', { ...attack, supply: { kind: 'hq', hqId: 'first', payments } }, option),
+    /reachable friendly dump/)
+  const pending = submit(record, 'soviet', { ...attack, supply: { kind: 'hq', hqId: 'hq', payments } }, option)
+  assert.equal(pending.state.dumps[firstDump].tokens, 9)
+  assert.equal(pending.state.dumps[secondDump].tokens, 0)
 })

@@ -101,5 +101,15 @@ export function scorpionSupplyNetwork(map: ScorpionMap, state: TracePosition) {
     return canDraw(location, source, mobility) || state.headquarters.some((hq) =>
       canDraw(hq.hex, source, hq.mobility) && canThrow(hq, location))
   }
-  return { trace, canUseDump }
+  function canDrawDump(location: string, source: string, mobility: Mobility = 'truck') {
+    return eligible(location) && eligible(source) && canDraw(location, source, mobility)
+  }
+
+  function canUseDumpVia(hqId: string, location: string, source: string) {
+    const hq = state.headquarters.find((candidate) => candidate.id === hqId)
+    return Boolean(hq && eligible(hq.hex) && eligible(location) && eligible(source) &&
+      canDraw(hq.hex, source, hq.mobility) && canThrow(hq, location))
+  }
+
+  return { trace, canUseDump, canDrawDump, canUseDumpVia }
 }

@@ -7,6 +7,8 @@ import type { Definition } from './unit-catalog.ts'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
 import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
 import { scorpionCombatSymbols } from './scorpion-combat-symbols.ts'
+import { scorpionArtillery } from './scorpion-artillery.ts'
+import type { ArtilleryFace } from './scorpion-artillery.ts'
 
 export interface GroundSetupRow {
   ref: string
@@ -33,6 +35,7 @@ export interface DeployedCounter extends GroundProfile {
   traceDrawMobility?: Mobility
   outOfSupply?: boolean
   internalStocks?: InternalStocks
+  artillery?: ArtilleryFace
   stepsLost: number
   fueled: boolean
   organicTruck?: 'full' | 'empty'
@@ -70,6 +73,7 @@ export function deployScorpionGroundCounter(
   const printedRe = profile?.combat ? definition.source.re : 0
   // The merged TTW backup stores the printed ground Action Rating in artRange.
   const stats = definition.source.faces.combat?.stats
+  const artillery = scorpionArtillery(definition, 'combat')
   const rating = profile?.combat ? stats?.artRange : 0
   const formation = definition.source.org?.parentFmt
   if (!profile || printedRe == null || stepsLost < 0 || !Number.isSafeInteger(stepsLost) ||
@@ -85,11 +89,11 @@ export function deployScorpionGroundCounter(
   const headquarters = definition.kind === 'hq' && typeof range === 'number'
     ? { throwRange: range, mobility: kessel ? 'leg' as const : 'truck' as const, kessel } : undefined
   const attackCapable = typeof stats?.attack === 'number' && stats.attack > 0 &&
-    stats.defensiveOnly !== true && !headquarters && typeof stats.barrage !== 'number' && profile.combat
-  const strength = headquarters ? (kessel ? 2 : 5) : typeof stats?.barrage === 'number' ? 1 :
+    stats.defensiveOnly !== true && !headquarters && !artillery && profile.combat
+  const strength = headquarters ? (kessel ? 2 : 5) : artillery ? 1 :
     typeof stats?.attack === 'number' ? stats.attack : 0
   return { ...profile, definition: definition.key, hex, printedRe, actionRating: rating, attackCapable,
-    strength, ...scorpionCombatSymbols(definition), formation: typeof formation === 'string' && formation ? formation : undefined, headquarters,
+    strength, artillery, ...scorpionCombatSymbols(definition), formation: typeof formation === 'string' && formation ? formation : undefined, headquarters,
     traceDrawMobility: headquarters?.mobility, stepsLost, fueled: false, organicTruck }
 }
 

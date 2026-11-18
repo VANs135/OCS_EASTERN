@@ -2,6 +2,7 @@ import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import { pickIndex, rollDie } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
+import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
@@ -10,6 +11,8 @@ import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
 import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
 import type { AssignAttrition } from './scorpion-attrition.ts'
+import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
+import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord } from './scorpion-barrage.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
@@ -46,6 +49,8 @@ export interface ScorpionInPlay extends ReinforcementState {
   supply: ScorpionSupplyWindow | null
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
+  barrage?: ScorpionBarrage | null
+  barrageHistory?: readonly ScorpionBarrageRecord[]
   combatTargets: readonly string[]
   combatAttackers: readonly string[]
 }
@@ -54,7 +59,7 @@ export type ScorpionSession = { kind: 'setup'; opening: ScorpionSetup } | Scorpi
 export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ScorpionGroundAction
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
-  | ScorpionPhaseAction | ScorpionReserveAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
+  | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies {
@@ -62,6 +67,7 @@ interface BoardPolicies {
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather'>
   supplyRail?: SupplyRailBoard
   combat?: ScorpionCombatBoard
+  barrage?: BarrageTable
 }
 
 export function createScorpionSession(data: ScorpionSetupData, assets: ScorpionSetupAssets, seed: number): ScorpionSessionRecord {
@@ -75,6 +81,9 @@ export function submitScorpionSession(
   return acceptCommand(record, seat, command, (state, actor, action): ScorpionSession => {
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
+    }
+    if (state.kind === 'playing' && state.barrage && action.type !== 'choose-barrage-terrain' && action.type !== 'assign-barrage-loss') {
+      throw new Error('Resolve the pending barrage first')
     }
     switch (action.type) {
       case 'base-aircraft':
@@ -103,7 +112,15 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') {
           throw new Error('Reserve action is unavailable')
         }
+        if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
         return applyScorpionReserve(state, actor, action, assets)
+      case 'declare-artillery-barrage':
+      case 'choose-barrage-terrain':
+      case 'assign-barrage-loss':
+        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.barrage) {
+          throw new Error('Artillery requires an active player turn and the OCS v4.3 Barrage Table')
+        }
+        return applyScorpionBarrage(state, actor, action, assets, board.barrage, board.combat?.hedgehogAt, board.supplyRail)
       case 'declare-combat':
       case 'defend-combat':
       case 'select-combat-rating':
@@ -123,6 +140,7 @@ export function submitScorpionSession(
       case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
+        if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
         return applyScorpionGroundAction(state, actor, action, assets, board)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
