@@ -33,6 +33,8 @@ import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-playe
 import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
+import { refitScorpionAircraft } from './scorpion-refit.ts'
+import type { RefitScorpionAircraft } from './scorpion-refit.ts'
 import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
 import { applyScorpionReserve, assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
@@ -51,6 +53,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   rng: RngState
   rerollHolder: Side | null
   airBases: readonly { hex: string; side: Side; level: number }[]
+  refittedAirbases?: readonly string[]
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
@@ -75,7 +78,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
-  | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture
+  | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -144,6 +147,9 @@ export function submitScorpionSession(
       case 'settle-capture':
         if (state.kind !== 'playing') throw new Error('There is no special capture to settle')
         return settleScorpionCapture(state, actor, action, assets)
+      case 'refit-aircraft':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':
@@ -264,5 +270,6 @@ function resolveReinforcements(
   }
   const barrageRecovery = actor === 'soviet' && action.type === 'complete-reinforcement' && state.barrageRecovery
     ? advanceScorpionBarrageRecovery(state.barrageRecovery) : state.barrageRecovery
-  return { ...state, ...result, rng, units, railControl, barrageRecovery }
+  return { ...state, ...result, rng, units, railControl, barrageRecovery,
+    refittedAirbases: action.type === 'complete-refit' ? [] : state.refittedAirbases }
 }

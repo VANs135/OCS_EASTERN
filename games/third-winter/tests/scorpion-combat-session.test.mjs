@@ -26,6 +26,7 @@ const fixture = (phase, units) => ({ revision: 0, receipts: [], state: { kind: '
     step: { kind: 'player-turn', first: 'soviet', retention: 'soviet' } },
   rng: createRngState(1), dumps: { 'soviet:hex:s10.01': { side: 'soviet', location: 'on-map', tokens: 10 } },
   moved: [], pieces: [], availableAlerts: [], railControl: {}, rerollHolder: 'soviet', airBases: [], combat: null,
+  arrivalsOnMap: [], placedAlerts: [], window: null,
   combatTargets: [], combatAttackers: [], arrival: { placed: [], mobilized: [], sovietVp: 0 }, victory: null,
 } })
 const command = (record, action) => ({ id: `battle-${record.revision}`, expectedRevision: record.revision, action })
@@ -40,6 +41,46 @@ const airfieldTable = (code) => ({
   columns: ['1 or less', '2', '3-4', '5-10', '11-20', '21-40', '41-80', '81+'],
   costs: [1, 1, 1, 1, 2, 4, 6, 8],
   matrix: Array.from({ length: 6 }, () => Array(8).fill(code)),
+})
+
+test('aircraft refit charges a reachable dump once per base and respects the active capacity in no-flight weather', () => {
+  const record = fixture('aircraft-refit', {})
+  record.state.turn.weather = { ground: 'thaw', flight: 'none' }
+  record.state.airBases = [{ side: 'soviet', hex: 's10.02', level: 1 }]
+  record.state.pieces = Array.from({ length: 6 }, (_, index) => ({
+    id: `plane-${index}`, side: 'soviet', kind: 'aircraft', location: { kind: 'hex', hex: 's10.02' },
+    active: index < 3, reduced: index === 3,
+  }))
+  const dumpId = 'soviet:hex:s10.01'
+  const action = { type: 'refit-aircraft', base: { kind: 'hex', hex: 's10.02', dumpId }, unitIds: ['plane-3', 'plane-4'] }
+  assert.throws(() => submit(record, 'axis', action), /phasing side/)
+  assert.throws(() => submit(record, 'soviet', { ...action, unitIds: [...action.unitIds, 'plane-5'] }), /capacity/)
+  const refitted = submit(record, 'soviet', action)
+  assert.equal(refitted.state.dumps[dumpId].tokens, 9)
+  assert.equal(refitted.state.pieces.filter((plane) => plane.active).length, 5)
+  assert.equal(refitted.state.pieces[3].reduced, true)
+  assert.throws(() => submit(refitted, 'soviet', { ...action, unitIds: ['plane-5'] }), /already refitted/)
+  assert.equal(submitScorpionSession(JSON.parse(JSON.stringify(refitted)), 'soviet', command(record, action), assets, board()).duplicate, true)
+  const reinforcement = submit(refitted, 'soviet', { type: 'complete-refit' }, { ...board(), reinforcements: () => ({}) })
+  assert.equal(reinforcement.state.cursor.phase, 'reinforcement')
+  assert.deepEqual(reinforcement.state.refittedAirbases, [])
+})
+
+test('enemy ZOC blocks on-map aircraft refit and the off-map box refits freely', () => {
+  const record = fixture('aircraft-refit', { enemy: unit('axis', 's10.03') })
+  record.state.airBases = [{ side: 'soviet', hex: 's10.02', level: 1 }]
+  record.state.pieces = [
+    { id: 'field', side: 'soviet', kind: 'aircraft', location: { kind: 'hex', hex: 's10.02' }, active: false },
+    { id: 'off-map', side: 'soviet', kind: 'aircraft', location: { kind: 'off-map-air' }, active: false },
+  ]
+  const field = { type: 'refit-aircraft', base: { kind: 'hex', hex: 's10.02', dumpId: 'soviet:hex:s10.01' }, unitIds: ['field'] }
+  assert.throws(() => submit(record, 'soviet', field), /unnegated enemy ZOC/)
+  const offMap = { type: 'refit-aircraft', base: { kind: 'off-map-air' }, unitIds: ['off-map'] }
+  assert.throws(() => submit(record, 'soviet', { ...offMap, unitIds: ['field'] }), /inactive friendly aircraft at this base/)
+  const refitted = submit(record, 'soviet', offMap)
+  assert.equal(refitted.state.pieces[1].active, true)
+  assert.equal(refitted.state.pieces[0].active, false)
+  assert.equal(refitted.state.dumps['soviet:hex:s10.01'].tokens, 10)
 })
 
 test('regular combat discloses each decision in order, updates the dead pile and permits advancement', () => {

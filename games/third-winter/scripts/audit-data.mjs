@@ -16,6 +16,7 @@ import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
+import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 
 const root = process.argv[2]
@@ -82,6 +83,7 @@ let opening
 if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalHexes.length === 0) {
   const assets = { map, catalog: { definitions, aliases } }
   const { before, started } = sampleScorpionOpening(setup, assets)
+  const refit = sampleScorpionRefit(started, assets)
   let record = started
   // First-turn source entries printed in Scorpion p.55. The general front-line control module is separate.
   const reinforcements = () => ({ catalog: playableArrivals,
@@ -123,6 +125,8 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'reserve-stack-move', path: [reserveMove.to], counters: reserveMove.unitIds.map((id) => ({ unitId: id })) })
   opening = {
     startPhase: started.state.cursor.phase,
+    sampleRefit: { airBase: refit.airBase, tokensSpent: refit.spent,
+      offMapActive: refit.after.state.pieces.find(({ id }) => id === refit.offMap)?.active },
     startGroundCounters: Object.keys(started.state.units).length,
     airUnitsPlaced: started.state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.location.kind !== 'air-setup').length,
     setupAlerts: before.state.opening.drawnAlerts.length,

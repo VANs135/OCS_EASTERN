@@ -18,7 +18,8 @@ export function usableDump(state: Readonly<ScorpionInPlay>, side: Side, id: stri
 }
 
 export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, map: ScorpionMap, railroad?: SupplyRailBoard) {
-  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, railroad))
+  const position = scorpionSupplyPosition(state, map, side, railroad)
+  const network = scorpionSupplyNetwork(map, position)
   const dumps = { ...state.dumps }
   const canUse = (unit: DeployedCounter, hex: string) => network.canUseDump(unit.hex, hex, unit.traceDrawMobility)
   const available = (units: readonly DeployedCounter[]): SupplyPayment[] => {
@@ -36,7 +37,7 @@ export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, m
       dumps[row.dumpId] = { ...dump, tokens: dump.tokens - row.tokens }
     }
   }
-  return { dumps, canUse, available, spend, network }
+  return { dumps, canUse, available, spend, network, position }
 }
 
 export function totalTokens(payments: readonly SupplyPayment[]) {

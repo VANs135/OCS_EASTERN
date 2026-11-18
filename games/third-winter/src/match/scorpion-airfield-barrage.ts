@@ -39,7 +39,7 @@ export function settleScorpionAirfieldBarrage(state: Readonly<ScorpionInPlay>, b
     ? { ...base, level: Math.max(1, base.level - result.damage) } : base)
   const airfield = airBases.find((base) => base.hex === barrage.target && base.side === barrage.defender)!
   const atBase = { side: barrage.defender, hex: barrage.target }
-  const excess = pieces.filter((unit) => activeAt(unit, atBase)).length - (4 + airfield.level)
+  const excess = pieces.filter((unit) => activeAt(unit, atBase)).length - airbaseActiveCapacity(airfield.level)
   const { turn, phasing, phase } = state.cursor
   return { ...state, rng, pieces, airBases, airfieldCapacityChoice: excess > 0 ? { ...atBase, excess } : null,
     barrageHistory: [...(state.barrageHistory ?? []),
@@ -62,3 +62,4 @@ function activeAt(unit: ScorpionInPlay['pieces'][number], base: { side: Side; he
   return unit.kind === 'aircraft' && unit.side === base.side && unit.active &&
     unit.location.kind === 'hex' && unit.location.hex === base.hex
 }
+import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'

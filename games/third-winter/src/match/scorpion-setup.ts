@@ -112,7 +112,7 @@ function baseAircraft(
   }
   // OCS Set Up Notes E and 14.2a. Both full and reduced aircraft begin Active.
   const atBase = pieces.filter(({ id, location }) => id !== aircraft.id && location.kind === 'hex' && location.hex === hex)
-  if (atBase.length >= 4 + base.level) throw new Error('Active aircraft would overstack the air base')
+  if (atBase.length >= airbaseActiveCapacity(base.level)) throw new Error('Active aircraft would overstack the air base')
   return pieces.map((piece) => piece.id === aircraft.id ? { ...piece, location: { kind: 'hex', hex } } : piece)
 }
 
@@ -140,3 +140,4 @@ function chooseLoss(state: Readonly<ScorpionSetup>, id: string): ScorpionSetup {
   }
   return { ...state, units, lossChoices: state.lossChoices.map((item) => item === choice ? { ...item, selected: id } : item) }
 }
+import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'

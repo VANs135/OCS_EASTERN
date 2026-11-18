@@ -67,7 +67,8 @@ export function scorpionBoxFrame(
             (kind === 'off-map-air' && (piece.kind !== 'aircraft' || definition?.kind !== 'aircraft'))) {
             throw new Error(`Invalid counter in ${label}: ${piece.id}`)
           }
-          return { id: piece.id, asset: face.asset, label: source.name }
+          return { id: piece.id, asset: face.asset, label: source.name,
+            ...(kind === 'off-map-air' && piece.active === false ? { badges: [{ text: '停', label: '非激活' }] } : {}) }
         })
       return { cell, label, counters, hidden }
     })

@@ -17,6 +17,7 @@ import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorp
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
+import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 
 const [root, ...options] = process.argv.slice(2)
 if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
@@ -134,6 +135,10 @@ const barragePath = process.env.OCS_V43_BARRAGE
     sessionFrame('苏军预备队从 s2.16 移至 s3.16', opening.state)
   }
 }
+
+const refit = sampleScorpionRefit(started, { map: groundMap, catalog })
+sessionFrame('整备演示 · 飞机处于非激活', refit.before.state)
+sessionFrame(refit.airBase ? '整备完成 · 图上机场消耗 1T，地图外免费' : '整备完成 · 地图外空军盒免费', refit.after.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())
