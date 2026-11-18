@@ -53,7 +53,8 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
     const face = unit.moveMode ? source?.faces.move ?? (!unit.combat ? source?.faces.combat : undefined) : source?.faces.combat
     const asset = unit.extender?.asset ?? face?.asset
     if (!source || !asset) throw new Error(`Missing artwork for ground counter ${id}`)
-    push({ id, hex: unit.hex, asset, label: unit.extender ? `延补队 ${unit.extender.range} MP` : source.name,
+    const label = unit.extender ? `延补队 ${unit.extender.range} MP` : unit.remnantOf ? '德军残部营' : source.name
+    push({ id, hex: unit.hex, asset, label,
       badges: groundBadges(unit, catalog, state.kind === 'playing' && Boolean(hasScorpionBulkFuel(state, id))) })
   }
   for (const unit of board.pieces) {

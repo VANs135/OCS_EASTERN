@@ -38,6 +38,7 @@ export interface DeployedCounter extends GroundProfile {
   internalStocks?: InternalStocks
   artillery?: ArtilleryFace
   stepsLost: number
+  remnantOf?: string
   fueled: boolean
   organicTruck?: 'full' | 'empty'
   transportCargoTokens?: number

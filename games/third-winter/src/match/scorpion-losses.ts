@@ -20,6 +20,8 @@ export function takeScorpionSteps(state: Readonly<ScorpionInPlay>, allocation: R
       continue
     }
     delete units[id]
+    // TTW 2.4d. Destroyed remnants immediately return to the available mix.
+    if (unit.remnantOf) continue
     const definition = catalog.definitions.get(unit.definition)
     if (definition?.source.abilities?.includes('alert_battalion')) {
       availableAlerts.push({ id, definition: unit.definition })

@@ -27,6 +27,7 @@ import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionExtender, sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
 import { sampleScorpionRetreatCapture } from './scorpion-retreat-example.mjs'
+import { sampleScorpionRemnant } from './scorpion-remnant-example.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -180,6 +181,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     const { origin, airfield, destination, displaced } = sampleScorpionRetreatCapture(started, assets, board)
     opening.controlledRetreatCapture = { origin, airfield, destination, displaced }
     opening.controlledDefenderStocks = sampleDefenderStocks(record, assets, board)
+    opening.controlledRemnant = sampleScorpionRemnant(record, assets, board).report
     opening.sampleOverrun = sampleBattle(record.state, map, submit, () => record.state, true)
     record = beforeOverrun
   }

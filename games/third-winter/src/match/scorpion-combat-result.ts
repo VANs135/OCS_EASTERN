@@ -6,6 +6,7 @@ import type { ScorpionCombat } from './scorpion-combat.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { finishScorpionOverrun } from './scorpion-overrun.ts'
+import type { ScorpionRemnantPlacement } from './scorpion-remnants.ts'
 import { assertScorpionStacking, resumeScorpionCombatRetreat, retreatScorpionCombat } from './scorpion-retreat.ts'
 import type { ContinueCombatRetreat, RetreatPlan } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -13,7 +14,7 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 export type ResolveCombat = { type: 'resolve-combat'; lossOrder: readonly string[]; optionLosses: number;
-  ignoreDefenderOption?: boolean; retreats: readonly RetreatPlan[] }
+  ignoreDefenderOption?: boolean; retreats: readonly RetreatPlan[]; remnants?: readonly ScorpionRemnantPlacement[] }
 
 export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Side, action: ResolveCombat,
   assets: ScorpionSetupAssets, rail?: SupplyRailBoard): ScorpionInPlay {
@@ -34,7 +35,7 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
     action.optionLosses > Math.min(options, available - mandatory)) throw new Error('Invalid combat option loss allocation')
   const losses = mandatory + action.optionLosses
   const allocations = validateCombatLossOrder(state, ids, leader, action.lossOrder, losses)
-  let settled = applyScorpionCombatLosses(state, allocations, assets, rail)
+  let settled = applyScorpionCombatLosses(state, allocations, assets, rail, action.remnants ?? [])
   if (settled.victory) return { ...settled, combat: null, overrunMarch: null }
   const unmet = options - action.optionLosses
   const retreat = available > losses ? unmet : 0

@@ -17,10 +17,11 @@ export interface RetreatPlan {
   path: readonly string[]
   /** Unit selected for any loss required on entry to a particular step (zero based). */
   zocLosses?: Readonly<Record<number, string>>
+  remnantHexes?: Readonly<Record<number, string>>
 }
 
 type RetreatRoute = RetreatPlan & { origin: string }
-type RetreatRouteSuffix = Pick<RetreatPlan, 'path' | 'zocLosses'>
+type RetreatRouteSuffix = Pick<RetreatPlan, 'path' | 'zocLosses' | 'remnantHexes'>
 
 export interface ScorpionCombatRetreat {
   side: Side
@@ -62,17 +63,23 @@ export function resumeScorpionCombatRetreat(state: Readonly<ScorpionInPlay>, pro
     const change = changes[index - nextRoute]
     if (!change) return route
     const prefix = index === nextRoute ? nextStep : 0
-    const zocLosses = Object.fromEntries(Object.entries(route.zocLosses ?? {}).filter(([step]) => Number(step) < prefix))
-    for (const [step, id] of Object.entries(change.zocLosses ?? {})) {
-      const offset = Number(step)
-      if (!Number.isSafeInteger(offset) || offset < 0 || offset >= change.path.length) throw new Error('Choose a loss on the remaining retreat path')
-      zocLosses[prefix + offset] = id
-    }
-    const updatedRoute = { ...route, path: [...route.path.slice(0, prefix), ...change.path.map(scorpionHexId)], zocLosses }
+    const updatedRoute = { ...route, path: [...route.path.slice(0, prefix), ...change.path.map(scorpionHexId)],
+      zocLosses: replaceRetreatChoices(route.zocLosses, change.zocLosses, prefix, change.path.length),
+      remnantHexes: replaceRetreatChoices(route.remnantHexes, change.remnantHexes, prefix, change.path.length) }
     validateRoute(updatedRoute, side, distance, combat, assets.map)
     return updatedRoute
   })
   return followRetreat(state, { ...progress, routes: updated }, combat, assets, rail)
+}
+
+function replaceRetreatChoices(previous: RetreatPlan['zocLosses'], proposed: RetreatPlan['zocLosses'], prefix: number, length: number) {
+  const kept = Object.entries(previous ?? {}).filter(([step]) => Number(step) < prefix)
+  const replacement = Object.entries(proposed ?? {}).map(([step, choice]) => {
+    const offset = Number(step)
+    if (!/^(0|[1-9]\d*)$/.test(step) || offset >= length) throw new Error('Choose a loss on the remaining retreat path')
+    return [prefix + offset, choice] as const
+  })
+  return Object.fromEntries([...kept, ...replacement])
 }
 
 function validateRoute(route: RetreatRoute, side: Side, distance: number, combat: ScorpionCombat, map: ScorpionSetupAssets['map']) {
@@ -93,6 +100,9 @@ function validateRoute(route: RetreatRoute, side: Side, distance: number, combat
   }
   if (Object.keys(route.zocLosses ?? {}).some((step) => !/^(0|[1-9]\d*)$/.test(step) || Number(step) >= route.path.length)) {
     throw new Error('Choose a loss on the retreat path')
+  }
+  if (Object.keys(route.remnantHexes ?? {}).some((step) => !Object.hasOwn(route.zocLosses ?? {}, step))) {
+    throw new Error('A retreating remnant requires a loss at that step')
   }
 }
 
@@ -160,7 +170,9 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
   }
   // OCS 9.12f. The 9.14 entry uses movement timing, even though the retreat follows combat.
   const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, rail)
-  return loss ? applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, rail) : captured
+  const remnantHex = route.remnantHexes?.[index]
+  return loss ? applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, rail,
+    remnantHex === undefined ? [] : [{ divisionId: loss, hex: remnantHex }]) : captured
 }
 
 export function assertScorpionStacking(state: Readonly<ScorpionInPlay>, hex: string) {

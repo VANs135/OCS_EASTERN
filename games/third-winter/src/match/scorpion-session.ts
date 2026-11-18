@@ -61,6 +61,8 @@ import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
 import { applyScorpionReserve, assertScorpionMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
+import { rebuildScorpionRemnant } from './scorpion-remnants.ts'
+import type { RebuildScorpionRemnant } from './scorpion-remnants.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
 import { recoverScorpionStocks, settleScorpionStockRecovery } from './scorpion-stock-recovery.ts'
@@ -114,7 +116,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
-  | ContinueCombatRetreat
+  | ContinueCombatRetreat | RebuildScorpionRemnant
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
@@ -216,6 +218,9 @@ export function submitScorpionSession(
       case 'refit-aircraft':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
+      case 'rebuild-remnant':
+        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Remnant rebuilding is unavailable')
+        return rebuildScorpionRemnant(state, actor, action, assets, board.supplyRail)
       case 'launch-air-mission':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return launchScorpionAirMission(state, actor, action, assets, airBoard)
