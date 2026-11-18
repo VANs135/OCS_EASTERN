@@ -10,6 +10,7 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { flipScorpionExtender, scorpionExtenderDisplacements } from './scorpion-extender.ts'
 import type { ExtenderDisplacement } from './scorpion-extender.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import { rollScorpionTransportCapture, settleScorpionTransports } from './scorpion-transport-capture.ts'
 import type { CapturedTransportGroup, TransportCaptureChoice } from './scorpion-transport-capture.ts'
 
@@ -63,7 +64,7 @@ export function resolveScorpionMoveEntries(state: Readonly<ScorpionInPlay>, side
   ids: readonly string[], assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
   let moved = state
   for (const [index, hex] of hexes.entries()) {
-    moved = resolveScorpionEntry(moved, side, hex, ids, assets, false, railroad)
+    moved = resolveScorpionEntry(recordScorpionGroundControl(moved, side, [hex]), side, hex, ids, assets, false, railroad)
     if (moved.capture && index !== hexes.length - 1) throw new Error('End this move at the pending capture hex')
   }
   return moved

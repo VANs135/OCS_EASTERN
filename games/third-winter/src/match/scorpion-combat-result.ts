@@ -4,6 +4,7 @@ import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
+import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import { finishScorpionOverrun } from './scorpion-overrun.ts'
 import { assertScorpionStacking, retreatScorpionCombat } from './scorpion-retreat.ts'
 import type { RetreatPlan } from './scorpion-retreat.ts'
@@ -78,8 +79,7 @@ export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
     if (!unit || !combat.attackers.includes(id)) throw new Error('Only surviving attackers may advance')
     units[id] = { ...unit, hex: combat.target }
   }
-  const advanced = { ...state, units, combat: null, railControl: ids.length
-    ? { ...state.railControl, [combat.target]: side } : state.railControl }
+  const advanced = recordScorpionGroundControl({ ...state, units, combat: null }, side, ids.length ? [combat.target] : [])
   assertScorpionStacking(advanced, combat.target)
   return ids.length ? resolveScorpionEntry(advanced, side, combat.target, ids, assets, true, railroad) : advanced
 }

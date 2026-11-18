@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionControlLookup } from '../src/match/scorpion-hex-control.ts'
+import { scorpionSupplySources } from '../src/ttw/scorpion/initial-map.ts'
 
 const units = {
   'setup:axis': { side: 'axis', hex: 's1.09', printedRe: 4, stepsLost: 0 },
@@ -56,4 +58,26 @@ test('the level-2 airbase admits six active aircraft and the off-map box stays a
   assert.throws(() => submit(record, 'axis', { type: 'base-aircraft', id: '6', base: { kind: 'hex', hex: 's18.07' } }), /friendly air base/)
   record = submit(record, 'axis', { type: 'base-aircraft', id: '6', base: { kind: 'off-map-air' } })
   assert.equal(record.state.opening.pieces.at(-1).location.kind, 'off-map-air')
+})
+
+test('confirmed opening records both sides of the front; legacy saves retain later entries', () => {
+  const hexes = new Map()
+  for (let col = 1; col <= 22; col++) for (let row = 1; row <= 17; row++) {
+    hexes.set(`s${col}.${String(row).padStart(2, '0')}`, {})
+  }
+  const map = { hexes }
+  const record = fixture([])
+  record.state.opening.seat = 'soviet'
+  record.state.opening.lossChoices = []
+  const action = { type: 'confirm-setup' }
+  const opened = submitScorpionSession(record, 'soviet', command(record, action), { ...assets, map }).record.state
+  assert.equal(Object.keys(opened.railControl).length, hexes.size)
+  assert.equal(opened.railControl['s14.07'], 'axis')
+  assert.equal(opened.railControl['s14.16'], 'soviet')
+  for (const [side, sources] of Object.entries(scorpionSupplySources)) {
+    for (const hex of sources) assert.equal(opened.railControl[hex], side)
+  }
+  const lookup = scorpionControlLookup({ ...opened, railControl: { 's14.07': 'soviet' } }, map)
+  assert.equal(lookup('s14.07'), 'soviet')
+  assert.equal(lookup('s14.08'), 'axis')
 })

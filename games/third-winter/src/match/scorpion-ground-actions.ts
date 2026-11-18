@@ -85,9 +85,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
       throw new Error('A Reserve cannot finish its move in a hex with a hedgehog')
     }
   }
-  if (!counters.some(({ unitId }) => moved.units[unitId]!.combat)) return moved
-  const occupied = Object.fromEntries(entered.map((hex) => [hex, side]))
-  return { ...moved, railControl: { ...moved.railControl, ...occupied } }
+  return moved
 }
 
 export function scorpionMovementRules(state: Readonly<ScorpionInPlay>, side: Side, map: MovementBoard['map'], board: GroundPolicies) {

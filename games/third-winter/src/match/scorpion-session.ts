@@ -30,6 +30,8 @@ import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-
 import type { ResolveCombat } from './scorpion-combat-result.ts'
 import { applyScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { ScorpionDropPlan, ScorpionDropPlanAction } from './scorpion-drop-plan.ts'
+import { recordScorpionGroundControl, scorpionControlLookup } from './scorpion-hex-control.ts'
+import { scorpionOpeningFrontControl } from '../ttw/scorpion/initial-map.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundActivity } from './scorpion-ground-activity.ts'
@@ -86,6 +88,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   formationFuel?: readonly FormationFuel[]
   headquartersFuel?: readonly HeadquartersFuel[]
   supply: ScorpionSupplyWindow | null
+  /** Saved control of all ground hexes. The original field name is retained for save compatibility. */
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
   capture?: ScorpionCaptureWindow | null
@@ -169,7 +172,7 @@ export function submitScorpionSession(
       case 'confirm-setup': {
         if (state.kind !== 'setup') throw new Error('Scorpion deployment is closed')
         const opening = applyScorpionSetup(state.opening, actor, action, assets)
-        return opening ? { kind: 'setup', opening } : startMatch(state.opening)
+        return opening ? { kind: 'setup', opening } : startMatch(state.opening, assets.map)
       }
       case 'complete-reaction':
       case 'complete-combat':
@@ -307,10 +310,10 @@ export function scorpionFirstTurn(): ScorpionTurn {
   return openScorpionTurn(1, weather, 0, 'soviet', 0, 'soviet')
 }
 
-function startMatch(opening: ScorpionSetup): ScorpionInPlay {
+function startMatch(opening: ScorpionSetup, map: ScorpionSetupAssets['map']): ScorpionInPlay {
   const turn = scorpionFirstTurn()
-  const railControl = Object.fromEntries(Object.values(opening.units).filter((unit) => unit.combat)
-    .map(({ side, hex }) => [hex, side]))
+  const railControl = { ...scorpionOpeningFrontControl(map),
+    ...Object.fromEntries(Object.values(opening.units).map(({ side, hex }) => [hex, side])) }
   return { kind: 'playing', turn, cursor: startScorpionPlayerTurns(turn), rng: opening.rng,
     rerollHolder: 'soviet', airBases: scorpionOpeningAirBases, units: opening.units, pieces: opening.pieces,
     ...(opening.dropPlan ? { dropPlan: opening.dropPlan } : {}),
@@ -324,7 +327,8 @@ function resolveReinforcements(
   { catalog, map }: ScorpionSetupAssets, board: ReinforcementBoard,
 ): ScorpionInPlay {
   let rng = state.rng
-  const result = applyScorpionReinforcement(state, actor, action, board, () => {
+  const controlOf = scorpionControlLookup(state, map, board.controlOf)
+  const result = applyScorpionReinforcement(state, actor, action, { ...board, controlOf }, () => {
     const draw = rollDie(rng)
     rng = draw.rng
     return draw.value
@@ -334,7 +338,6 @@ function resolveReinforcements(
     return draw.value
   })
   let units = state.units
-  let railControl = state.railControl
   const arrival = result.arrivalsOnMap[state.arrivalsOnMap.length]
   const alert = result.placedAlerts[state.placedAlerts.length]
   const placed = arrival ? { id: arrival.arrival.id, definition: arrival.arrival.definition, hex: arrival.hex,
@@ -347,10 +350,10 @@ function resolveReinforcements(
     }
     const counter = deployScorpionGroundCounter(definition, placed.hex, placed.stepsLost, placed.organicTruck)
     units = { ...units, [placed.id]: counter }
-    if (counter.combat) railControl = { ...railControl, [placed.hex]: actor }
   }
   const barrageRecovery = actor === 'soviet' && action.type === 'complete-reinforcement' && state.barrageRecovery
     ? advanceScorpionBarrageRecovery(state.barrageRecovery) : state.barrageRecovery
-  return { ...state, ...result, rng, units, railControl, barrageRecovery,
+  const updated = { ...state, ...result, rng, units, barrageRecovery,
     refittedAirbases: action.type === 'complete-refit' ? [] : state.refittedAirbases }
+  return placed ? recordScorpionGroundControl(updated, actor, [placed.hex]) : updated
 }

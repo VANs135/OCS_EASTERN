@@ -3,6 +3,7 @@ import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionInitialRailGauge, scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import type { TracePosition } from '../ttw/scorpion/supply-trace.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
+import { scorpionControlLookup } from './scorpion-hex-control.ts'
 
 export interface SupplyRailBoard {
   controlOf?: (hex: string) => Side | null
@@ -30,8 +31,8 @@ export function scorpionSupplyPosition(
   const headquarters = friendly.flatMap(([id, unit]) => unit.headquarters ? [{ id, hex: unit.hex, ...unit.headquarters }] : [])
   const extenders = counters.flatMap(([, unit]) => unit.side === side && unit.extender
     ? [{ hex: unit.hex, range: unit.extender.range, mobility: unit.mobility }] : [])
-  const controlled = new Set([...map.hexes.keys()].filter((hex) => !enemyCombat.has(hex) &&
-    (anchors.has(hex) || (railroad.controlOf?.(hex) ?? state.railControl?.[hex]) === side)))
+  const controller = scorpionControlLookup(state, map, railroad.controlOf)
+  const controlled = new Set([...map.hexes.keys()].filter((hex) => !enemyCombat.has(hex) && controller(hex) === side))
   return { side, sources: new Set(scorpionSupplySources[side]), controlled, enemyCombat, unnegatedEnemyZoc,
     railGauge: railroad.railGauge ?? scorpionInitialRailGauge(map),
     detrainableFacilities: new Set(friendly.filter(([, unit]) => unit.headquarters &&

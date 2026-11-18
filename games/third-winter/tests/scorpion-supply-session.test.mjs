@@ -7,6 +7,7 @@ import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
+import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 
 const hexes = ['s1.03', 's1.04', 's10.01', 's10.02', 's15.08', 's15.09']
 const map = scorpionMap(hexes.map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -312,4 +313,32 @@ test('Extender chains can connect a forward rail line to supply without creating
   assert.ok(connected.trace('s10.04').some(({ source }) => source === 's10.04'))
   assert.equal(connected.canUseDump('s10.04', 's1.04'), false)
   assert.deepEqual(scorpionSupplyNetwork(networkMap, { ...position, sources: new Set() }).trace('s10.04'), [])
+})
+
+test('the last ground unit across an empty detraining hex determines rail trace, even after leaving', () => {
+  const town = 's1.04'
+  const ids = ['s1.03', town, 's1.05', 's2.04', 's2.03']
+  const map = scorpionMap(ids.map((hex_id) => ({ hex_id, on_map: true,
+    terrains_present: [hex_id === town ? 'Village' : 'Open'], ...(hex_id === town ? { city_level: 'Village' } : {}) })),
+  ids.filter((hex) => hex !== town).map((hex_b) => ({ hex_a: town, hex_b, edge_terrain: 'none', road_present: false,
+    rail_present: hex_b === 's1.03', ...(hex_b === 's1.03' ? { rail_class: 'single' } : {}), bridge: false })))
+  const setup = { ...assets, map }
+  const rail = { railGauge: () => 'axis', controlOf: () => 'soviet' }
+  const first = fixture({ first: ordinaryTruck('s1.03', 1), second: ordinaryTruck('s2.04', 1, 0, 'soviet') })
+  first.state.railControl[town] = 'soviet'
+  const traceFrom = (record) => scorpionSupplyNetwork(map, scorpionSupplyPosition(record.state, map, 'axis', rail))
+    .trace('s1.05').map(({ source }) => source)
+  assert.ok(!traceFrom(first).includes(town))
+  const march = { type: 'ground-move', unitId: 'first', path: ['S01.04', 's1.05'] }
+  const passed = submitScorpionSession(first, 'axis', command(first, march), setup, { supplyRail: rail }).record
+  assert.equal(passed.state.railControl[town], 'axis')
+  assert.ok(traceFrom(passed).includes(town))
+  const restored = JSON.parse(JSON.stringify(passed))
+  restored.state.cursor.phasing = 'soviet'
+  restored.state.moved = []
+  const reply = { type: 'ground-move', unitId: 'second', path: [town, 's2.03'] }
+  const retaken = submitScorpionSession(restored, 'soviet', command(restored, reply), setup, { supplyRail: rail }).record
+  assert.equal(retaken.state.railControl[town], 'soviet')
+  assert.equal(retaken.state.railControl['s1.05'], 'axis')
+  assert.ok(!traceFrom(retaken).includes(town))
 })

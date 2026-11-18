@@ -123,6 +123,7 @@ test('the defending player can retreat the unresolved option along a legal hex p
   assert.throws(() => submit(record, 'axis', plan('s10.01'), option), /enemy at combat start/)
   record = submit(record, 'axis', plan('s10.03'), option)
   assert.equal(record.state.units.d.hex, 's10.03')
+  assert.equal(record.state.railControl['s10.03'], 'axis')
   assert.equal(record.state.combat.step, 'advance')
 })
 

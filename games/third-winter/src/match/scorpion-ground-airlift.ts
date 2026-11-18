@@ -3,6 +3,7 @@ import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { scorpionAirliftGroundLimit } from './scorpion-movement.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -55,9 +56,9 @@ export function unloadScorpionGroundAirlift(state: Readonly<ScorpionInPlay>, sid
   const units = { ...state.units }
   for (const id of [...delivered, ...lost]) units[id] = { ...units[id]!, hex }
   const activity = scorpionGroundActivity(state)
-  const landed = { ...state, units, railControl: delivered.length ? { ...state.railControl, [hex]: side } : state.railControl,
+  const landed = recordScorpionGroundControl({ ...state, units,
     moved: state.moved.filter((id) => !delivered.includes(id)),
-    groundActivity: { ...activity, airlifted: [...new Set([...activity.airlifted, ...delivered])] } }
+    groundActivity: { ...activity, airlifted: [...new Set([...activity.airlifted, ...delivered])] } }, side, delivered.length ? [hex] : [])
   return lost.length ? applyScorpionCombatLosses(landed, new Map(lost.map((id) => [id, remainingSteps(units[id]!)])), assets, railroad)
     : landed
 }

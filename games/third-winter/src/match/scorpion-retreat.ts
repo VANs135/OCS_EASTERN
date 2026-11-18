@@ -4,6 +4,7 @@ import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
+import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -78,7 +79,7 @@ function takeRoute(state: Readonly<ScorpionInPlay>, side: Side, involved: readon
         units[id] = { ...unit, disorganized: true }
       }
     }
-    settled = { ...settled, units }
+    settled = recordScorpionGroundControl({ ...settled, units }, side, [to])
     if (enteredZoc && dg.length) {
       const loss = plan.zocLosses?.[index]
       if (!loss || !dg.includes(loss)) throw new Error('Choose a DG retreating unit to lose one step in enemy ZOC')

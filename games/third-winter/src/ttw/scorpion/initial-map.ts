@@ -14,6 +14,20 @@ export const scorpionSovietSources = [
 
 export const scorpionSupplySources = { axis: scorpionAxisSources, soviet: scorpionSovietSources } as const
 
+// Opening adjudication from the opposing setup positions in TTW Scenarios pp.54–55.
+// Entries run west to east, starting at s1. Axis controls through that row, south of the line.
+// Columns beyond the eastern Axis line are Soviet. This is separate from printed rail gauges.
+const axisNorthRow = [10, 10, 11, 11, 13, 13, 14, 14, 14, 14, 14, 14, 15, 15, 15, 14, 13] as const
+
+export function scorpionOpeningFrontControl(map: ScorpionMap | undefined): Readonly<Record<string, Side>> {
+  // Small test maps and position excerpts do not carry the complete scenario's front.
+  if (map?.hexes.size !== 22 * 17 || !map.hexes.has('s1.01') || !map.hexes.has('s22.17')) return {}
+  return Object.fromEntries([...map.hexes.keys()].map((hex) => {
+    const [col, row] = hex.slice(1).split('.').map(Number) as [number, number]
+    return [hex, row <= (axisNorthRow[col - 1] ?? 0) ? 'axis' : 'soviet']
+  }))
+}
+
 // TTW Scenarios p.53. The two branches from s22.13 end at s21.13 and s21.09.
 const sovietRails = [
   ['s22.13', 's22.12'],
