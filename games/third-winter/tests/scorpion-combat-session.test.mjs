@@ -435,6 +435,73 @@ test('attackers can mix map supply and internal stocks across counters, and part
   assert.equal(paid.state.units.division.internalStocks, 'exhausted')
 })
 
+function openDefense(defenders, tokens = 0) {
+  const record = fixture('combat', { attacker: unit('soviet', 's10.01', { strength: 14 }), ...defenders })
+  if (tokens) record.state.dumps['axis:hex:s10.02'] = { side: 'axis', location: 'on-map', tokens }
+  return submit(record, 'soviet', { type: 'declare-combat', target: 's10.02', attackers: ['attacker'],
+    payments: [{ unitId: 'attacker', dumpId: 'soviet:hex:s10.01', tokens: 1 }] })
+}
+
+test('two 1 RE defenders cannot partly pay a 2T stack cost, and neither wastes the insufficient 1T', () => {
+  const target = 's10.02'
+  const start = openDefense({ first: unit('axis', target), second: unit('axis', target, { outOfSupply: true }) }, 1)
+  const dumpId = `axis:hex:${target}`
+  const action = { type: 'defend-combat', payments: [{ dumpId, tokens: 1 }] }
+  assert.throws(() => submit(start, 'axis', action), /full defending stack cost/)
+  assert.throws(() => submit(start, 'axis', { ...action, internalUnitIds: ['second'] }), /full defending stack cost/)
+  assert.equal(start.state.dumps[dumpId].tokens, 1)
+  const both = submit(start, 'axis', { type: 'defend-combat', payments: [], internalUnitIds: ['first', 'second'] })
+  assert.equal(both.state.units.first.internalStocks, 'low')
+  assert.equal(both.state.units.second.internalStocks, 'low')
+  assert.equal(both.state.dumps[dumpId].tokens, 1)
+  const onlyFirst = submit(start, 'axis', { type: 'defend-combat', payments: [], internalUnitIds: ['first'] })
+  let partial = JSON.parse(JSON.stringify(onlyFirst))
+  partial = submit(partial, 'soviet', { type: 'select-combat-rating', unitId: 'attacker' })
+  partial = submit(partial, 'axis', { type: 'select-combat-rating', unitId: 'first' })
+  const resolved = submit(partial, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } })
+  // 14 attack vs. 4 + 1 defense (the second defender withheld combat supply and is out of trace supply).
+  assert.equal(resolved.state.combat.roll.initialColumn, columns.indexOf('3:1'))
+})
+
+test('defensive internal supply wastes the insufficient regular draw of a multi-step unit but can leave organic cargo', () => {
+  const target = 's10.02'
+  const dumpId = `axis:hex:${target}`
+  const division = unit('axis', target, { printedRe: 2, internalStocks: 'low', formation: 'panzer' })
+  const truck = unit('axis', target, { combat: false, organicTruck: 'full', formation: 'panzer' })
+  const limited = openDefense({ division, truck }, 1)
+  const stocks = { type: 'defend-combat', payments: [], internalUnitIds: ['division'] }
+  const paid = submit(limited, 'axis', stocks)
+  assert.equal(paid.state.units.division.internalStocks, 'exhausted')
+  assert.equal(paid.state.dumps[dumpId].tokens, 0)
+  assert.equal(paid.state.units.truck.transportCargoTokens, undefined)
+  limited.state.dumps[dumpId].tokens = 2
+  assert.throws(() => submit(limited, 'axis', stocks), /required on-map/)
+  const withheld = submit(limited, 'axis', { ...stocks, internalUnitIds: [] })
+  assert.equal(withheld.state.dumps[dumpId].tokens, 2)
+  assert.equal(withheld.state.units.division.internalStocks, 'low')
+})
+
+test('two organic trucks can supply different defenders in the same combat without supplying other formations', () => {
+  const target = 's10.02'
+  const defender = (formation) => unit('axis', target, { formation })
+  const truck = (formation) => unit('axis', target, { combat: false, organicTruck: 'full', formation })
+  const record = openDefense({ p1: defender('one'), p2: defender('two'), truck1: truck('one'), truck2: truck('two') })
+  const action = { type: 'defend-combat', payments: [{ dumpId: 'truck1', tokens: 1 }, { dumpId: 'truck2', tokens: 1 }] }
+  assert.throws(() => submit(record, 'axis', { ...action, payments: [{ dumpId: 'truck1', tokens: 2 }] }), /Each defender/)
+  const supplied = submit(record, 'axis', action)
+  assert.equal(supplied.state.combat.defenseSupplied, true)
+  assert.equal(supplied.state.units.truck1.transportCargoTokens, 3)
+  assert.equal(supplied.state.units.truck2.transportCargoTokens, 3)
+  assert.deepEqual(supplied.state.combat.defenseInternalUnits, [])
+  const dumpId = `axis:hex:${target}`
+  record.state.dumps[dumpId] = { side: 'axis', location: 'on-map', tokens: 1 }
+  const mixed = submit(record, 'axis', { ...action, payments: [{ dumpId, tokens: 1 }, { dumpId: 'truck1', tokens: 1 }] })
+  assert.equal(mixed.state.combat.defenseSupplied, true)
+  assert.equal(mixed.state.dumps[dumpId].tokens, 0)
+  assert.equal(mixed.state.units.truck1.transportCargoTokens, 3)
+  assert.equal(mixed.state.units.truck2.transportCargoTokens, undefined)
+})
+
 test('only the defender spending its own internal stocks defends at supplied strength', () => {
   let record = fixture('combat', { attacker: unit('soviet', 's10.01', { strength: 11 }),
     ready: unit('axis', 's10.02'), exhausted: unit('axis', 's10.02', { internalStocks: 'exhausted' }) })

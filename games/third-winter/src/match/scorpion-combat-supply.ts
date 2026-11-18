@@ -34,17 +34,34 @@ export function defendWithSupply(state: Readonly<ScorpionInPlay>, ledger: Paymen
   payments: readonly SupplyPayment[], internal: readonly string[]) {
   requireParticipants(defenders, internal)
   const stack = defenders.map((id) => state.units[id]!)
-  const cost = stack.reduce((total, unit) => total + unit.printedRe - unit.stepsLost, 0) <= 1 ? 1 : 2
-  const supplied = payments.length > 0
-  if (supplied && (totalTokens(payments) !== cost || internal.length)) {
-    throw new Error('Pay the defensive stack cost or choose individual internal stocks')
+  const cost = defensiveSupplyCost(stack)
+  if (payments.length) {
+    if (totalTokens(payments) !== cost || internal.length) throw new Error('Pay the full defending stack cost in on-map supply')
+    payDefendingStack(ledger, stack, payments)
+    return { units: state.units, supplied: true }
   }
-  ledger.spend(payments, ({ dumpId }) => stack.every((unit) => ledger.canUse(unit, dumpId)))
   const units = { ...state.units }
   const waste = new Map<string, SupplyPayment>()
   for (const id of internal) units[id] = drawInternal(units[id]!, cost, ledger, waste)
   ledger.spend([...waste.values()], () => true)
-  return { units, supplied }
+  return { units, supplied: false }
+}
+
+/** OCS 12.3/12.4 and 13.2g. Pay the stack price once. Each defender must be able to receive supply. */
+function payDefendingStack(ledger: PaymentLedger, stack: readonly DeployedCounter[], payments: readonly SupplyPayment[]) {
+  const coverage = new Map<DeployedCounter, number>()
+  ledger.spend(payments, ({ dumpId, tokens }) => {
+    const reached = stack.filter((unit) => ledger.canUse(unit, dumpId))
+    for (const unit of reached) coverage.set(unit, (coverage.get(unit) ?? 0) + tokens)
+    return reached.length > 0
+  })
+  if (stack.some((unit) => (coverage.get(unit) ?? 0) < defensiveSupplyCost([unit]))) {
+    throw new Error('Each defender must be able to receive its needed on-map combat supply')
+  }
+}
+
+function defensiveSupplyCost(units: readonly DeployedCounter[]) {
+  return units.reduce((total, unit) => total + unit.printedRe - unit.stepsLost, 0) <= 1 ? 1 : 2
 }
 
 function requireParticipants(participants: readonly string[], internal: readonly string[]) {

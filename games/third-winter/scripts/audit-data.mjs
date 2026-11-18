@@ -163,6 +163,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   }
   if (combat) {
     const beforeOverrun = record
+    opening.controlledDefenderStocks = sampleDefenderStocks(record, assets, board)
     opening.sampleOverrun = sampleBattle(record.state, map, submit, () => record.state, true)
     record = beforeOverrun
   }
@@ -288,6 +289,39 @@ function sampleArtillery(state, map, table, submit, latest) {
     return { from: unit.hex, target, strength, tokensSpent: cost, result: shot.roll.code, losses: shot.lossesDue }
   }
   throw new Error('No eligible opening artillery barrage for the audit')
+}
+
+function sampleDefenderStocks(opening, assets, board) {
+  const counters = Object.entries(opening.state.units).filter(([, unit]) => unit.attackCapable && !unit.reserve)
+  const [attackerId, attacker] = counters.find(([, unit]) => unit.side === 'soviet' && unit.mobility === 'leg')
+  const singles = counters.filter(([, unit]) => unit.side === 'axis' && unit.printedRe === 1).slice(0, 2)
+  const division = counters.find(([, unit]) => unit.side === 'axis' && unit.printedRe > 1 && remainingSteps(unit) > 1)
+  const from = attacker.hex
+  const target = assets.map.neighbors(from).find((hex) => !scorpionAxisSources.includes(hex) &&
+    scorpionStepCost(assets.map, from, hex, 'leg', 'freeze') !== null)
+  if (!target || singles.length !== 2 || !division) throw new Error('Missing the actual counters for the controlled defensive supply check')
+  const defenseDump = `axis:hex:${target}`
+  const attackDump = `soviet:hex:${from}`
+  const spend = (defenders) => {
+    const units = { [attackerId]: attacker, ...Object.fromEntries(defenders.map(([id, unit]) => [id, { ...unit, hex: target }])) }
+    const dumps = { [defenseDump]: { side: 'axis', location: 'on-map', tokens: 1 },
+      [attackDump]: { side: 'soviet', location: 'on-map', tokens: remainingSteps(attacker) } }
+    let record = { ...opening, state: { ...opening.state, units, dumps, cursor: { ...opening.state.cursor, phase: 'combat' } } }
+    const issue = (seat, action) => {
+      const command = { id: `sample-defense-${record.revision}`, expectedRevision: record.revision, action }
+      record = submitScorpionSession(record, seat, command, assets, board).record
+    }
+    issue('soviet', { type: 'declare-combat', target, attackers: [attackerId],
+      payments: [{ unitId: attackerId, dumpId: attackDump, tokens: remainingSteps(attacker) }] })
+    const participants = defenders.map(([id]) => id)
+    issue('axis', { type: 'defend-combat', payments: [], internalUnitIds: participants })
+    if (participants.some((id) => record.state.units[id].internalStocks !== 'low')) throw new Error('A defender did not spend its own stocks')
+    return record.state.dumps[defenseDump].tokens
+  }
+  const singleStepStockLeft = spend(singles)
+  const multiStepStockLeft = spend([division])
+  if (singleStepStockLeft !== 1 || multiStepStockLeft !== 0) throw new Error('Incorrect application of 12.10h to the defending stack')
+  return { target, singleStepStockLeft, multiStepStockLeft }
 }
 
 function sampleBattle(state, map, submit, latest, overrun = false) {
