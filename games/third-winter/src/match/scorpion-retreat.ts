@@ -1,5 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import { scorpionGroundProfile } from '../import/ground-profile.ts'
+import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
@@ -7,6 +7,7 @@ import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
+import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 export interface RetreatPlan {
@@ -47,18 +48,13 @@ function takeRoute(state: Readonly<ScorpionInPlay>, side: Side, involved: readon
       throw new Error('A retreat stack must start together and contain only eligible friendly counters')
     }
     if (unit.moveMode || (!unit.headquarters && unit.allowance > 0)) continue
-    const definition = catalog.definitions.get(unit.definition)
-    const alternate = definition && scorpionGroundProfile(definition, 'move')
-    if (!alternate || !alternate.allowance) throw new Error('This counter cannot retreat in its Move Mode')
-    const range = definition?.source.faces.move?.stats.dropRange
-    const headquarters = unit.headquarters && typeof range === 'number' ? { ...unit.headquarters, throwRange: range } : unit.headquarters
-    setup[id] = { ...unit, ...alternate, moveMode: true, headquarters,
-      strength: headquarters ? 1 : Number(definition?.source.faces.move?.stats.attack ?? unit.strength) }
+    const alternate = scorpionModeFace(unit, catalog.definitions.get(unit.definition), 'move')
+    if (!alternate.allowance) throw new Error('This counter cannot retreat in its Move Mode')
+    setup[id] = alternate
   }
   let settled: ScorpionInPlay = { ...state, units: setup }
   const enemy = side === 'axis' ? 'soviet' : 'axis'
-  const rawZoc = new Set(Object.values(state.units).filter((unit) => unit.side === enemy && unit.attackCapable &&
-    !unit.reserve && !unit.moveMode && !unit.disorganized && !unit.outOfSupply).flatMap((unit) => map.neighbors(unit.hex)))
+  const rawZoc = scorpionEnemyZoc(state, map, side)
   const seen = new Set([origin])
   let from = origin
   const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'

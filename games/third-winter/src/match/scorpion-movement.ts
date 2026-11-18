@@ -1,6 +1,7 @@
 import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
+import { reserveMovementFactor } from '@ocs-eastern/series/reserve'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
@@ -69,7 +70,7 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
 
   let from = scorpionHexId(unit.hex)
   let spent = 0
-  const phaseFactor = phase === 'reaction' || (phase === 'exploitation' && !unit.released) ? 0.5 : unit.reserve ? 0.25 : 1
+  const phaseFactor = reserveMovementFactor(phase, Boolean(unit.reserve), Boolean(unit.released))
   const allowance = unit.allowance * phaseFactor * (unit.disorganized ? 0.5 : 1)
   for (const [index, raw] of move.path.entries()) {
     const to = scorpionHexId(raw)

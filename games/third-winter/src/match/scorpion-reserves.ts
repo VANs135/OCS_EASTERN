@@ -1,29 +1,62 @@
+import { reserveHexesInUse } from '@ocs-eastern/series/reserve'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
-import type { ScorpionMap } from '../import/scorpion-map.ts'
+import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
+import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
+import type { ScorpionSetupAssets } from './scorpion-setup.ts'
+import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
 
-export type ScorpionReserveAction = { type: 'mark-reserve' | 'release-reserve'; unitId: string }
+export type ScorpionReserveFace = GroundFace | 'current'
+export type ScorpionReserveAction = { type: 'mark-reserve'; unitId: string; face?: ScorpionReserveFace }
+  | { type: 'leave-reserve'; unitId: string; face?: ScorpionReserveFace }
+  | { type: 'release-reserve'; unitId: string }
 
-/** Scorpion's six Reserve markers per side, and OCS 5.7b–c. */
 export function applyScorpionReserve(state: Readonly<ScorpionInPlay>, side: Side,
-  action: ScorpionReserveAction, map: ScorpionMap): ScorpionInPlay {
+  action: ScorpionReserveAction, assets: ScorpionSetupAssets): ScorpionInPlay {
+  if (action.type === 'mark-reserve') {
+    const marked = prepareScorpionReserve(state, side, action.unitId, action.face ?? 'current', assets)
+    assertScorpionReserveCapacity(marked, side)
+    return marked
+  }
   const unit = Object.hasOwn(state.units, action.unitId) ? state.units[action.unitId] : undefined
   const phase = state.cursor.phase
-  if (!unit || unit.side !== side || !unit.combat || unit.disorganized || actingSide(state.cursor.phasing, phase) !== side) {
-    throw new Error('Only an eligible friendly unit can enter or leave Reserve')
+  if (action.type === 'leave-reserve') {
+    if (!unit?.reserve) throw new Error('Choose a unit in Reserve')
+    const oriented = prepareScorpionReserve(state, side, action.unitId, action.face ?? 'current', assets)
+    return { ...oriented, units: { ...oriented.units,
+      [action.unitId]: { ...oriented.units[action.unitId]!, reserve: undefined } } }
   }
-  if (action.type === 'release-reserve') {
-    if (!unit.reserve || (phase !== 'reaction' && phase !== 'exploitation')) {
-      throw new Error('Release Reserve units during Reaction or Exploitation')
-    }
-    return { ...state, units: { ...state.units, [action.unitId]: { ...unit, reserve: undefined, released: true } } }
+  if (!unit?.reserve || unit.side !== side || unit.disorganized || actingSide(state.cursor.phasing, phase) !== side ||
+    (phase !== 'reaction' && phase !== 'exploitation') || (phase === 'exploitation' && state.combatTargets?.length)) {
+    throw new Error('Release an eligible friendly Reserve during the Reaction or Exploitation movement segment')
   }
-  const enemyZoc = Object.values(state.units).some((enemy) => enemy.side !== side && enemy.attackCapable &&
-    !enemy.reserve && !enemy.moveMode && !enemy.outOfSupply && !enemy.disorganized && map.neighbors(enemy.hex).includes(unit.hex))
-  const held = Object.values(state.units).filter((candidate) => candidate.side === side && candidate.reserve).length
-  if (phase !== 'movement' || enemyZoc || unit.reserve || state.moved.includes(action.unitId) || held >= 6) {
-    throw new Error('Reserve requires a free marker and an eligible unmoved unit outside enemy ZOC')
+  return { ...state, units: { ...state.units, [action.unitId]: { ...unit, reserve: undefined, released: true } } }
+}
+
+export function prepareScorpionReserve(state: Readonly<ScorpionInPlay>, side: Side, unitId: string,
+  face: ScorpionReserveFace, { map, catalog }: ScorpionSetupAssets): ScorpionInPlay {
+  const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
+  if (!unit || unit.side !== side || (!unit.combat && unit.organicTruck === undefined) || unit.disorganized || unit.exploit ||
+    state.cursor.phase !== 'movement' || state.cursor.phasing !== side || state.moved.includes(unitId)) {
+    throw new Error('Reserve requires an eligible friendly unit before it moves in its Movement phase')
   }
-  return { ...state, units: { ...state.units, [action.unitId]: { ...unit, reserve: action.unitId } } }
+  if (!unit.reserve && scorpionEnemyZoc(state, map, side).has(unit.hex)) {
+    throw new Error('A unit cannot enter Reserve in enemy ZOC')
+  }
+  if (face !== 'current' && face !== 'combat' && face !== 'move') throw new Error('Invalid Reserve orientation')
+  const oriented = face === 'current' ? unit : scorpionModeFace(unit, catalog.definitions.get(unit.definition), face)
+  return { ...state, units: { ...state.units, [unitId]: { ...oriented, reserve: unitId } } }
+}
+
+export function assertScorpionReserveCapacity(state: Readonly<ScorpionInPlay>, side: Side) {
+  if (reserveHexesInUse(Object.values(state.units), side).size > 6) throw new Error('No free Reserve marker for this hex')
+}
+
+export function assertScorpionReserveAtMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,
+  hedgehogAt: ((hex: string) => number) | undefined) {
+  const hexes = reserveHexesInUse(Object.values(state.units), side)
+  if (hedgehogAt && [...hexes].some((hex) => hedgehogAt(hex) > 0)) {
+    throw new Error('A Reserve cannot share a hex with a hedgehog at the end of a Movement Segment')
+  }
 }

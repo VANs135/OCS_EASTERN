@@ -103,6 +103,85 @@ test('the non-phasing side releases reserves and the second cleanup opens the ne
   assert.equal(record.state.dumps['soviet:hex:s10.01'].tokens, 6)
 })
 
+test('Scorpion uses six Reserve hexes, sharing a marker and releasing units individually', () => {
+  const reserves = Object.fromEntries(['s10.01', 's10.02', 's10.03', 's15.08', 's15.09', 's15.10']
+    .map((hex) => [hex, unit('soviet', hex, { reserve: hex })]))
+  let record = fixture('movement', { ...reserves, infantry: unit('soviet', 's10.01'),
+    truck: unit('soviet', 's10.01', { combat: false, organicTruck: 'full' }),
+    transport: unit('soviet', 's10.01', { combat: false }),
+    extra: unit('soviet', 's10.04') })
+  const mark = (id) => ({ type: 'mark-reserve', unitId: id })
+  assert.throws(() => submit(record, 'soviet', mark('extra')), /No free Reserve marker/)
+  assert.throws(() => submit(record, 'soviet', mark('transport')), /eligible/)
+  record = submit(record, 'soviet', mark('infantry'))
+  record = submit(record, 'soviet', mark('truck'))
+  record.state.cursor.phase = 'exploitation'
+  record = submit(record, 'soviet', { type: 'release-reserve', unitId: 'infantry' })
+  assert.equal(record.state.units.infantry.reserve, undefined)
+  assert.equal(record.state.units.infantry.released, true)
+  assert.equal(record.state.units.truck.reserve, 'truck')
+  assert.equal(record.state.units['s10.01'].reserve, 's10.01')
+})
+
+test('a Reserve move selects the face and validates the quarter allowance and final marker count atomically', () => {
+  const reserves = Object.fromEntries(['s10.01', 's10.02', 's10.03', 's15.08', 's15.09', 's16.01']
+    .map((hex) => [hex, unit('soviet', hex, { reserve: hex })]))
+  const record = fixture('movement', { ...reserves, infantry: unit('soviet', 's15.08'),
+    stay: unit('soviet', 's15.09', { reserve: 'stay' }) })
+  const definition = { kind: 'land', source: { side: 'soviet',
+    faces: { move: { maColor: 'white', stats: { move: 7, attack: 2, artRange: 3 } } } } }
+  const localAssets = { ...assets, catalog: { definitions: new Map([['soviet-counter', definition]]) } }
+  const move = (path, reserveFace, unitId = 'infantry') => ({ type: 'ground-move', unitId, path, reserveFace })
+  const play = (from, action) => submitScorpionSession(from, 'soviet', command(from, action), localAssets, board()).record
+  assert.throws(() => play(record, move(['s15.09', 's15.10'], 'move')), /allowance/)
+  assert.throws(() => play(record, move(['s15.10'], undefined, 's15.09')), /No free Reserve marker/)
+  const stack = play(record, { type: 'reserve-stack-move', path: ['s15.10'],
+    counters: [{ unitId: 's15.09' }, { unitId: 'stay' }] })
+  assert.equal(stack.state.units['s15.09'].hex, 's15.10')
+  assert.equal(stack.state.units.stay.hex, 's15.10')
+  assert.equal(record.state.units.infantry.moveMode, undefined)
+  const moved = play(record, move(['s15.09'], 'move'))
+  assert.equal(moved.state.units.infantry.moveMode, true)
+  assert.equal(moved.state.units.infantry.allowance, 7)
+  assert.equal(moved.state.units.infantry.strength, 2)
+  assert.equal(moved.state.units.infantry.actionRating, 3)
+  assert.equal(moved.state.units.infantry.reserve, 'infantry')
+  assert.throws(() => play(moved, { type: 'mark-reserve', unitId: 'infantry', face: 'combat' }), /before it moves/)
+})
+
+test('Reserve entry checks the origin ZOC and the hedgehog restriction is checked at movement end', () => {
+  const record = fixture('movement', { infantry: unit('soviet', 's15.08'), enemy: unit('axis', 's15.10') })
+  const option = { ...board(), combat: { ...board().combat, hedgehogAt: (hex) => hex === 's15.09' ? 1 : 0 } }
+  const move = { type: 'ground-move', unitId: 'infantry', path: ['s15.09'], reserveFace: 'current' }
+  assert.throws(() => submit(record, 'soviet', move, option), /hedgehog/)
+  const moved = submit(record, 'soviet', move)
+  assert.equal(moved.state.units.infantry.reserve, 'infantry')
+  record.state.units.infantry.hex = 's15.09'
+  assert.throws(() => submit(record, 'soviet', { type: 'mark-reserve', unitId: 'infantry' }), /enemy ZOC/)
+  record.state.units.infantry.reserve = 'infantry'
+  assert.throws(() => submit(record, 'soviet', { type: 'complete-movement' }, option), /hedgehog/)
+  const left = submit(record, 'soviet', { type: 'leave-reserve', unitId: 'infantry' }, option)
+  assert.equal(left.state.units.infantry.released, undefined)
+  assert.equal(submit(left, 'soviet', { type: 'complete-movement' }, option).state.cursor.phase, 'supply')
+})
+
+test('combat clears Reserve on units receiving a result and clears an organic truck on DG', () => {
+  for (const [code, defenderReserve, truckReserve] of [['AL1', true, true], ['A Do1', false, true], ['A DDG', false, false]]) {
+    const option = board(code)
+    let record = fixture('combat', { a: unit('soviet', 's10.01'), d: unit('axis', 's10.02', { reserve: 'd' }),
+      truck: unit('axis', 's10.02', { combat: false, attackCapable: false, organicTruck: 'full', reserve: 'truck' }) })
+    record = submit(record, 'soviet', { type: 'declare-combat', target: 's10.02', attackers: ['a'],
+      payments: [{ unitId: 'a', dumpId: 'soviet:hex:s10.01', tokens: 1 }] }, option)
+    record = submit(record, 'axis', { type: 'defend-combat', payments: [] }, option)
+    record = submit(record, 'soviet', { type: 'select-combat-rating', unitId: 'a' }, option)
+    record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'd' }, option)
+    record = submit(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } }, option)
+    assert.equal(Boolean(record.state.units.d.reserve), defenderReserve)
+    assert.equal(Boolean(record.state.units.truck.reserve), truckReserve)
+    assert.equal(record.state.units.truck.disorganized, undefined)
+  }
+})
+
 test('regular odds floor to the printed column and then shift for surprise', () => {
   const dice = [6, 4, 1, 3, 3]
   const result = rollRegularCombat(table('AL1o1 Do1'), 'Open', 12, 1, 0, 0, () => dice.shift())

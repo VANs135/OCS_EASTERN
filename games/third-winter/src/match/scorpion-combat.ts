@@ -10,6 +10,7 @@ import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from './scorpion-losses.ts'
+import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { usableDump } from './scorpion-supply-phase.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
@@ -50,6 +51,7 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   if (actor !== phasing || (phase !== 'combat' && phase !== 'exploitation') || state.combat ||
     !map.hexes.has(target) || state.combatTargets?.includes(target) || !action.attackers.length ||
     new Set(action.attackers).size !== action.attackers.length) throw new Error('This regular attack is unavailable')
+  if (phase === 'exploitation') assertScorpionReserveAtMovementEnd(state, actor, board.hedgehogAt)
 
   const enemy = actor === 'axis' ? 'soviet' : 'axis'
   if (scorpionSupplySources[enemy].some((hex) => hex === target)) throw new Error('Enemy map-edge supply sources cannot be entered')
@@ -155,10 +157,18 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
       return draw.value
     })
   const units = { ...state.units }
+  const removeReserve = result.defender.loss > 0 || result.defender.option > 0 || result.disorganize
   for (const unitId of combat.defenders) {
     // OCS 5.7d and 9.12a. Resolve DG before selecting losses or retreats.
-    units[unitId] = { ...units[unitId]!, reserve: undefined,
+    units[unitId] = { ...units[unitId]!, reserve: removeReserve ? undefined : units[unitId]!.reserve,
       disorganized: units[unitId]!.disorganized || result.disorganize }
+  }
+  if (result.disorganize) {
+    for (const [id, unit] of Object.entries(units)) {
+      if (unit.side === actor && unit.hex === combat.target && unit.organicTruck !== undefined && unit.reserve) {
+        units[id] = { ...unit, reserve: undefined }
+      }
+    }
   }
   return { ...state, rng, units, combat: { ...combat, roll: result, step: 'attacker-result' } }
 }

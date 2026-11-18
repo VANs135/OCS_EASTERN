@@ -2,10 +2,8 @@ import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import { pickIndex, rollDie } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
-import { scorpionHexId } from '../import/hex-id.ts'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
-import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
@@ -17,23 +15,22 @@ import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionComba
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-result.ts'
 import type { ResolveCombat } from './scorpion-combat-result.ts'
-import { applyScorpionGroundMove } from './scorpion-movement.ts'
-import type { MoveCommand, MovementBoard } from './scorpion-movement.ts'
+import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
+import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
+import type { MovementBoard } from './scorpion-movement.ts'
 import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-player-turn.ts'
 import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
 import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
-import { applyScorpionReserve } from './scorpion-reserves.ts'
+import { applyScorpionReserve, assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
-import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
-import { moveScorpionWithFuel } from './scorpion-unit-fuel.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
   kind: 'playing'
@@ -52,7 +49,7 @@ export interface ScorpionInPlay extends ReinforcementState {
 }
 
 export type ScorpionSession = { kind: 'setup'; opening: ScorpionSetup } | ScorpionInPlay
-export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ({ type: 'ground-move'; fuelDumpId?: string } & MoveCommand)
+export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ScorpionGroundAction
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
@@ -94,13 +91,17 @@ export function submitScorpionSession(
       case 'roll-initiative':
       case 'choose-first':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        if (action.type === 'complete-reaction' || action.type === 'complete-exploitation') {
+          assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
+        }
         return applyScorpionPhaseFlow(state, actor, action, assets.map)
       case 'mark-reserve':
+      case 'leave-reserve':
       case 'release-reserve':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') {
           throw new Error('Reserve action is unavailable')
         }
-        return applyScorpionReserve(state, actor, action, assets.map)
+        return applyScorpionReserve(state, actor, action, assets)
       case 'declare-combat':
       case 'defend-combat':
       case 'select-combat-rating':
@@ -116,25 +117,14 @@ export function submitScorpionSession(
         if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table)
         if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
         return advanceScorpionCombat(state, actor, action.unitIds)
-      case 'ground-move': {
+      case 'ground-move':
+      case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
-        const facts = scorpionSupplyPosition(state, assets.map, actor, board.supplyRail, true)
-        const movement = board.movement?.(state) ?? {
-          enemyCombat: (hex: string) => facts.enemyCombat.has(hex),
-          enemySupplySource: (hex: string, side: Side) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis']
-            .some((source) => source === hex),
-          unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
-        }
-        const rules = { ...movement, map: assets.map, weather: state.turn.weather.ground }
-        const moved = action.fuelDumpId === undefined ? applyScorpionGroundMove<ScorpionInPlay>(state, actor, action, rules)
-          : moveScorpionWithFuel(state, actor, action, action.fuelDumpId, rules, facts)
-        if (!moved.units[action.unitId]?.combat) return moved
-        const occupied = Object.fromEntries(action.path.map((hex) => [scorpionHexId(hex), actor]))
-        return { ...moved, railControl: { ...moved.railControl, ...occupied } }
-      }
+        return applyScorpionGroundAction(state, actor, action, assets, board)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
+        assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
         return openScorpionSupply(state, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
       case 'feed-units':

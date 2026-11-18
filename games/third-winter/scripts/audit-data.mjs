@@ -10,7 +10,8 @@ import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionAxisSources, scorpionInitialRailGauge, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
-import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
@@ -97,10 +98,23 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
   submit({ type: 'finish-scheduled-arrivals' })
   submit({ type: 'complete-reinforcement' })
-  // A Soviet leg unit makes this single move in its own opening area. It is unaffected by the truck ZOC rule.
   const [unitId] = Object.entries(record.state.units).find(([, unit]) =>
     definitions.get(unit.definition)?.source.name === 'Sov 58 Rifle Div')
   submit({ type: 'ground-move', unitId, path: ['s1.12'] })
+  const enemyZoc = scorpionEnemyZoc(record.state, map, 'soviet')
+  const reserves = Map.groupBy(Object.entries(record.state.units).filter(([id, unit]) => id !== unitId &&
+    unit.side === 'soviet' && unit.combat && unit.mobility === 'leg' && unit.allowance > 0 && !enemyZoc.has(unit.hex)),
+  ([, unit]) => unit.hex)
+  const safeHexes = new Set(Object.values(record.state.units).filter((unit) => unit.side === 'soviet' && unit.combat)
+    .map((unit) => unit.hex))
+  const reserveMove = [...reserves].flatMap(([hex, stack]) => {
+    if (stack.length < 2) return []
+    return map.neighbors(hex).filter((near) => safeHexes.has(near) && !enemyZoc.has(near) &&
+      scorpionStepCost(map, hex, near, 'leg', record.state.turn.weather.ground) !== null)
+      .map((near) => ({ from: hex, to: near, unitIds: stack.slice(0, 2).map(([id]) => id) }))
+  })[0]
+  if (!reserveMove) throw new Error('No legal two-counter Reserve move in the Scorpion opening')
+  submit({ type: 'reserve-stack-move', path: [reserveMove.to], counters: reserveMove.unitIds.map((id) => ({ unitId: id })) })
   opening = {
     startPhase: started.state.cursor.phase,
     startGroundCounters: Object.keys(started.state.units).length,
@@ -111,6 +125,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     followingPhase: record.state.cursor.phase,
     followingGroundCounters: Object.keys(record.state.units).length,
     firstMoveDestination: record.state.units[unitId].hex,
+    reserveMove: { from: reserveMove.from, to: reserveMove.to, counters: reserveMove.unitIds.length },
   }
   function finishSupply() {
     submit({ type: 'complete-movement' })
@@ -144,6 +159,10 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'finish-scheduled-arrivals' })
   submit({ type: 'complete-reinforcement' })
   opening.axisAttritionChecks = finishSupply()
+  const [released, remaining] = reserveMove.unitIds
+  submit({ type: 'release-reserve', unitId: released }, 'soviet')
+  opening.reserveReleasedInSovietReaction = record.state.units[released].released
+  opening.secondCounterStillInReserve = Boolean(record.state.units[remaining].reserve)
   submit({ type: 'complete-reaction' }, 'soviet')
   submit({ type: 'complete-combat' })
   submit({ type: 'complete-exploitation' })
@@ -158,7 +177,7 @@ function sampleBattle(state, map, submit, latest) {
   const sovietSupply = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, 'soviet'))
   let chosen
   for (const [unitId, unit] of Object.entries(state.units)) {
-    if (unit.side !== 'soviet' || !unit.attackCapable || unit.mobility !== 'leg') continue
+    if (unit.side !== 'soviet' || !unit.attackCapable || unit.reserve || unit.mobility !== 'leg') continue
     const dumpId = Object.keys(state.dumps).find((id) => id.startsWith('soviet:hex:') &&
       state.dumps[id].tokens >= remainingSteps(unit) && sovietSupply.canUseDump(unit.hex, id.split(':')[2]))
     const target = map.neighbors(unit.hex).find((hex) => !map.edge(unit.hex, hex)?.river &&
