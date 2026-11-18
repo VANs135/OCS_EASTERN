@@ -1,7 +1,9 @@
+import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { aircraftProfile, atAirBase } from '../src/match/scorpion-air-bases.ts'
 import { hasScorpionBarrageSpotter } from '../src/match/scorpion-barrage.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 
 /** Exercise both missions from the same actual deployment, independently of the rest of the audit. */
 export function sampleScorpionAirOperations(opening, assets, board) {
@@ -218,4 +220,44 @@ export function sampleScorpionOnMapSupplyAirlift(opening, assets, board) {
     throw new Error('The on-map airlift did not debit its departure dump and credit the captured air base')
   }
   return { before, returned: record, event, aircraft: assets.catalog.definitions.get(plane.definition).source.name }
+}
+
+/** Prepare the transport and one real ground counter at the departure field in the controlled capture branch. */
+export function sampleScorpionGroundAirlift(opening, assets, board) {
+  const source = { kind: 'hex', hex: 's13.11' }
+  const target = { kind: 'hex', hex: 's18.07' }
+  const box = { kind: 'off-map-air' }
+  const aircraft = opening.state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.side === 'axis' && piece.active)
+  const plane = aircraft.find((piece) => aircraftProfile(piece, assets).transport === 1)
+  const spare = aircraft.find((piece) => atAirBase(piece.location, source) && aircraftProfile(piece, assets).fighter)
+  const [id, unit] = Object.entries(opening.state.units).find(([, candidate]) => {
+    if (candidate.side !== 'axis' || !candidate.combat || candidate.printedRe !== 1 || candidate.hex === target.hex) return false
+    const definition = assets.catalog.definitions.get(candidate.definition)
+    const mode = definition && scorpionGroundProfile(definition, 'move')
+    return mode?.mobility === 'leg' && mode.allowance >= 2 && mode.allowance <= 6
+  }) ?? []
+  if (!plane || !spare || !unit) throw new Error('Missing a transport, fighter, or eligible ground counter for the controlled airlift')
+  const pieces = opening.state.pieces.map((piece) => piece.id === plane.id ? { ...piece, location: source }
+    : piece.id === spare.id ? { ...piece, location: box } : piece)
+  const before = { ...opening, state: { ...opening.state, pieces,
+    units: { ...opening.state.units, [id]: { ...unit, hex: source.hex } } } }
+  let record = before
+  const submit = (action) => {
+    const command = { id: `sample-ground-airlift-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, 'axis', command, assets, board).record
+  }
+  submit({ type: 'launch-air-mission', mission: 'transport', target, supplySource: source, cargoUnitIds: [id],
+    unitIds: [plane.id], flightModes: [{ id: plane.id, mode: 'double-capacity' }] })
+  submit({ type: 'return-aircraft', unitId: plane.id, base: source })
+  const landed = record
+  const loaded = landed.state.units[id]
+  const next = assets.map.neighbors(target.hex).find((hex) => {
+    const cost = scorpionStepCost(assets.map, target.hex, hex, 'leg', 'freeze')
+    return typeof cost === 'number' && cost <= loaded.allowance / 2 &&
+      !Object.values(landed.state.units).some((counter) => counter.side === 'soviet' && counter.hex === hex)
+  })
+  if (loaded.hex !== target.hex || !loaded.moveMode || !next) throw new Error('Ground cargo did not arrive with a legal ground movement option')
+  submit({ type: 'ground-move', unitId: id, path: [next] })
+  if (record.state.units[id].hex !== next) throw new Error('The airlifted counter did not complete its ground move')
+  return { before, landed, marched: record, id, destination: next, name: assets.catalog.definitions.get(unit.definition).source.name }
 }

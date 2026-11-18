@@ -30,6 +30,7 @@ import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-
 import type { ResolveCombat } from './scorpion-combat-result.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
+import type { ScorpionGroundActivity } from './scorpion-ground-activity.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { continueScorpionOverrunMove, declareScorpionOverrun } from './scorpion-overrun.ts'
 import type { DeclareOverrun, FinishOverrunMove, ScorpionOverrunMarch } from './scorpion-overrun.ts'
@@ -41,7 +42,7 @@ import { refitScorpionAircraft } from './scorpion-refit.ts'
 import type { RefitScorpionAircraft } from './scorpion-refit.ts'
 import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
-import { applyScorpionReserve, assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
+import { applyScorpionReserve, assertScorpionMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
@@ -65,6 +66,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
+  groundActivity?: ScorpionGroundActivity
   supply: ScorpionSupplyWindow | null
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
@@ -106,7 +108,8 @@ export function submitScorpionSession(
   record: Readonly<ScorpionSessionRecord>, seat: Side, command: Readonly<Command<ScorpionAction>>,
   assets: ScorpionSetupAssets, board: BoardPolicies = {},
 ) {
-  const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage, hedgehogAt: board.combat?.hedgehogAt }
+  const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
+    hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail }
   return acceptCommand(record, seat, command, (state, actor, action): ScorpionSession => {
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
@@ -116,6 +119,7 @@ export function submitScorpionSession(
       case 'choose-air-aborts':
       case 'choose-air-combat-unit':
       case 'choose-flak-loss':
+      case 'choose-airlift-cargo':
       case 'choose-airlift-landing':
       case 'return-aircraft':
         if (state.kind !== 'playing') throw new Error('There is no pending air mission')
@@ -152,7 +156,7 @@ export function submitScorpionSession(
       case 'choose-first':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         if (action.type === 'complete-reaction' || action.type === 'complete-exploitation') {
-          assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
+          assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
         }
         return applyScorpionPhaseFlow(state, actor, action, assets.map)
       case 'mark-reserve':
@@ -214,7 +218,7 @@ export function submitScorpionSession(
         return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
-        assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
+        assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
         return openScorpionSupply({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
       case 'recover-internal-stocks':

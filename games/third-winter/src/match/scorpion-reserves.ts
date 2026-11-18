@@ -3,6 +3,8 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
+import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
@@ -38,7 +40,8 @@ export function prepareScorpionReserve(state: Readonly<ScorpionInPlay>, side: Si
   face: ScorpionReserveFace, { map, catalog }: ScorpionSetupAssets): ScorpionInPlay {
   const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
   if (!unit || unit.side !== side || (!unit.combat && unit.organicTruck === undefined) || unit.disorganized || unit.exploit ||
-    state.cursor.phase !== 'movement' || state.cursor.phasing !== side || state.moved.includes(unitId)) {
+    state.cursor.phase !== 'movement' || state.cursor.phasing !== side || state.moved.includes(unitId) ||
+    scorpionGroundActivity(state).airlifted.includes(unitId)) {
     throw new Error('Reserve requires an eligible friendly unit before it moves in its Movement phase')
   }
   if (!unit.reserve && scorpionEnemyZoc(state, map, side).has(unit.hex)) {
@@ -53,10 +56,12 @@ export function assertScorpionReserveCapacity(state: Readonly<ScorpionInPlay>, s
   if (reserveHexesInUse(Object.values(state.units), side).size > 6) throw new Error('No free Reserve marker for this hex')
 }
 
-export function assertScorpionReserveAtMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,
+export function assertScorpionMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,
   hedgehogAt: ((hex: string) => number) | undefined) {
   const hexes = reserveHexesInUse(Object.values(state.units), side)
   if (hedgehogAt && [...hexes].some((hex) => hedgehogAt(hex) > 0)) {
     throw new Error('A Reserve cannot share a hex with a hedgehog at the end of a Movement Segment')
   }
+  const landingStacks = new Set(scorpionGroundActivity(state).airlifted.flatMap((id) => state.units[id]?.hex ?? []))
+  for (const hex of landingStacks) assertScorpionStacking(state, hex)
 }

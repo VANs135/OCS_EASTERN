@@ -9,7 +9,7 @@ import { settleScorpionAirfieldBarrage } from './scorpion-airfield-barrage.ts'
 import { hasScorpionBarrageSpotter, targetUnits } from './scorpion-barrage.ts'
 import type { ScorpionBarrage } from './scorpion-barrage.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
-import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
+import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 
@@ -52,7 +52,7 @@ export function prepareScorpionAirBarrage(state: Readonly<ScorpionInPlay>, actor
   if ((hipShoot || tankBuster) && !hasScorpionBarrageSpotter(state, actor, target, assets.map)) {
     throw new Error('This air barrage requires an adjacent friendly combat spotter')
   }
-  if (!hipShoot) assertScorpionReserveAtMovementEnd(state, actor, board.hedgehogAt)
+  if (!hipShoot) assertScorpionMovementEnd(state, actor, board.hedgehogAt)
   const hedgehog = targetKind === 'units' ? board.hedgehogAt?.(target) ?? 0 : 0
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
   return { targetKind, hipShoot, tankBuster, hedgehog }

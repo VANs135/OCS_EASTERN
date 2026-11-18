@@ -16,7 +16,7 @@ import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from 
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import {
-  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionOnMapSupplyAirlift,
+  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionGroundAirlift, sampleScorpionOnMapSupplyAirlift,
   sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
 } from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
@@ -171,6 +171,10 @@ sessionFrame(`空运结算 · ${airlift.event.target.hex} 收到 ${airlift.event
 const onMapAirlift = sampleScorpionOnMapSupplyAirlift(started, { map: groundMap, catalog }, {})
 sessionFrame('图上空运演示 · 轴心国夺取 s18.07 后的受控盘面', onMapAirlift.before.state)
 sessionFrame('图上空运结算 · He.111H 从 s13.11 运送 1T 至 s18.07', onMapAirlift.returned.state)
+const groundAirlift = sampleScorpionGroundAirlift(onMapAirlift.before, { map: groundMap, catalog }, {})
+sessionFrame('战斗单位空运演示 · 受控盘面，部队和运输机在出发机场集结', groundAirlift.before.state)
+sessionFrame('战斗单位空运 · 部队在 s18.07 卸载，运输机返场', groundAirlift.landed.state)
+sessionFrame(`战斗单位空运 · 部队使用剩余移动力抵达 ${groundAirlift.destination}`, groundAirlift.marched.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())

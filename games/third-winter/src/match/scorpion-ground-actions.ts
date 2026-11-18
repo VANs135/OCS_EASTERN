@@ -2,9 +2,12 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
 import { inTrainbustingZone } from '@ocs-eastern/series/trainbusting'
 import { scorpionHexId } from '../import/hex-id.ts'
+import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
+import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
-import { applyScorpionGroundMove, scorpionMovementAllowance, walkScorpionGroundRoute } from './scorpion-movement.ts'
+import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { applyScorpionGroundMove, scorpionGroundMpAvailable } from './scorpion-movement.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
 import type { ScorpionReserveFace } from './scorpion-reserves.ts'
@@ -15,7 +18,7 @@ import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { moveScorpionWithFuel } from './scorpion-unit-fuel.ts'
 
 type MovingCounter = { unitId: string; fuelDumpId?: string; reserveFace?: ScorpionReserveFace }
-export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[] } & MovingCounter)
+export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
 
 export interface GroundPolicies {
@@ -36,6 +39,14 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     throw new Error('Choose a single friendly Reserve stack in the Movement phase')
   }
   let moved = state
+  if (action.type === 'ground-move' && action.face !== undefined) {
+    const unit = state.units[action.unitId]
+    if (!unit || unit.side !== side || unit.reserve || action.reserveFace !== undefined || state.cursor.phase !== 'movement' ||
+      state.moved.includes(action.unitId) || scorpionGroundActivity(state).airlifted.includes(action.unitId) ||
+      (action.face !== 'move' && action.face !== 'combat')) throw new Error('Choose a friendly counter face before beginning its movement')
+    moved = { ...state, units: { ...state.units,
+      [action.unitId]: scorpionModeFace(unit, assets.catalog.definitions.get(unit.definition), action.face) } }
+  }
   for (const { unitId, reserveFace } of counters) {
     if (reserveFace !== undefined || (stack && !moved.units[unitId]?.reserve)) {
       moved = prepareScorpionReserve(moved, side, unitId, reserveFace ?? 'current', assets)
@@ -46,7 +57,6 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   const resumed = Boolean(prior && entrants.every((id) => Object.hasOwn(prior, id)))
   const boardState = resumed ? { ...moved, moved: moved.moved.filter((id) => !entrants.includes(id)) } : moved
   const { rules, facts } = scorpionMovementRules(boardState, side, map, board)
-  const originalUnits = moved.units
   for (const { unitId, fuelDumpId } of counters) {
     const move = { unitId, path: action.path }
     moved = fuelDumpId === undefined ? applyScorpionGroundMove(moved, side, move, rules, resumed ? prior![unitId] : undefined)
@@ -55,9 +65,8 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   const entered = action.path.map(scorpionHexId)
   moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets)
   const groundCaptureMove = moved.capture ? Object.fromEntries(entrants.map((id) => {
-    const unit = originalUnits[id]!
-    const available = resumed ? prior![id]! : scorpionMovementAllowance(unit, moved.cursor.phase)
-    const { spent } = walkScorpionGroundRoute(unit, action.path, rules, available, !resumed)
+    const available = scorpionGroundMpAvailable(boardState, id, resumed ? prior![id] : undefined)
+    const spent = (scorpionGroundActivity(moved).spent[id] ?? 0) - (scorpionGroundActivity(boardState).spent[id] ?? 0)
     return [id, Math.max(0, available - spent)]
   })) : null
   moved = { ...moved, groundCaptureMove }

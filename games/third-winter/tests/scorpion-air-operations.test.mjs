@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { createRngState, roll2d6 } from '@ocs-eastern/series/rng'
+import { createRngState, roll2d6, rollDie } from '@ocs-eastern/series/rng'
 import { flakLossCandidates, rollAirCombat } from '@ocs-eastern/series/tables/air'
 import { railCapacityCost } from '@ocs-eastern/series/trainbusting'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
@@ -555,4 +555,101 @@ test('unloaded supply can fuel a ground move and cannot be flown again until ano
   result = submit(nextPhase, 'soviet', relay('later', 1))
   assert.equal(result.state.dumps[destination].tokens, 0)
   assert.equal(result.state.dumps[`soviet:hex:${origin.hex}`].tokens, 2)
+})
+
+function groundLift(source, target, aircraft, cargo, supplyTokens = 0) {
+  return { ...mapAirlift(source, target, aircraft, supplyTokens,
+    [{ id: aircraft[0], mode: 'double-capacity' }]), cargoUnitIds: cargo }
+}
+
+test('ground airlift uses Move Mode, charges transport equivalents and shares half MP before and after the flight', () => {
+  const source = hex(rows[1])
+  const target = hex(rows[2])
+  const unit = ground('soviet', hex(rows[0]), { moveMode: false, mobility: 'leg', allowance: 2, definition: 'guard' })
+  const { record, submit, assets } = match([plane('lift', 'soviet', source, { name: 'Sov Li.2', fighter: false })],
+    { map: line(), extraBases: [airBase('soviet', source)], units: { guard: unit },
+      board: { supplyRail: { railGauge: () => 'soviet' } } })
+  const definition = { kind: 'land', source: { side: 'soviet', name: 'Rifle battalion',
+    faces: { move: { maColor: 'white', stats: { move: 4, attack: 1, artRange: 3 } } } } }
+  assets.catalog.definitions.set('guard', definition)
+  const air = groundLift(source, target, ['lift'], ['guard'])
+  assert.throws(() => submit(record, 'soviet', air), /departure air base/)
+  const approached = submit(record, 'soviet', { type: 'ground-move', unitId: 'guard', face: 'move', path: [source.hex] })
+  assert.equal(approached.state.units.guard.moveMode, true)
+  const standard = { ...air, flightModes: [] }
+  assert.throws(() => submit(approached, 'soviet', standard), /transport capacity/)
+  const arrived = submit(JSON.parse(JSON.stringify(approached)), 'soviet', air)
+  assert.deepEqual(arrived.state.airMission.airlift.ground, [{ id: 'guard', tokens: 2 }])
+  assert.equal(arrived.state.units.guard.hex, target.hex)
+  const returned = submit(arrived, 'soviet', flyHome('lift', source))
+  assert.throws(() => submit(returned, 'soviet', { type: 'mark-reserve', unitId: 'guard' }), /before it moves/)
+  const marched = submit(returned, 'soviet', { type: 'ground-move', unitId: 'guard', path: [rows[3]] })
+  assert.equal(marched.state.groundActivity.spent.guard, 2)
+  assert.equal(marched.state.units.guard.hex, rows[3])
+  assert.throws(() => submit(marched, 'soviet', { type: 'ground-move', unitId: 'guard', path: [target.hex] }), /unavailable/)
+
+  const spent = { ...approached, state: { ...approached.state, groundActivity: { ...approached.state.groundActivity, spent: { guard: 3 } } } }
+  assert.throws(() => submit(spent, 'soviet', air), /already used more ground movement/)
+  const noMp = { ...approached, state: { ...approached.state, units: { guard: { ...approached.state.units.guard, allowance: 2 } } } }
+  const last = submit(submit(noMp, 'soviet', air), 'soviet', flyHome('lift', source))
+  assert.throws(() => submit(last, 'soviet', { type: 'ground-move', unitId: 'guard', path: [rows[3]] }), /No ground movement remains/)
+})
+
+test('Reaction airlift divides MP twice for released Reserves and leaves other cargo immobile', () => {
+  const source = hex(rows[1])
+  const target = hex(rows[2])
+  const path = [rows[3]]
+  for (const released of [false, true]) {
+    const { record, submit } = match([plane('lift', 'soviet', source, { name: 'Sov Li.2', fighter: false })],
+      { map: line(), flight: 'normal', phase: 'reaction', phasing: 'axis',
+        extraBases: [airBase('soviet', source)], board: { supplyRail: { railGauge: () => 'soviet' } },
+        units: { guard: ground('soviet', source, { moveMode: true, mobility: 'leg', allowance: 4, released }) } })
+    const result = submit(submit(record, 'soviet', groundLift(source, target, ['lift'], ['guard'])), 'soviet', flyHome('lift', source))
+    const move = { type: 'ground-move', unitId: 'guard', path }
+    if (!released) assert.throws(() => submit(result, 'soviet', move), /unavailable/)
+    else assert.equal(submit(result, 'soviet', move).state.groundActivity.spent.guard, 1)
+  }
+})
+
+test('an overstacked arrival can be dispersed before the Movement Segment closes', () => {
+  const source = hex(rows[1])
+  const target = hex(rows[2])
+  const { record, submit } = match([plane('lift', 'soviet', source, { name: 'Sov Li.2', fighter: false })],
+    { map: line(), extraBases: [airBase('soviet', source)], board: { supplyRail: { railGauge: () => 'soviet' } },
+      units: { guard: ground('soviet', source, { moveMode: true, mobility: 'leg', allowance: 4 }),
+        stack: ground('soviet', target, { printedRe: 10 }) } })
+  const arrived = submit(record, 'soviet', groundLift(source, target, ['lift'], ['guard']))
+  const returned = submit(arrived, 'soviet', flyHome('lift', source))
+  assert.throws(() => submit(returned, 'soviet', { type: 'complete-movement' }), /stacking limit/)
+  const marched = submit(returned, 'soviet', { type: 'ground-move', unitId: 'guard', path: [rows[3]] })
+  assert.equal(marched.state.units.guard.hex, rows[3])
+})
+
+test('the owner chooses between ground cargo and supply when reduced transport capacity cannot fit both', () => {
+  const source = hex('s8.04')
+  const key = `soviet:hex:${source.hex}`
+  const seed = seedWhere((rng) => {
+    const flak = roll2d6(rng)
+    return flak.value.total >= 8 && rollDie(flak.rng).value <= 3
+  })
+  const { record, submit } = match([plane('heavy', 'soviet', source, { name: 'Sov Li.2', fighter: false }),
+    plane('light', 'soviet', source, { name: 'Sov Li.2', fighter: false }), plane('patrol', 'axis', axisBase)],
+  { seed, extraBases: [airBase('soviet', source)],
+    units: { guard: ground('soviet', source, { moveMode: true, mobility: 'leg', allowance: 5, definition: 'guard' }) } })
+  record.state.dumps[key] = { side: 'soviet', location: 'on-map', tokens: 1 }
+  const flying = submit(record, 'soviet', groundLift(source, sovietBase, ['heavy', 'light'], ['guard'], 1))
+  const pending = submit(flying, 'axis', intercept(null))
+  assert.equal(pending.state.airMission.step.kind, 'airlift-cargo')
+  assert.equal(pending.state.airMission.step.capacity, 2)
+  const keep = (tokens, ...unitIds) => ({ type: 'choose-airlift-cargo', cargo: { tokens, unitIds } })
+  assert.throws(() => submit(pending, 'axis', keep(0, 'guard')), /No air decision/)
+  assert.throws(() => submit(pending, 'soviet', keep(1, 'guard')), /surviving transport capacity/)
+  assert.throws(() => submit(pending, 'soviet', keep(0)), /Keep all cargo/)
+  const survived = submit(pending, 'soviet', keep(0, 'guard'))
+  assert.equal(survived.state.units.guard.hex, sovietBase.hex)
+  assert.equal(survived.state.airMission.airlift.unloading.lost, 1)
+  const supplied = submit(pending, 'soviet', keep(1))
+  assert.equal(supplied.state.units.guard, undefined)
+  assert.equal(supplied.state.pieces.find(({ id }) => id === 'guard').location.kind, 'dead-pile')
+  assert.equal(supplied.state.dumps[destination].tokens, 1)
 })

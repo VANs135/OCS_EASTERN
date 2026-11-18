@@ -7,7 +7,8 @@ import { startScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionAttackOrder, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { scorpionMovementRules } from './scorpion-ground-actions.ts'
 import type { GroundPolicies } from './scorpion-ground-actions.ts'
-import { canMoveInPhase, scorpionMovementAllowance, scorpionMovementStepCost, walkScorpionGroundRoute } from './scorpion-movement.ts'
+import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { canMoveInPhase, scorpionGroundMpAvailable, scorpionMovementStepCost, walkScorpionGroundRoute } from './scorpion-movement.ts'
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -48,8 +49,7 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
   const { facts, rules } = movementRules(state, side, ids, assets, board)
   let fueled = state
   for (const { unitId, dumpId } of fuel) fueled = fuelScorpionCounter(fueled, side, unitId, dumpId, map, facts)
-  const remaining = Object.fromEntries(ids.map((id) => [id, resumed ? previous!.remaining[id]!
-    : scorpionMovementAllowance(fueled.units[id]!, phase)]))
+  const remaining = Object.fromEntries(ids.map((id) => [id, scorpionGroundMpAvailable(fueled, id, resumed ? previous!.remaining[id] : undefined)]))
   const march = { remaining, enteredHex: resumed && previous!.enteredHex }
   const moved = moveStack(fueled, side, ids, path, march, assets, board)
   if (moved.capture) throw new Error('Resolve this entry capture before declaring the overrun')
@@ -66,7 +66,10 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
     }
   }
   const started = startScorpionCombat({ ...moved, groundCaptureMove: null }, side, action, map, combatBoard, board.supplyRail, 'overrun')
-  return { ...started, overrunMarch: { ...moved.overrunMarch!,
+  const activity = scorpionGroundActivity(started)
+  const spent = { ...activity.spent }
+  for (const id of ids) spent[id] = (spent[id] ?? 0) + overrunCost
+  return { ...started, groundActivity: { ...activity, spent }, overrunMarch: { ...moved.overrunMarch!,
     remaining: Object.fromEntries(ids.map((id) => [id, moved.overrunMarch!.remaining[id]! - overrunCost])) } }
 }
 
@@ -115,6 +118,8 @@ function moveStack(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly st
   const { rules } = movementRules(state, side, ids, assets, board)
   const units = { ...state.units }
   const remaining = { ...march.remaining }
+  const activity = scorpionGroundActivity(state)
+  const spent = { ...activity.spent }
   for (const id of ids) {
     const counter = units[id]!
     const allowance = remaining[id]!
@@ -126,11 +131,13 @@ function moveStack(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly st
     }
     const route = walkScorpionGroundRoute(counter, path, rules, allowance)
     remaining[id] = allowance - route.spent
+    spent[id] = (spent[id] ?? 0) + route.spent
     units[id] = { ...counter, hex: route.destination }
   }
   const hexes = path.map(scorpionHexId)
   const occupied = Object.fromEntries(hexes.map((hex) => [hex, side]))
-  const moved = { ...state, units, overrunMarch: { remaining, enteredHex: march.enteredHex || path.length > 0 },
+  const moved = { ...state, units, groundActivity: { ...activity, spent },
+    overrunMarch: { remaining, enteredHex: march.enteredHex || path.length > 0 },
     moved: [...new Set([...state.moved, ...ids])], railControl: { ...state.railControl, ...occupied } }
   return resolveScorpionMoveEntries(moved, side, hexes, ids, assets)
 }

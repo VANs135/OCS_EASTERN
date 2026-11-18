@@ -4,6 +4,7 @@ import { automaticSovietConversion } from '../src/ttw/campaign/rail.ts'
 import { canMoveAcrossPontoonFerry, canTransportAtKherson } from '../src/ttw/campaign/crossings.ts'
 import { mayRetainInitiative, retentionAfterRoll } from '../src/ttw/scorpion/initiative.ts'
 import { sovietMissionRestriction } from '../src/ttw/air/mission-permission.ts'
+import { mayPlanTtwCombatAirDrop } from '../src/ttw/air/airdrop-eligibility.ts'
 import { interruptAfterMovementStep, answerBridgeInterruption } from '../src/match/bridge-interruption.ts'
 import { bridgeRepairProgress, completeBridgeRepair, resetBridgeRepairOnEnemyOccupation } from '../src/ttw/campaign/bridge-repair.ts'
 import { canPlaceKessel, kesselReturnAfterRemoval } from '../src/ttw/axis/kessel.ts'
@@ -60,6 +61,14 @@ test('TTW 3.2 / Q08 independent aircraft can sweep using a regrouping HQ as rang
   assert.equal(sovietMissionRestriction('facility-barrage', [{airArmy: '2'}], {kind: 'fronts', commands}), null)
   assert.equal(sovietMissionRestriction('hip-shoot', [{airArmy: null}], {kind: 'scorpion', column: 1}), 'ttw:3.2a')
   assert.equal(sovietMissionRestriction('fighter-sweep', [{airArmy: '5'}], {kind: 'scorpion', column: 8}), 'ttw:scenario-8:p53')
+})
+
+test('TTW 2.2d and 3.2e distinguish the only drop-capable brigade from other airborne designations', () => {
+  const unit = (sourceId, name, side = 'soviet') => ({ kind: 'land', sourceId, source: { name, side, abilities: ['airborne'] } })
+  assert.equal(mayPlanTtwCombatAirDrop(unit('4301', 'Sov 1 Gd Abn Bde AR4')), true)
+  assert.equal(mayPlanTtwCombatAirDrop(unit('3109', 'Sov 1 Gd Abn Div')), false)
+  assert.equal(mayPlanTtwCombatAirDrop(unit('3249', 'Sov 3 Gd Abn Bde')), false)
+  assert.equal(mayPlanTtwCombatAirDrop(unit('axis-fj', 'Fallschirmjäger', 'axis')), false)
 })
 
 test('Scorpion initiative may transfer from Soviet to Axis once and requires an on-map SP', () => {

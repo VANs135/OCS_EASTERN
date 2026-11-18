@@ -13,9 +13,10 @@ import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { settleScorpionAirfieldBarrage } from './scorpion-airfield-barrage.ts'
 import type { AirfieldBarrageResult } from './scorpion-airfield-barrage.ts'
 import { scorpionPhaseBarrages, scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
+import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
-import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
+import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment, totalTokens } from './scorpion-sp-payment.ts'
@@ -110,7 +111,7 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     !map.hexes.has(target) || !targetExists || scorpionRegularBarrageTargets(state).has(target)) {
     throw new Error('Artillery may barrage an enemy target once per phase before regular combat')
   }
-  if (phase !== 'combat') assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
+  if (phase !== 'combat') assertScorpionMovementEnd(state, actor, hedgehogAt)
   const barrage = prepareBarrage(state, actor, action, table,
     history.flatMap((event) => event.batteries), facility ? undefined : hedgehogAt)
   const { cost, batteries } = barrage
@@ -142,7 +143,7 @@ function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,
   if (!hq?.headquarters || hq.side !== actor || hq.headquarters.kessel) {
     throw new Error('Choose a Soviet Army HQ to support the front barrage')
   }
-  assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
+  assertScorpionMovementEnd(state, actor, hedgehogAt)
   const center = scorpionHexId(action.center)
   if (scorpionBarrageFrontAt(center) !== front) throw new Error('Place the artillery marker in its Scorpion sector')
   const near = map.neighbors(center)
@@ -177,6 +178,7 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
   fired: readonly Required<Firing>[], hedgehogAt?: (hex: string) => number): ScorpionBarrage {
   const target = scorpionHexId(volley.target)
   const phase = state.cursor.phase
+  const { airlifted } = scorpionGroundActivity(state)
   if (!volley.batteries.length || new Set(volley.batteries.map(({ unitId }) => unitId)).size !== volley.batteries.length) {
     throw new Error('Select one or more distinct artillery counters')
   }
@@ -186,7 +188,8 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
     const face = unit?.artillery
     if (!unit || unit.side !== actor || unit.reserve || !face?.strength || !face.range || unit.hex === target ||
       scorpionHexDistance(unit.hex, target) > face.range || (phase === 'reaction' && !unit.released) ||
-      (phase === 'exploitation' && !unit.released && !unit.exploit) || (phase === 'movement' && (unit.moveMode || unit.disorganized))) {
+      (phase === 'exploitation' && !unit.released && (!unit.exploit || airlifted.includes(unitId))) ||
+      (phase === 'movement' && (unit.moveMode || unit.disorganized))) {
       throw new Error('Select eligible artillery within printed range')
     }
     const used = fired.filter((battery) => battery.unitId === unitId)

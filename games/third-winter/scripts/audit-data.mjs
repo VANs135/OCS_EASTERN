@@ -10,13 +10,14 @@ import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
+import { mayPlanTtwCombatAirDrop } from '../src/ttw/air/airdrop-eligibility.ts'
 import { scorpionAxisSources, scorpionInitialRailGauge, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import {
-  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionOnMapSupplyAirlift,
+  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionGroundAirlift, sampleScorpionOnMapSupplyAirlift,
   sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
 } from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
@@ -233,6 +234,9 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const onMap = sampleScorpionOnMapSupplyAirlift(started, assets, board)
   opening.controlledOnMapAirlift = { aircraft: onMap.aircraft, source: onMap.event.airlift.source.hex,
     target: onMap.event.target.hex, ...onMap.event.airlift.unloading }
+  const groundLift = sampleScorpionGroundAirlift(onMap.before, assets, board)
+  opening.controlledGroundAirlift = { unit: groundLift.name, landingHex: groundLift.landed.state.units[groundLift.id].hex,
+    groundDestination: groundLift.destination, groundMpUsed: groundLift.marched.state.groundActivity.spent[groundLift.id] }
 }
 
 function sampleArtillery(state, map, table, submit, latest) {
@@ -335,8 +339,12 @@ const sovietTrace = { ...axisTrace, side: 'soviet', sources: new Set(scorpionSov
 const unusableSovietSources = scorpionSovietSources.filter((hex) =>
   !scorpionTraceOptions(map, sovietTrace, hex).some(({ source }) => source === hex),
 )
+const dropCapable = [...definitions.values()].filter(mayPlanTtwCombatAirDrop)
+  .map(({ sourceId, source }) => ({ id: sourceId, name: source.name }))
+if (dropCapable.length !== 1) throw new Error('The TTW catalog must resolve its one designated drop-capable brigade')
 const report = {
   definitions: definitions.size,
+  dropCapableCombatUnits: dropCapable,
   legacyIdCollisions: [...rawIds].filter(([, rows]) => rows.length > 1).map(([id, rows]) => ({
     id, matches: rows.map(({ kind, source }) => ({ kind, name: source.name })),
   })),

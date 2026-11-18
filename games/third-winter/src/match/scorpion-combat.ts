@@ -10,7 +10,8 @@ import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { attackWithSupply, defendWithSupply } from './scorpion-combat-supply.ts'
 import type { AttackSupplyPayment } from './scorpion-combat-supply.ts'
-import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
+import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment } from './scorpion-sp-payment.ts'
 import type { SupplyPayment } from './scorpion-sp-payment.ts'
@@ -53,15 +54,16 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   if (actor !== phasing || (phase !== 'combat' && phase !== 'exploitation') || state.combat ||
     !map.hexes.has(target) || state.combatTargets?.includes(target) || !action.attackers.length ||
     new Set(action.attackers).size !== action.attackers.length) throw new Error('This regular attack is unavailable')
-  if (phase === 'exploitation') assertScorpionReserveAtMovementEnd(state, actor, board.hedgehogAt)
+  if (phase === 'exploitation') assertScorpionMovementEnd(state, actor, board.hedgehogAt)
 
   const enemy = actor === 'axis' ? 'soviet' : 'axis'
   if (scorpionSupplySources[enemy].some((hex) => hex === target)) throw new Error('Enemy map-edge supply sources cannot be entered')
   const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'
+  const { airlifted } = scorpionGroundActivity(state)
   for (const id of action.attackers) {
     const unit = Object.hasOwn(state.units, id) ? state.units[id] : undefined
     if (!unit?.attackCapable || unit.side !== actor || unit.reserve || state.combatAttackers?.includes(id) ||
-      (phase === 'exploitation' && !unit.exploit && !unit.released) ||
+      (phase === 'exploitation' && !unit.released && (!unit.exploit || airlifted.includes(id))) ||
       scorpionStepCost(map, unit.hex, target, unit.mobility, weather) === null) {
       throw new Error('Each attacker must be eligible, unused and able to enter the target hex')
     }
