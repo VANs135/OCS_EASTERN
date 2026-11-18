@@ -4,6 +4,7 @@ import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -59,7 +60,7 @@ export function assertScorpionReserveCapacity(state: Readonly<ScorpionInPlay>, s
 export function assertScorpionMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,
   hedgehogAt: ((hex: string) => number) | undefined) {
   const hexes = reserveHexesInUse(Object.values(state.units), side)
-  if (hedgehogAt && [...hexes].some((hex) => hedgehogAt(hex) > 0)) {
+  if ([...hexes].some((hex) => scorpionHedgehogLevel(state, hex, hedgehogAt) > 0)) {
     throw new Error('A Reserve cannot share a hex with a hedgehog at the end of a Movement Segment')
   }
   const landingStacks = new Set(scorpionGroundActivity(state).airlifted.flatMap((id) => state.units[id]?.hex ?? []))

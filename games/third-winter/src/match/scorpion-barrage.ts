@@ -1,5 +1,6 @@
 import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
+import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
@@ -113,7 +114,7 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
   }
   if (phase !== 'combat') assertScorpionMovementEnd(state, actor, hedgehogAt)
   const barrage = prepareBarrage(state, actor, action, table,
-    history.flatMap((event) => event.batteries), facility ? undefined : hedgehogAt)
+    history.flatMap((event) => event.batteries), facility ? undefined : (hex) => scorpionHedgehogLevel(state, hex, hedgehogAt))
   const { cost, batteries } = barrage
   const { supply } = action
   if (totalTokens(supply.payments) !== cost || (supply.kind === 'direct' && batteries.length > 1 &&
@@ -159,7 +160,7 @@ function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,
   }
   const used = history.flatMap((event) => event.batteries)
   const barrages = volleys.map((volley) => {
-    const barrage = prepareBarrage(state, actor, volley, table, used, hedgehogAt)
+    const barrage = prepareBarrage(state, actor, volley, table, used, (hex) => scorpionHedgehogLevel(state, hex, hedgehogAt))
     used.push(...barrage.batteries)
     return { ...barrage, cost: 0 }
   })

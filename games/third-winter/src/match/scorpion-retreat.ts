@@ -6,7 +6,6 @@ import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
-import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -159,9 +158,8 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
   if (enteredZoc) for (const [id, unit] of Object.entries(units)) {
     if (unit.hex === to && unit.side === side && unit.combat) units[id] = { ...unit, disorganized: true }
   }
-  const entered = recordScorpionGroundControl({ ...state, units }, side, [to])
   // OCS 9.12f. The 9.14 entry uses movement timing, even though the retreat follows combat.
-  const captured = resolveScorpionEntry(entered, side, to, moving, assets, false, rail)
+  const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, rail)
   return loss ? applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, rail) : captured
 }
 

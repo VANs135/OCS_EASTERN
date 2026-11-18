@@ -635,7 +635,7 @@ test('the owner chooses between ground cargo and supply when reduced transport c
   })
   const { record, submit } = match([plane('heavy', 'soviet', source, { name: 'Sov Li.2', fighter: false }),
     plane('light', 'soviet', source, { name: 'Sov Li.2', fighter: false }), plane('patrol', 'axis', axisBase)],
-  { seed, extraBases: [airBase('soviet', source)],
+  { seed, map: line(), extraBases: [airBase('soviet', source)],
     units: { guard: ground('soviet', source, { moveMode: true, mobility: 'leg', allowance: 5, definition: 'guard' }) } })
   record.state.dumps[key] = { side: 'soviet', location: 'on-map', tokens: 1 }
   const flying = submit(record, 'soviet', groundLift(source, sovietBase, ['heavy', 'light'], ['guard'], 1))

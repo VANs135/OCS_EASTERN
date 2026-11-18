@@ -12,6 +12,7 @@ export function scorpionPhaseOccupancy(state: ScorpionInPlay): ScorpionPhaseOccu
   const occupied = { axis: new Set<string>(), soviet: new Set<string>() }
   for (const unit of Object.values(state.units)) occupied[unit.side].add(unit.hex)
   for (const base of state.airBases ?? []) occupied[base.side].add(base.hex)
+  for (const [hex, hedgehog] of Object.entries(state.hedgehogs ?? {})) if (hedgehog) occupied[hedgehog.side].add(hex)
   for (const piece of state.pieces ?? []) if (piece.location.kind === 'hex') occupied[piece.side].add(piece.location.hex)
   for (const [id, dump] of Object.entries(state.dumps ?? {})) {
     const prefix = `${dump.side}:hex:`

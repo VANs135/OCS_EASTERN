@@ -32,10 +32,14 @@ export function scorpionSupplyPosition(
   const extenders = counters.flatMap(([, unit]) => unit.side === side && unit.extender
     ? [{ hex: unit.hex, range: unit.extender.range, mobility: unit.mobility }] : [])
   const controller = scorpionControlLookup(state, map, railroad.controlOf)
+  const detrainableFacilities = new Set(friendly.filter(([, unit]) => unit.headquarters &&
+    !unit.headquarters.kessel && !unit.moveMode && !unit.reserve && map.neighbors(unit.hex).some((near) => map.edge(unit.hex, near)?.rail))
+    .map(([, unit]) => unit.hex))
   const controlled = new Set([...map.hexes.keys()].filter((hex) => !enemyCombat.has(hex) && controller(hex) === side))
-  return { side, sources: new Set(scorpionSupplySources[side]), controlled, enemyCombat, unnegatedEnemyZoc,
+  for (const hex of detrainableFacilities) if (!enemyCombat.has(hex)) controlled.add(hex)
+  const sources = new Set(scorpionSupplySources[side].filter((hex) => controlled.has(hex)))
+  return { side, sources, controlled, enemyCombat, unnegatedEnemyZoc,
     railGauge: railroad.railGauge ?? scorpionInitialRailGauge(map),
-    detrainableFacilities: new Set(friendly.filter(([, unit]) => unit.headquarters &&
-      !unit.headquarters.kessel && !unit.moveMode && !unit.reserve).map(([, unit]) => unit.hex)),
+    detrainableFacilities,
     headquarters, extenders, weather: state.turn.weather.ground }
 }

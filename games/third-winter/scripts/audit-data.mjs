@@ -11,11 +11,13 @@ import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { mayPlanTtwCombatAirDrop } from '../src/ttw/air/airdrop-eligibility.ts'
-import { scorpionAxisSources, scorpionInitialRailGauge, scorpionOpeningFrontControl, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
+import { scorpionAxisSources, scorpionControlSites, scorpionInitialRailGauge, scorpionOpeningFrontControl, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionSpPayment } from '../src/match/scorpion-sp-payment.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
+import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import {
   sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionGroundAirlift, sampleScorpionOnMapSupplyAirlift,
   sampleScorpionSupplyAirlift, sampleScorpionSupplyDrop, sampleScorpionTrainbusting,
@@ -119,14 +121,24 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const { from, to, delivered, recipients, organicHex } = sampleScorpionLogistics(record, assets, board)
   const { hex: extenderHex, range, asset: extenderAsset } = sampleScorpionExtender(record, assets, board)
   const front = scorpionOpeningFrontControl(map)
-  if (Object.keys(started.state.railControl).length !== map.hexes.size ||
-    Object.values(started.state.units).some(({ hex, side }) => front[hex] !== side) ||
-    started.state.airBases.some(({ hex, side }) => front[hex] !== side) ||
-    scorpionAxisSources.some((hex) => front[hex] !== 'axis') || scorpionSovietSources.some((hex) => front[hex] !== 'soviet')) {
+  const sites = scorpionControlSites(map)
+  if (Object.keys(started.state.railControl).length !== sites.size || Object.keys(started.state.railControl).some((hex) => !sites.has(hex)) ||
+    Object.values(started.state.units).some(({ hex, side }) => sites.has(hex) && front[hex] !== side) ||
+    started.state.airBases.some(({ hex, side }) => sites.has(hex) && front[hex] !== side) ||
+    scorpionAxisSources.some((hex) => front[hex] !== 'axis') || scorpionSovietSources.some((hex) => front[hex] !== 'soviet') ||
+    front['s13.11'] !== 'axis') {
     throw new Error('The opening control boundary contradicts the printed deployment or a supply source')
   }
-  const [unitId] = Object.entries(record.state.units).find(([, unit]) =>
+  const [unitId, rifle] = Object.entries(record.state.units).find(([, unit]) =>
     definitions.get(unit.definition)?.source.name === 'Sov 58 Rifle Div')
+  const beforeConstruction = record
+  const source = scorpionSpPayment(record.state, 'soviet', map).available([rifle]).find(({ tokens }) => tokens >= 8)
+  if (!source) throw new Error('No construction supply in reach of the 58th Rifle Division')
+  submit({ type: 'work-hedgehog', operation: 'build', hex: rifle.hex, unitIds: [unitId], payments: [{ ...source, tokens: 8 }] })
+  const stacked = scorpionMapStacks(record.state, assets.catalog, []).find(({ hex }) => hex === rifle.hex)
+  const hedgehog = stacked?.pages.flat().find(({ id }) => id === `hedgehog:${rifle.hex}`)
+  if (hedgehog?.asset !== 'misc_hog-1.png') throw new Error('The constructed hedgehog needs its printed counter')
+  record = beforeConstruction
   submit({ type: 'ground-move', unitId, path: ['s1.12'] })
   const enemyZoc = scorpionEnemyZoc(record.state, map, 'soviet')
   const reserves = Map.groupBy(Object.entries(record.state.units).filter(([id, unit]) => id !== unitId &&
@@ -158,6 +170,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     firstMoveDestination: record.state.units[unitId].hex,
     sampleLogistics: { from, to, delivered, recipients, organicHex },
     controlledExtender: { hex: extenderHex, range, asset: extenderAsset },
+    sampleHedgehog: { hex: rifle.hex, asset: hedgehog.asset },
     openingControl: Object.fromEntries(['axis', 'soviet'].map((side) =>
       [side, Object.values(started.state.railControl).filter((controller) => controller === side).length])),
     reserveMove: { from: reserveMove.from, to: reserveMove.to, counters: reserveMove.unitIds.length },

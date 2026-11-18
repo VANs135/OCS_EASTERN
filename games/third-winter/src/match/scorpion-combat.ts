@@ -1,5 +1,6 @@
 import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
+import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import type { CrtLike } from '@ocs-eastern/series/tables/crt'
 import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
 import { scorpionHexId } from '../import/hex-id.ts'
@@ -82,7 +83,7 @@ export function startScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Side
   const all = Object.entries(state.units).filter(([, unit]) => unit.combat)
   const defenders = all.filter(([, unit]) => unit.side === enemy && unit.hex === target).map(([id]) => id)
   if (!defenders.length) throw new Error('Choose a hex containing enemy combat units')
-  const hedgehog = board.hedgehogAt?.(target) ?? 0
+  const hedgehog = scorpionHedgehogLevel(state, target, board.hedgehogAt)
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
 
   const ledger = scorpionSpPayment(state, actor, map, railroad)

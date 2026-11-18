@@ -11,6 +11,7 @@ import { flipScorpionExtender, scorpionExtenderDisplacements } from './scorpion-
 import type { ExtenderDisplacement } from './scorpion-extender.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
+import type { ScorpionHedgehog } from './scorpion-hedgehogs.ts'
 import { rollScorpionTransportCapture, settleScorpionTransports } from './scorpion-transport-capture.ts'
 import type { CapturedTransportGroup, TransportCaptureChoice } from './scorpion-transport-capture.ts'
 
@@ -31,6 +32,7 @@ export interface ScorpionCaptureReport {
   dump?: { die: number; taken: number; destroyed: number }
   aircraft: readonly { id: string; die: number; loss: boolean; eliminated: boolean }[]
   transports: readonly CapturedTransportGroup[]
+  hedgehog?: { before: ScorpionHedgehog; after: ScorpionHedgehog | null }
   extenders?: readonly ExtenderDisplacement[]
 }
 
@@ -42,9 +44,10 @@ const opposite = (side: Side): Side => side === 'axis' ? 'soviet' : 'axis'
 export function scorpionCaptureAt(state: Readonly<ScorpionInPlay>, side: Side, hex: string) {
   const owner = opposite(side)
   const dump = state.dumps[`${owner}:hex:${hex}`]
+  const hedgehog = state.hedgehogs?.[hex]
   const transports = Object.entries(state.units).filter(([, unit]) => !unit.combat && unit.side === owner && unit.hex === hex)
     .map(([id]) => id)
-  return { owner, dump, transports,
+  return { owner, dump, transports, hedgehog: hedgehog?.side === owner ? hedgehog : undefined,
     airBase: state.airBases?.some((base) => base.side === owner && base.hex === hex),
     aircraft: state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.side === owner &&
       piece.location.kind === 'hex' && piece.location.hex === hex),
@@ -53,9 +56,9 @@ export function scorpionCaptureAt(state: Readonly<ScorpionInPlay>, side: Side, h
 
 function assertScorpionCaptor(state: Readonly<ScorpionInPlay>, side: Side, hex: string, ids: readonly string[]) {
   const objects = scorpionCaptureAt(state, side, hex)
-  if ((objects.dump?.tokens || objects.airBase || objects.aircraft.length || objects.transports.length) &&
+  if ((objects.dump?.tokens || objects.airBase || objects.aircraft.length || objects.transports.length || objects.hedgehog) &&
     !ids.some((id) => state.units[id]?.side === side && state.units[id]!.attackCapable)) {
-    throw new Error('Entry into a hex with enemy stores or an air base needs an attack-capable unit')
+    throw new Error('Entry into a hex with enemy stores, an air base or a hedgehog needs an attack-capable unit')
   }
   return objects
 }
@@ -64,16 +67,17 @@ export function resolveScorpionMoveEntries(state: Readonly<ScorpionInPlay>, side
   ids: readonly string[], assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
   let moved = state
   for (const [index, hex] of hexes.entries()) {
-    moved = resolveScorpionEntry(recordScorpionGroundControl(moved, side, [hex]), side, hex, ids, assets, false, railroad)
+    moved = resolveScorpionEntry(moved, side, hex, ids, assets, false, railroad)
     if (moved.capture && index !== hexes.length - 1) throw new Error('End this move at the pending capture hex')
   }
   return moved
 }
 
-export function resolveScorpionEntry(state: Readonly<ScorpionInPlay>, side: Side, hex: string, ids: readonly string[],
+export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Side, hex: string, ids: readonly string[],
   assets: ScorpionSetupAssets, afterCombat: boolean, railroad?: SupplyRailBoard): ScorpionInPlay {
-  const { owner, dump, airBase, aircraft, transports } = assertScorpionCaptor(state, side, hex, ids)
-  if (!dump?.tokens && !airBase && !aircraft.length && !transports.length) return state
+  const state = recordScorpionGroundControl(entered, side, hex, assets.map)
+  const { owner, dump, airBase, aircraft, transports, hedgehog } = assertScorpionCaptor(state, side, hex, ids)
+  if (!dump?.tokens && !airBase && !aircraft.length && !transports.length && !hedgehog) return state
   if (state.capture) throw new Error('Resolve the previous special capture first')
   let rng = state.rng
   const roll = () => {
@@ -116,9 +120,13 @@ export function resolveScorpionEntry(state: Readonly<ScorpionInPlay>, side: Side
   const capture = displaced.length || transportResults.length || displacedExtenders.length
     ? { hex, captor: side, owner, aircraft: displaced, transports: transportResults,
       ...(displacedExtenders.length ? { extenders: displacedExtenders } : {}) } : null
+  // TTW 1.1b. Taking a hedgehog reduces it immediately, without a capture die or response.
+  const remainingHedgehog: ScorpionHedgehog | null = hedgehog?.level === 2 ? { side, level: 1 } : null
   return { ...flipped, rng, dumps, airBases, pieces, capture,
+    ...(hedgehog ? { hedgehogs: { ...flipped.hedgehogs, [hex]: remainingHedgehog } } : {}),
     captureHistory: [...(state.captureHistory ?? []), { hex, captor: side, dump: dumpResult,
-      aircraft: aircraftResults, transports: transportResults, ...(extenders.length ? { extenders } : {}) }] }
+      aircraft: aircraftResults, transports: transportResults, ...(extenders.length ? { extenders } : {}),
+      ...(hedgehog ? { hedgehog: { before: hedgehog, after: remainingHedgehog } } : {}) }] }
 }
 
 export function settleScorpionCapture(state: Readonly<ScorpionInPlay>, side: Side, action: SettleScorpionCapture,

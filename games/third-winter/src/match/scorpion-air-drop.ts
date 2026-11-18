@@ -87,7 +87,7 @@ export function settleScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Sid
 
   const enemyCombat = Object.values(state.units).some((unit) => unit.side !== side && unit.hex === target.hex && unit.combat)
   const enemy = scorpionCaptureAt(state, side, target.hex)
-  const enemyStores = Boolean(enemy.dump?.tokens || enemy.airBase || enemy.aircraft.length || enemy.transports.length)
+  const enemyStores = Boolean(enemy.dump?.tokens || enemy.airBase || enemy.aircraft.length || enemy.transports.length || enemy.hedgehog)
   let rng = state.rng
   const roll = () => {
     const { rng: next, ...result } = rollParachuteDrop(rng, drop.friendly, drop.clear, side === 'soviet')

@@ -8,6 +8,7 @@ import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionBarrageFrontAt } from '../src/ttw/scorpion/barrage-markers.ts'
 import { scorpionBarrageMarkerFrame } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
+import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 
 const pairs = [['s10.01', 's10.02'], ['s10.02', 's10.03'], ['s15.08', 's15.09'], ['s15.09', 's15.10']]
 const map = scorpionMap([...new Set(pairs.flat())].map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -41,6 +42,57 @@ const airfieldTable = (code) => ({
   columns: ['1 or less', '2', '3-4', '5-10', '11-20', '21-40', '41-80', '81+'],
   costs: [1, 1, 1, 1, 2, 4, 6, 8],
   matrix: Array.from({ length: 6 }, () => Array(8).fill(code)),
+})
+
+test('TTW 1.1b ties paid construction, combat protection and capture to the hedgehog counter', () => {
+  const hex = 's10.02'
+  const owner = (side, level) => ({ side, level })
+  const workers = { builder: unit('soviet', hex), escort: unit('soviet', hex) }
+  const record = fixture('movement', workers)
+  const dumpId = 'soviet:hex:s10.01'
+  record.state.dumps[dumpId].tokens = 16
+  const build = { type: 'work-hedgehog', operation: 'build', hex, unitIds: ['builder'], payments: [{ dumpId, tokens: 8 }] }
+  const moved = { type: 'ground-move', unitId: 'builder', path: ['s10.03'] }
+  assert.throws(() => submit(record, 'soviet', { ...build, payments: [] }), /8T/)
+  const first = submit(record, 'soviet', build)
+  assert.deepEqual(first.state.hedgehogs[hex], owner('soviet', 1))
+  assert.equal(first.state.dumps[dumpId].tokens, 8)
+  assert.throws(() => submit(first, 'soviet', moved), /unavailable/)
+  assert.throws(() => submit(first, 'soviet', { ...build, unitIds: ['escort'] }), /once per turn/)
+  const restored = JSON.parse(JSON.stringify(first))
+  restored.state.cursor.turn++
+  restored.state.moved = []
+  const second = submit(restored, 'soviet', build)
+  assert.deepEqual(second.state.hedgehogs[hex], owner('soviet', 2))
+  const later = { ...second, state: { ...second.state, cursor: { ...second.state.cursor, turn: 3 }, moved: [] } }
+  assert.throws(() => submit(later, 'soviet', build), /legal hex/)
+  const reduced = submit(later, 'soviet', { ...build, operation: 'reduce', payments: [] })
+  assert.deepEqual(reduced.state.hedgehogs[hex], owner('soviet', 1))
+
+  const battle = fixture('combat', { infantry: unit('soviet', 's10.01'), defense: unit('axis', hex) })
+  battle.state.hedgehogs = { [hex]: owner('axis', 2) }
+  const order = { type: 'declare-combat', target: hex, attackers: ['infantry'], payments: [{ unitId: 'infantry', dumpId, tokens: 1 }] }
+  assert.equal(submit(battle, 'soviet', order).state.combat.hedgehog, 2)
+
+  const approach = fixture('movement', { infantry: unit('soviet', 's10.01'), hq: unit('soviet', 's10.01', { attackCapable: false }) })
+  approach.state.hedgehogs = { [hex]: owner('axis', 2) }
+  const advance = { type: 'ground-move', unitId: 'infantry', path: [hex, 's10.03'] }
+  assert.throws(() => submit(approach, 'soviet', { ...advance, unitId: 'hq' }), /attack-capable/)
+  const captured = submit(approach, 'soviet', advance)
+  assert.deepEqual(captured.state.hedgehogs[hex], owner('soviet', 1))
+  assert.equal(captured.state.rng.drawCount, approach.state.rng.drawCount)
+  assert.deepEqual(captured.state.captureHistory.at(-1).hedgehog, { before: owner('axis', 2), after: owner('soviet', 1) })
+  const catalog = { definitions: new Map([['soviet-counter', { source: { name: 'Infantry', faces: { combat: { asset: 'infantry.png' } } } }]]),
+    aliases: new Map([['Hedgehog 1', [{ source: { faces: { combat: { asset: 'hog-1.png' } } } }]]]) }
+  const stack = scorpionMapStacks({ ...captured.state, dumps: {} }, catalog, []).find((entry) => entry.hex === hex)
+  assert.equal(stack.pages[0][0].asset, 'hog-1.png')
+  const counterattack = JSON.parse(JSON.stringify(captured))
+  counterattack.state.cursor.phasing = 'axis'
+  counterattack.state.units = { infantry: unit('axis', 's10.03') }
+  counterattack.state.moved = []
+  const removed = submit(counterattack, 'axis', { ...advance, path: [hex] })
+  assert.equal(removed.state.hedgehogs[hex], null)
+  assert.equal(removed.state.captureHistory.at(-1).hedgehog.after, null)
 })
 
 test('aircraft refit charges a reachable dump once per base and respects the active capacity in no-flight weather', () => {
@@ -106,7 +158,7 @@ test('regular combat discloses each decision in order, updates the dead pile and
   assert.equal(record.state.pieces[0].id, 'defense')
   record = submit(record, 'soviet', { type: 'advance-after-combat', unitIds: ['infantry'] })
   assert.equal(record.state.units.infantry.hex, 's10.02')
-  assert.equal(record.state.railControl['s10.02'], 'soviet')
+  assert.equal(record.state.railControl['s10.02'], undefined)
 })
 
 test('the defending player can retreat the unresolved option along a legal hex path', () => {
@@ -123,7 +175,7 @@ test('the defending player can retreat the unresolved option along a legal hex p
   assert.throws(() => submit(record, 'axis', plan('s10.01'), option), /enemy at combat start/)
   record = submit(record, 'axis', plan('s10.03'), option)
   assert.equal(record.state.units.d.hex, 's10.03')
-  assert.equal(record.state.railControl['s10.03'], 'axis')
+  assert.equal(record.state.railControl['s10.03'], undefined)
   assert.equal(record.state.combat.step, 'advance')
 })
 
@@ -169,7 +221,7 @@ test('9.12f captures a dump and air base on retreat, then resumes after the orig
   assert.throws(() => issue(nonCaptor, 'axis', retreat), /attack-capable/)
   const paused = issue(record, 'axis', retreat)
   assert.equal(paused.state.units.d.hex, target)
-  assert.equal(paused.state.railControl[target], 'axis')
+  assert.equal(paused.state.railControl[target], undefined)
   assert.equal(paused.state.capture.owner, 'soviet')
   assert.equal(paused.state.combat.retreat.nextStep, 1)
   assert.equal(paused.state.dumps[dumpId], undefined)
@@ -195,7 +247,7 @@ test('9.12f captures a dump and air base on retreat, then resumes after the orig
   assert.equal(resumed.state.rng.drawCount, paused.state.rng.drawCount)
   const rerouted = issue(settled, 'axis', { ...move, routes: [{ path: [alternate] }] })
   assert.equal(rerouted.state.units.d.hex, alternate)
-  assert.equal(rerouted.state.railControl[alternate], 'axis')
+  assert.equal(rerouted.state.railControl[alternate], undefined)
 
   const twoCaptures = { ...record, state: { ...record.state, units: { ...record.state.units,
     truck: unit('soviet', destination, { combat: false, allowance: 45, definition: 'Sov Truck' }) } } }

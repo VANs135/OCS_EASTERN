@@ -56,9 +56,10 @@ export function unloadScorpionGroundAirlift(state: Readonly<ScorpionInPlay>, sid
   const units = { ...state.units }
   for (const id of [...delivered, ...lost]) units[id] = { ...units[id]!, hex }
   const activity = scorpionGroundActivity(state)
-  const landed = recordScorpionGroundControl({ ...state, units,
+  const updated = { ...state, units,
     moved: state.moved.filter((id) => !delivered.includes(id)),
-    groundActivity: { ...activity, airlifted: [...new Set([...activity.airlifted, ...delivered])] } }, side, delivered.length ? [hex] : [])
+    groundActivity: { ...activity, airlifted: [...new Set([...activity.airlifted, ...delivered])] } }
+  const landed = delivered.length ? recordScorpionGroundControl(updated, side, hex, assets.map) : updated
   return lost.length ? applyScorpionCombatLosses(landed, new Map(lost.map((id) => [id, remainingSteps(units[id]!)])), assets, railroad)
     : landed
 }

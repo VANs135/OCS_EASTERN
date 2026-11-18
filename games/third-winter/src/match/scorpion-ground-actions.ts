@@ -7,6 +7,7 @@ import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { applyScorpionGroundMove, scorpionGroundMpAvailable, scorpionMovementAllowance } from './scorpion-movement.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
@@ -81,7 +82,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   const destination = moved.units[counters[0]!.unitId]!.hex
   if (moved.units[counters[0]!.unitId]!.reserve) {
     assertScorpionReserveCapacity(moved, side)
-    if ((board.combat?.hedgehogAt?.(destination) ?? 0) > 0) {
+    if (scorpionHedgehogLevel(moved, destination, board.combat?.hedgehogAt) > 0) {
       throw new Error('A Reserve cannot finish its move in a hex with a hedgehog')
     }
   }

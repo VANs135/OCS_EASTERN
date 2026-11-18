@@ -31,11 +31,13 @@ import type { ContinueCombatRetreat } from './scorpion-retreat.ts'
 import type { ResolveCombat } from './scorpion-combat-result.ts'
 import { applyScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { ScorpionDropPlan, ScorpionDropPlanAction } from './scorpion-drop-plan.ts'
-import { recordScorpionGroundControl, scorpionControlLookup } from './scorpion-hex-control.ts'
-import { scorpionOpeningFrontControl } from '../ttw/scorpion/initial-map.ts'
+import { pruneScorpionGroundControl, recordScorpionGroundControl, scorpionControlLookup } from './scorpion-hex-control.ts'
+import { scorpionControlSites, scorpionOpeningFrontControl } from '../ttw/scorpion/initial-map.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { workScorpionHedgehog } from './scorpion-hedgehogs.ts'
+import type { HedgehogWork, ScorpionHedgehog } from './scorpion-hedgehogs.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { continueScorpionOverrunMove, declareScorpionOverrun } from './scorpion-overrun.ts'
 import type { DeclareOverrun, FinishOverrunMove, ScorpionOverrunMarch } from './scorpion-overrun.ts'
@@ -81,6 +83,9 @@ export interface ScorpionInPlay extends ReinforcementState {
   phaseOccupancy?: ScorpionPhaseOccupancy
   dropTrace?: { unitId: string; turn: number }
   trainbusting?: readonly TrainbustingMarker[]
+  hedgehogs?: Readonly<Record<string, ScorpionHedgehog | null>>
+  hedgehogBuiltAt?: Readonly<Record<string, number>>
+  hedgehogReducedAt?: Readonly<Record<string, number>>
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
@@ -89,7 +94,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   formationFuel?: readonly FormationFuel[]
   headquartersFuel?: readonly HeadquartersFuel[]
   supply: ScorpionSupplyWindow | null
-  /** Saved control of all ground hexes. The original field name is retained for save compatibility. */
+  /** Control of eligible sites. Rail gauge is stored independently of this save field. */
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
   capture?: ScorpionCaptureWindow | null
@@ -111,7 +116,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | ContinueCombatRetreat
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
-  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport
+  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -251,6 +256,11 @@ export function submitScorpionSession(
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
         if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
+      case 'work-hedgehog':
+        if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Hedgehog work is unavailable')
+        if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
+        return workScorpionHedgehog({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, action, assets,
+          board.supplyRail, board.combat?.hedgehogAt)
       case 'fuel-formation':
       case 'fuel-headquarters':
       case 'fuel-from-paused-transport':
@@ -302,7 +312,8 @@ export function submitScorpionSession(
     }
   }
   return acceptCommand(record, seat, command, (state, actor, action) => {
-    const next = applyAction(state, actor, action)
+    const current = state.kind === 'playing' && assets.map ? pruneScorpionGroundControl(state, assets.map) : state
+    const next = applyAction(current, actor, action)
     // OCS 6.1g, 13.2a. Only handling and fueling can interrupt this same transport's move.
     const keepTransport = action.type === 'ground-move' || action.type === 'load-transport' || action.type === 'unload-transport' ||
       action.type === 'fuel-formation' || action.type === 'fuel-headquarters' || action.type === 'fuel-from-paused-transport' ||
@@ -320,8 +331,9 @@ export function scorpionFirstTurn(): ScorpionTurn {
 
 function startMatch(opening: ScorpionSetup, map: ScorpionSetupAssets['map']): ScorpionInPlay {
   const turn = scorpionFirstTurn()
+  const sites = scorpionControlSites(map)
   const railControl = { ...scorpionOpeningFrontControl(map),
-    ...Object.fromEntries(Object.values(opening.units).map(({ side, hex }) => [hex, side])) }
+    ...Object.fromEntries(Object.values(opening.units).filter(({ hex }) => sites.has(hex)).map(({ side, hex }) => [hex, side])) }
   return { kind: 'playing', turn, cursor: startScorpionPlayerTurns(turn), rng: opening.rng,
     rerollHolder: 'soviet', airBases: scorpionOpeningAirBases, units: opening.units, pieces: opening.pieces,
     ...(opening.dropPlan ? { dropPlan: opening.dropPlan } : {}),
@@ -363,5 +375,5 @@ function resolveReinforcements(
     ? advanceScorpionBarrageRecovery(state.barrageRecovery) : state.barrageRecovery
   const updated = { ...state, ...result, rng, units, barrageRecovery,
     refittedAirbases: action.type === 'complete-refit' ? [] : state.refittedAirbases }
-  return placed ? recordScorpionGroundControl(updated, actor, [placed.hex]) : updated
+  return placed ? recordScorpionGroundControl(updated, actor, placed.hex, map) : updated
 }

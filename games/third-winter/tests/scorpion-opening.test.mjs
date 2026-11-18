@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
-import { scorpionControlLookup } from '../src/match/scorpion-hex-control.ts'
+import { pruneScorpionGroundControl, scorpionControlLookup } from '../src/match/scorpion-hex-control.ts'
 import { scorpionSupplySources } from '../src/ttw/scorpion/initial-map.ts'
 
 const units = {
@@ -60,24 +60,28 @@ test('the level-2 airbase admits six active aircraft and the off-map box stays a
   assert.equal(record.state.opening.pieces.at(-1).location.kind, 'off-map-air')
 })
 
-test('confirmed opening records both sides of the front; legacy saves retain later entries', () => {
+test('the opening assigns only control sites and legacy saves retain later entries at those sites', () => {
   const hexes = new Map()
   for (let col = 1; col <= 22; col++) for (let row = 1; row <= 17; row++) {
     hexes.set(`s${col}.${String(row).padStart(2, '0')}`, {})
   }
-  const map = { hexes }
+  for (const hex of ['s14.07', 's14.16']) hexes.set(hex, { city: 'Village' })
+  const map = { hexes, neighbors: (hex) => hex.startsWith('s14.') ? [hex.replace('s14.', 's15.')] : [],
+    edge: () => ({ rail: 'single' }) }
   const record = fixture([])
   record.state.opening.seat = 'soviet'
   record.state.opening.lossChoices = []
   const action = { type: 'confirm-setup' }
   const opened = submitScorpionSession(record, 'soviet', command(record, action), { ...assets, map }).record.state
-  assert.equal(Object.keys(opened.railControl).length, hexes.size)
+  assert.equal(Object.keys(opened.railControl).length, 2 + scorpionSupplySources.axis.length + scorpionSupplySources.soviet.length)
   assert.equal(opened.railControl['s14.07'], 'axis')
   assert.equal(opened.railControl['s14.16'], 'soviet')
   for (const [side, sources] of Object.entries(scorpionSupplySources)) {
     for (const hex of sources) assert.equal(opened.railControl[hex], side)
   }
-  const lookup = scorpionControlLookup({ ...opened, railControl: { 's14.07': 'soviet' } }, map)
+  const restored = { ...opened, railControl: { ...opened.railControl, 's14.07': 'soviet', 's14.08': 'axis' } }
+  const lookup = scorpionControlLookup(restored, map)
   assert.equal(lookup('s14.07'), 'soviet')
-  assert.equal(lookup('s14.08'), 'axis')
+  assert.equal(lookup('s14.08'), null)
+  assert.equal(pruneScorpionGroundControl(restored, map).railControl['s14.08'], undefined)
 })

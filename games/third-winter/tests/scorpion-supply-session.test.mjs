@@ -41,7 +41,7 @@ test('movement and a one-token fuel debit are accepted atomically', () => {
   const moved = submit(start, move)
   assert.equal(moved.state.dumps[dumpId].tokens, 1)
   assert.equal(moved.state.units.tank.hex, 's10.02')
-  assert.equal(moved.state.railControl['s10.02'], 'axis')
+  assert.equal(moved.state.railControl['s10.02'], undefined)
   assert.equal(submitScorpionSession(moved, 'axis', command(start, move), assets, board).duplicate, true)
   assert.equal(submit(moved, { type: 'complete-movement' }).state.units.tank.fueled, false)
 })
@@ -339,6 +339,24 @@ test('the last ground unit across an empty detraining hex determines rail trace,
   const reply = { type: 'ground-move', unitId: 'second', path: [town, 's2.03'] }
   const retaken = submitScorpionSession(restored, 'soviet', command(restored, reply), setup, { supplyRail: rail }).record
   assert.equal(retaken.state.railControl[town], 'soviet')
-  assert.equal(retaken.state.railControl['s1.05'], 'axis')
+  assert.equal(retaken.state.railControl['s1.05'], undefined)
   assert.ok(!traceFrom(retaken).includes(town))
+})
+
+test('ordinary track tests occupancy, ZOC and gauge independently of persistent site control', () => {
+  const source = 's1.03', track = 's1.04', town = 's1.05', flank = 's2.04'
+  const map = scorpionMap([source, track, town, flank].map((hex_id) => ({ hex_id, on_map: true,
+    terrains_present: [hex_id === town ? 'Village' : 'Open'], ...(hex_id === town ? { city_level: 'Village' } : {}) })),
+  [[source, track], [track, town], [track, flank]].map(([hex_a, hex_b]) => ({ hex_a, hex_b, edge_terrain: 'none',
+    road_present: false, rail_present: hex_b !== flank, ...(hex_b !== flank ? { rail_class: 'single' } : {}), bridge: false })))
+  const { state } = fixture({ invader: counter(flank, { side: 'soviet', disorganized: true }) })
+  state.railControl = { [track]: 'soviet', [town]: 'axis' }
+  const railGauge = () => 'axis'
+  const townTraces = (position, gauge = railGauge) => scorpionSupplyNetwork(map,
+    scorpionSupplyPosition(position, map, 'axis', { railGauge: gauge })).trace(town).some((entry) => entry.source === town)
+  assert.equal(townTraces(state), true)
+  assert.equal(townTraces({ ...state, units: { invader: { ...state.units.invader, hex: track } } }), false)
+  assert.equal(townTraces({ ...state, units: { invader: { ...state.units.invader, disorganized: false } } }), false)
+  assert.equal(townTraces(state, (from, to) => from === track && to === town ? 'soviet' : 'axis'), false)
+  assert.equal(townTraces({ ...state, railControl: { ...state.railControl, [source]: 'soviet' } }), false)
 })

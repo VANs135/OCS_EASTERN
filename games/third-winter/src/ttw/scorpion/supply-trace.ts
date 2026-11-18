@@ -4,6 +4,7 @@ import { traceReach } from '@ocs-eastern/series/trace-path'
 import { scorpionHexId } from '../../import/hex-id.ts'
 import type { ScorpionMap } from '../../import/scorpion-map.ts'
 import { scorpionStepCost } from './terrain-cost.ts'
+import { scorpionPrintedUnloadingSite } from './initial-map.ts'
 
 interface Headquarter {
   id?: string
@@ -73,7 +74,7 @@ export function scorpionSupplyNetwork(map: ScorpionMap, state: TracePosition) {
   const canDraw = (origin: string, source: string, mobility: Mobility) => reaches(reach(origin, 5, mobility), source)
   const canThrow = (hq: Headquarter, hex: string) => reaches(reach(hq.hex, hq.throwRange, hq.mobility), hex)
 
-  const detrainable = (hex: string) => Boolean(map.hexes.get(hex)?.city || state.detrainableFacilities.has(hex))
+  const detrainable = (hex: string) => scorpionPrintedUnloadingSite(map, hex) || state.detrainableFacilities.has(hex)
   const railNode = (hex: string) => railAccessible(hex) && (!detrainable(hex) || state.controlled.has(hex))
   const railEdge = (from: string, to: string) => Boolean(map.edge(from, to)?.rail) && state.railGauge(from, to) === state.side
   const sources = new Set([...state.sources].filter(railAccessible))

@@ -1,5 +1,6 @@
 import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
+import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { barrageColumn, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { scorpionHexDistance } from '../import/hex-id.ts'
@@ -53,7 +54,7 @@ export function prepareScorpionAirBarrage(state: Readonly<ScorpionInPlay>, actor
     throw new Error('This air barrage requires an adjacent friendly combat spotter')
   }
   if (!hipShoot) assertScorpionMovementEnd(state, actor, board.hedgehogAt)
-  const hedgehog = targetKind === 'units' ? board.hedgehogAt?.(target) ?? 0 : 0
+  const hedgehog = targetKind === 'units' ? scorpionHedgehogLevel(state, target, board.hedgehogAt) : 0
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
   return { targetKind, hipShoot, tankBuster, hedgehog }
 }

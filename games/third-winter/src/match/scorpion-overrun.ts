@@ -8,7 +8,6 @@ import type { ScorpionAttackOrder, ScorpionCombat, ScorpionCombatBoard } from '.
 import { scorpionMovementRules } from './scorpion-ground-actions.ts'
 import type { GroundPolicies } from './scorpion-ground-actions.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
-import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import { canMoveInPhase, scorpionGroundMpAvailable, scorpionMovementStepCost, walkScorpionGroundRoute } from './scorpion-movement.ts'
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -94,8 +93,8 @@ export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: S
   const march = { enteredHex: state.overrunMarch.enteredHex || vacant,
     remaining: Object.fromEntries(survivors.map((id) => [id, state.overrunMarch!.remaining[id]!])) }
   if (!vacant) return { ...state, combat: null, overrunMarch: march }
-  const advanced = recordScorpionGroundControl({ ...state, combat: null, overrunMarch: march,
-    units: { ...state.units, ...Object.fromEntries(survivors.map((id) => [id, { ...state.units[id]!, hex: target }])) } }, attacker, [target])
+  const advanced = { ...state, combat: null, overrunMarch: march,
+    units: { ...state.units, ...Object.fromEntries(survivors.map((id) => [id, { ...state.units[id]!, hex: target }])) } }
   assertScorpionStacking(advanced, target)
   return resolveScorpionEntry(advanced, attacker, target, survivors, assets, true, railroad)
 }
