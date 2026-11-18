@@ -5,6 +5,8 @@ import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
+import { advanceScorpionBarrageRecovery } from '../ttw/scorpion/barrage-markers.ts'
+import type { ScorpionBarrageRecovery } from '../ttw/scorpion/barrage-markers.ts'
 import { openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
@@ -12,7 +14,7 @@ import { scorpionWeather } from '../ttw/scorpion/weather.ts'
 import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
 import type { AssignAttrition } from './scorpion-attrition.ts'
 import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
-import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord } from './scorpion-barrage.ts'
+import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
@@ -51,6 +53,8 @@ export interface ScorpionInPlay extends ReinforcementState {
   combat: ScorpionCombat | null
   barrage?: ScorpionBarrage | null
   barrageHistory?: readonly ScorpionBarrageRecord[]
+  frontBarrage?: ScorpionFrontBarrage | null
+  barrageRecovery?: ScorpionBarrageRecovery
   combatTargets: readonly string[]
   combatAttackers: readonly string[]
 }
@@ -115,6 +119,7 @@ export function submitScorpionSession(
         if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
         return applyScorpionReserve(state, actor, action, assets)
       case 'declare-artillery-barrage':
+      case 'declare-front-barrage':
       case 'choose-barrage-terrain':
       case 'assign-barrage-loss':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.barrage) {
@@ -223,5 +228,7 @@ function resolveReinforcements(
     units = { ...units, [placed.id]: counter }
     if (counter.combat) railControl = { ...railControl, [placed.hex]: actor }
   }
-  return { ...state, ...result, rng, units, railControl }
+  const barrageRecovery = actor === 'soviet' && action.type === 'complete-reinforcement' && state.barrageRecovery
+    ? advanceScorpionBarrageRecovery(state.barrageRecovery) : state.barrageRecovery
+  return { ...state, ...result, rng, units, railControl, barrageRecovery }
 }

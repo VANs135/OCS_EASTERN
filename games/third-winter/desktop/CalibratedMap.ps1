@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$ModelPath,
-    [string]$RenderTo
+    [string]$RenderTo,
+    [int]$RenderFrame = -1,
+    [switch]$RenderAid
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,20 +25,20 @@ function Get-Art([string]$path) {
     return $images[$path]
 }
 
-function Add-At($visual, [double]$x, [double]$y) {
+function Add-At($visual, [double]$x, [double]$y, $surface = $script:canvas) {
     [Windows.Controls.Canvas]::SetLeft($visual, $x)
     [Windows.Controls.Canvas]::SetTop($visual, $y)
-    [void]$script:canvas.Children.Add($visual)
+    [void]$surface.Children.Add($visual)
 }
 
-function Add-Counter($counter, [double]$x, [double]$y, [double]$size) {
+function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface = $script:canvas) {
     $image = New-Object Windows.Controls.Image
     $image.Source = Get-Art (Join-Path $model.imageDirectory $counter.asset)
     $image.Width = $size
     $image.Height = $size
     $image.ToolTip = $counter.label
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
-    Add-At $image $x $y
+    Add-At $image $x $y $surface
 }
 
 function Show-Frame([int]$index) {
@@ -86,6 +88,20 @@ function Show-Frame([int]$index) {
         $y = if ($marker.id -eq 'vp') { $box.y + 7 } else { $box.y + $box.h - $size - 7 }
         Add-Counter $marker ($box.x + $box.w - $size - 7) $y $size
     }
+    foreach ($marker in $frame.mapCounters) {
+        Add-Counter $marker ($marker.x - $marker.size / 2) ($marker.y - $marker.size / 2) $marker.size
+    }
+    if ($script:aidCanvas) {
+        $script:aidCanvas.Children.Clear()
+        $aidImage = New-Object Windows.Controls.Image
+        $aidImage.Source = Get-Art $model.aid.path
+        $aidImage.Width = $model.aid.width
+        $aidImage.Height = $model.aid.height
+        Add-At $aidImage 0 0 $script:aidCanvas
+        foreach ($marker in $frame.aidCounters) {
+            Add-Counter $marker ($marker.x - $marker.size / 2) ($marker.y - $marker.size / 2) $marker.size $script:aidCanvas
+        }
+    }
     if ($script:caption) {
         $script:caption.Text = $frame.caption
         $script:previous.IsEnabled = $index -gt 0
@@ -97,14 +113,22 @@ $script:canvas = New-Object Windows.Controls.Canvas
 $canvas.Width = $model.width
 $canvas.Height = $model.height
 $canvas.ClipToBounds = $true
+if ($model.aid) {
+    $script:aidCanvas = New-Object Windows.Controls.Canvas
+    $script:aidCanvas.Width = $model.aid.width
+    $script:aidCanvas.Height = $model.aid.height
+    $script:aidCanvas.ClipToBounds = $true
+}
 
 if ($RenderTo) {
-    Show-Frame ($model.frames.Count - 1)
-    $size = New-Object Windows.Size($model.width, $model.height)
-    $canvas.Measure($size)
-    $canvas.Arrange((New-Object Windows.Rect(0, 0, $model.width, $model.height)))
-    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap($model.width, $model.height, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
-    $bitmap.Render($canvas)
+    if ($RenderFrame -lt 0) { $RenderFrame = $model.frames.Count - 1 }
+    Show-Frame $RenderFrame
+    $surface = if ($RenderAid) { $script:aidCanvas } else { $script:canvas }
+    $size = New-Object Windows.Size($surface.Width, $surface.Height)
+    $surface.Measure($size)
+    $surface.Arrange((New-Object Windows.Rect(0, 0, $surface.Width, $surface.Height)))
+    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap($surface.Width, $surface.Height, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
+    $bitmap.Render($surface)
     $encoder = New-Object Windows.Media.Imaging.PngBitmapEncoder
     $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
     $output = [IO.File]::Create($RenderTo)
@@ -142,9 +166,17 @@ $previous.Add_Click({ $script:index--; Show-Frame $script:index })
 $next.Add_Click({ $script:index++; Show-Frame $script:index })
 [Windows.Controls.DockPanel]::SetDock($bar, 'Top')
 [void]$stack.Children.Add($bar)
-$viewbox = New-Object Windows.Controls.Viewbox
-$viewbox.Child = $canvas
-[void]$stack.Children.Add($viewbox)
+$tabs = New-Object Windows.Controls.TabControl
+foreach ($tab in @(@{ Header = $model.labels.map; Surface = $canvas }, @{ Header = $model.labels.aid; Surface = $script:aidCanvas })) {
+    if (!$tab.Surface) { continue }
+    $viewbox = New-Object Windows.Controls.Viewbox
+    $viewbox.Child = $tab.Surface
+    $item = New-Object Windows.Controls.TabItem
+    $item.Header = $tab.Header
+    $item.Content = $viewbox
+    [void]$tabs.Items.Add($item)
+}
+[void]$stack.Children.Add($tabs)
 $window.Content = $stack
 Show-Frame 0
 [void]$window.ShowDialog()

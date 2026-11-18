@@ -111,5 +111,10 @@ export function scorpionSupplyNetwork(map: ScorpionMap, state: TracePosition) {
       canDraw(hq.hex, source, hq.mobility) && canThrow(hq, location))
   }
 
-  return { trace, canUseDump, canDrawDump, canUseDumpVia }
+  function inThrowRange(hqId: string, location: string) {
+    const hq = state.headquarters.find((candidate) => candidate.id === hqId)
+    return Boolean(hq && canThrow(hq, location))
+  }
+
+  return { trace, canUseDump, canDrawDump, canUseDumpVia, inThrowRange }
 }

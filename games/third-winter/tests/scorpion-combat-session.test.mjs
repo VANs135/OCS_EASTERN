@@ -5,6 +5,8 @@ import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
 import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionBarrageFrontAt } from '../src/ttw/scorpion/barrage-markers.ts'
+import { scorpionBarrageMarkerFrame } from '../src/view/scorpion-barrage-markers.ts'
 
 const pairs = [['s10.01', 's10.02'], ['s10.02', 's10.03'], ['s15.08', 's15.09'], ['s15.09', 's15.10']]
 const map = scorpionMap([...new Set(pairs.flat())].map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -325,4 +327,48 @@ test('two batteries may use multiple dumps only through a common HQ', () => {
   const pending = submit(record, 'soviet', { ...attack, supply: { kind: 'hq', hqId: 'hq', payments } }, option)
   assert.equal(pending.state.dumps[firstDump].tokens, 9)
   assert.equal(pending.state.dumps[secondDump].tokens, 0)
+})
+
+test('the Scorpion front marker moves from the printed card to its sector, flips, and advances at Soviet reinforcement', () => {
+  const aidCatalog = { aliases: new Map(['1st Ukr Arty Ready', '2nd Ukr Arty Ready'].map((ref) =>
+    [ref, [{ kind: 'marker', source: { faces: { combat: { asset: `${ref}.png` }, move: { asset: `${ref}-spent.png` } } } }]])) }
+  const frame = (state) => scorpionBarrageMarkerFrame(state, aidCatalog)
+  const option = { ...board(), barrage: artilleryTable('-') }
+  const record = fixture('movement', {
+    army: unit('soviet', 's10.01', { headquarters: { throwRange: 2, mobility: 'truck', kessel: false } }),
+    artillery: unit('soviet', 's10.01', { printedRe: 2, artillery: { strength: 28, range: 2, independentRe: true } }),
+    target: unit('axis', 's10.02'), adjacent: unit('axis', 's10.03'),
+  })
+  const front = 'first-ukrainian'
+  const marker = `artillery:${front}`
+  const attack = { type: 'declare-front-barrage', front, center: 's10.02', hqId: 'army',
+    volleys: ['s10.02', 's10.03'].map((target) => ({ target, batteries: [{ unitId: 'artillery', re: 1 }] })) }
+  assert.equal(scorpionBarrageFrontAt('s8.15'), 'second-ukrainian')
+  assert.equal(scorpionBarrageFrontAt('s9.15'), 'first-ukrainian')
+  assert.equal(frame(record.state).aidCounters.length, 2)
+  assert.throws(() => submit(record, 'soviet', { ...attack, front: 'second-ukrainian' }, option), /Scorpion sector/)
+  const active = submit(record, 'soviet', attack, option)
+  assert.equal(frame(active.state).mapCounters[0].id, marker)
+  assert.equal(frame(active.state).aidCounters.length, 1)
+  assert.equal(active.state.dumps['soviet:hex:s10.01'].tokens, 10)
+
+  const terrain = { type: 'choose-barrage-terrain', terrain: 'Open' }
+  const first = submit(JSON.parse(JSON.stringify(active)), 'axis', terrain, option)
+  assert.equal(first.state.barrage.target, 's10.03')
+  assert.equal(frame(first.state).mapCounters[0].id, marker)
+  const finished = submit(first, 'axis', terrain, option)
+  assert.equal(frame(finished.state).mapCounters.length, 0)
+  const spent = frame(finished.state).aidCounters.find(({ id }) => id === marker)
+  assert.match(spent.asset, /-spent/)
+  assert.equal(finished.state.barrageRecovery[front], 1)
+  assert.throws(() => submit(finished, 'soviet', attack, option), /once per front/)
+  assert.throws(() => submit(finished, 'soviet', { type: 'ground-move', unitId: 'army', path: ['s10.02'] }, option),
+    /Movement Segment has ended/)
+
+  const later = { ...finished, state: { ...finished.state, cursor: { ...finished.state.cursor, turn: 2, phase: 'reinforcement' },
+    arrivalsOnMap: [], placedAlerts: [], window: { stage: 'variable', variableTokens: 0 } } }
+  const reinforced = submit(later, 'soviet', { type: 'complete-reinforcement' }, { ...option, reinforcements: () => ({}) })
+  assert.equal(reinforced.state.barrageRecovery[front], 2)
+  assert.equal(frame(reinforced.state).aidCounters.find(({ id }) => id === marker).x - spent.x, 75)
+  assert.throws(() => submit(reinforced, 'soviet', { ...attack, front: 'second-ukrainian' }, option), /turn-one/)
 })

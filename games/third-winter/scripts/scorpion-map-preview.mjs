@@ -9,14 +9,18 @@ import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
 import { completeScorpionCleanup } from '../src/match/scorpion-round.ts'
+import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { answerRetention, chooseFirstPlayer, rollInitiative } from '../src/ttw/scorpion/initiative-step.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
+import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
+import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
 const [root, ...options] = process.argv.slice(2)
-if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path]')
-const renderOption = options.find((arg) => arg.startsWith('--render='))
+if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
+const renderOption = options.find((arg) => arg.startsWith('--render=') || arg.startsWith('--render-aid='))
+const renderIndex = options.find((arg) => arg.startsWith('--frame='))?.slice('--frame='.length)
 const unitRoot = options.find((arg) => !arg.startsWith('--')) ?? join(dirname(resolve(root)), 'DATA备份')
 const json = async (...path) => JSON.parse((await readFile(join(...path), 'utf8')).replace(/^\uFEFF/, ''))
 const scenario = [root, 'data', 'scenarios', '08-scorpion']
@@ -29,16 +33,20 @@ const surface = calibratedSurface(calibration)
 const boxes = scorpionSurfaceBoxes(surface)
 const imageDirectory = resolve(root, 'vmod', 'images')
 const map = join(imageDirectory, 'Scorpion-Map-200929.png')
+const aid = { ...scorpionSovietAid, path: join(imageDirectory, scorpionSovietAid.asset) }
 const { before, axisConfirmed, started } = sampleScorpionOpening(setup, { map: groundMap, catalog })
 const { pieces, turn: initial } = started.state
-const frames = [
-  { caption: '开局 · 轴心部署', ...scorpionSessionBoxFrame(before.state, catalog) },
-  { caption: '轴心已确认 · 苏军部署', ...scorpionSessionBoxFrame(axisConfirmed.state, catalog) },
-  { caption: '双方部署已确认 · 1 月 26 日苏军先行', ...scorpionSessionBoxFrame(started.state, catalog) },
-]
+const frames = []
+function sessionFrame(caption, state) {
+  frames.push({ caption, ...scorpionSessionBoxFrame(state, catalog), ...scorpionBarrageMarkerFrame(state, catalog) })
+}
+sessionFrame('开局 · 轴心部署', before.state)
+sessionFrame('轴心已确认 · 苏军部署', axisConfirmed.state)
+sessionFrame('双方部署已确认 · 1 月 26 日苏军先行', started.state)
 
 function frame(caption, turn, player) {
-  frames.push({ caption, ...scorpionBoxFrame(turn, pieces, catalog, player) })
+  frames.push({ caption, ...scorpionBoxFrame(turn, pieces, catalog, player),
+    ...scorpionBarrageMarkerFrame({ ...started.state, turn }, catalog) })
 }
 
 function dice(...faces) {
@@ -89,17 +97,48 @@ submit({ type: 'complete-refit' })
 submit({ type: 'place-arrival', arrivalId: optional.id, hex: optional.destinations[0] })
 frame('第 24 装甲师入场 · 苏军净胜利分加 5', ready(fourth), record.state)
 
-const assets = new Set(frames.flatMap(({ trackers, inventories }) =>
-  [...trackers, ...inventories.flatMap(({ counters }) => counters)].map(({ asset }) => asset)))
-await Promise.all([access(map), ...[...assets].map((asset) => access(join(imageDirectory, asset)))])
+const barragePath = process.env.OCS_V43_BARRAGE
+if (barragePath) {
+  const barrage = JSON.parse(await readFile(barragePath, 'utf8'))
+  const setupAssets = { map: groundMap, catalog }
+  const rules = { barrage, reinforcements: () => ({ ...board, controlOf: () => 'soviet',
+    supplySources: { axis: new Set(), soviet: new Set(['s22.02']) } }) }
+  let opening = started
+  function issue(action) {
+    opening = submitScorpionSession(opening, 'soviet',
+      { id: `preview-opening-${opening.revision}`, expectedRevision: opening.revision, action }, setupAssets, rules).record
+  }
+  issue({ type: 'complete-refit' })
+  for (const entry of arrivalCatalog.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
+    issue({ type: 'place-arrival', arrivalId: entry.id, hex: entry.destinations[0] })
+  }
+  issue({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
+  issue({ type: 'finish-scheduled-arrivals' })
+  issue({ type: 'complete-reinforcement' })
+  const { deployed, finished, center } = sampleScorpionFrontBarrage(opening, setupAssets, rules)
+  sessionFrame('首回合炮击 · 准备格', opening.state)
+  sessionFrame(`首回合炮击 · 标记移到 ${center}`, deployed.state)
+  sessionFrame('首回合炮击完毕 · 标记翻面回到恢复格 1', finished.state)
+}
+
+const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapCounters }) =>
+  [...trackers, ...aidCounters, ...mapCounters, ...inventories.flatMap(({ counters }) => counters)].map(({ asset }) => asset)))
+await Promise.all([access(map), access(aid.path), ...[...assets].map((asset) => access(join(imageDirectory, asset)))])
 const temporary = await mkdtemp(join(tmpdir(), 'ocs-scorpion-'))
 const model = join(temporary, 'frames.json')
 try {
-  await writeFile(model, JSON.stringify({ width: surface.width, height: surface.height, map, boxes, frames, imageDirectory,
-    labels: { title: '第三冬 · 瓶中蝎小地图', previous: '上一步', next: '下一步', empty: '空', hidden: '仅本方可见' } }))
+  await writeFile(model, JSON.stringify({ width: surface.width, height: surface.height, map, boxes, frames, imageDirectory, aid,
+    labels: { title: '第三冬 · 瓶中蝎', map: '小地图', aid: '苏军辅助卡', previous: '上一步', next: '下一步',
+      empty: '空', hidden: '仅本方可见' } }))
   const renderer = fileURLToPath(new URL('../desktop/CalibratedMap.ps1', import.meta.url))
   const args = ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', renderer, '-ModelPath', model]
-  if (renderOption) args.push('-RenderTo', resolve(renderOption.slice('--render='.length)))
+  if (renderOption) args.push('-RenderTo', resolve(renderOption.slice(renderOption.indexOf('=') + 1)))
+  if (renderOption?.startsWith('--render-aid=')) args.push('-RenderAid')
+  if (renderIndex !== undefined) {
+    const index = Number(renderIndex)
+    if (!Number.isSafeInteger(index) || index < 0 || index >= frames.length) throw new Error('Invalid preview frame')
+    args.push('-RenderFrame', String(index))
+  }
   await new Promise((done, fail) => {
     const child = spawn('powershell.exe', args, { stdio: 'inherit', windowsHide: true })
     child.once('error', fail)

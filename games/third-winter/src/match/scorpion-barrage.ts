@@ -5,7 +5,10 @@ import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionMap, Terrain } from '../import/scorpion-map.ts'
+import { scorpionBarrageFrontAt, scorpionBarrageFronts } from '../ttw/scorpion/barrage-markers.ts'
+import type { ScorpionBarrageFront } from '../ttw/scorpion/barrage-markers.ts'
 import { combatTerrainCategory } from '../ttw/scorpion/combat-terrain.ts'
+import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
@@ -14,11 +17,14 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment, totalTokens } from './scorpion-sp-payment.ts'
 import type { SupplyPayment } from './scorpion-sp-payment.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 
 type Firing = { unitId: string; re?: number }
+type Volley = { target: string; batteries: readonly Firing[] }
 type Supply = { kind: 'direct'; payments: readonly SupplyPayment[] }
   | { kind: 'hq'; hqId: string; payments: readonly SupplyPayment[] }
-export type BarrageAction = { type: 'declare-artillery-barrage'; target: string; batteries: readonly Firing[]; supply: Supply }
+export type BarrageAction = ({ type: 'declare-artillery-barrage'; supply: Supply } & Volley)
+  | { type: 'declare-front-barrage'; front: ScorpionBarrageFront; center: string; hqId: string; volleys: readonly Volley[] }
   | { type: 'choose-barrage-terrain'; terrain: Terrain }
   | { type: 'assign-barrage-loss'; allocation: readonly { unitId: string; steps: number }[] }
 
@@ -32,6 +38,12 @@ export interface ScorpionBarrage {
   hedgehog: number
   roll?: ReturnType<typeof rollGroundBarrage>
   lossesDue?: number
+}
+
+export interface ScorpionFrontBarrage {
+  front: ScorpionBarrageFront
+  center: string
+  remaining: readonly ScorpionBarrage[]
 }
 
 export type ScorpionBarrageRecord = ScorpionBarrage & {
@@ -52,6 +64,9 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
   if (action.type === 'declare-artillery-barrage') {
     return declare(state, actor, action, assets.map, table, hedgehogAt, rail)
   }
+  if (action.type === 'declare-front-barrage') {
+    return declareFront(state, actor, action, assets.map, table, hedgehogAt, rail)
+  }
   const barrage = state.barrage
   if (!barrage || actor !== barrage.defender) throw new Error('The targeted player must respond to the barrage')
   if (action.type === 'choose-barrage-terrain') {
@@ -70,7 +85,7 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
     }
   }
   const settled = applyScorpionCombatLosses(state, new Map(action.allocation.map(({ unitId, steps }) => [unitId, steps])), assets, rail)
-  return { ...settled, barrage: null }
+  return finishBarrage(settled)
 }
 
 function declare(state: Readonly<ScorpionInPlay>, actor: Side,
@@ -86,25 +101,8 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     throw new Error('Artillery may barrage an enemy stack once per phase before regular combat')
   }
   if (phase !== 'combat') assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
-  if (!action.batteries.length || new Set(action.batteries.map(({ unitId }) => unitId)).size !== action.batteries.length) {
-    throw new Error('Select one or more distinct artillery counters')
-  }
-  let strength = 0
-  const batteries = action.batteries.map(({ unitId, re }) => {
-    const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
-    const face = unit?.artillery
-    if (!unit || unit.side !== actor || unit.reserve || !face?.strength || !face.range || unit.hex === target ||
-      scorpionHexDistance(unit.hex, target) > face.range || (phase === 'reaction' && !unit.released) ||
-      (phase === 'exploitation' && !unit.released && !unit.exploit)) throw new Error('Select eligible artillery within printed range')
-    const used = history.flatMap((event) => event.batteries).filter((battery) => battery.unitId === unitId)
-      .reduce((total, battery) => total + battery.re, 0)
-    const remaining = (face.independentRe ? remainingSteps(unit) : 1) - used
-    const firing = re ?? remaining
-    if (!Number.isSafeInteger(firing) || firing < 1 || firing > remaining) throw new Error('Select eligible unused artillery RE')
-    strength += face.strength * firing / (face.independentRe ? unit.printedRe : 1) * (unit.disorganized ? 0.5 : 1)
-    return { unitId, re: firing }
-  })
-  const { initialColumn, cost } = barrageColumn(table, strength)
+  const barrage = prepareBarrage(state, actor, action, table, history.flatMap((event) => event.batteries), hedgehogAt)
+  const { cost, batteries } = barrage
   const { supply } = action
   if (totalTokens(supply.payments) !== cost || (supply.kind === 'direct' && batteries.length > 1 &&
     new Set(supply.payments.map(({ dumpId }) => dumpId)).size !== 1)) {
@@ -116,9 +114,80 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     return supply.kind === 'hq' ? ledger.network.canUseDumpVia(supply.hqId, unit.hex, hex)
       : ledger.network.canDrawDump(unit.hex, hex, unit.traceDrawMobility)
   }))
+  return { ...state, dumps: ledger.dumps, barrage }
+}
+
+function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,
+  action: Extract<BarrageAction, { type: 'declare-front-barrage' }>, map: ScorpionMap,
+  table: BarrageTable, hedgehogAt?: (hex: string) => number, rail?: SupplyRailBoard): ScorpionInPlay {
+  const { front, hqId, volleys } = action
+  const { cursor } = state
+  if (!scorpionBarrageFronts.includes(front) || actor !== 'soviet' || cursor.phasing !== actor || cursor.turn !== 1 ||
+    cursor.phase !== 'movement' || state.barrage || state.barrageRecovery?.[front]) {
+    throw new Error('Scorpion artillery markers are available once per front during Soviet turn-one Movement')
+  }
+  const hq = Object.hasOwn(state.units, hqId) ? state.units[hqId] : undefined
+  if (!hq?.headquarters || hq.side !== actor || hq.headquarters.kessel) {
+    throw new Error('Choose a Soviet Army HQ to support the front barrage')
+  }
+  assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
+  const center = scorpionHexId(action.center)
+  if (scorpionBarrageFrontAt(center) !== front) throw new Error('Place the artillery marker in its Scorpion sector')
+  const near = map.neighbors(center)
+  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, actor, rail))
+  if (!map.hexes.has(center) || !network.inThrowRange(hqId, center) ||
+    !Object.values(state.units).some((unit) => unit.side === actor && unit.combat && near.includes(unit.hex))) {
+    throw new Error('Place the marker within the Army HQ throw range and adjacent to a Soviet combat unit')
+  }
+  const targets = volleys.map((volley) => scorpionHexId(volley.target))
+  const history = scorpionPhaseBarrages(state)
+  if (volleys.length < 1 || volleys.length > 3 || !targets.includes(center) || new Set(targets).size !== targets.length ||
+    targets.some((hex) => (hex !== center && !near.includes(hex)) ||
+      !targetUnits(state, 'axis', hex).length || history.some((event) => event.target === hex))) {
+    throw new Error('Choose the marker hex and up to two adjacent unbarraged enemy stacks')
+  }
+  const used = history.flatMap((event) => event.batteries)
+  const barrages = volleys.map((volley) => {
+    const barrage = prepareBarrage(state, actor, volley, table, used, hedgehogAt)
+    used.push(...barrage.batteries)
+    return { ...barrage, cost: 0 }
+  })
+  const firingHexes = new Set(barrages.flatMap(({ batteries }) => batteries.map(({ unitId }) => state.units[unitId]!.hex)))
+  const connected = new Set([firingHexes.values().next().value!])
+  for (const hex of connected) for (const neighbor of map.neighbors(hex)) if (firingHexes.has(neighbor)) connected.add(neighbor)
+  if (connected.size !== firingHexes.size) throw new Error('Front artillery must occupy the same or contiguous hexes')
+  const [barrage, ...remaining] = barrages
+  return { ...state, barrage: barrage!, frontBarrage: { front, center, remaining } }
+}
+
+function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Volley, table: BarrageTable,
+  fired: readonly Required<Firing>[], hedgehogAt?: (hex: string) => number): ScorpionBarrage {
+  const target = scorpionHexId(volley.target)
+  const phase = state.cursor.phase
+  if (!volley.batteries.length || new Set(volley.batteries.map(({ unitId }) => unitId)).size !== volley.batteries.length) {
+    throw new Error('Select one or more distinct artillery counters')
+  }
+  let strength = 0
+  const batteries = volley.batteries.map(({ unitId, re }) => {
+    const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
+    const face = unit?.artillery
+    if (!unit || unit.side !== actor || unit.reserve || !face?.strength || !face.range || unit.hex === target ||
+      scorpionHexDistance(unit.hex, target) > face.range || (phase === 'reaction' && !unit.released) ||
+      (phase === 'exploitation' && !unit.released && !unit.exploit) || (phase === 'movement' && (unit.moveMode || unit.disorganized))) {
+      throw new Error('Select eligible artillery within printed range')
+    }
+    const used = fired.filter((battery) => battery.unitId === unitId)
+      .reduce((total, battery) => total + battery.re, 0)
+    const remaining = (face.independentRe ? remainingSteps(unit) : 1) - used
+    const firing = re ?? remaining
+    if (!Number.isSafeInteger(firing) || firing < 1 || firing > remaining) throw new Error('Select eligible unused artillery RE')
+    strength += face.strength * firing / (face.independentRe ? unit.printedRe : 1) * (unit.disorganized ? 0.5 : 1)
+    return { unitId, re: firing }
+  })
+  const { initialColumn, cost } = barrageColumn(table, strength)
   const hedgehog = hedgehogAt?.(target) ?? 0
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
-  return { ...state, dumps: ledger.dumps, barrage: { target, defender, batteries, strength, initialColumn, cost, hedgehog } }
+  return { target, defender: actor === 'axis' ? 'soviet' : 'axis', batteries, strength, initialColumn, cost, hedgehog }
 }
 
 function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: ScorpionBarrage, terrain: Terrain,
@@ -144,8 +213,17 @@ function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: Sc
   const lossesDue = Math.min(roll.loss, defenders.reduce((sum, [, unit]) => sum + remainingSteps(unit), 0))
   const result = { ...barrage, roll, lossesDue }
   const { turn, phasing, phase } = state.cursor
-  return { ...state, units, rng, barrage: lossesDue ? result : null,
+  const settled = { ...state, units, rng, barrage: result,
     barrageHistory: [...(state.barrageHistory ?? []), { ...result, turn, phasing, phase, terrain }] }
+  return lossesDue ? settled : finishBarrage(settled)
+}
+
+function finishBarrage(state: Readonly<ScorpionInPlay>): ScorpionInPlay {
+  const plan = state.frontBarrage
+  if (!plan) return { ...state, barrage: null }
+  const [next, ...remaining] = plan.remaining
+  if (!state.victory && next) return { ...state, barrage: next, frontBarrage: { ...plan, remaining } }
+  return { ...state, barrage: null, frontBarrage: null, barrageRecovery: { ...state.barrageRecovery, [plan.front]: 1 } }
 }
 
 function targetUnits(state: Readonly<ScorpionInPlay>, side: Side, at: string) {

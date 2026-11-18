@@ -16,6 +16,7 @@ import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
+import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -131,6 +132,11 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     followingGroundCounters: Object.keys(record.state.units).length,
     firstMoveDestination: record.state.units[unitId].hex,
     reserveMove: { from: reserveMove.from, to: reserveMove.to, counters: reserveMove.unitIds.length },
+  }
+  if (barrage) {
+    const { deployed, finished, front, center, result } = sampleScorpionFrontBarrage(record, assets, board)
+    opening.sampleFrontBarrage = { front, center, activeHex: deployed.state.frontBarrage.center,
+      recoveryBox: finished.state.barrageRecovery[front], cost: result.cost, result: result.roll.code }
   }
   function finishSupply() {
     submit({ type: 'complete-movement' })
