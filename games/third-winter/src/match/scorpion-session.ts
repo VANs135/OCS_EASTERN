@@ -116,6 +116,7 @@ export function submitScorpionSession(
       case 'choose-air-aborts':
       case 'choose-air-combat-unit':
       case 'choose-flak-loss':
+      case 'choose-airlift-landing':
       case 'return-aircraft':
         if (state.kind !== 'playing') throw new Error('There is no pending air mission')
         return respondScorpionAirMission(state, actor, action, assets, airBoard)

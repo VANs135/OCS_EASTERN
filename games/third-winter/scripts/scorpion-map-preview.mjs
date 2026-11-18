@@ -15,7 +15,7 @@ import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
-import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
+import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionSupplyAirlift, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
@@ -64,10 +64,10 @@ function dice(...faces) {
   }
 }
 
-function ready(turn) {
+function ready(turn, first = 'axis') {
   const rolling = turn.step.kind === 'retention' ? answerRetention(turn, turn.step.responder, 'roll').turn : turn
   const initiative = rollInitiative(rolling, dice(6, 5, 2, 1))
-  return chooseFirstPlayer(initiative, 'axis', 'axis')
+  return chooseFirstPlayer(initiative, 'axis', first)
 }
 
 function nextRound(turn, riverSteps, ...rolls) {
@@ -158,6 +158,12 @@ const barragePath = process.env.OCS_V43_BARRAGE
 const refit = sampleScorpionRefit(started, { map: groundMap, catalog })
 sessionFrame('整备演示 · 飞机处于非激活', refit.before.state)
 sessionFrame(refit.airBase ? '整备完成 · 图上机场消耗 1T，地图外免费' : '整备完成 · 地图外空军盒免费', refit.after.state)
+
+const airliftTurn = ready(second, 'soviet')
+const airliftOpening = { ...started, state: { ...started.state, turn: airliftTurn, cursor: startScorpionPlayerTurns(airliftTurn) } }
+const airlift = sampleScorpionSupplyAirlift(airliftOpening, { map: groundMap, catalog }, { reinforcements: () => board })
+sessionFrame('空运演示 · 增援补给放入苏军空军盒', airlift.before.state)
+sessionFrame(`空运结算 · ${airlift.event.target.hex} 收到 ${airlift.event.airlift.unloading.delivered}T`, airlift.returned.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())

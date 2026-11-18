@@ -8,6 +8,7 @@ import { scorpionWeather } from '../src/ttw/scorpion/weather.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { scorpionHexLayout } from '../src/view/scorpion-grid-layout.ts'
 
 const definition = (name, kind, side, move = null) => ({ key: name, kind, source: { side, name,
   faces: { combat: { asset: `${name}.png` }, move: move && { asset: move } } } })
@@ -66,6 +67,40 @@ test('map counters paginate within their hex and only their parent carries small
   const atDestination = moved.find((row) => row.hex === 's2.16').pages[0][0]
   assert.equal(atDestination.id, first.id)
   assert.equal(atDestination.badges.length, 2)
+})
+
+test('the Scorpion grid follows the printed hex centers on both parities and fits the clipped rows', () => {
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.75, `${actual} vs ${expected}`)
+  for (const [hex, x, y] of [['s1.08', 522, 1061], ['s2.08', 615, 1008], ['s17.04', 2008, 1490], ['s22.02', 2473, 1651]]) {
+    const center = scorpionHexLayout(hex)
+    close(center.x, x)
+    close(center.y, y)
+    assert.equal(center.scale, 1)
+  }
+  const marked = ['s2.17', 's1.01'].map((hex) => ({ id: hex, hex, asset: 'marker.png', label: hex }))
+  const state = { kind: 'playing', airBases: [], units: {}, pieces: [], dumps: {} }
+  const [north, south] = scorpionMapStacks(state, catalog, marked)
+  assert.ok(north.scale >= 0.49 && north.scale <= 0.51)
+  assert.ok(south.scale > 0.67 && south.scale < 0.70)
+  close(north.y, 68.9)
+  close(south.y, 1795.6)
+  for (const group of [north, south]) {
+    const [counter] = group.pages[0]
+    assert.equal(Math.abs(counter.x) + Math.abs(counter.y), 0)
+    assert.ok(group.y - counter.size / 2 >= 42.04)
+    assert.ok(group.y + counter.size / 2 <= 1832.5)
+  }
+})
+
+test('supply in an off-map air box uses the printed markers and the box visibility rules', () => {
+  const unit = definition('Supply Ton 2T', 'marker', null)
+  const aliases = new Map([...catalog.aliases, [unit.key, [unit]]])
+  const dumps = { 'axis:air-box': { side: 'axis', location: 'off-map', tokens: 2 } }
+  const axisBox = (viewer) => scorpionBoxFrame(opening(), [], { ...catalog, aliases }, undefined, viewer, dumps)
+    .inventories.find(({ cell }) => cell === 20)
+  assert.deepEqual(axisBox('axis').counters.map(({ label }) => label), ['2T'])
+  assert.equal(axisBox('soviet').hidden, true)
+  assert.deepEqual(axisBox('soviet').counters, [])
 })
 
 test('the turn advances once after both cleanups and weather moves both markers', () => {

@@ -147,3 +147,39 @@ export function sampleScorpionTrainbusting(opening, assets, board) {
   if (record.state.airMission) throw new Error('The opening trainbusting aircraft did not finish returning')
   return { returning, returned: record, event }
 }
+
+export function sampleScorpionSupplyAirlift(opening, assets, board) {
+  const box = { kind: 'off-map-air' }
+  const source = 'soviet:air-box'
+  const target = { kind: 'hex', hex: 's18.07' }
+  const destination = `soviet:hex:${target.hex}`
+  const turn = opening.state.cursor.turn
+  let record = opening
+  const submit = (seat, action) => {
+    const command = { id: `sample-airlift-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, seat, command, assets, board).record
+  }
+  submit('soviet', { type: 'complete-refit' })
+  const rules = board.reinforcements(record.state)
+  for (const arrival of rules.catalog.filter((entry) => entry.side === 'soviet' && entry.turn === turn && !entry.optionalForce)) {
+    const [hex] = rules.arrivalDestinations(arrival)
+    if (hex) submit('soviet', { type: 'place-arrival', arrivalId: arrival.id, hex })
+  }
+  submit('soviet', { type: 'finish-scheduled-arrivals' })
+  submit('soviet', { type: 'place-supply', target: { kind: 'air-box' }, tokens: record.state.window.variableTokens })
+  submit('soviet', { type: 'complete-reinforcement' })
+  const before = record
+  const plane = record.state.pieces.find((piece) => piece.kind === 'aircraft' && piece.side === 'soviet' &&
+    piece.active && atAirBase(piece.location, box) && aircraftProfile(piece, assets).transport === 1)
+  if (!plane) throw new Error('Missing opening Soviet transport in the off-map air box')
+  submit('soviet', { type: 'launch-air-mission', mission: 'transport', target, unitIds: [plane.id], supplyTokens: 2 })
+  if (record.state.airMission?.step.kind === 'interception') submit('axis', { type: 'respond-interception', unitId: null })
+  if (record.state.airMission?.step.kind === 'return') submit('soviet', { type: 'return-aircraft', unitId: plane.id, base: box })
+  const event = record.state.airHistory?.at(-1)
+  const delivered = event?.airlift?.unloading?.delivered
+  if (record.state.airMission || !delivered || record.state.dumps[source].tokens !== before.state.dumps[source].tokens - 2 ||
+    record.state.dumps[destination].tokens !== (before.state.dumps[destination]?.tokens ?? 0) + delivered) {
+    throw new Error('The opening supply airlift did not debit the off-map box and deliver to the on-map base')
+  }
+  return { before, returned: record, event }
+}

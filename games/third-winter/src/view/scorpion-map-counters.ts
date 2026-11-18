@@ -4,6 +4,8 @@ import type { ScorpionSetupAssets } from '../match/scorpion-setup.ts'
 import type { ScorpionSession } from '../match/scorpion-session.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { hexCounterPages } from './hex-counter-layout.ts'
+import { scorpionHexLayout } from './scorpion-grid-layout.ts'
+import { scorpionSupplyCounters } from './scorpion-supply-counters.ts'
 
 interface CounterBadge {
   label: string
@@ -63,22 +65,12 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
   for (const [id, dump] of Object.entries(board.dumps)) {
     if (dump.location !== 'on-map' || !dump.tokens) continue
     const hex = scorpionHexId(id.slice(`${dump.side}:hex:`.length))
-    let tokens = dump.tokens
-    let copy = 0
-    while (tokens > 0) {
-      const points = Math.min(5, Math.floor(tokens / 4))
-      const used = points ? points * 4 : tokens
-      const label = points ? `${points} SP` : `${used}T`
-      const ref = points ? `Supply Point ${points}` : `Supply Ton ${used}T`
-      const asset = markerFace(catalog, ref)
-      if (!asset) throw new Error(`Missing supply counter ${ref}`)
-      push({ id: `${id}:${++copy}`, hex, asset, label })
-      tokens -= used
-    }
+    for (const counter of scorpionSupplyCounters(id, dump.tokens, catalog.aliases)) push({ ...counter, hex })
   }
-  return [...stacks].map(([hex, counters]) => ({
-    hex, ...scorpionArtworkHexCenter(hex), pages: hexCounterPages(counters),
-  }))
+  return [...stacks].map(([hex, counters]) => {
+    const layout = scorpionHexLayout(hex)
+    return { hex, ...layout, pages: hexCounterPages(counters, layout.scale) }
+  })
 }
 
 function groundBadges(unit: DeployedCounter, catalog: Catalog): CounterBadge[] {
@@ -105,9 +97,4 @@ function groundBadges(unit: DeployedCounter, catalog: Catalog): CounterBadge[] {
 function markerFace(catalog: Catalog, ref: string): string | undefined {
   const matches = catalog.aliases.get(ref)
   return matches?.length === 1 ? matches[0]!.source.faces.combat?.asset ?? undefined : undefined
-}
-
-function scorpionArtworkHexCenter(hex: string) {
-  const [col, row] = scorpionHexId(hex).slice(1).split('.').map(Number) as [number, number]
-  return { x: 55 + (col + 4) * 93, y: 41 + (17 - row) * 107.4 - (col % 2 === 0 ? 53.7 : 0) }
 }

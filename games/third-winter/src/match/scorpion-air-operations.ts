@@ -13,8 +13,10 @@ import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { PlayerTurn } from './scorpion-player-turn.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
+import { loadScorpionSupplyAirlift, settleScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
+import type { ScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
 
-type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting'
+type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
 type Flight = { id: string; origin: ScorpionAirBase; normalRange: boolean }
 type AirRound = Omit<ReturnType<typeof rollAirCombat>, 'rng'> & { attackerId: string; defenderId: string }
@@ -26,6 +28,7 @@ type AirStep =
   | { kind: 'pick-attacker'; actor: Side; initiator: Side }
   | { kind: 'pick-defender'; actor: Side; initiator: Side; attackerId: string }
   | { kind: 'flak-loss'; actor: Side; candidates: readonly string[] }
+  | { kind: 'airlift-landing'; actor: Side; candidates: readonly string[]; delivered: number; remaining: number }
   | { kind: 'barrage' }
   | { kind: 'return' }
 
@@ -35,6 +38,7 @@ interface AirMissionData {
   target: ScorpionAirBase
   flights: readonly Flight[]
   strike?: ScorpionAirBarragePlan
+  airlift?: ScorpionSupplyAirlift
   interceptor?: Flight
   patrol: boolean
   returning: readonly string[]
@@ -46,11 +50,12 @@ export type ScorpionAirMission = AirMissionData & { step: AirStep }
 export type ScorpionAirReport = Omit<AirMissionData, 'returning'> & Pick<PlayerTurn, 'turn' | 'phasing' | 'phase'>
 
 export type LaunchAirMission = { type: 'launch-air-mission'; mission: MissionKind; target: ScorpionAirBase;
-  unitIds: readonly string[]; targetKind?: AirBarrageTarget }
+  unitIds: readonly string[]; targetKind?: AirBarrageTarget; supplyTokens?: number }
 export type RespondAirMission =
   | { type: 'respond-interception'; unitId: string | null }
   | { type: 'choose-air-aborts'; unitIds: readonly string[] }
   | { type: 'choose-air-combat-unit'; unitId: string } | { type: 'choose-flak-loss'; unitId: string }
+  | { type: 'choose-airlift-landing'; unitIds: readonly string[] }
   | { type: 'return-aircraft'; unitId: string; base: ScorpionAirBase }
 
 const opponent = (side: Side): Side => side === 'axis' ? 'soviet' : 'axis'
@@ -91,7 +96,7 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     throw new Error('Flight conditions prohibit this mission')
   }
   const isStrike = barrageSegment || kind === 'hip-shoot'
-  if ((!isStrike && kind !== 'fighter-sweep' && kind !== 'base-transfer') ||
+  if ((!isStrike && kind !== 'fighter-sweep' && kind !== 'base-transfer' && kind !== 'transport') ||
     new Set(unitIds).size !== unitIds.length || !unitIds.length || unitIds.length > 4 ||
     ((kind === 'fighter-sweep' || kind === 'hip-shoot') && unitIds.length !== 1)) {
     throw new Error('Choose a legal mission and aircraft stack')
@@ -107,9 +112,10 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     // TTW 2.2c: the player's ruling places the entire Scorpion map under Axis air command.
     if (target.kind !== 'hex' || !state.airBases.some((base) => base.side === enemy && base.hex === target.hex) ||
       !activeAt(state, enemy, target).length) throw new Error('Fighter sweep requires active enemy aircraft at an air base')
-  } else if (kind === 'base-transfer' && !friendlyAirBases(state, actor).some((base) => atAirBase(base, target))) {
-    throw new Error('Base transfer requires a friendly destination')
+  } else if ((kind === 'base-transfer' || kind === 'transport') && !friendlyAirBases(state, actor).some((base) => atAirBase(base, target))) {
+    throw new Error('Base transfer or transport requires a friendly destination')
   }
+  if (kind === 'transport' && target.kind !== 'hex') throw new Error('Off-map supply airlift requires a friendly on-map air base')
   const used = new Set(scorpionPhaseAirMissions(state).flatMap((record) => record.flights.map(({ id }) => id)))
   const flights: Flight[] = []
   const profiles: ReturnType<typeof aircraftProfile>[] = []
@@ -140,10 +146,12 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     ? prepareScorpionAirBarrage(state, actor, enemy, target.hex, kind === 'trainbusting' ? kind : action.targetKind ?? 'units',
       kind === 'hip-shoot', profiles, assets, board)
     : undefined
-  const mission: AirMissionData = { kind, side: actor, target, flights, ...(strike ? { strike } : {}),
+  const cargo = kind === 'transport' ? loadScorpionSupplyAirlift(state, actor, action.supplyTokens, flights, profiles) : null
+  const mission: AirMissionData = { kind, side: actor, target, flights, ...(strike ? { strike } : {}), ...(cargo ? { airlift: cargo.airlift } : {}),
     patrol: false, returning: [], rounds: [] }
   // OCS 6.1g. Starting an air mission ends any interrupted ground movement.
   const launched = { ...state, overrunMarch: null, groundCaptureMove: null,
+    ...(cargo ? { dumps: cargo.dumps } : {}),
     pieces: state.pieces.map((piece) => unitIds.includes(piece.id) ? { ...piece, location: target } : piece) }
   const opposing = isStrike ? activeAt(state, enemy, target) : []
   if (kind === 'fighter-sweep' || (opposing.length && (profiles.some(({ fighter }) => fighter) ||
@@ -195,7 +203,7 @@ export function respondScorpionAirMission(state: Readonly<ScorpionInPlay>, actor
     const ids = new Set(action.unitIds)
     if (ids.size !== action.unitIds.length || action.unitIds.some((id) => !offered.some((piece) => piece.id === id)) ||
       (!step.afterCombat && ids.size >= offered.length)) throw new Error('Choose active aircraft and leave at least one before combat')
-    const changed = abortAircraft(state, mission, action.unitIds, false, !step.afterCombat)
+    const changed = abortAircraft(state, mission, action.unitIds, false, step.afterCombat ? 'after-combat' : 'combat')
     if (!step.lastSide) return { ...changed.state, airMission: { ...changed.mission,
       step: { ...step, actor: opponent(actor), lastSide: true } } }
     return step.afterCombat ? afterAirCombat(changed.state, changed.mission, assets, board)
@@ -220,6 +228,9 @@ export function respondScorpionAirMission(state: Readonly<ScorpionInPlay>, actor
   if (action.type === 'choose-flak-loss' && step.kind === 'flak-loss') {
     if (!step.candidates.includes(action.unitId)) throw new Error('Choose an eligible Flak loss')
     return applyFlakLoss(state, mission, action.unitId, assets, board)
+  }
+  if (action.type === 'choose-airlift-landing' && step.kind === 'airlift-landing') {
+    return unloadAirlift(state, mission, assets, action.unitIds)
   }
   if (action.type === 'return-aircraft' && step.kind === 'return') {
     const base = normalizedBase(action.base)
@@ -257,13 +268,14 @@ function afterAirCombat(state: Readonly<ScorpionInPlay>, mission: AirMissionData
 }
 
 function abortAircraft(state: Readonly<ScorpionInPlay>, mission: AirMissionData, ids: readonly string[], loss: boolean,
-  forceFriendlyBase = true) {
+  timing: 'combat' | 'after-combat' | 'mission-return' = 'combat') {
   const returning = [...mission.returning]
   const pieces = state.pieces.map((piece): ScorpionBoxPiece => {
     if (!ids.includes(piece.id)) return piece
     if (loss && piece.reduced) return { ...piece, location: { kind: 'dead-pile' }, active: false }
+    const landHere = timing === 'combat' || (timing === 'after-combat' && mission.airlift?.carriers.includes(piece.id))
     const forcedBase = mission.interceptor?.id === piece.id ? mission.interceptor.origin
-      : forceFriendlyBase ? basedAt(state, piece) : undefined
+      : landHere ? basedAt(state, piece) : undefined
     if (!forcedBase) returning.push(piece.id)
     return { ...piece, location: forcedBase ?? piece.location, reduced: loss || piece.reduced, active: false }
   })
@@ -320,6 +332,7 @@ function activeMissionAircraft(state: Readonly<ScorpionInPlay>, mission: AirMiss
 
 function settleAirAction(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
   board: ScorpionAirBarrageBoard): ScorpionInPlay {
+  if (mission.airlift) return unloadAirlift(state, mission, assets)
   if (!mission.strike || mission.target.kind !== 'hex') return landTransfer(state, mission, assets)
   const flights = activeMissionAircraft(state, mission).map((piece) =>
     ({ piece, origin: mission.flights.find(({ id }) => id === piece.id)!.origin }))
@@ -329,12 +342,24 @@ function settleAirAction(state: Readonly<ScorpionInPlay>, mission: AirMissionDat
     : returnSurvivors(resolved, mission)
 }
 
+function unloadAirlift(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
+  stay?: readonly string[]): ScorpionInPlay {
+  if (!mission.airlift || mission.target.kind !== 'hex') throw new Error('Invalid supply airlift')
+  const result = settleScorpionSupplyAirlift(state, mission.side, mission.target, mission.airlift, assets, stay)
+  if (result.kind === 'choose-landing') {
+    const { candidates, delivered, remaining } = result
+    return { ...state, airMission: { ...mission,
+      step: { kind: 'airlift-landing', actor: mission.side, candidates, delivered, remaining } } }
+  }
+  return returnSurvivors(result.state, { ...mission, airlift: result.airlift })
+}
+
 export function finishScorpionAirBarrage(state: Readonly<ScorpionInPlay>): ScorpionInPlay {
   return state.airMission?.step.kind === 'barrage' && !state.barrage ? returnSurvivors(state, state.airMission) : state
 }
 
 function returnSurvivors(state: Readonly<ScorpionInPlay>, mission: AirMissionData): ScorpionInPlay {
-  const changed = abortAircraft(state, mission, activeMissionAircraft(state, mission).map(({ id }) => id), false, false)
+  const changed = abortAircraft(state, mission, activeMissionAircraft(state, mission).map(({ id }) => id), false, 'mission-return')
   return closeAirMission(changed.state, changed.mission)
 }
 
@@ -351,9 +376,9 @@ function landTransfer(state: Readonly<ScorpionInPlay>, mission: AirMissionData, 
 function closeAirMission(state: Readonly<ScorpionInPlay>, mission: AirMissionData): ScorpionInPlay {
   if (mission.returning.length) return { ...state, airMission: { ...mission, step: { kind: 'return' } } }
   const { turn, phasing, phase } = state.cursor
-  const { kind, side, target, flights, interceptor, patrol, rounds, flak, strike } = mission
+  const { kind, side, target, flights, interceptor, patrol, rounds, flak, strike, airlift } = mission
   const report = { turn, phasing, phase, kind, side, target, flights, interceptor, patrol, rounds, flak,
-    ...(strike ? { strike } : {}) }
+    ...(strike ? { strike } : {}), ...(airlift ? { airlift } : {}) }
   return { ...state, airMission: null, airHistory: [...(state.airHistory ?? []), report] }
 }
 
@@ -362,6 +387,6 @@ export function scorpionAirReturnOptions(state: Readonly<ScorpionInPlay>, actor:
   const mission = state.airMission
   const piece = state.pieces.find((item) => item.id === id && item.side === actor)
   if (!mission?.returning.includes(id) || !piece) return []
-  const range = aircraftProfile(piece, assets).range
+  const range = aircraftProfile(piece, assets).range * (mission.airlift?.carriers.includes(id) ? 0.5 : 1)
   return friendlyAirBases(state, actor).filter((base) => inScorpionAirRange(mission.target, base, range))
 }

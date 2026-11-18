@@ -92,7 +92,13 @@ function Show-MapStack($layer) {
             $stackLayer.Tag.Page = ($stackLayer.Tag.Page + 1) % $stackLayer.Tag.Stack.pages.Count
             Show-MapStack $stackLayer
         })
-        Add-At $button 46.5 92 $layer
+        if ($stack.scale -lt 1) {
+            $button.Width = 21
+            $button.FontSize = 9
+            Add-At $button (62 + 38 * $stack.scale) 46.5 $layer
+        } else {
+            Add-At $button 46.5 92 $layer
+        }
     }
 }
 

@@ -387,3 +387,71 @@ test('trainbusting can raise an otherwise legal overrun entry above the 3 MP thr
   record.state.trainbusting = []
   assert.equal(submit(record, 'axis', action).state.combat.kind, 'overrun')
 })
+
+const sourceBox = 'soviet:air-box'
+const destination = `soviet:hex:${sovietBase.hex}`
+const airlift = (id, supplyTokens) => ({ ...launch('transport', sovietBase, id), supplyTokens })
+const li2 = (id, extra = {}) => plane(id, 'soviet', box, { fighter: false, name: 'Sov Li.2', fullBombing: 0, ...extra })
+
+test('off-map supply airlift debits the box, doubles printed capacity, and limits returning unloads each segment', () => {
+  const { record, submit } = match([li2('first'), li2('second')])
+  record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 5 }
+  assert.throws(() => submit(record, 'soviet', airlift('first', 3)), /doubled capacity/)
+  let result = submit(record, 'soviet', airlift('first', 2))
+  assert.equal(result.state.dumps[sourceBox].tokens, 3)
+  assert.equal(result.state.dumps[destination].tokens, 2)
+  assert.equal(result.state.airMission.step.kind, 'return')
+  result = submit(result, 'soviet', flyHome('first', box))
+  assert.deepEqual(result.state.airHistory[0].airlift.unloading, { delivered: 2, lost: 0, capacityUsed: 2 })
+  assert.deepEqual(getPlane(result, 'first').location, box)
+  result = submit(result, 'soviet', airlift('second', 2))
+  assert.equal(result.state.dumps[destination].tokens, 2)
+  assert.equal(result.state.airMission.step.kind, 'airlift-landing')
+  const stay = (...unitIds) => ({ type: 'choose-airlift-landing', unitIds })
+  assert.throws(() => submit(result, 'soviet', stay()), /Leave enough cargo aircraft/)
+  result = submit(JSON.parse(JSON.stringify(result)), 'soviet', stay('second'))
+  assert.equal(result.state.airMission, null)
+  assert.equal(result.state.dumps[destination].tokens, 4)
+  assert.equal(result.state.dumps[sourceBox].tokens, 1)
+  assert.deepEqual(result.state.airHistory[1].airlift.unloading, { delivered: 2, lost: 0, capacityUsed: 0 })
+  assert.deepEqual(getPlane(result, 'second').location, sovietBase)
+  assert.equal(getPlane(result, 'second').active, false)
+})
+
+test('an intercepted transport unloads surviving supply at the destination using its post-combat counter face', () => {
+  for (const damaged of [false, true]) {
+    const seed = seedWhere((rng) => {
+      const result = rollAirCombat(rng, 10, 0)
+      return result.defenderAborts && result.stepLoss === damaged
+    })
+    const { record, submit } = match([li2('transport', { battle: 0 }), plane('patrol', 'axis', axisBase, { battle: 10 })], { seed })
+    record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 2 }
+    let result = submit(record, 'soviet', airlift('transport', 2))
+    assert.equal(result.state.dumps[sourceBox].tokens, 0)
+    assert.equal(result.state.dumps[destination], undefined)
+    result = submit(result, 'axis', intercept('patrol'))
+    result = submit(result, 'axis', abort())
+    result = submit(result, 'soviet', abort())
+    result = submit(result, 'axis', choose('patrol'))
+    result = submit(result, 'soviet', choose('transport'))
+    result = submit(result, 'axis', abort())
+    const delivered = damaged ? 1 : 2
+    assert.deepEqual(getPlane(result, 'transport').location, sovietBase)
+    assert.equal(getPlane(result, 'transport').active, false)
+    assert.equal(getPlane(result, 'transport').reduced, damaged)
+    assert.equal(result.state.dumps[destination].tokens, delivered)
+    assert.deepEqual(result.state.airHistory[0].airlift.unloading, { delivered, lost: 2 - delivered, capacityUsed: 0 })
+  }
+})
+
+test('Flak can destroy a reduced transport and its supply while the off-map box debit remains spent', () => {
+  const seed = seedWhere((rng) => roll2d6(rng).value.total >= 8)
+  const { record, submit } = match([li2('transport', { reduced: true }), plane('patrol', 'axis', axisBase)], { seed })
+  record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 1 }
+  let result = submit(record, 'soviet', airlift('transport', 1))
+  result = submit(result, 'axis', intercept(null))
+  assert.equal(getPlane(result, 'transport').location.kind, 'dead-pile')
+  assert.equal(result.state.dumps[sourceBox].tokens, 0)
+  assert.equal(result.state.dumps[destination], undefined)
+  assert.deepEqual(result.state.airHistory[0].airlift.unloading, { delivered: 0, lost: 1, capacityUsed: 0 })
+})

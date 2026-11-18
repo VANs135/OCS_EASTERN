@@ -31,6 +31,11 @@ export function printedAirRange(source: BackupUnit | undefined, reduced: boolean
   return range
 }
 
+// TTW aircraft faces. The backup omits fractional transport ratings on these faces.
+const printedTransport = new Map<string, readonly [number, number]>([
+  ['Ge He.111H', [0.5, 0]], ['Ge He.177', [0.5, 0]], ['Ge Ju.52', [1, 0.5]], ['Sov Li.2', [1, 0.5]],
+])
+
 export function aircraftProfile(piece: ScorpionBoxPiece, { catalog }: ScorpionSetupAssets) {
   const source = catalog.definitions.get(piece.definition)?.source
   const stats = (piece.reduced ? source?.faces.move : source?.faces.combat)?.stats
@@ -43,9 +48,10 @@ export function aircraftProfile(piece: ScorpionBoxPiece, { catalog }: ScorpionSe
   const airArmy = /^(\d+)(?:st|nd|rd|th) Air Army$/.exec(source?.org?.airGroup ?? '')?.[1] ?? null
   const fighter = source?.abilities?.includes('interception') === true
   const name = source?.name ?? ''
+  const transport = typeof stats?.transport === 'number' ? stats.transport : (printedTransport.get(name)?.[piece.reduced ? 1 : 0] ?? 0)
   const airframe = /\b(Ju\.87|Hs\.129)[A-Z]?\b/.exec(name)?.[1] ?? ''
   const tankBuster = piece.side === 'axis' && /\b(?:Hs\.129|Ju\.87G)\b/.test(name)
-  return { range, airCombat, bombing, airArmy, fighter, tankBuster, hipShoot: mayHipShoot(piece.side, airframe) }
+  return { range, airCombat, bombing, airArmy, fighter, tankBuster, transport, hipShoot: mayHipShoot(piece.side, airframe) }
 }
 
 export function activeAirfieldExcess(state: Readonly<ScorpionInPlay>, side: Side, destination: ScorpionAirBase) {
