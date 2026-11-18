@@ -3,6 +3,7 @@ import type { BackupUnit } from '../import/unit-backup.ts'
 import type { Definition } from '../import/unit-catalog.ts'
 import type { ScorpionBoxPiece } from '../match/scorpion-box-pieces.ts'
 import type { SupplyDump } from '../match/scorpion-reinforcement-state.ts'
+import type { ScorpionRollSite } from '../match/scorpion-reroll.ts'
 import { currentScorpionTurn } from '../match/scorpion-round.ts'
 import type { ScorpionPlayerProgress } from '../match/scorpion-round.ts'
 import { scorpionFirstTurn } from '../match/scorpion-session.ts'
@@ -15,6 +16,11 @@ import { scorpionSupplyCounters } from './scorpion-supply-counters.ts'
 const flightCell = { none: 23, limited: 24, normal: 25 } as const
 const flightLabel = { none: '禁飞', limited: '飞行受限', normal: '正常飞行' } as const
 const inventoryCells = { axis: { dead: 19, air: 20 }, soviet: { dead: 27, air: 26 } } as const
+const rollLabels: Readonly<Record<ScorpionRollSite['kind'], string>> = {
+  supply: '增援补给', flak: '防空', 'flak-loss': '防空损失', 'air-combat': '空战', 'air-combat-loss': '空战损失',
+  barrage: '射击', 'barrage-half-loss': '射击半损失', 'airfield-barrage': '机场射击', 'airfield-loss': '驻场飞机损失',
+  trainbusting: '运输破坏', surprise: '奇袭', 'surprise-shift': '奇袭移列', combat: '战斗',
+}
 
 type DefinitionIndex = ReadonlyMap<string, Definition<BackupUnit>>
 type AliasIndex = ReadonlyMap<string, readonly Definition<BackupUnit>[]>
@@ -23,8 +29,21 @@ export function scorpionSessionBoxFrame(
   state: Readonly<ScorpionSession>, catalog: { definitions: DefinitionIndex; aliases: AliasIndex }, viewer?: Side,
 ) {
   if (state.kind === 'setup') return scorpionBoxFrame(scorpionFirstTurn(), state.opening.pieces, catalog, undefined, viewer)
-  return scorpionBoxFrame(state.turn, state.pieces, catalog,
+  const frame = scorpionBoxFrame(state.turn, state.pieces, catalog,
     state.turn.step.kind === 'player-turn' ? state : undefined, viewer, state.dumps)
+  const holder = state.rerollHolder
+  if (!holder) return frame
+  const matches = catalog.aliases.get('Re-Roll Chit')
+  const asset = matches?.length === 1 ? matches[0]?.source.faces.combat?.asset : undefined
+  if (!asset) throw new Error('Missing Re-Roll Chit artwork')
+  const pending = state.reroll?.current
+  const side = holder === 'axis' ? '轴心' : '苏军'
+  const place = pending?.site.hex ? ` ${pending.site.hex}` : ''
+  const recipient = pending?.site.side === 'axis' ? '轴心' : pending?.site.side === 'soviet' ? '苏军' : ''
+  const offer = pending ? { ...pending.site, faces: pending.draw.value.faces, canAnswer: !viewer || viewer === holder } : null
+  const label = pending ? `${side}决定 · ${recipient}${rollLabels[pending.site.kind]}${place} · ${pending.draw.value.faces.join(' + ')}`
+    : `${side}持有重掷算子`
+  return { ...frame, reroll: { holder, asset, label, offer } }
 }
 
 export function scorpionBoxFrame(

@@ -95,8 +95,16 @@ test('fighter sweep checks Air Army sectors and moves the aircraft from mission 
   flying = submit(flying, 'soviet', abort())
   flying = submit(flying, 'axis', abort())
   flying = submit(flying, 'soviet', choose('independent'))
+  flying.state.rerollHolder = 'soviet'
   const finalRound = command(flying, choose('defender'))
   flying = submit(flying, 'axis', choose('defender'))
+  const keep = { type: 'resolve-reroll', decision: 'keep' }
+  assert.equal(flying.state.reroll.current.site.kind, 'air-combat')
+  assert.equal(flying.state.reroll.current.draw.value.count, 2)
+  flying = submit(flying, 'soviet', keep)
+  assert.equal(flying.state.reroll.current.site.kind, 'air-combat-loss')
+  assert.equal(flying.state.reroll.current.draw.value.count, 1)
+  flying = submit(flying, 'soviet', keep)
   flying = JSON.parse(JSON.stringify(flying))
   assert.equal(submitScorpionSession(flying, 'axis', finalRound, assets).duplicate, true)
   assert.equal(flying.state.airMission.step.kind, 'return')
@@ -638,8 +646,16 @@ test('the owner chooses between ground cargo and supply when reduced transport c
   { seed, map: line(), extraBases: [airBase('soviet', source)],
     units: { guard: ground('soviet', source, { moveMode: true, mobility: 'leg', allowance: 5, definition: 'guard' }) } })
   record.state.dumps[key] = { side: 'soviet', location: 'on-map', tokens: 1 }
+  record.state.rerollHolder = 'axis'
   const flying = submit(record, 'soviet', groundLift(source, sovietBase, ['heavy', 'light'], ['guard'], 1))
-  const pending = submit(flying, 'axis', intercept(null))
+  const flak = submit(flying, 'axis', intercept(null))
+  assert.equal(flak.state.reroll.current.site.kind, 'flak')
+  assert.equal(flak.state.reroll.current.draw.value.count, 2)
+  const keepFlak = { type: 'resolve-reroll', decision: 'keep' }
+  const designation = submit(flak, 'axis', keepFlak)
+  assert.equal(designation.state.reroll.current.site.kind, 'flak-loss')
+  assert.equal(designation.state.reroll.current.draw.value.count, 1)
+  const pending = submit(designation, 'axis', keepFlak)
   assert.equal(pending.state.airMission.step.kind, 'airlift-cargo')
   assert.equal(pending.state.airMission.step.capacity, 2)
   const keep = (tokens, ...unitIds) => ({ type: 'choose-airlift-cargo', cargo: { tokens, unitIds } })

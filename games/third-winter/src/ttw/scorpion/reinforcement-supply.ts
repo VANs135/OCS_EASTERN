@@ -1,5 +1,7 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import type { RollDie } from '@ocs-eastern/series/dice'
+import type { Die, RollDie } from '@ocs-eastern/series/dice'
+
+export type ScorpionSupplyRoll = RollDie | { pair: () => readonly [Die, Die] }
 
 export interface ScorpionSupplyAward {
   sp: number
@@ -12,12 +14,12 @@ export interface ScorpionSupplyAward {
 export function rollScorpionVariableReinforcements(
   turn: number,
   side: Side,
-  roll: RollDie,
+  roll: ScorpionSupplyRoll,
 ): ScorpionSupplyAward {
   if (!Number.isInteger(turn) || turn < 1 || turn > 8) throw new RangeError('Invalid Scorpion turn')
   if (turn === 1) return { sp: 0, pax: 0, alert: 0, dice: null }
 
-  const dice = [roll(), roll()] as const
+  const dice = typeof roll === 'function' ? [roll(), roll()] as const : roll.pair()
   const total = dice[0] + dice[1]
   if (side === 'axis') {
     return { sp: total <= 3 ? 4 : total <= 10 ? 5 : 6, pax: 1, alert: 1, dice }

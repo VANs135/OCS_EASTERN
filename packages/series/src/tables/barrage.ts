@@ -38,7 +38,8 @@ interface GroundBarrageFacts {
   resultOverrides?: Readonly<Record<string, string>>
 }
 
-export function rollGroundBarrage(table: BarrageTable, initialColumn: number, facts: GroundBarrageFacts, roll: RollDie) {
+export function rollGroundBarrage(table: BarrageTable, initialColumn: number, facts: GroundBarrageFacts,
+  roll: RollDie | { table: () => readonly [Die, Die]; halfLoss: RollDie }) {
   const { density, hedgehog, terrain, spotter, strategicTarget, air, dieModifier = 0, resultOverrides } = facts
   const shifts = {
     density: density <= 1 ? -1 : density <= 3 ? 0 : Math.min(Math.ceil(density) - 3, 4),
@@ -50,11 +51,12 @@ export function rollGroundBarrage(table: BarrageTable, initialColumn: number, fa
   }
   const column = Math.max(0, Math.min(table.columns.length - 1, initialColumn +
     Object.values(shifts).reduce((total, shift) => total + shift, 0)))
-  const dice: readonly [Die, Die] = [roll(), roll()]
+  const dice = typeof roll === 'function' ? [roll(), roll()] as const : roll.table()
   const adjusted = Math.max(2, Math.min(12, dice[0] + dice[1] + dieModifier))
   const printedCode = lookupCell(table.matrix, adjusted - 2, column, 'barrage')
   const code = resultOverrides?.[printedCode] ?? printedCode
-  const halfDie = code === '1/2' || (code === '[1/2]' && !air && hedgehog < 3 && spotter) ? roll() : null
+  const halfDie = code === '1/2' || (code === '[1/2]' && !air && hedgehog < 3 && spotter)
+    ? (typeof roll === 'function' ? roll() : roll.halfLoss()) : null
   const loss = halfDie !== null ? Number(halfDie >= 4) : /^[1-3]$/.test(code) ? Number(code) : 0
   return { code, column, shifts, dice, halfDie, loss, disorganize: code !== '-',
     ...(dieModifier ? { dieModifier, adjusted, printedCode } : {}) }

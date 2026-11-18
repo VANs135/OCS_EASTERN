@@ -1,6 +1,6 @@
 import { scorpionHexDistance } from '../src/import/hex-id.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
-import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionBarrageFrontAt } from '../src/ttw/scorpion/barrage-markers.ts'
 import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
@@ -19,7 +19,7 @@ export function sampleScorpionFrontBarrage(start, assets, board) {
       !unit.disorganized && !unit.moveMode && scorpionHexDistance(unit.hex, center) <= unit.artillery.range) ?? []
     if (!hqId || !battery) continue
     const front = scorpionBarrageFrontAt(center)
-    const submit = (record, side, action) => submitScorpionSession(record, side,
+    const submit = (record, side, action) => submitScorpionDemo(record, side,
       { id: `front-barrage-example-${record.revision}`, expectedRevision: record.revision, action }, assets, board).record
     const deployed = submit(start, 'soviet', { type: 'declare-front-barrage', front, center, hqId,
       volleys: [{ target: center, batteries: [{ unitId: battery }] }] })

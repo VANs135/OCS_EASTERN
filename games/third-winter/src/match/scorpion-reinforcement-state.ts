@@ -1,9 +1,9 @@
-import type { RollDie } from '@ocs-eastern/series/dice'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { UnitArrival } from '../import/scorpion-arrivals.ts'
 import type { ScorpionArrivalState } from '../ttw/scorpion/arrival.ts'
 import { scorpionFixedSupply } from '../ttw/scorpion/fixed-supply.ts'
 import { rollScorpionVariableReinforcements } from '../ttw/scorpion/reinforcement-supply.ts'
+import type { ScorpionSupplyRoll } from '../ttw/scorpion/reinforcement-supply.ts'
 import type { Victory } from '../ttw/scorpion/victory.ts'
 import { advanceScorpionPhase } from './scorpion-player-turn.ts'
 import type { PlayerTurn } from './scorpion-player-turn.ts'
@@ -87,7 +87,7 @@ export function awardScorpionVariableSupply(
   state: Readonly<ReinforcementState>,
   window: Readonly<ReinforcementWindow>,
   actor: Side,
-  roll: RollDie,
+  roll: ScorpionSupplyRoll,
   pickIndex: (size: number) => number,
 ): ReinforcementState {
   if (window.stage !== 'scheduled' || window.fixedTokens) {

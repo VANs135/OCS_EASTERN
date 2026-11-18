@@ -1,13 +1,17 @@
 import { roll2d6, rollDie } from '../rng.ts'
+import type { Die } from '../dice.ts'
 import type { RngState } from '../state-types.ts'
 
 /** OCS v4.3 Air Combat Table (14.3e). The loss die applies to every aborting aircraft. */
 export function rollAirCombat(rng: RngState, attack: number, defense: number) {
   const combat = roll2d6(rng)
   const loss = rollDie(combat.rng)
-  const total = combat.value.total + attack - defense
-  return { rng: loss.rng, combatDice: combat.value.faces, total, lossDie: loss.value,
-    attackerAborts: total <= 7, defenderAborts: total >= 7, stepLoss: loss.value >= 5 }
+  return { rng: loss.rng, ...airCombatResult(combat.value.faces, loss.value, attack, defense) }
+}
+
+export function airCombatResult(combatDice: readonly number[], lossDie: Die, attack: number, defense: number) {
+  const total = combatDice[0]! + combatDice[1]! + attack - defense
+  return { combatDice, total, lossDie, attackerAborts: total <= 7, defenderAborts: total >= 7, stepLoss: lossDie >= 5 }
 }
 
 /** OCS v4.3 Mission Loss Table (14.4f). Indices follow the declared stack order. */

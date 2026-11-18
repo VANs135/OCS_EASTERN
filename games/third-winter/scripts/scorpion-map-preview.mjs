@@ -10,7 +10,7 @@ import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
 import { completeScorpionCleanup } from '../src/match/scorpion-round.ts'
-import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { answerRetention, chooseFirstPlayer, rollInitiative } from '../src/ttw/scorpion/initiative-step.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
@@ -26,6 +26,7 @@ import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionExtender, sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
 import { sampleScorpionRetreatCapture } from './scorpion-retreat-example.mjs'
 import { sampleScorpionRemnant } from './scorpion-remnant-example.mjs'
+import { sampleScorpionReroll } from './scorpion-reroll-example.mjs'
 
 const [root, ...options] = process.argv.slice(2)
 if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
@@ -57,10 +58,11 @@ function sessionFrame(caption, state) {
 sessionFrame('开局 · 轴心部署', before.state)
 sessionFrame('轴心已确认 · 苏军部署', axisConfirmed.state)
 sessionFrame('双方部署已确认 · 1 月 26 日苏军先行', started.state)
+const { reroll: openingReroll } = scorpionSessionBoxFrame(started.state, catalog)
 
 function frame(caption, turn, player) {
   frames.push({ caption, ...scorpionBoxFrame(turn, pieces, catalog, player),
-    ...boardFrame({ ...started.state, turn }) })
+    ...boardFrame({ ...started.state, turn }), reroll: openingReroll })
 }
 
 function dice(...faces) {
@@ -123,7 +125,7 @@ let extender
     supplySources: { axis: new Set(), soviet: new Set(['s22.02']) } }) }
   let opening = started
   function issue(action) {
-    opening = submitScorpionSession(opening, 'soviet',
+    opening = submitScorpionDemo(opening, 'soviet',
       { id: `preview-opening-${opening.revision}`, expectedRevision: opening.revision, action }, setupAssets, rules).record
   }
   issue({ type: 'complete-refit' })
@@ -203,10 +205,14 @@ if (combatTablePath) {
   const remnant = sampleScorpionRemnant(started, { map: groundMap, catalog }, { combat })
   sessionFrame(`受控战果 · 第 57 步兵师进死人堆，残部营放在 ${remnant.report.destination}，苏军加 1 分`, remnant.settled.state)
 }
+const reroll = sampleScorpionReroll(airliftOpening, { map: groundMap, catalog }, { reinforcements: () => board })
+sessionFrame('第 2 回合 · 苏军掷增援补给', reroll.initial.state)
+sessionFrame('苏军重掷 · 算子已转交轴心', reroll.transferred.state)
+sessionFrame(`轴心保留骰点 · 苏军获得 ${reroll.report.sp} SP`, reroll.settled.state)
 
-const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
+const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks, reroll }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())
-  return [...trackers, ...aidCounters, ...onMap, ...inventories.flatMap(({ counters }) => counters),
+  return [...trackers, ...aidCounters, ...onMap, ...(reroll ? [reroll] : []), ...inventories.flatMap(({ counters }) => counters),
     ...onMap.flatMap(({ badges }) => badges ?? [])].flatMap(({ asset }) => asset ? [asset] : [])
 }))
 await Promise.all([access(map), access(aid.path), ...[...assets].map((asset) => access(join(imageDirectory, asset)))])

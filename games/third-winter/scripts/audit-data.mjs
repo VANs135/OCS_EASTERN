@@ -4,7 +4,7 @@ import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
 import { campaignHexKey, scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
 import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
-import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { scorpionGroundDeployment } from '../src/import/scorpion-deployment.ts'
 import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
@@ -28,6 +28,7 @@ import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs
 import { sampleScorpionExtender, sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
 import { sampleScorpionRetreatCapture } from './scorpion-retreat-example.mjs'
 import { sampleScorpionRemnant } from './scorpion-remnant-example.mjs'
+import { sampleScorpionReroll } from './scorpion-reroll-example.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -109,7 +110,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const board = { reinforcements, combat, barrage, facilityBarrage }
   function submit(action, seat = record.state.cursor.phasing) {
     const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit({ type: 'complete-refit' })
   for (const { id, destinations } of playableArrivals.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
@@ -258,6 +259,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'choose-first', first: 'soviet' }, 'soviet')
   opening.nextTurn = record.state.turn.number
   opening.nextPhase = record.state.cursor.phase
+  opening.sampleReroll = sampleScorpionReroll(record, assets, board).report
   if (record.state.turn.weather.flight === 'none') {
     opening.sampleAirlift = { flight: 'none' }
   } else {
@@ -327,7 +329,7 @@ function sampleDefenderStocks(opening, assets, board) {
     let record = { ...opening, state: { ...opening.state, units, dumps, cursor: { ...opening.state.cursor, phase: 'combat' } } }
     const issue = (seat, action) => {
       const command = { id: `sample-defense-${record.revision}`, expectedRevision: record.revision, action }
-      record = submitScorpionSession(record, seat, command, assets, board).record
+      record = submitScorpionDemo(record, seat, command, assets, board).record
     }
     issue('soviet', { type: 'declare-combat', target, attackers: [attackerId],
       payments: [{ unitId: attackerId, dumpId: attackDump, tokens: remainingSteps(attacker) }] })

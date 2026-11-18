@@ -1,6 +1,6 @@
 import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
-import { pickIndex, rollDie } from '@ocs-eastern/series/rng'
+import { pickIndex } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import type { TrainbustingMarker } from '@ocs-eastern/series/trainbusting'
@@ -63,6 +63,8 @@ import { applyScorpionReserve, assertScorpionMovementEnd } from './scorpion-rese
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
 import { rebuildScorpionRemnant } from './scorpion-remnants.ts'
 import type { RebuildScorpionRemnant } from './scorpion-remnants.ts'
+import { applyScorpionReroll, scorpionRolls } from './scorpion-reroll.ts'
+import type { ResolveScorpionReroll, ScorpionPlayAction, ScorpionRerollUse, ScorpionRerollWindow, ScorpionRoll } from './scorpion-reroll.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
 import { recoverScorpionStocks, settleScorpionStockRecovery } from './scorpion-stock-recovery.ts'
@@ -76,6 +78,8 @@ export interface ScorpionInPlay extends ReinforcementState {
   turn: ScorpionTurn
   rng: RngState
   rerollHolder: Side | null
+  reroll?: ScorpionRerollWindow
+  rerollHistory?: readonly ScorpionRerollUse[]
   airBases: readonly { hex: string; side: Side; level: number }[]
   refittedAirbases?: readonly string[]
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
@@ -116,7 +120,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
-  | ContinueCombatRetreat | RebuildScorpionRemnant
+  | ContinueCombatRetreat | RebuildScorpionRemnant | ResolveScorpionReroll
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
@@ -139,9 +143,9 @@ export function submitScorpionSession(
   record: Readonly<ScorpionSessionRecord>, seat: Side, command: Readonly<Command<ScorpionAction>>,
   assets: ScorpionSetupAssets, board: BoardPolicies = {},
 ) {
-  const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
-    hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail }
-  function applyAction(state: ScorpionSession, actor: Side, action: ScorpionAction): ScorpionSession {
+  function applyAction(state: ScorpionSession, actor: Side, action: ScorpionPlayAction, offer?: ScorpionRoll): ScorpionSession {
+    const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
+      hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, offerRoll: offer }
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
     }
@@ -233,7 +237,8 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !table) {
           throw new Error('Barrage requires an active player turn and the appropriate OCS v4.3 barrage table')
         }
-        return finishScorpionAirBarrage(applyScorpionBarrage(state, actor, action, assets, table, board.combat?.hedgehogAt, board.supplyRail))
+        return finishScorpionAirBarrage(applyScorpionBarrage(state, actor, action, assets, table,
+          board.combat?.hedgehogAt, board.supplyRail, offer))
       }
       case 'declare-combat':
       case 'declare-overrun':
@@ -249,7 +254,7 @@ export function submitScorpionSession(
         if (action.type === 'declare-overrun') return declareScorpionOverrun(state, actor, action, assets, board, board.combat)
         if (action.type === 'defend-combat') return defendScorpionCombat(state, actor, action, assets.map, board.supplyRail)
         if (action.type === 'select-combat-rating') return selectScorpionCombatRating(state, actor, action.unitId)
-        if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table)
+        if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table, offer)
         if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
         return advanceScorpionCombat(state, actor, action.unitIds, assets, board.supplyRail)
       case 'continue-overrun-move':
@@ -313,16 +318,21 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.reinforcements) {
           throw new Error('Scorpion reinforcements are unavailable')
         }
-        return resolveReinforcements(state, actor, action, assets, board.reinforcements(state))
+        return resolveReinforcements(state, actor, action, assets, board.reinforcements(state), offer)
     }
   }
   return acceptCommand(record, seat, command, (state, actor, action) => {
-    const current = state.kind === 'playing' && assets.map ? pruneScorpionGroundControl(state, assets.map) : state
-    const next = applyAction(current, actor, action)
+    if (state.kind === 'setup') {
+      if (action.type === 'resolve-reroll') throw new Error('No roll is pending during setup')
+      return withScorpionPhaseOccupancy(state, applyAction(state, actor, action))
+    }
+    const current = assets.map ? pruneScorpionGroundControl(state, assets.map) : state
+    const next = applyScorpionReroll(current, actor, action, applyAction)
+    if (next.kind === 'playing' && next.reroll) return next
     // OCS 6.1g, 13.2a. Only handling and fueling can interrupt this same transport's move.
-    const keepTransport = action.type === 'ground-move' || action.type === 'load-transport' || action.type === 'unload-transport' ||
-      action.type === 'fuel-formation' || action.type === 'fuel-headquarters' || action.type === 'fuel-from-paused-transport' ||
-      action.type === 'repack-transport'
+    const type = current.reroll?.action.type ?? action.type
+    const keepTransport = type === 'ground-move' || type === 'load-transport' || type === 'unload-transport' ||
+      type === 'fuel-formation' || type === 'fuel-headquarters' || type === 'fuel-from-paused-transport' || type === 'repack-transport'
     const settled: ScorpionSession = next.kind === 'playing' && next.groundActivity?.transport && !keepTransport
       ? { ...next, groundActivity: { ...next.groundActivity, transport: undefined } } : next
     return withScorpionPhaseOccupancy(state, settled)
@@ -349,15 +359,16 @@ function startMatch(opening: ScorpionSetup, map: ScorpionSetupAssets['map']): Sc
 
 function resolveReinforcements(
   state: Readonly<ScorpionInPlay>, actor: Side, action: ReinforcementCommand,
-  { catalog, map }: ScorpionSetupAssets, board: ReinforcementBoard,
+  { catalog, map }: ScorpionSetupAssets, board: ReinforcementBoard, offer?: ScorpionRoll,
 ): ScorpionInPlay {
   let rng = state.rng
   const controlOf = scorpionControlLookup(state, map, board.controlOf)
-  const result = applyScorpionReinforcement(state, actor, action, { ...board, controlOf }, () => {
-    const draw = rollDie(rng)
-    rng = draw.rng
-    return draw.value
-  }, (size) => {
+  const result = applyScorpionReinforcement(state, actor, action, { ...board, controlOf }, { pair: () => {
+    const rolls = scorpionRolls(rng, offer)
+    const dice = rolls.two({ kind: 'supply', side: actor })
+    rng = rolls.rng
+    return dice
+  } }, (size) => {
     const draw = pickIndex(rng, size)
     rng = draw.rng
     return draw.value

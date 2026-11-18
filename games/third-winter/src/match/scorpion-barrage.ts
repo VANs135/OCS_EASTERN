@@ -1,6 +1,7 @@
-import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
+import { scorpionRolls } from './scorpion-reroll.ts'
+import type { ScorpionRoll } from './scorpion-reroll.ts'
 import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
@@ -65,9 +66,9 @@ export type ScorpionBarrageRecord = ScorpionBarrage & {
 
 export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Side, action: BarrageAction,
   assets: ScorpionSetupAssets, table: BarrageTable, hedgehogAt?: (hex: string) => number,
-  rail?: SupplyRailBoard): ScorpionInPlay {
+  rail?: SupplyRailBoard, offer?: ScorpionRoll): ScorpionInPlay {
   if (action.type === 'declare-artillery-barrage') {
-    return declare(state, actor, action, assets.map, table, hedgehogAt, rail)
+    return declare(state, actor, action, assets.map, table, hedgehogAt, rail, offer)
   }
   if (action.type === 'declare-front-barrage') {
     return declareFront(state, actor, action, assets.map, table, hedgehogAt, rail)
@@ -76,7 +77,7 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
   if (!barrage || actor !== barrage.defender) throw new Error('The targeted player must respond to the barrage')
   if (action.type === 'choose-barrage-terrain') {
     if (barrage.roll) throw new Error('Barrage terrain is already settled')
-    return settleTerrain(state, actor, barrage, action.terrain, assets, table)
+    return settleTerrain(state, actor, barrage, action.terrain, assets, table, offer)
   }
   if (!barrage.lossesDue || new Set(action.allocation.map(({ unitId }) => unitId)).size !== action.allocation.length ||
     action.allocation.reduce((total, { steps }) => total + steps, 0) !== barrage.lossesDue) {
@@ -98,7 +99,7 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
 
 function declare(state: Readonly<ScorpionInPlay>, actor: Side,
   action: Extract<BarrageAction, { type: 'declare-artillery-barrage' }>, map: ScorpionMap,
-  table: BarrageTable, hedgehogAt?: (hex: string) => number, rail?: SupplyRailBoard): ScorpionInPlay {
+  table: BarrageTable, hedgehogAt?: (hex: string) => number, rail?: SupplyRailBoard, offer?: ScorpionRoll): ScorpionInPlay {
   const { phasing, phase } = state.cursor
   const history = scorpionPhaseBarrages(state)
   const target = scorpionHexId(action.target)
@@ -125,7 +126,7 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
   ledger.spend(supply.payments, ({ dumpId }) => batteries.every(({ unitId }) =>
     ledger.canUse(state.units[unitId]!, dumpId, supply.kind === 'hq' ? { headquartersId: supply.hqId } : {})))
   const paid = { ...state, ...ledger.settle() }
-  return facility ? settleScorpionAirfieldBarrage(paid, barrage, table) : { ...paid, barrage }
+  return facility ? settleScorpionAirfieldBarrage(paid, barrage, table, offer) : { ...paid, barrage }
 }
 
 function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,
@@ -205,20 +206,20 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
 }
 
 function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: ScorpionBarrage, terrain: Terrain,
-  { map, catalog }: ScorpionSetupAssets, table: BarrageTable): ScorpionInPlay {
+  { map, catalog }: ScorpionSetupAssets, table: BarrageTable, offer?: ScorpionRoll): ScorpionInPlay {
   if (!map.hexes.get(barrage.target)?.terrains.includes(terrain)) throw new Error('Choose a printed terrain in the target hex')
   const defenders = targetUnits(state, actor, barrage.target)
   const density = barrageDensity(defenders.map(([, unit]) => ({ re: unit.printedRe - unit.stepsLost, formation: unit.formation })))
   const spotter = hasScorpionBarrageSpotter(state, actor === 'axis' ? 'soviet' : 'axis', barrage.target, map)
-  let rng = state.rng
+  const rolls = scorpionRolls(state.rng, offer)
+  const hex = barrage.target
   // TTW 2.2f. Override the printed result before any half-loss die is rolled.
   const tankBuster = barrage.air?.tankBuster
   const roll = rollGroundBarrage(table, barrage.initialColumn, { density, hedgehog: barrage.hedgehog,
     terrain: combatTerrainCategory(terrain), spotter, air: barrage.air, dieModifier: tankBuster ? 1 : 0,
-    resultOverrides: tankBuster ? { '[1/2]': '1', '1/2': '1', '2': '1', '3': '1' } : undefined }, () => {
-    const draw = rollDie(rng)
-    rng = draw.rng
-    return draw.value
+    resultOverrides: tankBuster ? { '[1/2]': '1', '1/2': '1', '2': '1', '3': '1' } : undefined }, {
+    table: () => rolls.two({ kind: 'barrage', hex }),
+    halfLoss: () => rolls.one({ kind: 'barrage-half-loss', hex }),
   })
   const units = { ...state.units }
   if (roll.disorganize) for (const [id, unit] of Object.entries(units)) {
@@ -233,7 +234,7 @@ function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: Sc
   const candidates = eligible?.filter(({ strength }) => strength === strongest).map(({ id }) => id)
   const result = { ...barrage, roll, lossesDue, ...(candidates ? { lossCandidates: candidates } : {}) }
   const { turn, phasing, phase } = state.cursor
-  const settled = { ...state, units, rng, barrage: result,
+  const settled = { ...state, units, rng: rolls.rng, barrage: result,
     barrageHistory: [...(state.barrageHistory ?? []), { ...result, turn, phasing, phase, terrain }] }
   return lossesDue ? settled : finishBarrage(settled)
 }

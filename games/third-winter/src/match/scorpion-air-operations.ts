@@ -1,7 +1,6 @@
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
-import { roll2d6, rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { flakLossCandidates, rollAirCombat } from '@ocs-eastern/series/tables/air'
+import { airCombatResult, flakLossCandidates } from '@ocs-eastern/series/tables/air'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { sovietMissionRestriction } from '../ttw/air/mission-permission.ts'
@@ -19,13 +18,14 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { loadScorpionAirlift, scorpionAirliftMode, settleScorpionAirlift } from './scorpion-airlift.ts'
 import type { AirliftCargoSelection, AirliftDecision, AirliftFlightMode, ScorpionAirlift } from './scorpion-airlift.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { scorpionRolls } from './scorpion-reroll.ts'
 
 type ScorpionAirBoard = ScorpionAirBarrageBoard & { supplyRail?: SupplyRailBoard }
 
 type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport' | 'air-drop'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
 type Flight = { id: string; origin: ScorpionAirBase; normalRange: boolean }
-type AirRound = Omit<ReturnType<typeof rollAirCombat>, 'rng'> & { attackerId: string; defenderId: string }
+type AirRound = ReturnType<typeof airCombatResult> & { attackerId: string; defenderId: string }
 type Flak = { dice: readonly number[]; modifier: number; lossDie?: number; lossId?: string }
 
 type AirStep =
@@ -243,9 +243,13 @@ export function respondScorpionAirMission(state: Readonly<ScorpionInPlay>, actor
         initiator: step.initiator, attackerId: piece.id } } }
     }
     const attacker = state.pieces.find(({ id }) => id === step.attackerId)!
-    const { rng, ...roll } = rollAirCombat(state.rng, aircraftProfile(attacker, assets).airCombat, profile.airCombat)
+    const rolls = scorpionRolls(state.rng, board.offerRoll)
+    const hex = mission.target.kind === 'hex' ? mission.target.hex : undefined
+    const dice = rolls.two({ kind: 'air-combat', hex, unitId: piece.id })
+    const lossDie = rolls.one({ kind: 'air-combat-loss', hex, unitId: piece.id })
+    const roll = airCombatResult(dice, lossDie, aircraftProfile(attacker, assets).airCombat, profile.airCombat)
     const aborts = [...(roll.attackerAborts ? [attacker.id] : []), ...(roll.defenderAborts ? [piece.id] : [])]
-    const changed = abortAircraft({ ...state, rng }, { ...mission,
+    const changed = abortAircraft({ ...state, rng: rolls.rng }, { ...mission,
       rounds: [...mission.rounds, { attackerId: attacker.id, defenderId: piece.id, ...roll }] }, aborts, roll.stepLoss)
     return nextAirRound(changed.state, changed.mission, step.initiator, assets, board)
   }
@@ -330,20 +334,21 @@ function resolveAirMission(state: Readonly<ScorpionInPlay>, mission: AirMissionD
   const patrolModifier = mission.patrol ? (profile.some(({ fighter }) => fighter) ? 1 : 2) +
     Number(mission.kind === 'trainbusting') : 0
   const modifier = Number(planes.length >= 3) + Number(hq) + airLevel + patrolModifier
-  const flak = roll2d6(resolved.rng)
-  const data: AirMissionData = { ...mission, flak: { dice: flak.value.faces, modifier } }
-  const rolled = { ...resolved, rng: flak.rng }
-  if (flak.value.total + modifier < 11) return settleAirAction(rolled, data, assets, board)
+  const rolls = scorpionRolls(resolved.rng, board.offerRoll)
+  const dice = rolls.two({ kind: 'flak', hex: target.hex })
+  const data: AirMissionData = { ...mission, flak: { dice, modifier } }
+  const rolled = { ...resolved, rng: rolls.rng }
+  if (dice[0] + dice[1] + modifier < 11) return settleAirAction(rolled, data, assets, board)
   // TTW 2.2f(D). Restrict the normal mission loss table to the surviving tank-buster aircraft.
   const stack = mission.strike?.tankBuster ? planes.filter((_, index) => profile[index]!.tankBuster) : planes
   if (!stack.length) return returnSurvivors(rolled, data)
   if (stack.length === 1) return applyFlakLoss(rolled, data, stack[0]!.id, assets, board)
 
-  const loss = rollDie(rolled.rng)
-  const candidates = flakLossCandidates(stack.map((plane) => aircraftProfile(plane, assets).bombing), loss.value)
+  const lossDie = rolls.one({ kind: 'flak-loss', hex: target.hex })
+  const candidates = flakLossCandidates(stack.map((plane) => aircraftProfile(plane, assets).bombing), lossDie)
     .map((index) => stack[index]!.id)
-  const next = { ...rolled, rng: loss.rng }
-  const pending = { ...data, flak: { dice: flak.value.faces, modifier, lossDie: loss.value } }
+  const next = { ...rolled, rng: rolls.rng }
+  const pending = { ...data, flak: { dice, modifier, lossDie } }
   return candidates.length === 1 ? applyFlakLoss(next, pending, candidates[0]!, assets, board)
     : { ...next, airMission: { ...pending, step: { kind: 'flak-loss', actor: mission.side, candidates } } }
 }

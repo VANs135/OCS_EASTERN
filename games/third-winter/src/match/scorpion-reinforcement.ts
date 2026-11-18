@@ -3,6 +3,7 @@ import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { RollDie } from '@ocs-eastern/series/dice'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { placeScorpionArrival } from '../ttw/scorpion/arrival.ts'
+import type { ScorpionSupplyRoll } from '../ttw/scorpion/reinforcement-supply.ts'
 import { scorpionSuddenDeath } from '../ttw/scorpion/victory.ts'
 import { advanceScorpionPhase } from './scorpion-player-turn.ts'
 import { awardScorpionVariableSupply, enterScorpionReinforcement } from './scorpion-reinforcement-state.ts'
@@ -36,7 +37,7 @@ export function applyScorpionReinforcement(
   side: Side,
   action: ReinforcementCommand,
   board: ReinforcementBoard,
-  roll: RollDie,
+  roll: ScorpionSupplyRoll,
   pickIndex: (size: number) => number,
 ): ReinforcementState {
   if (state.victory || side !== state.cursor.phasing) {

@@ -2,7 +2,7 @@ import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { aircraftProfile, atAirBase } from '../src/match/scorpion-air-bases.ts'
 import { hasScorpionBarrageSpotter } from '../src/match/scorpion-barrage.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
-import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { prepareScorpionDemoSupply, submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 
 /** Exercise both missions from the same actual deployment, independently of the rest of the audit. */
@@ -16,7 +16,7 @@ export function sampleScorpionAirOperations(opening, assets, board) {
   let record = opening
   const submit = (seat, action) => {
     const command = { id: `sample-air-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   const launch = (mission, hex) => {
     submit('soviet', { type: 'launch-air-mission', mission, target: { kind: 'hex', hex }, unitIds: [unitId] })
@@ -85,7 +85,7 @@ export function sampleScorpionAirBarrage(opening, assets, board) {
   let record = opening
   const submit = (seat, action) => {
     const command = { id: `sample-bombing-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
 
   submit('soviet', { type: 'launch-air-mission', mission: 'barrage', target: { kind: 'hex', hex }, unitIds })
@@ -131,7 +131,7 @@ export function sampleScorpionTrainbusting(opening, assets, board) {
   let record = opening
   const submit = (seat, action) => {
     const command = { id: `sample-trainbusting-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit('soviet', { type: 'launch-air-mission', mission: 'trainbusting', target, unitIds })
   if (record.state.airMission?.step.kind === 'interception') submit('axis', { type: 'respond-interception', unitId: null })
@@ -155,17 +155,10 @@ export function sampleScorpionSupplyAirlift(opening, assets, board) {
   const source = 'soviet:air-box'
   const target = { kind: 'hex', hex: 's18.07' }
   const destination = `soviet:hex:${target.hex}`
-  const turn = opening.state.cursor.turn
-  let record = opening
+  let record = prepareScorpionDemoSupply(opening, assets, board)
   const submit = (seat, action) => {
     const command = { id: `sample-airlift-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
-  }
-  submit('soviet', { type: 'complete-refit' })
-  const rules = board.reinforcements(record.state)
-  for (const arrival of rules.catalog.filter((entry) => entry.side === 'soviet' && entry.turn === turn && !entry.optionalForce)) {
-    const [hex] = rules.arrivalDestinations(arrival)
-    if (hex) submit('soviet', { type: 'place-arrival', arrivalId: arrival.id, hex })
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit('soviet', { type: 'finish-scheduled-arrivals' })
   submit('soviet', { type: 'place-supply', target: { kind: 'air-box' }, tokens: record.state.window.variableTokens })
@@ -198,7 +191,7 @@ export function sampleScorpionSupplyDrop(before, assets, board) {
   let record = before
   const submit = (seat, action) => {
     const command = { id: `sample-drop-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit('soviet', { type: 'launch-air-mission', mission: 'air-drop', target, supplyTokens: 2, unitIds: [lift.id] })
   if (record.state.airMission?.step.kind === 'interception') submit('axis', { type: 'respond-interception', unitId: null })
@@ -230,7 +223,7 @@ export function sampleScorpionOnMapSupplyAirlift(opening, assets, board) {
   let record = { ...opening, state: { ...opening.state, units, cursor } }
   const submit = (seat, action) => {
     const command = { id: `sample-on-map-airlift-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, seat, command, assets, board).record
+    record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit('axis', { type: 'ground-move', unitId: captor, path: [target.hex] })
   if (record.state.capture) {
@@ -271,7 +264,7 @@ export function sampleScorpionGroundAirlift(opening, assets, board) {
   let record = before
   const submit = (action) => {
     const command = { id: `sample-ground-airlift-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, 'axis', command, assets, board).record
+    record = submitScorpionDemo(record, 'axis', command, assets, board).record
   }
   submit({ type: 'launch-air-mission', mission: 'transport', target, supplySource: source, cargoUnitIds: [id],
     unitIds: [plane.id], flightModes: [{ id: plane.id, mode: 'double-capacity' }] })

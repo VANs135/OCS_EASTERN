@@ -35,7 +35,7 @@ export function openScorpionTurn(
     vp,
   }
   const suddenDeath = scorpionSuddenDeath(turn, vp)
-  if (suddenDeath) return { ...base, step: { kind: 'ended', result: suddenDeath } }
+  if (suddenDeath) return { ...base, vp: scorpionFinalPoints(vp, rerollHolder), step: { kind: 'ended', result: suddenDeath } }
   if (weather.endGame) {
     return closeScorpionGame({ ...base, step: { kind: 'roll', retention } }, rerollHolder)
   }
@@ -47,7 +47,7 @@ export function openScorpionTurn(
   const penalty = turn >= 3 && weather.ground !== 'thaw' ? Math.min(axisCombatStepsAlongDnepr, 4) : 0
   const adjustedVp = vp - penalty
   const result = scorpionSuddenDeath(turn, adjustedVp)
-  if (result) return { ...base, vp: adjustedVp, step: { kind: 'ended', result } }
+  if (result) return { ...base, vp: scorpionFinalPoints(adjustedVp, rerollHolder), step: { kind: 'ended', result } }
 
   const step: PreTurn = retention === 'closed'
     ? { kind: 'roll', retention }

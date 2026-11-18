@@ -26,7 +26,7 @@ const fixture = (phase, units) => ({ revision: 0, receipts: [], state: { kind: '
   turn: { number: 1, weather: { ground: 'freeze', flight: 'limited' }, vp: 0, thawSeen: false,
     step: { kind: 'player-turn', first: 'soviet', retention: 'soviet' } },
   rng: createRngState(1), dumps: { 'soviet:hex:s10.01': { side: 'soviet', location: 'on-map', tokens: 10 } },
-  moved: [], pieces: [], availableAlerts: [], railControl: {}, rerollHolder: 'soviet', airBases: [], combat: null,
+  moved: [], pieces: [], availableAlerts: [], railControl: {}, rerollHolder: null, airBases: [], combat: null,
   arrivalsOnMap: [], placedAlerts: [], window: null,
   combatTargets: [], combatAttackers: [], arrival: { placed: [], mobilized: [], sovietVp: 0 }, victory: null,
 } })
@@ -757,7 +757,18 @@ test('an airfield barrage changes the level and aircraft faces without hitting d
   const attack = { type: 'declare-artillery-barrage', target: 's10.02', targetKind: 'air-base',
     batteries: [{ unitId: 'battery' }], supply: { kind: 'direct', payments: [{ dumpId: 'soviet:hex:s10.01', tokens: 2 }] } }
   assert.throws(() => submit(record, 'soviet', attack), /appropriate OCS/)
-  const hit = submit(record, 'soviet', attack, option)
+  record.state.rerollHolder = 'axis'
+  const damage = submit(record, 'soviet', attack, option)
+  const keep = { type: 'resolve-reroll', decision: 'keep' }
+  assert.equal(damage.state.reroll.current.site.kind, 'airfield-barrage')
+  assert.equal(damage.state.reroll.current.draw.value.count, 1)
+  const firstLoss = submit(damage, 'axis', keep, option)
+  assert.deepEqual(firstLoss.state.reroll.current.site, { kind: 'airfield-loss', hex: 's10.02', unitId: 'full' })
+  assert.equal(firstLoss.state.airBases[0].level, 2)
+  assert.equal(firstLoss.state.dumps['soviet:hex:s10.01'].tokens, 10)
+  const secondLoss = submit(firstLoss, 'axis', keep, option)
+  assert.equal(secondLoss.state.reroll.current.site.unitId, 'reduced')
+  const hit = submit(secondLoss, 'axis', keep, option)
   assert.equal(hit.state.dumps['soviet:hex:s10.01'].tokens, 8)
   assert.equal(hit.state.airBases[0].level, 1)
   assert.equal(hit.state.pieces[0].reduced, true)

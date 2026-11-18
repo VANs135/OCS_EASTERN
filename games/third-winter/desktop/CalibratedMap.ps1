@@ -173,6 +173,17 @@ function Show-Frame([int]$index) {
         $script:previous.IsEnabled = $index -gt 0
         $script:next.IsEnabled = $index -lt ($model.frames.Count - 1)
     }
+    if ($script:rerollArt) {
+        if ($frame.reroll) {
+            $script:rerollArt.Source = Get-Art (Join-Path $model.imageDirectory $frame.reroll.asset)
+            $script:rerollLabel.Text = $frame.reroll.label
+            $script:rerollArt.Visibility = 'Visible'
+            $script:rerollLabel.Visibility = 'Visible'
+        } else {
+            $script:rerollArt.Visibility = 'Collapsed'
+            $script:rerollLabel.Visibility = 'Collapsed'
+        }
+    }
 }
 
 $script:canvas = New-Object Windows.Controls.Canvas
@@ -228,6 +239,14 @@ foreach ($button in @($previous, $next)) {
 }
 $caption.VerticalAlignment = 'Center'
 [void]$bar.Children.Add($caption)
+$script:rerollArt = New-Object Windows.Controls.Image
+$rerollArt.Width = 30
+$rerollArt.Height = 30
+$rerollArt.Margin = '24,0,7,0'
+[void]$bar.Children.Add($rerollArt)
+$script:rerollLabel = New-Object Windows.Controls.TextBlock
+$rerollLabel.VerticalAlignment = 'Center'
+[void]$bar.Children.Add($rerollLabel)
 $previous.Add_Click({ $script:index--; Show-Frame $script:index })
 $next.Add_Click({ $script:index++; Show-Frame $script:index })
 [Windows.Controls.DockPanel]::SetDock($bar, 'Top')

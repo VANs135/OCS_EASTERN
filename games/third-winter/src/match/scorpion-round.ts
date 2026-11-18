@@ -3,10 +3,11 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { closeScorpionGame, openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionDates, scorpionWeather } from '../ttw/scorpion/weather.ts'
+import { scorpionFinalPoints } from '../ttw/scorpion/victory.ts'
 import { advanceScorpionPhase } from './scorpion-player-turn.ts'
 import type { ReinforcementState } from './scorpion-reinforcement-state.ts'
 
-export type ScorpionPlayerProgress = Pick<ReinforcementState, 'cursor' | 'arrival' | 'victory'>
+export type ScorpionPlayerProgress = Pick<ReinforcementState, 'cursor' | 'arrival' | 'victory'> & { rerollHolder?: Side | null }
 
 /** The live score comes from the same player state that applies reinforcement VP changes. */
 export function currentScorpionTurn(turn: Readonly<ScorpionTurn>, player?: ScorpionPlayerProgress): ScorpionTurn {
@@ -14,8 +15,9 @@ export function currentScorpionTurn(turn: Readonly<ScorpionTurn>, player?: Scorp
   if (turn.step.kind !== 'player-turn' || player.cursor.turn !== turn.number || player.cursor.first !== turn.step.first) {
     throw new Error('Scorpion player progress belongs to a different turn')
   }
-  const step = player.victory ? { kind: 'ended' as const, result: player.victory } : turn.step
-  return { ...turn, vp: player.arrival.sovietVp, step }
+  const vp = player.arrival.sovietVp
+  return player.victory ? { ...turn, vp: scorpionFinalPoints(vp, player.rerollHolder ?? null),
+    step: { kind: 'ended', result: player.victory } } : { ...turn, vp }
 }
 
 /** Called after the side's cleanup has been resolved. Weather is rolled only after both cleanups. */

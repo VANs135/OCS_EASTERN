@@ -1,6 +1,7 @@
-import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
+import { scorpionRolls } from './scorpion-reroll.ts'
+import type { ScorpionRoll } from './scorpion-reroll.ts'
 import type { CrtLike } from '@ocs-eastern/series/tables/crt'
 import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
 import { scorpionHexId } from '../import/hex-id.ts'
@@ -117,7 +118,7 @@ export function selectScorpionCombatRating(state: Readonly<ScorpionInPlay>, acto
 }
 
 export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, actor: Side, action: ChooseCombatTerrain,
-  map: ScorpionMap, table: CrtLike): ScorpionInPlay {
+  map: ScorpionMap, table: CrtLike, offer?: ScorpionRoll): ScorpionInPlay {
   const combat = state.combat
   if (combat?.step !== 'defender-terrain' || actor === combat.attacker || !combat.attackerLeader || !combat.defenderLeader) {
     throw new Error('The defender chooses terrain after both sides select their Action Rating')
@@ -140,12 +141,13 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
   const defend = combat.defenders.reduce((sum, id) => sum +
     combatStrength(state.units[id]!, false, action.terrain, frozen,
       combat.defenseSupplied === true || combat.defenseInternalUnits?.includes(id) === true, 0), 0)
-  let rng = state.rng
+  const rolls = scorpionRolls(state.rng, offer)
+  const hex = combat.target
   const result = rollRegularCombat(table, combatTerrainCategory(action.terrain), attack, defend,
-    combatRating(state.units[combat.attackerLeader]!) - combatRating(state.units[combat.defenderLeader]!), combat.hedgehog, () => {
-      const draw = rollDie(rng)
-      rng = draw.rng
-      return draw.value
+    combatRating(state.units[combat.attackerLeader]!) - combatRating(state.units[combat.defenderLeader]!), combat.hedgehog, {
+      surprise: () => rolls.two({ kind: 'surprise', hex }),
+      shift: () => rolls.one({ kind: 'surprise-shift', hex }),
+      combat: () => rolls.two({ kind: 'combat', hex }),
     }, combat.kind === 'overrun')
   const units = { ...state.units }
   const removeReserve = result.defender.loss > 0 || result.defender.option > 0 || result.disorganize
@@ -161,5 +163,5 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
       }
     }
   }
-  return { ...state, rng, units, combat: { ...combat, roll: result, step: 'attacker-result' } }
+  return { ...state, rng: rolls.rng, units, combat: { ...combat, roll: result, step: 'attacker-result' } }
 }

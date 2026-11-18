@@ -1,10 +1,11 @@
-import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { activeAirfieldExcess } from './scorpion-air-bases.ts'
 import type { ScorpionBarrage } from './scorpion-barrage.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
+import { scorpionRolls } from './scorpion-reroll.ts'
+import type { ScorpionRoll } from './scorpion-reroll.ts'
 
 export type AirfieldBarrageResult = ReturnType<typeof rollFacilityBarrage> & {
   aircraft: readonly { id: string; die: number; loss: boolean }[]
@@ -17,19 +18,15 @@ export interface AirfieldCapacityChoice {
 }
 
 export function settleScorpionAirfieldBarrage(state: Readonly<ScorpionInPlay>, barrage: ScorpionBarrage,
-  table: BarrageTable): ScorpionInPlay {
-  let rng = state.rng
-  const roll = () => {
-    const draw = rollDie(rng)
-    rng = draw.rng
-    return draw.value
-  }
-  const result = rollFacilityBarrage(table, barrage.initialColumn, roll)
+  table: BarrageTable, offer?: ScorpionRoll): ScorpionInPlay {
+  const rolls = scorpionRolls(state.rng, offer)
+  const hex = barrage.target
+  const result = rollFacilityBarrage(table, barrage.initialColumn, () => rolls.one({ kind: 'airfield-barrage', hex }))
   const aircraft: { id: string; die: number; loss: boolean }[] = []
   const pieces = state.pieces.map((unit) => {
     if (result.aircraftLossAt === null || unit.kind !== 'aircraft' || unit.side !== barrage.defender ||
       unit.location.kind !== 'hex' || unit.location.hex !== barrage.target) return unit
-    const die = roll()
+    const die = rolls.one({ kind: 'airfield-loss', hex, unitId: unit.id })
     const loss = die >= result.aircraftLossAt
     aircraft.push({ id: unit.id, die, loss })
     if (!loss) return unit
@@ -38,7 +35,7 @@ export function settleScorpionAirfieldBarrage(state: Readonly<ScorpionInPlay>, b
   })
   const airBases = state.airBases.map((base) => base.hex === barrage.target && base.side === barrage.defender
     ? { ...base, level: Math.max(1, base.level - result.damage) } : base)
-  const resolved = { ...state, rng, pieces, airBases }
+  const resolved = { ...state, rng: rolls.rng, pieces, airBases }
   const airfieldCapacityChoice = activeAirfieldExcess(resolved, barrage.defender, { kind: 'hex', hex: barrage.target })
   const { turn, phasing, phase } = state.cursor
   return { ...resolved, airfieldCapacityChoice,
