@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { campaignHexKey, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
@@ -9,7 +9,9 @@ import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionAxisSources, scorpionInitialRailGauge, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
-import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
+import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
+import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
 const root = process.argv[2]
@@ -82,9 +84,11 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     supplySources: { axis: new Set(scorpionAxisSources), soviet: new Set(scorpionSovietSources) },
     controlOf: (id) => id === 's22.02' ? 'soviet' : null, arrivalDestinations: (entry) => entry.destinations,
     alertDestinations: () => [] })
-  function submit(action) {
+  const tablePath = process.env.OCS_V43_CRT
+  const combat = tablePath ? { table: await readAt(dirname(resolve(tablePath)), basename(tablePath)) } : undefined
+  function submit(action, seat = record.state.cursor.phasing) {
     const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
-    record = submitScorpionSession(record, 'soviet', command, assets, { reinforcements }).record
+    record = submitScorpionSession(record, seat, command, assets, { reinforcements, combat }).record
   }
   submit({ type: 'complete-refit' })
   for (const { id, destinations } of playableArrivals.filter(({ side, turn }) => side === 'soviet' && turn === 1)) {
@@ -108,26 +112,90 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     followingGroundCounters: Object.keys(record.state.units).length,
     firstMoveDestination: record.state.units[unitId].hex,
   }
-  submit({ type: 'complete-movement' })
-  for (const { formation, anchors } of record.state.supply.splits) {
-    submit({ type: 'choose-formation-trace', formation, anchor: anchors[0] })
-  }
-  submit({ type: 'check-attrition' })
-  opening.attritionChecks = record.state.supply.attrition.length
-  for (const stack of record.state.supply.attrition.filter(({ assigned }) => !assigned)) {
-    let remainder = stack.losses
-    const allocation = []
-    for (const id of stack.units) {
-      const unit = record.state.units[id]
-      const steps = Math.min(remainder, Math.max(1, unit.printedRe - unit.stepsLost))
-      if (!steps) break
-      allocation.push({ unitId: id, steps })
-      remainder -= steps
+  function finishSupply() {
+    submit({ type: 'complete-movement' })
+    for (const { formation, anchors } of record.state.supply.splits) {
+      submit({ type: 'choose-formation-trace', formation, anchor: anchors[0] })
     }
-    submit({ type: 'assign-attrition', hex: stack.hex, allocation })
+    submit({ type: 'check-attrition' })
+    const attrition = record.state.supply.attrition
+    for (const stack of attrition.filter(({ assigned }) => !assigned)) {
+      let remainder = stack.losses
+      const allocation = []
+      for (const id of stack.units) {
+        const steps = Math.min(remainder, remainingSteps(record.state.units[id]))
+        if (!steps) break
+        allocation.push({ unitId: id, steps })
+        remainder -= steps
+      }
+      submit({ type: 'assign-attrition', hex: stack.hex, allocation })
+    }
+    submit({ type: 'complete-supply' })
+    return attrition.length
   }
-  submit({ type: 'complete-supply' })
+  opening.attritionChecks = finishSupply()
   opening.phaseAfterSupply = record.state.cursor.phase
+  submit({ type: 'complete-reaction' }, 'axis')
+  if (combat) opening.sampleBattle = sampleBattle(record.state, map, submit, () => record.state)
+  submit({ type: 'complete-combat' })
+  submit({ type: 'complete-exploitation' })
+  submit({ type: 'complete-cleanup' })
+  submit({ type: 'complete-refit' })
+  submit({ type: 'finish-scheduled-arrivals' })
+  submit({ type: 'complete-reinforcement' })
+  opening.axisAttritionChecks = finishSupply()
+  submit({ type: 'complete-reaction' }, 'soviet')
+  submit({ type: 'complete-combat' })
+  submit({ type: 'complete-exploitation' })
+  submit({ type: 'complete-cleanup' })
+  submit({ type: 'retain-initiative', dumpId: 'soviet:hex:s1.14' }, 'soviet')
+  submit({ type: 'choose-first', first: 'soviet' }, 'soviet')
+  opening.nextTurn = record.state.turn.number
+  opening.nextPhase = record.state.cursor.phase
+}
+
+function sampleBattle(state, map, submit, latest) {
+  const sovietSupply = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, 'soviet'))
+  let chosen
+  for (const [unitId, unit] of Object.entries(state.units)) {
+    if (unit.side !== 'soviet' || !unit.attackCapable || unit.mobility !== 'leg') continue
+    const dumpId = Object.keys(state.dumps).find((id) => id.startsWith('soviet:hex:') &&
+      state.dumps[id].tokens >= remainingSteps(unit) && sovietSupply.canUseDump(unit.hex, id.split(':')[2]))
+    const target = map.neighbors(unit.hex).find((hex) => !map.edge(unit.hex, hex)?.river &&
+      !scorpionAxisSources.includes(hex) && Object.values(state.units).some((enemy) =>
+        enemy.side === 'axis' && enemy.combat && enemy.hex === hex))
+    if (dumpId && target) {
+      chosen = { unitId, unit, dumpId, target }
+      break
+    }
+  }
+  if (!chosen) throw new Error('No eligible opening regular combat for the audit')
+  const { unitId, unit, dumpId, target } = chosen
+  submit({ type: 'declare-combat', target, attackers: [unitId], payments: [{ unitId, dumpId, tokens: remainingSteps(unit) }] })
+  submit({ type: 'defend-combat', payments: [] }, 'axis')
+  submit({ type: 'select-combat-rating', unitId })
+  submit({ type: 'select-combat-rating', unitId: latest().combat.defenders[0] }, 'axis')
+  const terrain = map.hexes.get(target).terrains[0]
+  submit({ type: 'choose-combat-terrain', terrain, attackingTerrain: { [unit.hex]: terrain } }, 'axis')
+  const rolled = latest().combat.roll
+  for (const [seat, side] of [['soviet', 'attacker'], ['axis', 'defender']]) {
+    const battle = latest().combat
+    const slots = side === 'attacker' ? battle.attackers : battle.defenders
+    const leader = side === 'attacker' ? battle.attackerLeader : battle.defenderLeader
+    const ordered = [leader, ...slots.filter((id) => id !== leader)]
+    const counts = new Map(ordered.map((id) => [id, remainingSteps(latest().units[id])]))
+    const hard = Math.min(rolled[side].loss, [...counts.values()].reduce((sum, count) => sum + count, 0))
+    const lossOrder = []
+    while (lossOrder.length < hard + rolled[side].option && [...counts.values()].some((count) => count)) {
+      for (const id of ordered) {
+        if (lossOrder.length === hard + rolled[side].option) break
+        if (counts.get(id) > 0) { lossOrder.push(id); counts.set(id, counts.get(id) - 1) }
+      }
+    }
+    submit({ type: 'resolve-combat', lossOrder, optionLosses: lossOrder.length - hard, retreats: [] }, seat)
+  }
+  if (latest().combat?.step === 'advance') submit({ type: 'advance-after-combat', unitIds: [] })
+  return { from: unit.hex, target, result: rolled.code }
 }
 const railGauge = scorpionInitialRailGauge(map)
 const axisSources = new Set(scorpionAxisSources)

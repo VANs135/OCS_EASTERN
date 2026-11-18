@@ -1,6 +1,6 @@
 import { edgeKey } from '@ocs-eastern/series/ground-map'
 import type { GroundMap } from '@ocs-eastern/series/ground-map'
-import { scorpionHexId } from './hex-id.ts'
+import { scorpionHexDistance, scorpionHexId } from './hex-id.ts'
 
 export const terrainKinds = ['Open', 'Hills', 'Woods', 'Forest', 'Rough', 'Mountain', 'Swamp',
   'Village', 'Minor City', 'Major City'] as const
@@ -47,11 +47,6 @@ export interface ScorpionMap extends GroundMap<ScorpionEdge> {
 const terrains = new Set<string>(terrainKinds)
 const cities = new Set(['Village', 'Minor City', 'Major City'])
 
-function axial(hex: string): readonly [number, number] {
-  const [column, row] = hex.slice(1).split('.').map(Number)
-  return [column!, row! - Math.floor((column! - 1) / 2)]
-}
-
 /** The crop already resolves the large-map seams. Index its own S endpoints as published. */
 export function scorpionMap(hexRows: readonly SourceHex[], edgeRows: readonly SourceEdge[]): ScorpionMap {
   if (!hexRows.length || !edgeRows.length) throw new Error('The Scorpion terrain database is empty')
@@ -76,11 +71,7 @@ export function scorpionMap(hexRows: readonly SourceHex[], edgeRows: readonly So
     const a = scorpionHexId(row.hex_a)
     const b = scorpionHexId(row.hex_b)
     const key = edgeKey(a, b)
-    const [aq, ar] = axial(a)
-    const [bq, br] = axial(b)
-    const q = aq - bq
-    const r = ar - br
-    if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) !== 1 ||
+    if (scorpionHexDistance(a, b) !== 1 ||
       !hexes.has(a) || !hexes.has(b) || edges.has(key)) {
       throw new Error(`Invalid Scorpion edge: ${key}`)
     }

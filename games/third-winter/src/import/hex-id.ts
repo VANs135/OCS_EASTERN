@@ -15,3 +15,15 @@ export function scorpionHexId(source: string): string {
   if (!match) throw new Error(`Invalid printed Scorpion hex: ${source}`)
   return `s${Number(match[1])}.${match[2]!.padStart(2, '0')}`
 }
+
+export function scorpionHexDistance(from: string, to: string): number {
+  function axial(hex: string) {
+    const [col, row] = scorpionHexId(hex).slice(1).split('.').map(Number)
+    return [col!, row! - Math.floor((col! - 1) / 2)] as const
+  }
+  const [aq, ar] = axial(from)
+  const [bq, br] = axial(to)
+  const q = aq - bq
+  const r = ar - br
+  return Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r))
+}

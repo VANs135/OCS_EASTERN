@@ -28,6 +28,7 @@ export interface BackupUnit extends SourceUnit {
   side: Side | null
   re?: number | null
   org?: { parentFmt?: string | null } | null
+  category?: string
   kind?: Exclude<BackupKind, 'marker'>
   faces: { combat: BackupFace | null; move: BackupFace | null }
   abilities?: readonly string[]

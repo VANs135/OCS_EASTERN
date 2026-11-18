@@ -21,7 +21,8 @@ export function scorpionSessionBoxFrame(
   state: Readonly<ScorpionSession>, catalog: { definitions: DefinitionIndex; aliases: AliasIndex }, viewer?: Side,
 ) {
   if (state.kind === 'setup') return scorpionBoxFrame(scorpionFirstTurn(), state.opening.pieces, catalog, undefined, viewer)
-  return scorpionBoxFrame(state.turn, state.pieces, catalog, state, viewer)
+  return scorpionBoxFrame(state.turn, state.pieces, catalog,
+    state.turn.step.kind === 'player-turn' ? state : undefined, viewer)
 }
 
 export function scorpionBoxFrame(

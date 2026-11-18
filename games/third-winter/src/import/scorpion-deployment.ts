@@ -5,6 +5,7 @@ import type { ScorpionMap } from './scorpion-map.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
+import { scorpionCombatSymbols } from './scorpion-combat-symbols.ts'
 
 export interface GroundSetupRow {
   ref: string
@@ -18,6 +19,14 @@ export interface DeployedCounter extends GroundProfile {
   printedRe: number
   actionRating: number
   attackCapable: boolean
+  strength: number
+  combatClass: 'armor' | 'mech' | 'other'
+  antiTank: 0 | 1 | 2
+  disorganized?: boolean
+  moveMode?: boolean
+  exploit?: boolean
+  reserve?: string
+  released?: boolean
   formation?: string
   headquarters?: { throwRange: number; mobility: Mobility; kessel: boolean }
   traceDrawMobility?: Mobility
@@ -75,8 +84,10 @@ export function deployScorpionGroundCounter(
     ? { throwRange: range, mobility: kessel ? 'leg' as const : 'truck' as const, kessel } : undefined
   const attackCapable = typeof stats?.attack === 'number' && stats.attack > 0 &&
     stats.defensiveOnly !== true && !headquarters && typeof stats.barrage !== 'number' && profile.combat
+  const strength = headquarters ? (kessel ? 2 : 5) : typeof stats?.barrage === 'number' ? 1 :
+    typeof stats?.attack === 'number' ? stats.attack : 0
   return { ...profile, definition: definition.key, hex, printedRe, actionRating: rating, attackCapable,
-    formation: typeof formation === 'string' && formation ? formation : undefined, headquarters,
+    strength, ...scorpionCombatSymbols(definition), formation: typeof formation === 'string' && formation ? formation : undefined, headquarters,
     traceDrawMobility: headquarters?.mobility, stepsLost, fueled: false, organicTruck }
 }
 

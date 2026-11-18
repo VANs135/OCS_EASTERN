@@ -2,6 +2,7 @@ import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
+import { actingSide } from '@ocs-eastern/series/turn'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
@@ -17,6 +18,10 @@ interface Unit {
   allowance: number
   fueled: boolean
   combat: boolean
+  reserve?: string
+  released?: boolean
+  exploit?: boolean
+  disorganized?: boolean
 }
 export interface GroundMoveState {
   cursor: PlayerTurn
@@ -50,9 +55,12 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
   state: Readonly<State>, side: Side, move: MoveCommand, board: MovementBoard,
 ): State {
   const unit = Object.hasOwn(state.units, move.unitId) ? state.units[move.unitId] : undefined
-  if (state.cursor.phase !== 'movement' || state.cursor.phasing !== side ||
+  const phase = state.cursor.phase
+  const permitted = phase === 'movement' || (phase === 'reaction' && unit?.released) ||
+    (phase === 'exploitation' && (unit?.released || unit?.exploit))
+  if (!permitted || actingSide(state.cursor.phasing, phase) !== side ||
     !unit || unit.side !== side || state.moved.includes(move.unitId) || board.weather === 'thaw') {
-    throw new Error('Normal ground movement is unavailable')
+    throw new Error('Ground movement is unavailable for this counter in the current phase')
   }
   if (!Number.isFinite(unit.allowance) || unit.allowance <= 0 || !move.path.length ||
     unit.combat && unit.mobility !== 'leg' && !unit.fueled) {
@@ -61,6 +69,8 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
 
   let from = scorpionHexId(unit.hex)
   let spent = 0
+  const phaseFactor = phase === 'reaction' || (phase === 'exploitation' && !unit.released) ? 0.5 : unit.reserve ? 0.25 : 1
+  const allowance = unit.allowance * phaseFactor * (unit.disorganized ? 0.5 : 1)
   for (const [index, raw] of move.path.entries()) {
     const to = scorpionHexId(raw)
     const last = index === move.path.length - 1
@@ -74,7 +84,7 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
     } else {
       spent += step
       // OCS 6.1c, minimum move applies to one otherwise legal hex only.
-      if (spent > unit.allowance && move.path.length !== 1) throw new Error('Movement allowance exceeded')
+      if (spent > allowance && move.path.length !== 1) throw new Error('Movement allowance exceeded')
     }
     if (!last && unit.mobility === 'truck' && board.unnegatedEnemyZoc(to, side)) {
       throw new Error('Truck movement must stop in enemy ZOC')

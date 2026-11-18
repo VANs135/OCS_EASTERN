@@ -21,13 +21,15 @@ export function scorpionSupplyPosition(
   const anchors = new Set(friendly.map(([, unit]) => unit.hex))
   const negators = forMovement ? new Set(friendly.filter(([id, unit]) => unit.allowance === 0 || state.moved.includes(id))
     .map(([, unit]) => unit.hex)) : anchors
-  const unnegatedEnemyZoc = new Set(enemy.filter(([, unit]) => unit.attackCapable && !unit.outOfSupply)
+  const unnegatedEnemyZoc = new Set(enemy.filter(([, unit]) => unit.attackCapable && !unit.outOfSupply &&
+    !unit.reserve && !unit.disorganized && !unit.moveMode)
     .flatMap(([, unit]) => map.neighbors(unit.hex)).filter((hex) => !negators.has(hex)))
   const headquarters = friendly.flatMap(([id, unit]) => unit.headquarters ? [{ id, hex: unit.hex, ...unit.headquarters }] : [])
   const controlled = new Set([...map.hexes.keys()].filter((hex) => !enemyCombat.has(hex) &&
     (anchors.has(hex) || (railroad.controlOf?.(hex) ?? state.railControl?.[hex]) === side)))
   return { side, sources: new Set(scorpionSupplySources[side]), controlled, enemyCombat, unnegatedEnemyZoc,
     railGauge: railroad.railGauge ?? scorpionInitialRailGauge(map),
-    detrainableFacilities: new Set(headquarters.filter((hq) => !hq.kessel).map((hq) => hq.hex)),
+    detrainableFacilities: new Set(friendly.filter(([, unit]) => unit.headquarters &&
+      !unit.headquarters.kessel && !unit.moveMode && !unit.reserve).map(([, unit]) => unit.hex)),
     headquarters, weather: state.turn.weather.ground }
 }

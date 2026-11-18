@@ -1,9 +1,9 @@
 import { attritionLoss } from '@ocs-eastern/series/attrition'
 import type { Die } from '@ocs-eastern/series/dice'
 import { rollDie } from '@ocs-eastern/series/rng'
-import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSuddenDeath } from '../ttw/scorpion/victory.ts'
+import { remainingSteps, takeScorpionSteps } from './scorpion-losses.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { hasTrace, readyForSupplyAllocation } from './scorpion-supply-phase.ts'
@@ -19,8 +19,6 @@ export interface ScorpionAttrition {
 
 export type AssignAttrition = { type: 'assign-attrition'; hex: string;
   allocation: readonly { unitId: string; steps: number }[] }
-
-const remainingSteps = (unit: DeployedCounter) => Math.max(1, unit.printedRe - unit.stepsLost)
 
 /** OCS 12.8a–c. Mark only the phasing side, then roll once per hex containing unsupplied steps. */
 export function checkScorpionAttrition(state: Readonly<ScorpionInPlay>, window: ScorpionSupplyWindow): ScorpionInPlay {
@@ -59,29 +57,15 @@ export function assignScorpionAttrition(state: Readonly<ScorpionInPlay>, window:
     action.allocation.reduce((total, item) => total + item.steps, 0) !== stack.losses) {
     throw new Error('Assign the full attrition result once to the selected stack')
   }
-  const units = { ...state.units }
-  const pieces = [...state.pieces]
-  const availableAlerts = [...state.availableAlerts]
   for (const { unitId, steps } of action.allocation) {
-    const unit = units[unitId]
+    const unit = state.units[unitId]
     if (!stack.units.includes(unitId) || !unit?.outOfSupply || !Number.isSafeInteger(steps) || steps < 1 ||
       steps > remainingSteps(unit)) throw new Error('Only surviving out-of-supply steps in this hex can take attrition')
-    if (steps < remainingSteps(unit)) {
-      units[unitId] = { ...unit, stepsLost: unit.stepsLost + steps }
-      continue
-    }
-    delete units[unitId]
-    const definition = catalog.definitions.get(unit.definition)
-    if (definition?.source.abilities?.includes('alert_battalion')) {
-      // TTW 2.4b. An eliminated Alert unit returns to its pool.
-      availableAlerts.push({ id: unitId, definition: unit.definition })
-    } else {
-      pieces.push({ id: unitId, kind: 'ground', side: unit.side, definition: unit.definition, location: { kind: 'dead-pile' } })
-    }
   }
+  const settled = takeScorpionSteps(state, new Map(action.allocation.map(({ unitId, steps }) => [unitId, steps])), catalog)
   // Scorpion p.53. Every Axis step lost while OOS counts, including attrition.
   const sovietVp = state.arrival.sovietVp + (state.cursor.phasing === 'axis' ? stack.losses : 0)
-  return { ...state, units, pieces, availableAlerts, arrival: { ...state.arrival, sovietVp },
+  return { ...settled, arrival: { ...state.arrival, sovietVp },
     victory: scorpionSuddenDeath(state.cursor.turn, sovietVp), supply: { ...window,
       attrition: window.attrition!.map((item) => item === stack ? { ...item, assigned: true } : item) } }
 }
