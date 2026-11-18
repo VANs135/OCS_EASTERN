@@ -2,12 +2,13 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
+import type { ScorpionCombat } from './scorpion-combat.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import { finishScorpionOverrun } from './scorpion-overrun.ts'
-import { assertScorpionStacking, retreatScorpionCombat } from './scorpion-retreat.ts'
-import type { RetreatPlan } from './scorpion-retreat.ts'
+import { assertScorpionStacking, resumeScorpionCombatRetreat, retreatScorpionCombat } from './scorpion-retreat.ts'
+import type { ContinueCombatRetreat, RetreatPlan } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
@@ -19,7 +20,7 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   assets: ScorpionSetupAssets, rail?: SupplyRailBoard): ScorpionInPlay {
   const combat = state.combat
   const attacker = combat?.step === 'attacker-result'
-  if (!combat?.roll || (!attacker && combat.step !== 'defender-result') || attacker !== (actor === combat.attacker)) {
+  if (!combat?.roll || combat.retreat || (!attacker && combat.step !== 'defender-result') || attacker !== (actor === combat.attacker)) {
     throw new Error('The other side must resolve its combat result first')
   }
   const ids = attacker ? combat.attackers : combat.defenders
@@ -41,8 +42,10 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   if (combat.kind === 'overrun' && attacker && action.retreats.some(({ units }) => units.some((id) => !ids.includes(id)))) {
     throw new Error('Only overrun participants can retreat with the attacking stack')
   }
-  settled = retreatScorpionCombat(settled, actor, ids, retreat, action.retreats, combat, assets, rail)
-  if (settled.victory) return { ...settled, combat: null, overrunMarch: null }
+  const retreatResult = retreatScorpionCombat(settled, actor, ids, retreat, action.retreats, combat, assets, rail)
+  settled = retreatResult.state
+  if (settled.victory) return { ...settled, combat: null, overrunMarch: null, capture: null }
+  if (retreatResult.pending) return { ...settled, combat: { ...combat, retreat: retreatResult.pending } }
 
   if (attacker) {
     const threshold = combat.roll.exploit
@@ -61,6 +64,26 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
     return { ...settled, combat: { ...combat, step: 'defender-result', defenderMayIgnore: unmet > 0,
       attackerRetreated: retreat > 0 } }
   }
+  return finishDefenderResult(settled, actor, combat, assets, rail)
+}
+
+export function continueScorpionRetreatResult(state: Readonly<ScorpionInPlay>, actor: Side, action: ContinueCombatRetreat,
+  assets: ScorpionSetupAssets, rail?: SupplyRailBoard): ScorpionInPlay {
+  const combat = state.combat
+  const retreat = combat?.retreat
+  if (!retreat || retreat.side !== actor) throw new Error('Only the retreating side may continue its pending route')
+  const { state: settled, pending } = resumeScorpionCombatRetreat(state, retreat, action.routes, combat, assets, rail)
+  if (settled.victory) return { ...settled, combat: null, overrunMarch: null, capture: null }
+  if (pending) return { ...settled, combat: { ...combat, retreat: pending } }
+  const resolved = { ...combat, retreat: undefined }
+  if (resolved.step === 'attacker-result') {
+    return { ...settled, combat: { ...resolved, step: 'defender-result', defenderMayIgnore: true, attackerRetreated: true } }
+  }
+  return finishDefenderResult(settled, actor, resolved, assets, rail)
+}
+
+function finishDefenderResult(settled: Readonly<ScorpionInPlay>, actor: Side, combat: ScorpionCombat,
+  assets: ScorpionSetupAssets, rail?: SupplyRailBoard): ScorpionInPlay {
   const empty = !Object.values(settled.units).some((unit) => unit.side === actor && unit.combat && unit.hex === combat.target)
   if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty, assets, rail)
   const advance = empty && !combat.attackerRetreated && combat.attackers.some((id) => Object.hasOwn(settled.units, id))

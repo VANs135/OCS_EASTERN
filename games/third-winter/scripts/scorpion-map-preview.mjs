@@ -24,6 +24,7 @@ import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionExtender, sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
+import { sampleScorpionRetreatCapture } from './scorpion-retreat-example.mjs'
 
 const [root, ...options] = process.argv.slice(2)
 if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
@@ -192,6 +193,13 @@ sessionFrame(`运输点在 ${logistics.from} 装载 2T`, logistics.loaded.state)
 sessionFrame(`运输点在 ${logistics.to} 卸载 1T，${logistics.organicHex} 编内卡车为编队供油`, logistics.arrived.state)
 sessionFrame(`延补队演示 · 受控盘面，轴心 5 个空载运输点在 ${extender.hex}`, extender.before.state)
 sessionFrame(`延补队演示 · ${extender.hex} 翻到 ${extender.range} MP 延补队面`, extender.formed.state)
+const combatTablePath = process.env.OCS_V43_CRT
+if (combatTablePath) {
+  const combat = { table: JSON.parse(await readFile(combatTablePath, 'utf8')) }
+  const retreat = sampleScorpionRetreatCapture(started, { map: groundMap, catalog }, { combat })
+  sessionFrame(`撤退 · ${retreat.airfield} 机场易手，等待轴心飞机位移`, retreat.paused.state)
+  sessionFrame(`撤退完成 · 部队抵达 ${retreat.destination}，轴心飞机移入地图外空军盒`, retreat.finished.state)
+}
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())

@@ -127,6 +127,91 @@ test('the defending player can retreat the unresolved option along a legal hex p
   assert.equal(record.state.combat.step, 'advance')
 })
 
+test('9.12f captures a dump and air base on retreat, then resumes after the original owner displaces its plane', () => {
+  const origin = 's10.02'
+  const target = 's10.03'
+  const destination = 's10.04'
+  const alternate = 's11.04'
+  const edges = [['s10.01', origin], [origin, target], [target, destination], [target, alternate]]
+  const map = scorpionMap([...new Set(edges.flat())].map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
+    edges.map(([hex_a, hex_b]) => ({ hex_a, hex_b, edge_terrain: 'none', road_present: false, rail_present: false, bridge: false })))
+  const source = { name: 'Fighter', side: 'soviet', faces: { combat: { stats: { range: 10 } }, move: { stats: { range: 5 } } } }
+  const truck = (side, name) => ({ key: name, kind: 'transport', source: { side, name,
+    faces: { combat: { stats: { transport: 1, move: 45 }, maColor: 'black' } } } })
+  const sovietTruck = truck('soviet', 'Sov Truck')
+  const axisTruck = truck('axis', 'Ge Truck')
+  const local = { ...assets, map, catalog: { definitions: new Map([['fighter', { kind: 'aircraft', source }],
+    ['Sov Truck', sovietTruck], ['Ge Truck', axisTruck]]), aliases: new Map([['Ge Truck', [axisTruck]]]) } }
+  const options = board('Ae4 Do2')
+  const issue = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, options).record
+  let record = fixture('combat', { a: unit('soviet', 's10.01'), d: unit('axis', origin) })
+  const dumpId = `soviet:hex:${target}`
+  record.state.dumps[dumpId] = { side: 'soviet', tokens: 4, location: 'on-map' }
+  record.state.airBases = [{ hex: target, side: 'soviet', level: 1 }]
+  record.state.pieces = [{ id: 'fighter', kind: 'aircraft', side: 'soviet', definition: 'fighter', active: true,
+    location: { kind: 'hex', hex: target } }]
+  record = issue(record, 'soviet', { type: 'declare-combat', target: origin, attackers: ['a'],
+    payments: [{ unitId: 'a', dumpId: 'soviet:hex:s10.01', tokens: 1 }] })
+  record = issue(record, 'axis', { type: 'defend-combat', payments: [] })
+  record = issue(record, 'soviet', { type: 'select-combat-rating', unitId: 'a' })
+  record = issue(record, 'axis', { type: 'select-combat-rating', unitId: 'd' })
+  record = issue(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } })
+  const noLoss = { type: 'resolve-combat', lossOrder: [], optionLosses: 0, retreats: [] }
+  record = issue(record, 'soviet', noLoss)
+  const retreat = { ...noLoss, retreats: [{ units: ['d'], path: [target, destination] }] }
+  const dumpOnly = { ...record, state: { ...record.state, airBases: [], pieces: [] } }
+  const uninterrupted = issue(dumpOnly, 'axis', retreat)
+  assert.equal(uninterrupted.state.units.d.hex, destination)
+  assert.equal(uninterrupted.state.combat.step, 'advance')
+  assert.equal(uninterrupted.state.captureHistory[0].dump.destroyed + uninterrupted.state.captureHistory[0].dump.taken, 4)
+
+  const nonCaptor = { ...record, state: { ...record.state, units: { ...record.state.units, d: { ...record.state.units.d, attackCapable: false } } } }
+  assert.throws(() => issue(nonCaptor, 'axis', retreat), /attack-capable/)
+  const paused = issue(record, 'axis', retreat)
+  assert.equal(paused.state.units.d.hex, target)
+  assert.equal(paused.state.railControl[target], 'axis')
+  assert.equal(paused.state.capture.owner, 'soviet')
+  assert.equal(paused.state.combat.retreat.nextStep, 1)
+  assert.equal(paused.state.dumps[dumpId], undefined)
+  assert.equal(paused.state.airBases[0].side, 'axis')
+  assert.equal(paused.state.rng.drawCount - record.state.rng.drawCount, 2)
+  const move = { type: 'continue-combat-retreat' }
+  assert.throws(() => issue(paused, 'axis', move), /pending special capture/)
+  const displace = { type: 'settle-capture', aircraft: [{ id: 'fighter', destination: { kind: 'off-map-air' } }] }
+  assert.throws(() => issue(paused, 'axis', displace), /original owner/)
+  const response = command(paused, displace)
+  const settled = issue(JSON.parse(JSON.stringify(paused)), 'soviet', displace)
+  assert.equal(submitScorpionSession(settled, 'soviet', response, local, options).duplicate, true)
+  assert.equal(settled.state.pieces[0].location.kind, 'off-map-air')
+  assert.throws(() => issue(settled, 'soviet', move), /retreating side/)
+  assert.throws(() => issue(settled, 'axis', retreat), /pending combat retreat/)
+  assert.throws(() => issue(settled, 'axis', { ...move, routes: [{ path: [] }] }), /full option distance/)
+  const resumed = issue(settled, 'axis', move)
+  assert.equal(resumed.state.units.d.hex, destination)
+  assert.equal(resumed.state.units.d.disorganized, true)
+  assert.equal(resumed.state.combat.step, 'advance')
+  assert.equal(resumed.state.combat.retreat, undefined)
+  assert.equal(resumed.state.captureHistory.length, 1)
+  assert.equal(resumed.state.rng.drawCount, paused.state.rng.drawCount)
+  const rerouted = issue(settled, 'axis', { ...move, routes: [{ path: [alternate] }] })
+  assert.equal(rerouted.state.units.d.hex, alternate)
+  assert.equal(rerouted.state.railControl[alternate], 'axis')
+
+  const twoCaptures = { ...record, state: { ...record.state, units: { ...record.state.units,
+    truck: unit('soviet', destination, { combat: false, allowance: 45, definition: 'Sov Truck' }) } } }
+  const passedAirBase = issue(issue(twoCaptures, 'axis', retreat), 'soviet', displace)
+  const stoppedAgain = issue(passedAirBase, 'axis', move)
+  assert.equal(stoppedAgain.state.units.d.hex, destination)
+  assert.equal(stoppedAgain.state.capture.hex, destination)
+  const [group] = stoppedAgain.state.capture.transports
+  const transportReply = issue(stoppedAgain, 'soviet', { type: 'settle-capture', aircraft: [], transports: [
+    { id: 'truck', takenPoints: group.points, takenTokens: 0, displacedTo: alternate },
+  ] })
+  const completed = issue(transportReply, 'axis', move)
+  assert.equal(completed.state.combat.step, 'advance')
+  assert.deepEqual(completed.state.captureHistory.map(({ hex }) => hex), [target, destination])
+})
+
 test('only an unfulfilled option or a retreat allows the defender to ignore an option', () => {
   for (const [code, canIgnore] of [['AL2 Do1', false], ['AL1o1 Do1', true]]) {
     const record = fixture('combat', { a: unit('soviet', 's10.01'), d: unit('axis', 's10.02') })

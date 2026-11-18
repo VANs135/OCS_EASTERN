@@ -12,6 +12,7 @@ import { attackWithSupply, defendWithSupply } from './scorpion-combat-supply.ts'
 import type { AttackSupplyPayment } from './scorpion-combat-supply.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
+import type { ScorpionCombatRetreat } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment } from './scorpion-sp-payment.ts'
 import type { SupplyPayment } from './scorpion-sp-payment.ts'
@@ -38,6 +39,7 @@ export interface ScorpionCombat {
   step: 'defender-supply' | 'attacker-rating' | 'defender-rating' | 'defender-terrain' | 'attacker-result' | 'defender-result' | 'advance'
   defenderMayIgnore?: boolean
   attackerRetreated?: boolean
+  retreat?: ScorpionCombatRetreat
 }
 
 export type DeclareCombat = { type: 'declare-combat'; target: string; attackers: readonly string[];

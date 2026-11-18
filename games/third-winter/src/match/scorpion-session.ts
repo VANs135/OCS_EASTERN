@@ -26,7 +26,8 @@ import { settleScorpionCapture } from './scorpion-capture.ts'
 import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
-import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-result.ts'
+import { advanceScorpionCombat, continueScorpionRetreatResult, resolveScorpionCombat } from './scorpion-combat-result.ts'
+import type { ContinueCombatRetreat } from './scorpion-retreat.ts'
 import type { ResolveCombat } from './scorpion-combat-result.ts'
 import { applyScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { ScorpionDropPlan, ScorpionDropPlanAction } from './scorpion-drop-plan.ts'
@@ -108,6 +109,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
+  | ContinueCombatRetreat
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
@@ -138,6 +140,9 @@ export function submitScorpionSession(
     }
     if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
       throw new Error('Resolve the pending special capture first')
+    }
+    if (state.kind === 'playing' && state.combat?.retreat && action.type !== 'continue-combat-retreat' && action.type !== 'settle-capture') {
+      throw new Error('Complete the pending combat retreat first')
     }
     switch (action.type) {
       case 'respond-interception':
@@ -200,6 +205,9 @@ export function submitScorpionSession(
       case 'settle-capture':
         if (state.kind !== 'playing') throw new Error('There is no special capture to settle')
         return settleScorpionCapture(state, actor, action, assets)
+      case 'continue-combat-retreat':
+        if (state.kind !== 'playing') throw new Error('There is no combat retreat to continue')
+        return continueScorpionRetreatResult(state, actor, action, assets, board.supplyRail)
       case 'refit-aircraft':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
