@@ -4,7 +4,7 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 
-export function creditScorpionAirCargo(state: Readonly<ScorpionInPlay>, side: Side, base: ScorpionAirBase, tokens: number) {
+export function creditScorpionUnloadedSupply(state: Readonly<ScorpionInPlay>, side: Side, base: ScorpionAirBase, tokens: number) {
   if (!tokens) return state.dumps
   const onMap = base.kind === 'hex'
   const id = onMap ? `${side}:hex:${base.hex}` : `${side}:air-box`

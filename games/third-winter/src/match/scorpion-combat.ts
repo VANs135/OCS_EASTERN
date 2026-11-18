@@ -87,7 +87,7 @@ export function startScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Side
   const units = attackWithSupply(state, ledger, action.attackers, action.payments, action.internalUnitIds ?? [])
   const heldAtStart = { axis: all.filter(([, unit]) => unit.side === 'axis').map(([, unit]) => unit.hex),
     soviet: all.filter(([, unit]) => unit.side === 'soviet').map(([, unit]) => unit.hex) }
-  return { ...state, units, dumps: ledger.dumps, combat: { kind, target, attacker: actor, attackers: [...action.attackers], defenders,
+  return { ...state, ...ledger.settle(units), combat: { kind, target, attacker: actor, attackers: [...action.attackers], defenders,
     hedgehog, heldAtStart, step: 'defender-supply' } }
 }
 
@@ -98,7 +98,7 @@ export function defendScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Sid
   const ledger = scorpionSpPayment(state, actor, map, railroad)
   const internal = action.internalUnitIds ?? []
   const { units, supplied } = defendWithSupply(state, ledger, combat.defenders, action.payments, internal)
-  return { ...state, units, dumps: ledger.dumps,
+  return { ...state, ...ledger.settle(units),
     combat: { ...combat, defenseSupplied: supplied, defenseInternalUnits: [...internal], step: 'attacker-rating' } }
 }
 

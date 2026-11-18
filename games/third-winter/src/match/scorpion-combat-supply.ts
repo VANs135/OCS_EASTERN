@@ -12,9 +12,9 @@ export function attackWithSupply(state: Readonly<ScorpionInPlay>, ledger: Paymen
   payments: readonly AttackSupplyPayment[], internal: readonly string[]) {
   requireParticipants(attackers, internal)
   const totals = new Map<string, number>()
-  ledger.spend(payments, (payment, hex) => {
+  ledger.spend(payments, (payment) => {
     if (!attackers.includes(payment.unitId) || internal.includes(payment.unitId) ||
-      !ledger.canUse(state.units[payment.unitId]!, hex)) return false
+      !ledger.canUse(state.units[payment.unitId]!, payment.dumpId)) return false
     totals.set(payment.unitId, (totals.get(payment.unitId) ?? 0) + payment.tokens)
     return true
   })
@@ -39,7 +39,7 @@ export function defendWithSupply(state: Readonly<ScorpionInPlay>, ledger: Paymen
   if (supplied && (totalTokens(payments) !== cost || internal.length)) {
     throw new Error('Pay the defensive stack cost or choose individual internal stocks')
   }
-  ledger.spend(payments, (_, hex) => stack.every((unit) => ledger.canUse(unit, hex)))
+  ledger.spend(payments, ({ dumpId }) => stack.every((unit) => ledger.canUse(unit, dumpId)))
   const units = { ...state.units }
   const waste = new Map<string, SupplyPayment>()
   for (const id of internal) units[id] = drawInternal(units[id]!, cost, ledger, waste)
@@ -55,7 +55,7 @@ function requireParticipants(participants: readonly string[], internal: readonly
 
 function drawInternal(unit: DeployedCounter, cost: number, ledger: PaymentLedger,
   waste: Map<string, SupplyPayment>): DeployedCounter {
-  const available = ledger.available([unit])
+  const available = ledger.available([unit], false)
   if (totalTokens(available) >= cost) throw new Error('This unit can obtain its required on-map combat supply')
   const internalStocks = spendInternalStocks(unit.internalStocks)
   if (unit.printedRe > 1) for (const payment of available) waste.set(payment.dumpId, payment)

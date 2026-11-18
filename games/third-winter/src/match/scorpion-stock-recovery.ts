@@ -23,9 +23,9 @@ export function recoverScorpionStocks(state: Readonly<ScorpionInPlay>, action: R
     throw new Error('Allocate the exact token cost of one or two eligible recovery levels')
   }
   const ledger = scorpionSpPayment(state, side, map, railroad)
-  ledger.spend(action.payments, (_, hex) => ledger.canUse(unit, hex))
+  ledger.spend(action.payments, ({ dumpId }) => ledger.canUse(unit, dumpId))
   const internalStocks = unit.internalStocks === 'exhausted' && paid === base ? 'low' : undefined
-  return { ...state, dumps: ledger.dumps, units: { ...state.units, [action.unitId]: { ...unit, internalStocks } } }
+  return { ...state, ...ledger.settle({ ...state.units, [action.unitId]: { ...unit, internalStocks } }) }
 }
 
 export function settleScorpionStockRecovery(state: Readonly<ScorpionInPlay>, map: ScorpionMap,
@@ -36,10 +36,10 @@ export function settleScorpionStockRecovery(state: Readonly<ScorpionInPlay>, map
   const ledger = scorpionSpPayment(state, side, map, railroad)
   const remainder = new Map<string, SupplyPayment>()
   for (const unit of needy) {
-    const available = ledger.available([unit])
+    const available = ledger.available([unit], false)
     if (totalTokens(available) >= recoveryCost(unit)) throw new Error('Recover affordable internal stocks before using supply elsewhere')
     for (const payment of available) remainder.set(payment.dumpId, payment)
   }
   ledger.spend([...remainder.values()], () => true)
-  return { ...state, dumps: ledger.dumps }
+  return { ...state, ...ledger.settle() }
 }

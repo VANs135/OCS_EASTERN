@@ -4,7 +4,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { aircraftProfile, atAirBase, inScorpionAirRange } from './scorpion-air-bases.ts'
 import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { scorpionPhaseAirMissions } from './scorpion-barrage-timing.ts'
-import { creditScorpionAirCargo, scorpionUnloadedTokens } from './scorpion-dumps.ts'
+import { creditScorpionUnloadedSupply, scorpionUnloadedTokens } from './scorpion-dumps.ts'
 import { prepareScorpionGroundAirlift, unloadScorpionGroundAirlift } from './scorpion-ground-airlift.ts'
 import type { GroundAirliftCargo } from './scorpion-ground-airlift.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -123,7 +123,7 @@ export function settleScorpionAirlift(state: Readonly<ScorpionInPlay>, side: Sid
   const pieces = state.pieces.map((plane) => selected.has(plane.id) || (extended.has(plane.id) && atAirBase(plane.location, target))
     ? { ...plane, active: false } : plane)
   const delivered = kept.tokens
-  const dumps = creditScorpionAirCargo(state, side, target, delivered)
+  const dumps = creditScorpionUnloadedSupply(state, side, target, delivered)
   const lostUnits = lost.map(({ id }) => id)
   const landed = unloadScorpionGroundAirlift({ ...state, pieces, dumps }, side, target.hex, kept.unitIds, lostUnits, assets, railroad)
   return { kind: 'unloaded' as const, state: landed,

@@ -40,6 +40,9 @@ export function refitScorpionAircraft(state: Readonly<ScorpionInPlay>, actor: Si
   }
   const ledger = scorpionSpPayment(state, actor, map, rail)
   if (ledger.position.unnegatedEnemyZoc.has(field.hex)) throw new Error('An air base in unnegated enemy ZOC cannot refit')
-  ledger.spend([{ dumpId: base.dumpId, tokens: 1 }], (_, from) => ledger.network.canUseDump(field.hex, from))
-  return { ...state, pieces, dumps: ledger.dumps, refittedAirbases: [...(state.refittedAirbases ?? []), field.hex] }
+  ledger.spend([{ dumpId: base.dumpId, tokens: 1 }], ({ dumpId }) => {
+    const { hex: from, truck } = ledger.source(dumpId)
+    return !truck?.organicTruck && ledger.network.canUseDump(field.hex, from)
+  })
+  return { ...state, pieces, ...ledger.settle(), refittedAirbases: [...(state.refittedAirbases ?? []), field.hex] }
 }

@@ -71,10 +71,11 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
     throw new Error('Unit must be eligible and fueled to move')
   }
 
-  if (continuation !== undefined && unit.mobility === 'truck' && board.unnegatedEnemyZoc(unit.hex, side)) {
+  const activity = scorpionGroundActivity(state)
+  const handlingAtStart = activity.transport?.unitId === move.unitId && !activity.transport.enteredHex
+  if (continuation !== undefined && !handlingAtStart && unit.mobility === 'truck' && board.unnegatedEnemyZoc(unit.hex, side)) {
     throw new Error('Trucks entering enemy ZOC must stop or overrun')
   }
-  const activity = scorpionGroundActivity(state)
   const airlifted = activity.airlifted.includes(move.unitId)
   const allowance = scorpionGroundMpAvailable(state, move.unitId, continuation)
   if (airlifted && allowance <= 0) throw new Error('No ground movement remains after air transport')

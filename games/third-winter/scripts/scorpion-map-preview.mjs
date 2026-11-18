@@ -23,6 +23,7 @@ import {
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
+import { sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
 
 const [root, ...options] = process.argv.slice(2)
 if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
@@ -109,6 +110,7 @@ submit({ type: 'place-arrival', arrivalId: optional.id, hex: optional.destinatio
 frame('第 24 装甲师入场 · 苏军净胜利分加 5', ready(fourth), record.state)
 
 const barragePath = process.env.OCS_V43_BARRAGE
+let logistics
 {
   const barrage = barragePath ? JSON.parse(await readFile(barragePath, 'utf8')) : undefined
   const facilityPath = process.env.OCS_V43_FACILITY
@@ -128,6 +130,7 @@ const barragePath = process.env.OCS_V43_BARRAGE
   issue({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
   issue({ type: 'finish-scheduled-arrivals' })
   issue({ type: 'complete-reinforcement' })
+  logistics = sampleScorpionLogistics(opening, setupAssets, rules)
   if (barrage) {
     const { deployed, finished, center } = sampleScorpionFrontBarrage(opening, setupAssets, rules)
     sessionFrame('首回合炮击 · 准备格', opening.state)
@@ -183,6 +186,8 @@ const { target: dropTarget, drop: { result: dropResult } } = supplyDrop.event
 if (!dropResult.landedTokens) throw new Error('The seeded drop preview needs a landed supply counter')
 sessionFrame(`补给空投 · ${dropTarget.hex} 落地 ${dropResult.landedTokens}T，损失 ${dropResult.lostTokens}T`, supplyDrop.returning.state)
 sessionFrame(`补给空投 · 飞机回到苏军空军盒，${dropTarget.hex} 保留落地补给`, supplyDrop.returned.state)
+sessionFrame(`运输点在 ${logistics.from} 装载 2T`, logistics.loaded.state)
+sessionFrame(`运输点在 ${logistics.to} 卸载 1T，${logistics.organicHex} 编内卡车为编队供油`, logistics.arrived.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())

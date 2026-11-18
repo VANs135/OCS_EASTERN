@@ -5,6 +5,7 @@ import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
+import { carriedScorpionTokens } from './scorpion-sp-payment.ts'
 
 type TransportClass = 'trucks' | 'wagons'
 type TransportMember = { id: string; points: number; tokens: number }
@@ -28,7 +29,7 @@ export function rollScorpionTransportCapture(state: Readonly<ScorpionInPlay>, id
       throw new Error(`Missing printed transport capacity for ${unit.definition}`)
     }
     members[unit.allowance > 10 ? 'trucks' : 'wagons'].push({
-      id, points: capacity, tokens: unit.transportCargoTokens ?? (unit.organicTruck === 'full' ? capacity * 4 : 0),
+      id, points: capacity, tokens: carriedScorpionTokens(unit),
     })
   }
   return (['trucks', 'wagons'] as const).flatMap((kind) => {

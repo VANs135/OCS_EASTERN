@@ -4,6 +4,7 @@ import type { PlayerTurn } from './scorpion-player-turn.ts'
 export interface ScorpionGroundActivity extends Pick<PlayerTurn, 'turn' | 'phasing' | 'phase'> {
   spent: Readonly<Record<string, number>>
   airlifted: readonly string[]
+  transport?: { unitId: string; enteredHex: boolean }
 }
 
 interface ActivityState {

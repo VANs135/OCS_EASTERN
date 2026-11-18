@@ -7,7 +7,7 @@ import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
-import { applyScorpionGroundMove, scorpionGroundMpAvailable } from './scorpion-movement.ts'
+import { applyScorpionGroundMove, scorpionGroundMpAvailable, scorpionMovementAllowance } from './scorpion-movement.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
 import type { ScorpionReserveFace } from './scorpion-reserves.ts'
@@ -15,9 +15,9 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
-import { moveScorpionWithFuel } from './scorpion-unit-fuel.ts'
+import { fuelScorpionMovement } from './scorpion-fuel.ts'
 
-type MovingCounter = { unitId: string; fuelDumpId?: string; reserveFace?: ScorpionReserveFace }
+type MovingCounter = { unitId: string; fuelDumpId?: string; fuelHeadquartersId?: string; reserveFace?: ScorpionReserveFace }
 export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
 
@@ -41,7 +41,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   let moved = state
   if (action.type === 'ground-move' && action.face !== undefined) {
     const unit = state.units[action.unitId]
-    if (!unit || unit.side !== side || unit.reserve || action.reserveFace !== undefined || state.cursor.phase !== 'movement' ||
+    if (!unit?.combat || unit.side !== side || unit.reserve || action.reserveFace !== undefined || state.cursor.phase !== 'movement' ||
       state.moved.includes(action.unitId) || scorpionGroundActivity(state).airlifted.includes(action.unitId) ||
       (action.face !== 'move' && action.face !== 'combat')) throw new Error('Choose a friendly counter face before beginning its movement')
     moved = { ...state, units: { ...state.units,
@@ -57,10 +57,16 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   const resumed = Boolean(prior && entrants.every((id) => Object.hasOwn(prior, id)))
   const boardState = resumed ? { ...moved, moved: moved.moved.filter((id) => !entrants.includes(id)) } : moved
   const { rules, facts } = scorpionMovementRules(boardState, side, map, board)
-  for (const { unitId, fuelDumpId } of counters) {
+  for (const { unitId, fuelDumpId, fuelHeadquartersId } of counters) {
     const move = { unitId, path: action.path }
-    moved = fuelDumpId === undefined ? applyScorpionGroundMove(moved, side, move, rules, resumed ? prior![unitId] : undefined)
-      : moveScorpionWithFuel(moved, side, move, fuelDumpId, rules, facts)
+    const unit = moved.units[unitId]
+    const activity = scorpionGroundActivity(moved)
+    const continuingTransport = !stack && unit && !unit.combat && activity.transport?.unitId === unitId
+    const remaining = continuingTransport
+      ? scorpionMovementAllowance(unit, state.cursor.phase) - (activity.spent[unitId] ?? 0) : undefined
+    if (remaining !== undefined && remaining <= 0) throw new Error('No movement remains for this transport')
+    const fueled = fuelScorpionMovement(moved, side, unitId, { dumpId: fuelDumpId, headquartersId: fuelHeadquartersId }, map, facts)
+    moved = applyScorpionGroundMove(fueled, side, move, rules, resumed ? prior![unitId] : remaining)
   }
   const entered = action.path.map(scorpionHexId)
   moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets)
@@ -69,7 +75,8 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     const spent = (scorpionGroundActivity(moved).spent[id] ?? 0) - (scorpionGroundActivity(boardState).spent[id] ?? 0)
     return [id, Math.max(0, available - spent)]
   })) : null
-  moved = { ...moved, groundCaptureMove }
+  const transport = !stack && !moved.units[entrants[0]!]!.combat ? { unitId: entrants[0]!, enteredHex: true } : undefined
+  moved = { ...moved, groundCaptureMove, groundActivity: { ...scorpionGroundActivity(moved), transport } }
   const destination = moved.units[counters[0]!.unitId]!.hex
   if (moved.units[counters[0]!.unitId]!.reserve) {
     assertScorpionReserveCapacity(moved, side)

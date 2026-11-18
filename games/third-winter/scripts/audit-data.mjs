@@ -23,6 +23,7 @@ import {
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
+import { sampleScorpionLogistics } from './scorpion-logistics-example.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -114,6 +115,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'finish-scheduled-arrivals' })
   submit({ type: 'complete-reinforcement' })
   const air = sampleScorpionAirOperations(record, assets, board)
+  const { from, to, delivered, recipients, organicHex } = sampleScorpionLogistics(record, assets, board)
   const [unitId] = Object.entries(record.state.units).find(([, unit]) =>
     definitions.get(unit.definition)?.source.name === 'Sov 58 Rifle Div')
   submit({ type: 'ground-move', unitId, path: ['s1.12'] })
@@ -145,6 +147,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     followingPhase: record.state.cursor.phase,
     followingGroundCounters: Object.keys(record.state.units).length,
     firstMoveDestination: record.state.units[unitId].hex,
+    sampleLogistics: { from, to, delivered, recipients, organicHex },
     reserveMove: { from: reserveMove.from, to: reserveMove.to, counters: reserveMove.unitIds.length },
   }
   if (combat) {

@@ -8,7 +8,7 @@ import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { scorpionAirliftCapacity, scorpionAirliftMode } from './scorpion-airlift.ts'
 import type { ScorpionAirlift } from './scorpion-airlift.ts'
 import { scorpionCaptureAt, resolveScorpionEntry } from './scorpion-capture.ts'
-import { creditScorpionAirCargo } from './scorpion-dumps.ts'
+import { creditScorpionUnloadedSupply } from './scorpion-dumps.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { unloadScorpionGroundAirlift } from './scorpion-ground-airlift.ts'
 import { scorpionKnownPhaseOccupancy } from './scorpion-phase-occupancy.ts'
@@ -121,8 +121,8 @@ export function settleScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Sid
       units: { ...resolved.units, [landedId]: { ...resolved.units[landedId]!, outOfSupply: false } } }
     if (enemyStores) resolved = resolveScorpionEntry(resolved, side, target.hex, [landedId], assets, false)
   }
-  resolved = { ...resolved, dumps: creditScorpionAirCargo(resolved, side, abortBase, cargo.saved) }
-  resolved = { ...resolved, dumps: creditScorpionAirCargo(resolved, side, target, landedTokens) }
+  resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, abortBase, cargo.saved) }
+  resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, target, landedTokens) }
   if (ground && !abortedId) resolved = { ...resolved, dropPlan: null }
   return { kind: 'settled' as const, state: resolved, drop: { ...drop, result: { rolls, landedTokens, abortedTokens: cargo.saved,
     lostTokens: airlift.tokens - landedTokens - cargo.saved,

@@ -41,6 +41,10 @@ import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
 import { withScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
 import type { ScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
+import { buyScorpionFuel } from './scorpion-fuel.ts'
+import type { FormationFuel, HeadquartersFuel, ScorpionFuelAction } from './scorpion-fuel.ts'
+import { handleScorpionTransport } from './scorpion-transport-load.ts'
+import type { ScorpionTransportLoad } from './scorpion-transport-load.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
 import { refitScorpionAircraft } from './scorpion-refit.ts'
 import type { RefitScorpionAircraft } from './scorpion-refit.ts'
@@ -74,6 +78,8 @@ export interface ScorpionInPlay extends ReinforcementState {
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
   groundActivity?: ScorpionGroundActivity
+  formationFuel?: readonly FormationFuel[]
+  headquartersFuel?: readonly HeadquartersFuel[]
   supply: ScorpionSupplyWindow | null
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
@@ -95,7 +101,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
-  | ScorpionDropPlanAction
+  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -229,6 +235,15 @@ export function submitScorpionSession(
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
         if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
+      case 'fuel-formation':
+      case 'fuel-headquarters':
+      case 'fuel-from-paused-transport':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return buyScorpionFuel(state, actor, action, assets.map, board.supplyRail)
+      case 'load-transport':
+      case 'unload-transport':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return handleScorpionTransport(state, actor, action, assets)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
         assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
@@ -262,8 +277,15 @@ export function submitScorpionSession(
         return resolveReinforcements(state, actor, action, assets, board.reinforcements(state))
     }
   }
-  return acceptCommand(record, seat, command, (state, actor, action) =>
-    withScorpionPhaseOccupancy(state, applyAction(state, actor, action)))
+  return acceptCommand(record, seat, command, (state, actor, action) => {
+    const next = applyAction(state, actor, action)
+    // OCS 6.1g, 13.2a. Only handling and fueling can interrupt this same transport's move.
+    const keepTransport = action.type === 'ground-move' || action.type === 'load-transport' || action.type === 'unload-transport' ||
+      action.type === 'fuel-formation' || action.type === 'fuel-headquarters' || action.type === 'fuel-from-paused-transport'
+    const settled: ScorpionSession = next.kind === 'playing' && next.groundActivity?.transport && !keepTransport
+      ? { ...next, groundActivity: { ...next.groundActivity, transport: undefined } } : next
+    return withScorpionPhaseOccupancy(state, settled)
+  })
 }
 
 export function scorpionFirstTurn(): ScorpionTurn {

@@ -2,6 +2,8 @@ import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionSetupAssets } from '../match/scorpion-setup.ts'
 import type { ScorpionSession } from '../match/scorpion-session.ts'
+import { hasScorpionBulkFuel } from '../match/scorpion-fuel.ts'
+import { carriedScorpionTokens } from '../match/scorpion-sp-payment.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { hexCounterPages } from './hex-counter-layout.ts'
 import { scorpionHexLayout } from './scorpion-grid-layout.ts'
@@ -41,9 +43,10 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
   }
   for (const [id, unit] of Object.entries(board.units)) {
     const source = catalog.definitions.get(unit.definition)?.source
-    const face = unit.moveMode ? source?.faces.move : source?.faces.combat
+    const face = unit.moveMode ? source?.faces.move ?? (!unit.combat ? source?.faces.combat : undefined) : source?.faces.combat
     if (!source || !face?.asset) throw new Error(`Missing artwork for ground counter ${id}`)
-    push({ id, hex: unit.hex, asset: face.asset, label: source.name, badges: groundBadges(unit, catalog) })
+    push({ id, hex: unit.hex, asset: face.asset, label: source.name,
+      badges: groundBadges(unit, catalog, state.kind === 'playing' && Boolean(hasScorpionBulkFuel(state, id))) })
   }
   for (const unit of board.pieces) {
     if (unit.kind !== 'aircraft' || unit.location.kind !== 'hex') continue
@@ -73,7 +76,7 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
   })
 }
 
-function groundBadges(unit: DeployedCounter, catalog: Catalog): CounterBadge[] {
+function groundBadges(unit: DeployedCounter, catalog: Catalog, bulkFuel: boolean): CounterBadge[] {
   const badges: CounterBadge[] = []
   const add = (ref: string, label: string, text: string) => {
     const asset = markerFace(catalog, ref)
@@ -86,11 +89,14 @@ function groundBadges(unit: DeployedCounter, catalog: Catalog): CounterBadge[] {
   if (unit.internalStocks === 'low') add('Low/Exhausted', '内部补给低下', '低')
   if (unit.internalStocks === 'exhausted') add('Exhausted', '内部补给耗尽', '耗')
   if (unit.stepsLost) add(`Step Loss ${unit.stepsLost}`, `已损失 ${unit.stepsLost} 步`, String(unit.stepsLost))
-  if (unit.fueled) badges.push({ label: '本阶段已加油', text: '油' })
-  if (unit.transportCargoTokens !== undefined) badges.push({ label: `装载 ${unit.transportCargoTokens}T`,
-    text: unit.transportCargoTokens ? `${unit.transportCargoTokens}T` : '空' })
-  else if (unit.organicTruck) badges.push({ label: unit.organicTruck === 'full' ? '编内卡车满载' : '编内卡车空载',
-    text: unit.organicTruck === 'full' ? '满' : '空' })
+  if (bulkFuel) badges.push({ label: '已获燃料，有效至己方整理', asset: unit.side === 'soviet' ? 'misc_fueled-Sv.png' : 'misc_fueled.png' })
+  else if (unit.fueled) badges.push({ label: '本阶段已加油', text: '油' })
+  if (unit.transportCargoTokens !== undefined || unit.organicTruck) {
+    const tokens = carriedScorpionTokens(unit)
+    const label = tokens ? `装载 ${tokens}T` : '空载'
+    const organicArt = unit.organicTruck && tokens >= 1 && tokens <= 4 ? `${tokens === 4 ? 'F' : `${tokens}T`} Organic c.png` : undefined
+    badges.push(organicArt ? { label, asset: organicArt } : { label, text: tokens ? `${tokens}T` : '空' })
+  }
   return badges
 }
 

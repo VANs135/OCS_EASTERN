@@ -121,12 +121,9 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     throw new Error('Pay the initial column cost through a common HQ or a single shared dump')
   }
   const ledger = scorpionSpPayment(state, actor, map, rail)
-  ledger.spend(supply.payments, (_, hex) => batteries.every(({ unitId }) => {
-    const unit = state.units[unitId]!
-    return supply.kind === 'hq' ? ledger.network.canUseDumpVia(supply.hqId, unit.hex, hex)
-      : ledger.network.canDrawDump(unit.hex, hex, unit.traceDrawMobility)
-  }))
-  const paid = { ...state, dumps: ledger.dumps }
+  ledger.spend(supply.payments, ({ dumpId }) => batteries.every(({ unitId }) =>
+    ledger.canUse(state.units[unitId]!, dumpId, supply.kind === 'hq' ? { headquartersId: supply.hqId } : {})))
+  const paid = { ...state, ...ledger.settle() }
   return facility ? settleScorpionAirfieldBarrage(paid, barrage, table) : { ...paid, barrage }
 }
 

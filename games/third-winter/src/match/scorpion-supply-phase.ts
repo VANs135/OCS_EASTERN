@@ -7,7 +7,7 @@ import { advanceScorpionPhase } from './scorpion-player-turn.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
-import { usableDump } from './scorpion-sp-payment.ts'
+import { scorpionSpPayment } from './scorpion-sp-payment.ts'
 
 interface SplitFormation {
   formation: string
@@ -92,13 +92,11 @@ export function feedScorpionUnits(state: Readonly<ScorpionInPlay>, window: Scorp
   action: FeedUnits, map: ScorpionMap, railroad?: SupplyRailBoard): ScorpionInPlay {
   readyForSupplyAllocation(window)
   const side = state.cursor.phasing
-  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, railroad))
+  const ledger = scorpionSpPayment(state, side, map, railroad)
   const totals = new Map<string, number>()
-  const dumps = { ...state.dumps }
   const used = new Set<string>()
   if (!action.payments.length) throw new Error('Allocate a payment to feed units')
   for (const { dumpId, portions } of action.payments) {
-    const { hex, dump } = usableDump(state, side, dumpId)
     if (used.has(dumpId) || !portions.length) throw new Error('Combine the allocated portions for each dump')
     used.add(dumpId)
     let reFromDump = 0
@@ -106,17 +104,16 @@ export function feedScorpionUnits(state: Readonly<ScorpionInPlay>, window: Scorp
       const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
       if (!unit?.combat || unit.side !== side || typeof re !== 'number' || re <= 0 || !Number.isFinite(re) ||
         window.fed.includes(unitId) || hasTrace(window, unitId) ||
-        !network.canUseDump(unit.hex, hex, unit.traceDrawMobility)) throw new Error('Unit cannot eat from this dump')
+        !ledger.canUse(unit, dumpId)) throw new Error('Unit cannot eat from this supply source')
       reFromDump += re
       totals.set(unitId, (totals.get(unitId) ?? 0) + re)
     }
     const cost = Math.ceil(reFromDump / 2)
-    if (cost > dump.tokens) throw new Error('Insufficient on-map supply')
-    dumps[dumpId] = { ...dump, tokens: dump.tokens - cost }
+    ledger.spend([{ dumpId, tokens: cost }], () => true)
   }
   for (const [id, paid] of totals) {
     const unit = state.units[id]!
     if (paid !== unit.printedRe - unit.stepsLost) throw new Error('Supply must cover the current RE of each selected unit')
   }
-  return { ...state, dumps, supply: { ...window, fed: [...window.fed, ...totals.keys()] } }
+  return { ...state, ...ledger.settle(), supply: { ...window, fed: [...window.fed, ...totals.keys()] } }
 }

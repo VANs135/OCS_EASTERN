@@ -12,7 +12,7 @@ import { canMoveInPhase, scorpionGroundMpAvailable, scorpionMovementStepCost, wa
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
-import { fuelScorpionCounter } from './scorpion-unit-fuel.ts'
+import { fuelScorpionMovement } from './scorpion-fuel.ts'
 
 const overrunCost = 3
 
@@ -22,7 +22,7 @@ export interface ScorpionOverrunMarch {
 }
 
 export type DeclareOverrun = ScorpionAttackOrder & { type: 'declare-overrun'; path?: readonly string[];
-  fuel?: readonly { unitId: string; dumpId: string }[] }
+  fuel?: readonly ({ unitId: string } & ({ dumpId: string } | { headquartersId: string }))[] }
 export type FinishOverrunMove = { type: 'continue-overrun-move'; path: readonly string[] }
 
 export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Side, action: DeclareOverrun,
@@ -48,7 +48,7 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
   }
   const { facts, rules } = movementRules(state, side, ids, assets, board)
   let fueled = state
-  for (const { unitId, dumpId } of fuel) fueled = fuelScorpionCounter(fueled, side, unitId, dumpId, map, facts)
+  for (const id of ids) fueled = fuelScorpionMovement(fueled, side, id, fuel.find(({ unitId }) => id === unitId) ?? {}, map, facts)
   const remaining = Object.fromEntries(ids.map((id) => [id, scorpionGroundMpAvailable(fueled, id, resumed ? previous!.remaining[id] : undefined)]))
   const march = { remaining, enteredHex: resumed && previous!.enteredHex }
   const moved = moveStack(fueled, side, ids, path, march, assets, board)
