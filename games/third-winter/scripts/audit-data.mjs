@@ -15,7 +15,10 @@ import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
-import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionSupplyAirlift, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
+import {
+  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionOnMapSupplyAirlift,
+  sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
+} from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
@@ -227,6 +230,9 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     const lift = sampleScorpionSupplyAirlift(record, assets, board)
     opening.sampleAirlift = { target: lift.event.target.hex, loaded: lift.event.airlift.tokens, ...lift.event.airlift.unloading }
   }
+  const onMap = sampleScorpionOnMapSupplyAirlift(started, assets, board)
+  opening.controlledOnMapAirlift = { aircraft: onMap.aircraft, source: onMap.event.airlift.source.hex,
+    target: onMap.event.target.hex, ...onMap.event.airlift.unloading }
 }
 
 function sampleArtillery(state, map, table, submit, latest) {

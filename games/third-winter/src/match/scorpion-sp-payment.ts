@@ -2,6 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
+import { spendScorpionDump } from './scorpion-dumps.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
@@ -34,7 +35,7 @@ export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, m
       if (!Number.isSafeInteger(row.tokens) || row.tokens < 1 || row.tokens > dump.tokens || !permitted(row, hex)) {
         throw new Error('Supply must come from a reachable friendly dump with sufficient tokens')
       }
-      dumps[row.dumpId] = { ...dump, tokens: dump.tokens - row.tokens }
+      dumps[row.dumpId] = spendScorpionDump(state, row.dumpId, dump, row.tokens)
     }
   }
   return { dumps, canUse, available, spend, network, position }

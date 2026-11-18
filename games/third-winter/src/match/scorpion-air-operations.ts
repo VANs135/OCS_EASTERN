@@ -1,3 +1,4 @@
+import { airTransportModes } from '@ocs-eastern/series/air-transport'
 import { roll2d6, rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { flakLossCandidates, rollAirCombat } from '@ocs-eastern/series/tables/air'
@@ -13,8 +14,8 @@ import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { PlayerTurn } from './scorpion-player-turn.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
-import { loadScorpionSupplyAirlift, settleScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
-import type { ScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
+import { loadScorpionSupplyAirlift, scorpionAirliftMode, settleScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
+import type { AirliftFlightMode, ScorpionSupplyAirlift } from './scorpion-supply-airlift.ts'
 
 type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
@@ -50,7 +51,8 @@ export type ScorpionAirMission = AirMissionData & { step: AirStep }
 export type ScorpionAirReport = Omit<AirMissionData, 'returning'> & Pick<PlayerTurn, 'turn' | 'phasing' | 'phase'>
 
 export type LaunchAirMission = { type: 'launch-air-mission'; mission: MissionKind; target: ScorpionAirBase;
-  unitIds: readonly string[]; targetKind?: AirBarrageTarget; supplyTokens?: number }
+  unitIds: readonly string[]; targetKind?: AirBarrageTarget; supplyTokens?: number;
+  supplySource?: ScorpionAirBase; flightModes?: readonly AirliftFlightMode[] }
 export type RespondAirMission =
   | { type: 'respond-interception'; unitId: string | null }
   | { type: 'choose-air-aborts'; unitIds: readonly string[] }
@@ -115,7 +117,7 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
   } else if ((kind === 'base-transfer' || kind === 'transport') && !friendlyAirBases(state, actor).some((base) => atAirBase(base, target))) {
     throw new Error('Base transfer or transport requires a friendly destination')
   }
-  if (kind === 'transport' && target.kind !== 'hex') throw new Error('Off-map supply airlift requires a friendly on-map air base')
+  if (kind === 'transport' && target.kind !== 'hex') throw new Error('Supply airlift requires a friendly on-map destination')
   const used = new Set(scorpionPhaseAirMissions(state).flatMap((record) => record.flights.map(({ id }) => id)))
   const flights: Flight[] = []
   const profiles: ReturnType<typeof aircraftProfile>[] = []
@@ -126,7 +128,7 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
       used.has(id) || atAirBase(origin, target)) throw new Error('Choose unused active friendly aircraft at a different base')
     const profile = aircraftProfile(piece, assets)
     const normalRange = inScorpionAirRange(origin, target, profile.range)
-    if (!normalRange && (kind !== 'base-transfer' || !inScorpionAirRange(origin, target, profile.range * 2))) {
+    if (!normalRange && kind !== 'transport' && (kind !== 'base-transfer' || !inScorpionAirRange(origin, target, profile.range * 2))) {
       throw new Error('Aircraft is out of range')
     }
     if ((kind === 'fighter-sweep' && !profile.fighter) || (profile.tankBuster && (!isStrike || kind === 'trainbusting'))) {
@@ -146,7 +148,10 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     ? prepareScorpionAirBarrage(state, actor, enemy, target.hex, kind === 'trainbusting' ? kind : action.targetKind ?? 'units',
       kind === 'hip-shoot', profiles, assets, board)
     : undefined
-  const cargo = kind === 'transport' ? loadScorpionSupplyAirlift(state, actor, action.supplyTokens, flights, profiles) : null
+  const cargo = kind === 'transport' ? loadScorpionSupplyAirlift(state, actor, target, {
+    tokens: action.supplyTokens, source: action.supplySource ? normalizedBase(action.supplySource) : { kind: 'off-map-air' },
+    modes: action.flightModes ?? [],
+  }, flights, profiles) : null
   const mission: AirMissionData = { kind, side: actor, target, flights, ...(strike ? { strike } : {}), ...(cargo ? { airlift: cargo.airlift } : {}),
     patrol: false, returning: [], rounds: [] }
   // OCS 6.1g. Starting an air mission ends any interrupted ground movement.
@@ -387,6 +392,6 @@ export function scorpionAirReturnOptions(state: Readonly<ScorpionInPlay>, actor:
   const mission = state.airMission
   const piece = state.pieces.find((item) => item.id === id && item.side === actor)
   if (!mission?.returning.includes(id) || !piece) return []
-  const range = aircraftProfile(piece, assets).range * (mission.airlift?.carriers.includes(id) ? 0.5 : 1)
+  const range = aircraftProfile(piece, assets).range * airTransportModes[scorpionAirliftMode(mission.airlift, id)].range
   return friendlyAirBases(state, actor).filter((base) => inScorpionAirRange(mission.target, base, range))
 }

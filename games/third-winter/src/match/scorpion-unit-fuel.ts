@@ -1,6 +1,7 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import type { TracePosition } from '../ttw/scorpion/supply-trace.ts'
+import { spendScorpionDump } from './scorpion-dumps.ts'
 import { applyScorpionGroundMove } from './scorpion-movement.ts'
 import type { MoveCommand, MovementBoard } from './scorpion-movement.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -24,5 +25,5 @@ export function fuelScorpionCounter(state: Readonly<ScorpionInPlay>, side: Side,
     throw new Error('The selected fuel dump is outside draw or throw range')
   }
   return { ...state, units: { ...state.units, [unitId]: { ...unit, fueled: true } },
-    dumps: { ...state.dumps, [dumpId]: { ...dump, tokens: dump.tokens - 1 } } }
+    dumps: { ...state.dumps, [dumpId]: spendScorpionDump(state, dumpId, dump, 1) } }
 }

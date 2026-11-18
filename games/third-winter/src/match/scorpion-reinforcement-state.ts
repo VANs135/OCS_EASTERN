@@ -12,6 +12,7 @@ export interface SupplyDump {
   side: Side
   tokens: number
   location: 'on-map' | 'off-map'
+  unloaded?: Pick<PlayerTurn, 'turn' | 'phasing' | 'phase'> & { tokens: number }
 }
 
 export interface ArrivalPlacement {

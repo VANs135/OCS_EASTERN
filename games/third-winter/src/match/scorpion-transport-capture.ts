@@ -71,7 +71,7 @@ export function settleScorpionTransports(state: Readonly<ScorpionInPlay>, choice
     }
     if (cargo) {
       const key = `${side}:hex:${at}`
-      dumps[key] = { side, location: 'on-map', tokens: (dumps[key]?.tokens ?? 0) + cargo }
+      dumps[key] = { ...dumps[key], side, location: 'on-map', tokens: (dumps[key]?.tokens ?? 0) + cargo }
     }
   }
 

@@ -183,3 +183,39 @@ export function sampleScorpionSupplyAirlift(opening, assets, board) {
   }
   return { before, returned: record, event }
 }
+
+/** Actual airport, supply dump and unit data. Clear the defending stack to exercise capture in a controlled branch. */
+export function sampleScorpionOnMapSupplyAirlift(opening, assets, board) {
+  const source = { kind: 'hex', hex: 's13.11' }
+  const target = { kind: 'hex', hex: 's18.07' }
+  const sourceId = `axis:hex:${source.hex}`
+  const destinationId = `axis:hex:${target.hex}`
+  const neighbors = assets.map.neighbors(target.hex)
+  const [captor] = Object.entries(opening.state.units).find(([, unit]) =>
+    unit.side === 'axis' && unit.attackCapable && unit.mobility === 'leg' && neighbors.includes(unit.hex)) ?? []
+  const plane = opening.state.pieces.find((piece) => piece.kind === 'aircraft' && piece.side === 'axis' && piece.active &&
+    atAirBase(piece.location, source) && aircraftProfile(piece, assets).transport === 0.5)
+  if (!captor || !plane) throw new Error('Missing the Axis ground or air counter for the controlled on-map airlift')
+  const units = Object.fromEntries(Object.entries(opening.state.units).filter(([, unit]) => unit.side !== 'soviet' || unit.hex !== target.hex))
+  const cursor = { ...opening.state.cursor, phase: 'movement', phasing: 'axis' }
+  let record = { ...opening, state: { ...opening.state, units, cursor } }
+  const submit = (seat, action) => {
+    const command = { id: `sample-on-map-airlift-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, seat, command, assets, board).record
+  }
+  submit('axis', { type: 'ground-move', unitId: captor, path: [target.hex] })
+  if (record.state.capture) {
+    const aircraft = record.state.capture.aircraft.map(({ id }) => ({ id, destination: { kind: 'off-map-air' } }))
+    submit('soviet', { type: 'settle-capture', aircraft })
+  }
+  const before = record
+  submit('axis', { type: 'launch-air-mission', mission: 'transport', target, supplySource: source, supplyTokens: 1,
+    unitIds: [plane.id], flightModes: [{ id: plane.id, mode: 'double-capacity' }] })
+  submit('axis', { type: 'return-aircraft', unitId: plane.id, base: source })
+  const event = record.state.airHistory?.at(-1)
+  if (event?.airlift?.unloading?.delivered !== 1 || record.state.dumps[sourceId].tokens !== before.state.dumps[sourceId].tokens - 1 ||
+    record.state.dumps[destinationId].tokens !== (before.state.dumps[destinationId]?.tokens ?? 0) + 1) {
+    throw new Error('The on-map airlift did not debit its departure dump and credit the captured air base')
+  }
+  return { before, returned: record, event, aircraft: assets.catalog.definitions.get(plane.definition).source.name }
+}

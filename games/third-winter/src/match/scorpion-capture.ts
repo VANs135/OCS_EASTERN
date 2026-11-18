@@ -83,7 +83,7 @@ export function resolveScorpionEntry(state: Readonly<ScorpionInPlay>, side: Side
     const taken = capturedAmount(dump.tokens, 'dump', die)
     delete dumps[`${owner}:hex:${hex}`]
     const key = `${side}:hex:${hex}`
-    if (taken) dumps[key] = { side, location: 'on-map', tokens: (dumps[key]?.tokens ?? 0) + taken }
+    if (taken) dumps[key] = { ...dumps[key], side, location: 'on-map', tokens: (dumps[key]?.tokens ?? 0) + taken }
     dumpResult = { die, taken, destroyed: dump.tokens - taken }
   }
   const airBases = airBase ? state.airBases.map((base) =>

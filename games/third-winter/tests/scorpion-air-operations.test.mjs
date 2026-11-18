@@ -396,7 +396,7 @@ const li2 = (id, extra = {}) => plane(id, 'soviet', box, { fighter: false, name:
 test('off-map supply airlift debits the box, doubles printed capacity, and limits returning unloads each segment', () => {
   const { record, submit } = match([li2('first'), li2('second')])
   record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 5 }
-  assert.throws(() => submit(record, 'soviet', airlift('first', 3)), /doubled capacity/)
+  assert.throws(() => submit(record, 'soviet', airlift('first', 3)), /transport capacity/)
   let result = submit(record, 'soviet', airlift('first', 2))
   assert.equal(result.state.dumps[sourceBox].tokens, 3)
   assert.equal(result.state.dumps[destination].tokens, 2)
@@ -454,4 +454,105 @@ test('Flak can destroy a reduced transport and its supply while the off-map box 
   assert.equal(result.state.dumps[sourceBox].tokens, 0)
   assert.equal(result.state.dumps[destination], undefined)
   assert.deepEqual(result.state.airHistory[0].airlift.unloading, { delivered: 0, lost: 1, capacityUsed: 0 })
+})
+
+const mapAirlift = (source, target, unitIds, supplyTokens, flightModes = []) =>
+  ({ ...launch('transport', target, ...unitIds), supplySource: source, supplyTokens, flightModes })
+
+test('on-map airlift checks the selected outbound and return range and leaves extended flights inactive at the target', () => {
+  const source = hex('s8.04')
+  const other = hex('s18.04')
+  const key = `soviet:hex:${source.hex}`
+  const { record, submit } = match([plane('normal', 'soviet', source, { name: 'Sov Li.2', range: 8, fighter: false }),
+    plane('long', 'soviet', source, { name: 'Sov Li.2', range: 2, fighter: false })],
+  { extraBases: [airBase('soviet', source), airBase('soviet', other)] })
+  record.state.dumps[key] = { side: 'soviet', location: 'on-map', tokens: 3 }
+  assert.throws(() => submit(record, 'soviet', mapAirlift(source, sovietBase, ['normal'], 2)), /transport capacity/)
+  assert.throws(() => submit(record, 'soviet', mapAirlift(source, sovietBase, ['long'], 1)), /selected range/)
+  assert.throws(() => submit(record, 'soviet', mapAirlift(source, sovietBase, ['long'], 1,
+    [{ id: 'normal', mode: 'extended' }])), /one valid transport range/)
+
+  let flying = submit(record, 'soviet', mapAirlift(source, sovietBase, ['normal'], 1))
+  flying = submit(flying, 'soviet', flyHome('normal', other))
+  assert.deepEqual(getPlane(flying, 'normal').location, other)
+  assert.equal(flying.state.airHistory[0].airlift.unloading.capacityUsed, 1)
+
+  let doubled = submit(record, 'soviet', mapAirlift(source, sovietBase, ['normal'], 2, [{ id: 'normal', mode: 'double-capacity' }]))
+  assert.throws(() => submit(doubled, 'soviet', flyHome('normal', other)), /return range/)
+  doubled = submit(doubled, 'soviet', flyHome('normal', source))
+  assert.equal(doubled.state.dumps[destination].tokens, 2)
+  assert.equal(doubled.state.dumps[key].tokens, 1)
+
+  const extended = submit(record, 'soviet', mapAirlift(source, sovietBase, ['long'], 1, [{ id: 'long', mode: 'extended' }]))
+  assert.equal(extended.state.airMission, null)
+  assert.deepEqual(getPlane(extended, 'long').location, sovietBase)
+  assert.equal(getPlane(extended, 'long').active, false)
+  assert.deepEqual(extended.state.airHistory[0].airlift.unloading, { delivered: 1, lost: 0, capacityUsed: 0 })
+})
+
+test('two half-capacity aircraft can pool capacity from the same airport', () => {
+  const source = hex('s16.04')
+  const field = hex('s14.04')
+  const key = `axis:hex:${source.hex}`
+  const { record, submit } = match([plane('one', 'axis', source, { name: 'Ge He.111H', fighter: false }),
+    plane('two', 'axis', source, { name: 'Ge He.111H', fighter: false }),
+    plane('away', 'axis', box, { name: 'Ge He.111H', fighter: false })],
+  { phasing: 'axis', extraBases: [airBase('axis', field)] })
+  record.state.dumps[key] = { side: 'axis', location: 'on-map', tokens: 1 }
+  assert.throws(() => submit(record, 'axis', mapAirlift(source, field, ['one', 'away'], 1)), /transport capacity/)
+  let result = submit(record, 'axis', mapAirlift(source, field, ['one', 'two'], 1))
+  result = submit(result, 'axis', flyHome('one', source))
+  result = submit(result, 'axis', flyHome('two', source))
+  assert.equal(result.state.dumps[`axis:hex:${field.hex}`].tokens, 1)
+})
+
+test('an on-map shipment rounds fractional post-Flak capacity in favor of delivered cargo', () => {
+  const source = axisBase
+  const field = hex('s14.04')
+  const key = `axis:hex:${source.hex}`
+  const seed = seedWhere((rng) => roll2d6(rng).value.total >= 8)
+  const { record, submit } = match([plane('one', 'axis', source, { name: 'Ge He.111H', fighter: false }),
+    plane('two', 'axis', source, { name: 'Ge He.111H', fighter: false }), plane('patrol', 'soviet', sovietBase)],
+  { seed, phasing: 'axis', extraBases: [airBase('axis', field)] })
+  record.state.dumps[key] = { side: 'axis', location: 'on-map', tokens: 1 }
+  let result = submit(record, 'axis', mapAirlift(source, field, ['one', 'two'], 1))
+  result = submit(result, 'soviet', intercept(null))
+  assert.equal(result.state.pieces.filter(({ reduced }) => reduced).length, 1)
+  result = submit(result, 'axis', flyHome('one', source))
+  result = submit(result, 'axis', flyHome('two', source))
+  assert.deepEqual(result.state.airHistory[0].airlift.unloading, { delivered: 1, lost: 0, capacityUsed: 1 })
+})
+
+test('unloaded supply can fuel a ground move and cannot be flown again until another phase', () => {
+  const origin = hex(rows[0])
+  const options = { flight: 'normal', extraBases: [airBase('soviet', origin)], map: line(),
+    board: { supplyRail: { railGauge: () => 'soviet' } },
+    units: { armor: ground('soviet', sovietBase, { mobility: 'track', allowance: 4, attackCapable: true }) } }
+  const { record, submit } = match([li2('delivery'),
+    plane('relay', 'soviet', sovietBase, { name: 'Sov Li.2', fighter: false }),
+    plane('later', 'soviet', sovietBase, { name: 'Sov Li.2', fighter: false })], options)
+  record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 2 }
+  record.state.dumps[destination] = { side: 'soviet', location: 'on-map', tokens: 1 }
+  let result = submit(record, 'soviet', airlift('delivery', 2))
+  result = submit(result, 'soviet', flyHome('delivery', box))
+  const relay = (id, tokens) => mapAirlift(sovietBase, origin, [id], tokens, [{ id, mode: 'double-capacity' }])
+  assert.throws(() => submit(result, 'soviet', relay('relay', 2)), /cannot be transported again/)
+
+  // An existing save may have a logged shipment and no provenance field on the dump.
+  result = JSON.parse(JSON.stringify(result))
+  delete result.state.dumps[destination].unloaded
+  delete result.state.airHistory[0].airlift.source
+  delete result.state.airHistory[0].airlift.flightModes
+  assert.throws(() => submit(result, 'soviet', relay('relay', 2)), /cannot be transported again/)
+  result = submit(result, 'soviet', { type: 'ground-move', unitId: 'armor', path: [rows[3]], fuelDumpId: destination })
+  assert.equal(result.state.dumps[destination].unloaded.tokens, 1)
+  assert.throws(() => submit(result, 'soviet', relay('relay', 2)), /cannot be transported again/)
+  result = submit(result, 'soviet', relay('relay', 1))
+  result = submit(result, 'soviet', flyHome('relay', sovietBase))
+  assert.equal(result.state.dumps[destination].tokens, 1)
+  assert.throws(() => submit(result, 'soviet', relay('later', 1)), /cannot be transported again/)
+  const nextPhase = { ...result, state: { ...result.state, cursor: { ...result.state.cursor, phase: 'exploitation' } } }
+  result = submit(nextPhase, 'soviet', relay('later', 1))
+  assert.equal(result.state.dumps[destination].tokens, 0)
+  assert.equal(result.state.dumps[`soviet:hex:${origin.hex}`].tokens, 2)
 })

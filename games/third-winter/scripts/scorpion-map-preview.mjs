@@ -15,7 +15,10 @@ import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
-import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionSupplyAirlift, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
+import {
+  sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionOnMapSupplyAirlift,
+  sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
+} from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
@@ -164,6 +167,10 @@ const airliftOpening = { ...started, state: { ...started.state, turn: airliftTur
 const airlift = sampleScorpionSupplyAirlift(airliftOpening, { map: groundMap, catalog }, { reinforcements: () => board })
 sessionFrame('空运演示 · 增援补给放入苏军空军盒', airlift.before.state)
 sessionFrame(`空运结算 · ${airlift.event.target.hex} 收到 ${airlift.event.airlift.unloading.delivered}T`, airlift.returned.state)
+
+const onMapAirlift = sampleScorpionOnMapSupplyAirlift(started, { map: groundMap, catalog }, {})
+sessionFrame('图上空运演示 · 轴心国夺取 s18.07 后的受控盘面', onMapAirlift.before.state)
+sessionFrame('图上空运结算 · He.111H 从 s13.11 运送 1T 至 s18.07', onMapAirlift.returned.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())
