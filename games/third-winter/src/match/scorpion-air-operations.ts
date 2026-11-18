@@ -14,7 +14,7 @@ import type { PlayerTurn } from './scorpion-player-turn.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 
-type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot'
+type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
 type Flight = { id: string; origin: ScorpionAirBase; normalRange: boolean }
 type AirRound = Omit<ReturnType<typeof rollAirCombat>, 'rng'> & { attackerId: string; defenderId: string }
@@ -82,22 +82,25 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
   const { phasing, phase } = state.cursor
   const weather = state.turn.weather.flight
   const { mission: kind, unitIds } = action
+  const barrageSegment = kind === 'barrage' || kind === 'trainbusting'
   const firedAt = scorpionRegularBarrageTargets(state)
   if (state.turn.step.kind !== 'player-turn' || state.combat || actor !== actingSide(phasing, phase) ||
-    !['movement', 'reaction', 'exploitation'].includes(phase) || (kind !== 'barrage' && firedAt.size) ||
+    !['movement', 'reaction', 'exploitation'].includes(phase) || (!barrageSegment && firedAt.size) ||
     (phase === 'exploitation' && state.combatTargets.length)) throw new Error('Air mission is unavailable in the current segment')
   if (weather === 'none' || (weather === 'limited' && (phase !== 'movement' || kind === 'hip-shoot'))) {
     throw new Error('Flight conditions prohibit this mission')
   }
-  const isStrike = kind === 'barrage' || kind === 'hip-shoot'
+  const isStrike = barrageSegment || kind === 'hip-shoot'
   if ((!isStrike && kind !== 'fighter-sweep' && kind !== 'base-transfer') ||
     new Set(unitIds).size !== unitIds.length || !unitIds.length || unitIds.length > 4 ||
     ((kind === 'fighter-sweep' || kind === 'hip-shoot') && unitIds.length !== 1)) {
     throw new Error('Choose a legal mission and aircraft stack')
   }
+  if (action.targetKind !== undefined && (kind === 'trainbusting' ||
+    (action.targetKind !== 'units' && action.targetKind !== 'air-base'))) throw new Error('Invalid air barrage target kind')
   const target = normalizedBase(action.target)
   const enemy = opponent(actor)
-  if (isStrike && (target.kind !== 'hex' || (kind === 'barrage' && firedAt.has(target.hex)))) {
+  if (isStrike && (target.kind !== 'hex' || (barrageSegment && firedAt.has(target.hex)))) {
     throw new Error('Choose an on-map target that is eligible for this air barrage')
   }
   if (kind === 'fighter-sweep') {
@@ -120,7 +123,7 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     if (!normalRange && (kind !== 'base-transfer' || !inScorpionAirRange(origin, target, profile.range * 2))) {
       throw new Error('Aircraft is out of range')
     }
-    if ((kind === 'fighter-sweep' && !profile.fighter) || (profile.tankBuster && !isStrike)) {
+    if ((kind === 'fighter-sweep' && !profile.fighter) || (profile.tankBuster && (!isStrike || kind === 'trainbusting'))) {
       throw new Error('Aircraft is ineligible for this mission')
     }
     if (kind !== 'hip-shoot' && !eligibleSector(kind, piece, target, assets)) {
@@ -134,11 +137,13 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
   }
 
   const strike = isStrike && target.kind === 'hex'
-    ? prepareScorpionAirBarrage(state, actor, enemy, target.hex, action.targetKind ?? 'units', kind === 'hip-shoot', profiles, assets, board)
+    ? prepareScorpionAirBarrage(state, actor, enemy, target.hex, kind === 'trainbusting' ? kind : action.targetKind ?? 'units',
+      kind === 'hip-shoot', profiles, assets, board)
     : undefined
   const mission: AirMissionData = { kind, side: actor, target, flights, ...(strike ? { strike } : {}),
     patrol: false, returning: [], rounds: [] }
-  const launched = { ...state, ...(kind === 'hip-shoot' ? {} : { overrunMarch: null, groundCaptureMove: null }),
+  // OCS 6.1g. Starting an air mission ends any interrupted ground movement.
+  const launched = { ...state, overrunMarch: null, groundCaptureMove: null,
     pieces: state.pieces.map((piece) => unitIds.includes(piece.id) ? { ...piece, location: target } : piece) }
   const opposing = isStrike ? activeAt(state, enemy, target) : []
   if (kind === 'fighter-sweep' || (opposing.length && (profiles.some(({ fighter }) => fighter) ||
@@ -280,7 +285,8 @@ function resolveAirMission(state: Readonly<ScorpionInPlay>, mission: AirMissionD
   const hq = Object.values(state.units).some((unit) => unit.hex === target.hex && unit.headquarters)
   const airLevel = state.airBases.find((base) => base.hex === target.hex)?.level ?? 0
   const profile = planes.map((piece) => aircraftProfile(piece, assets))
-  const patrolModifier = mission.patrol ? (profile.some(({ fighter }) => fighter) ? 1 : 2) : 0
+  const patrolModifier = mission.patrol ? (profile.some(({ fighter }) => fighter) ? 1 : 2) +
+    Number(mission.kind === 'trainbusting') : 0
   const modifier = Number(planes.length >= 3) + Number(hq) + airLevel + patrolModifier
   const flak = roll2d6(resolved.rng)
   const data: AirMissionData = { ...mission, flak: { dice: flak.value.faces, modifier } }

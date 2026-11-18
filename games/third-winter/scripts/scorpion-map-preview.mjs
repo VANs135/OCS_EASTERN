@@ -15,7 +15,7 @@ import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
-import { sampleScorpionAirBarrage, sampleScorpionAirOperations } from './scorpion-air-example.mjs'
+import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
@@ -107,8 +107,10 @@ frame('第 24 装甲师入场 · 苏军净胜利分加 5', ready(fourth), record
 const barragePath = process.env.OCS_V43_BARRAGE
 {
   const barrage = barragePath ? JSON.parse(await readFile(barragePath, 'utf8')) : undefined
+  const facilityPath = process.env.OCS_V43_FACILITY
+  const facilityBarrage = facilityPath ? JSON.parse(await readFile(facilityPath, 'utf8')) : undefined
   const setupAssets = { map: groundMap, catalog }
-  const rules = { barrage, reinforcements: () => ({ ...board, controlOf: () => 'soviet',
+  const rules = { barrage, facilityBarrage, reinforcements: () => ({ ...board, controlOf: () => 'soviet',
     supplySources: { axis: new Set(), soviet: new Set(['s22.02']) } }) }
   let opening = started
   function issue(action) {
@@ -145,6 +147,11 @@ const barragePath = process.env.OCS_V43_BARRAGE
     sessionFrame(`轰炸演示 · 空军抵达 ${strike.event.target}`, strike.attacking.state)
     sessionFrame('轰炸结算 · 守军混乱，空军准备返航', strike.returning.state)
     sessionFrame('轰炸返航 · 飞机回到空军盒，转为非激活', strike.returned.state)
+  }
+  if (facilityBarrage) {
+    const strike = sampleScorpionTrainbusting(opening, setupAssets, rules)
+    sessionFrame(`运输破坏 · 目标格 ${strike.event.target} 放置标记，飞机准备返航`, strike.returning.state)
+    sessionFrame('运输破坏 · 飞机已返航，目标格保留标记', strike.returned.state)
   }
 }
 

@@ -17,7 +17,7 @@ export function scorpionPhaseAirMissions(state: Readonly<ScorpionInPlay>) {
 export function scorpionRegularBarrageTargets(state: Readonly<ScorpionInPlay>) {
   const targets = scorpionPhaseBarrages(state).filter((event) => !event.air?.hipShoot).map(({ target }) => target)
   for (const event of scorpionPhaseAirMissions(state)) {
-    if (event.kind === 'barrage' && event.target.kind === 'hex') targets.push(event.target.hex)
+    if ((event.kind === 'barrage' || event.kind === 'trainbusting') && event.target.kind === 'hex') targets.push(event.target.hex)
   }
   return new Set(targets)
 }

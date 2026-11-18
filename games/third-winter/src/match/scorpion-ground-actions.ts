@@ -1,4 +1,6 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import type { Mobility } from '@ocs-eastern/series/ground-map'
+import { inTrainbustingZone } from '@ocs-eastern/series/trainbusting'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
@@ -17,7 +19,7 @@ export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
 
 export interface GroundPolicies {
-  movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather'>
+  movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
   supplyRail?: SupplyRailBoard
   combat?: { hedgehogAt?: (hex: string) => number }
 }
@@ -78,5 +80,8 @@ export function scorpionMovementRules(state: Readonly<ScorpionInPlay>, side: Sid
     enemySupplySource: (hex: string) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis'].some((source) => source === hex),
     unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
   }
-  return { facts, rules: { ...movement, map, weather: state.turn.weather.ground } }
+  const trainbusting = state.trainbusting ?? []
+  const trainbustingAt = (hex: string, side: Side, mobility: Mobility) =>
+    inTrainbustingZone(trainbusting, side, hex, map.neighbors, mobility)
+  return { facts, rules: { ...movement, map, weather: state.turn.weather.ground, trainbustingAt } }
 }

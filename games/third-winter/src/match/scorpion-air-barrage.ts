@@ -1,5 +1,6 @@
+import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
+import { barrageColumn, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import { aircraftProfile } from './scorpion-air-bases.ts'
@@ -13,31 +14,32 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 
 export type AirBarrageTarget = 'units' | 'air-base'
+type StrikeTarget = AirBarrageTarget | 'trainbusting'
 export interface ScorpionAirBarrageBoard {
   barrage?: BarrageTable
   facilityBarrage?: BarrageTable
   hedgehogAt?: (hex: string) => number
 }
 export interface ScorpionAirBarragePlan {
-  targetKind: AirBarrageTarget
+  targetKind: StrikeTarget
   hipShoot: boolean
   tankBuster: boolean
   hedgehog: number
 }
 
-function requiredTable(board: ScorpionAirBarrageBoard, target: AirBarrageTarget) {
-  const table = target === 'air-base' ? board.facilityBarrage : board.barrage
+function requiredTable(board: ScorpionAirBarrageBoard, target: StrikeTarget) {
+  const table = target === 'units' ? board.barrage : board.facilityBarrage
   if (!table) throw new Error('Air barrage requires the appropriate OCS v4.3 barrage table')
   return table
 }
 
 export function prepareScorpionAirBarrage(state: Readonly<ScorpionInPlay>, actor: Side, defender: Side, target: string,
-  targetKind: AirBarrageTarget, hipShoot: boolean, profiles: readonly ReturnType<typeof aircraftProfile>[],
+  targetKind: StrikeTarget, hipShoot: boolean, profiles: readonly ReturnType<typeof aircraftProfile>[],
   assets: ScorpionSetupAssets, board: ScorpionAirBarrageBoard): ScorpionAirBarragePlan {
-  if (targetKind !== 'units' && targetKind !== 'air-base') throw new Error('Invalid air barrage target kind')
-  const targetExists = targetKind === 'air-base' ? state.airBases.some((base) => base.side === defender && base.hex === target)
-    : targetUnits(state, defender, target).length > 0
-  if (!assets.map.hexes.has(target) || !targetExists) throw new Error('Choose an enemy air barrage target')
+  const targetExists = targetKind === 'trainbusting' || (targetKind === 'air-base'
+    ? state.airBases.some((base) => base.side === defender && base.hex === target)
+    : targetUnits(state, defender, target).length > 0)
+  if (!assets.map.hexes.has(target) || !targetExists) throw new Error('Choose a valid on-map air barrage target')
   requiredTable(board, targetKind)
   const tankBuster = profiles.some((profile) => profile.tankBuster)
   if (hipShoot && (profiles.length !== 1 || !profiles[0]!.hipShoot)) {
@@ -64,9 +66,26 @@ export function executeScorpionAirBarrage(state: Readonly<ScorpionInPlay>, plan:
   if (strength < 1 || (plan.tankBuster && !targetUnits(state, defender, target)
     .some(([, unit]) => unit.combatClass !== 'other'))) return state
   const table = requiredTable(board, plan.targetKind)
-  const shortRange = planes.every(({ origin }) => origin.kind === 'hex' && scorpionHexDistance(origin.hex, target) <= 10)
+  const shortRange = plan.targetKind === 'units' &&
+    planes.every(({ origin }) => origin.kind === 'hex' && scorpionHexDistance(origin.hex, target) <= 10)
   const { initialColumn } = barrageColumn(table, strength)
   const barrage: ScorpionBarrage = { target, defender, batteries: [], strength, initialColumn, cost: 0,
     hedgehog: plan.hedgehog, air: { hipShoot: plan.hipShoot, tankBuster: plan.tankBuster, shortRange } }
-  return plan.targetKind === 'air-base' ? settleScorpionAirfieldBarrage(state, barrage, table) : { ...state, barrage }
+  if (plan.targetKind === 'air-base') return settleScorpionAirfieldBarrage(state, barrage, table)
+  if (plan.targetKind === 'trainbusting') return settleScorpionTrainbusting(state, barrage, table)
+  return { ...state, barrage }
+}
+
+function settleScorpionTrainbusting(state: Readonly<ScorpionInPlay>, barrage: ScorpionBarrage, table: BarrageTable): ScorpionInPlay {
+  const draw = rollDie(state.rng)
+  const result = rollFacilityBarrage(table, barrage.initialColumn, () => draw.value)
+  const { turn, phase, phasing } = state.cursor
+  const { target, defender } = barrage
+  const side = defender === 'axis' ? 'soviet' : 'axis'
+  const existing = state.trainbusting ?? []
+  // OCS 14.8. A successful mission never adds a second marker to the same hex.
+  const placed = result.trainbusting && !existing.some((marker) => marker.hex === target)
+  return { ...state, rng: draw.rng, trainbusting: placed ? [...existing, { hex: target, side }] : existing,
+    barrageHistory: [...(state.barrageHistory ?? []),
+      { ...barrage, turn, phase, phasing, trainbustingRoll: { ...result, placed } }] }
 }

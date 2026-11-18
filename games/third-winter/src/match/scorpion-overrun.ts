@@ -1,14 +1,13 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexId } from '../import/hex-id.ts'
-import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import { resolveScorpionEntry, resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import { startScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionAttackOrder, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { scorpionMovementRules } from './scorpion-ground-actions.ts'
 import type { GroundPolicies } from './scorpion-ground-actions.ts'
-import { canMoveInPhase, scorpionMovementAllowance, walkScorpionGroundRoute } from './scorpion-movement.ts'
+import { canMoveInPhase, scorpionMovementAllowance, scorpionMovementStepCost, walkScorpionGroundRoute } from './scorpion-movement.ts'
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -61,9 +60,9 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
   }
   for (const id of ids) {
     if (moved.overrunMarch!.remaining[id]! < overrunCost) throw new Error('Each overrunning unit needs at least 3 MP left')
-    const cost = scorpionStepCost(map, hex, target, moved.units[id]!.mobility, 'freeze', false)
+    const cost = scorpionMovementStepCost(rules, hex, target, moved.units[id]!, false)
     if (typeof cost !== 'number' || cost > overrunCost) {
-      throw new Error('Overrun entry must cost at most 3 MP before roads, rail or bridges')
+      throw new Error('Overrun entry must cost at most 3 MP before roads, rail or bridges, including any Trainbusting surcharge')
     }
   }
   const started = startScorpionCombat({ ...moved, groundCaptureMove: null }, side, action, map, combatBoard, board.supplyRail, 'overrun')

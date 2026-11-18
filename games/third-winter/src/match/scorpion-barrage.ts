@@ -1,7 +1,7 @@
 import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
-import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
+import type { BarrageTable, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
@@ -58,6 +58,7 @@ export type ScorpionBarrageRecord = ScorpionBarrage & {
   phase: ScorpionInPlay['cursor']['phase']
   terrain?: Terrain
   facilityRoll?: AirfieldBarrageResult
+  trainbustingRoll?: ReturnType<typeof rollFacilityBarrage> & { placed: boolean }
 }
 
 export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Side, action: BarrageAction,

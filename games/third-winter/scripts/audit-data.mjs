@@ -15,7 +15,7 @@ import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
-import { sampleScorpionAirBarrage, sampleScorpionAirOperations } from './scorpion-air-example.mjs'
+import { sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionTrainbusting } from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
@@ -95,7 +95,9 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const combat = tablePath ? { table: await readAt(dirname(resolve(tablePath)), basename(tablePath)) } : undefined
   const barragePath = process.env.OCS_V43_BARRAGE
   const barrage = barragePath ? await readAt(dirname(resolve(barragePath)), basename(barragePath)) : undefined
-  const board = { reinforcements, combat, barrage }
+  const facilityPath = process.env.OCS_V43_FACILITY
+  const facilityBarrage = facilityPath ? await readAt(dirname(resolve(facilityPath)), basename(facilityPath)) : undefined
+  const board = { reinforcements, combat, barrage, facilityBarrage }
   function submit(action, seat = record.state.cursor.phasing) {
     const command = { id: `start-${record.revision}`, expectedRevision: record.revision, action }
     record = submitScorpionSession(record, seat, command, assets, board).record
@@ -154,6 +156,12 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     opening.sampleFrontBarrage = { front, center, activeHex: deployed.state.frontBarrage.center,
       recoveryBox: finished.state.barrageRecovery[front], cost: result.cost, result: result.roll.code }
   }
+  if (facilityBarrage) {
+    const mission = sampleScorpionTrainbusting(record, assets, board)
+    record = mission.returned
+    const { target, trainbustingRoll } = mission.event
+    opening.sampleTrainbusting = { target, result: trainbustingRoll.code, cost: mission.event.cost }
+  }
   function finishSupply() {
     submit({ type: 'complete-movement' })
     for (const { formation, anchors } of record.state.supply.splits) {
@@ -187,6 +195,12 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'complete-combat' })
   submit({ type: 'complete-exploitation' })
   submit({ type: 'complete-cleanup' })
+  if (opening.sampleTrainbusting) {
+    if (!record.state.trainbusting.some(({ hex }) => hex === opening.sampleTrainbusting.target)) {
+      throw new Error('Soviet Trainbusting marker was removed in its own cleanup')
+    }
+    opening.sampleTrainbusting.presentAfterSovietCleanup = true
+  }
   submit({ type: 'complete-refit' })
   submit({ type: 'finish-scheduled-arrivals' })
   submit({ type: 'complete-reinforcement' })
@@ -199,6 +213,10 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'complete-combat' })
   submit({ type: 'complete-exploitation' })
   submit({ type: 'complete-cleanup' })
+  if (opening.sampleTrainbusting) {
+    if (record.state.trainbusting.length) throw new Error('Axis cleanup did not remove the Soviet Trainbusting marker')
+    opening.sampleTrainbusting.removedAfterAxisCleanup = true
+  }
   submit({ type: 'retain-initiative', dumpId: 'soviet:hex:s1.14' }, 'soviet')
   submit({ type: 'choose-first', first: 'soviet' }, 'soviet')
   opening.nextTurn = record.state.turn.number

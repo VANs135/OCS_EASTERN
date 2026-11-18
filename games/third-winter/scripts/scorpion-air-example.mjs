@@ -62,14 +62,19 @@ export function sampleScorpionAirOperations(opening, assets, board) {
   return { transfer, launched, pendingReturn, returned: record, unitId }
 }
 
-export function sampleScorpionAirBarrage(opening, assets, board) {
+function openingBombardmentAircraft(opening, assets) {
   const box = { kind: 'off-map-air' }
   const candidates = opening.state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.side === 'soviet' &&
     piece.active).map((piece) => ({ piece, ...aircraftProfile(piece, assets) }))
     .filter(({ bombing, airArmy }) => bombing >= 1 && airArmy === null).sort((a, b) => b.bombing - a.bombing)
   const offMap = candidates.find(({ piece }) => atAirBase(piece.location, box))
   if (!offMap) throw new Error('No independent Soviet aircraft with barrage strength in the off-map box')
-  const unitIds = [offMap, ...candidates.filter((candidate) => candidate !== offMap).slice(0, 3)].map(({ piece }) => piece.id)
+  return [offMap, ...candidates.filter((candidate) => candidate !== offMap).slice(0, 3)].map(({ piece }) => piece.id)
+}
+
+export function sampleScorpionAirBarrage(opening, assets, board) {
+  const box = { kind: 'off-map-air' }
+  const unitIds = openingBombardmentAircraft(opening, assets)
   const targets = Map.groupBy(Object.values(opening.state.units).filter((unit) => unit.side === 'axis' && unit.combat &&
     !opening.state.airBases.some((base) => base.hex === unit.hex) &&
     hasScorpionBarrageSpotter(opening.state, 'soviet', unit.hex, assets.map)), ({ hex }) => hex)
@@ -116,4 +121,29 @@ export function sampleScorpionAirBarrage(opening, assets, board) {
     throw new Error(`The opening bombing run did not finish with the expected off-map flight and ground result: ${hex} ${JSON.stringify(event.roll)}`)
   }
   return { attacking, returning, returned: record, event, unitIds }
+}
+
+export function sampleScorpionTrainbusting(opening, assets, board) {
+  const unitIds = openingBombardmentAircraft(opening, assets)
+  const target = { kind: 'hex', hex: 's17.04' }
+  let record = opening
+  const submit = (seat, action) => {
+    const command = { id: `sample-trainbusting-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, seat, command, assets, board).record
+  }
+  submit('soviet', { type: 'launch-air-mission', mission: 'trainbusting', target, unitIds })
+  if (record.state.airMission?.step.kind === 'interception') submit('axis', { type: 'respond-interception', unitId: null })
+  if (record.state.airMission?.step.kind === 'flak-loss') {
+    submit('soviet', { type: 'choose-flak-loss', unitId: record.state.airMission.step.candidates[0] })
+  }
+  const returning = record
+  const event = record.state.barrageHistory?.at(-1)
+  if (record.state.airMission?.step.kind !== 'return' || !event?.trainbustingRoll?.placed) {
+    throw new Error('The opening trainbusting run did not place its marker')
+  }
+  for (const unitId of record.state.airMission.returning) {
+    submit('soviet', { type: 'return-aircraft', unitId, base: { kind: 'off-map-air' } })
+  }
+  if (record.state.airMission) throw new Error('The opening trainbusting aircraft did not finish returning')
+  return { returning, returned: record, event }
 }

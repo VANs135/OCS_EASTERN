@@ -32,6 +32,11 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
     stacks.set(counter.hex, stack)
   }
   for (const marker of markers) push(marker)
+  if (state.kind === 'playing') for (const { hex, side } of state.trainbusting ?? []) {
+    const asset = markerFace(catalog, side === 'axis' ? 'Trainbusting - Axis' : 'Trainbusting - Allied')
+    if (!asset) throw new Error(`Missing Trainbusting artwork for ${side}`)
+    push({ id: `trainbusting:${side}:${hex}`, hex, asset, label: `${side === 'axis' ? '轴心' : '苏军'}运输破坏` })
+  }
   for (const [id, unit] of Object.entries(board.units)) {
     const source = catalog.definitions.get(unit.definition)?.source
     const face = unit.moveMode ? source?.faces.move : source?.faces.combat

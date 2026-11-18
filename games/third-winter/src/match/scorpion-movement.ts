@@ -35,6 +35,7 @@ export interface MovementBoard {
   enemyCombat: (hex: string, side: Side) => boolean
   enemySupplySource: (hex: string, side: Side) => boolean
   unnegatedEnemyZoc: (hex: string, side: Side) => boolean
+  trainbustingAt?: (hex: string, side: Side, mobility: Mobility) => boolean
 }
 export interface MoveCommand {
   unitId: string
@@ -86,6 +87,13 @@ export function scorpionMovementAllowance(unit: Unit, phase: PlayerTurn['phase']
     (unit.disorganized ? 0.5 : 1)
 }
 
+/** OCS 14.8c. This cost is for moving units, while supply and retreats use the normal terrain costs. */
+export function scorpionMovementStepCost(board: MovementBoard, from: string, to: string,
+  unit: Pick<Unit, 'mobility' | 'side'>, useRoutes = true) {
+  const cost = scorpionStepCost(board.map, from, to, unit.mobility, board.weather === 'freeze' ? 'freeze' : 'dry', useRoutes)
+  return typeof cost === 'number' && board.trainbustingAt?.(to, unit.side, unit.mobility) ? cost + 1 : cost
+}
+
 export function walkScorpionGroundRoute(unit: Unit, path: readonly string[], board: MovementBoard, allowance: number,
   minimumMove = false) {
   let from = scorpionHexId(unit.hex)
@@ -96,7 +104,7 @@ export function walkScorpionGroundRoute(unit: Unit, path: readonly string[], boa
     if (board.enemyCombat(to, unit.side) || board.enemySupplySource(to, unit.side)) {
       throw new Error('Enemy combat unit or supply source blocks movement')
     }
-    const step = scorpionStepCost(board.map, from, to, unit.mobility, board.weather === 'freeze' ? 'freeze' : 'dry')
+    const step = scorpionMovementStepCost(board, from, to, unit)
     if (step === null) throw new Error('No passable hexside')
     if (step === 'all') {
       if (!minimumMove || index !== 0 || !last) throw new Error('This crossing uses the entire allowance')

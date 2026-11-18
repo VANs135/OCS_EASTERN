@@ -3,6 +3,7 @@ import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import { pickIndex, rollDie } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
+import type { TrainbustingMarker } from '@ocs-eastern/series/trainbusting'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { advanceScorpionBarrageRecovery } from '../ttw/scorpion/barrage-markers.ts'
@@ -60,6 +61,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
   airMission?: ScorpionAirMission | null
   airHistory?: readonly ScorpionAirReport[]
+  trainbusting?: readonly TrainbustingMarker[]
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
@@ -89,7 +91,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies {
   reinforcements?: (state: Readonly<ScorpionInPlay>) => ReinforcementBoard
-  movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather'>
+  movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
   supplyRail?: SupplyRailBoard
   combat?: ScorpionCombatBoard
   barrage?: BarrageTable

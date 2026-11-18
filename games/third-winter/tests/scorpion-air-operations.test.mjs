@@ -2,6 +2,8 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { createRngState, roll2d6 } from '@ocs-eastern/series/rng'
 import { flakLossCandidates, rollAirCombat } from '@ocs-eastern/series/tables/air'
+import { railCapacityCost } from '@ocs-eastern/series/trainbusting'
+import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { scorpionRegularBarrageTargets } from '../src/match/scorpion-barrage-timing.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
@@ -24,8 +26,8 @@ function match(planes, { flight = 'limited', phase = 'movement', seed = 1, phasi
     aliases: new Map() } }
   const record = { revision: 0, receipts: [], state: { kind: 'playing', rng: createRngState(seed), units, dumps: {},
     arrival: { sovietVp: 0 }, availableAlerts: [],
-    turn: { number: 1, weather: { ground: 'freeze', flight }, step: { kind: 'player-turn' } },
-    cursor: { turn: 1, first: phasing, phasing, phase }, combat: null, combatTargets: [],
+    turn: { number: 1, weather: { ground: 'freeze', flight }, step: { kind: 'player-turn', first: phasing } },
+    cursor: { turn: 1, first: phasing, phasing, phase, retention: 'soviet' }, combat: null, combatTargets: [], moved: [],
     airBases: [airBase('soviet', sovietBase), airBase('axis', axisBase), ...extraBases], pieces: planes.map(({ piece }) => piece) } }
   const command = (at, action) => ({ id: `flight-${at.revision}`, expectedRevision: at.revision, action })
   const submit = (at, side, action) => submitScorpionSession(at, side, command(at, action), assets, board).record
@@ -283,4 +285,105 @@ test('air and artillery barrages share the target limit during the non-phasing s
   result = submit(result, 'soviet', flyHome('bomber', box))
   assert.throws(() => submit(result, 'soviet', { type: 'declare-artillery-barrage', target: target.hex,
     batteries: [], supply: { kind: 'direct', payments: [] } }), /once per phase/)
+})
+
+test('trainbusting hits an empty hex, adds patrol Flak, and retains only one marker per hex until enemy cleanup', () => {
+  const seed = seedWhere((rng) => roll2d6(rng).value.total < 8)
+  const options = { seed, flight: 'normal', map, board: { facilityBarrage: table('1 S (5)', true) } }
+  const { record, submit, assets } = match([plane('first', 'soviet', box, { fighter: false }),
+    plane('second', 'soviet', box, { fighter: false }), plane('patrol', 'axis', axisBase)], options)
+  const action = launch('trainbusting', target, 'first')
+  let result = submit(record, 'soviet', action)
+  assert.deepEqual(result.state.airMission.step.candidates, ['patrol'])
+  result = submit(result, 'axis', intercept(null))
+  assert.equal(result.state.airMission.flak.modifier, 3)
+  assert.deepEqual(result.state.trainbusting, [{ side: 'soviet', hex: target.hex }])
+  assert.equal(result.state.barrageHistory.at(-1).trainbustingRoll.placed, true)
+  result = submit(result, 'soviet', flyHome('first', box))
+  assert.equal(getPlane(result, 'first').active, false)
+  assert.throws(() => submit(result, 'soviet', launch('trainbusting', target, 'second')), /eligible for this air barrage/)
+  assert.throws(() => submit(result, 'soviet', launch('base-transfer', sovietBase, 'second')), /current segment/)
+
+  result.state.cursor.phase = 'exploitation'
+  result.state.rng = createRngState(seed)
+  result = submit(result, 'soviet', launch('trainbusting', target, 'second'))
+  result = submit(result, 'axis', intercept(null))
+  assert.equal(result.state.barrageHistory.at(-1).trainbustingRoll.placed, false)
+  assert.equal(result.state.trainbusting.length, 1)
+  result = submit(result, 'soviet', flyHome('second', box))
+  result = JSON.parse(JSON.stringify(result))
+
+  assets.catalog.aliases.set('Trainbusting - Allied', [{ source: { faces: { combat: { asset: 'trainbusting.png' } } } }])
+  assets.catalog.aliases.set('Trainbusting - Axis', [{ source: { faces: { combat: { asset: 'axis-trainbusting.png' } } } }])
+  const visible = (rec) => scorpionMapStacks(rec.state, assets.catalog, [])
+    .flatMap(({ pages }) => pages.flat()).filter(({ id }) => id.startsWith('trainbusting:')).map(({ hex }) => hex)
+  result.state.trainbusting.push({ side: 'axis', hex: adjacent.hex })
+  assert.deepEqual(visible(result), [target.hex, adjacent.hex])
+  const cleanup = { type: 'complete-cleanup' }
+  result.state.cursor.phase = 'cleanup'
+  result = submit(result, 'soviet', cleanup)
+  assert.deepEqual(visible(result), [target.hex])
+  assert.equal(result.state.cursor.phasing, 'axis')
+  result.state.cursor.phase = 'cleanup'
+  result = submit(result, 'axis', cleanup)
+  assert.deepEqual(visible(result), [])
+})
+
+test('trainbusting with no S result still returns the aircraft and does not damage an air base in the hex', () => {
+  const seed = seedWhere((rng) => roll2d6(rng).value.total < 10)
+  const { record, submit } = match([plane('bomber', 'soviet', box, { fighter: false }),
+    plane('parked', 'axis', axisBase, { active: false })], {
+    seed, map, board: { facilityBarrage: table('1 (6)', true) },
+  })
+  record.state.airBases[1].level = 2
+  let result = submit(record, 'soviet', launch('trainbusting', axisBase, 'bomber'))
+  assert.equal(result.state.airMission.step.kind, 'return')
+  assert.equal(result.state.airBases[1].level, 2)
+  assert.equal(getPlane(result, 'parked').reduced, false)
+  assert.deepEqual(result.state.trainbusting, [])
+  assert.equal(result.state.barrageHistory.at(-1).trainbustingRoll.placed, false)
+  result = submit(result, 'soviet', flyHome('bomber', box))
+  assert.equal(getPlane(result, 'bomber').active, false)
+})
+
+const rows = ['s12.02', 's12.03', 's12.04', 's12.05']
+const line = (terrain = 'Open') => scorpionMap(rows.map((hex_id, index) =>
+  ({ hex_id, on_map: true, terrains_present: [index === 2 ? terrain : 'Open'] })),
+rows.slice(1).map((hex_b, index) =>
+  ({ hex_a: rows[index], hex_b, edge_terrain: 'none', road_present: false, rail_present: true, rail_class: 'single', bridge: false })))
+
+test('trainbusting adds at most one MP per affected hex and doubles rail cost once across the route', () => {
+  const route = line()
+  const units = { moving: ground('axis', hex(rows[0]), { mobility: 'track', fueled: true, allowance: 3 }) }
+  const { record, submit } = match([], { units, phasing: 'axis', map: route, board: { supplyRail: { railGauge: () => 'axis' } } })
+  record.state.airBases = []
+  const action = { type: 'ground-move', unitId: 'moving', path: rows.slice(1, 3) }
+  const trainbusting = rows.slice(2).map((hex) => ({ side: 'soviet', hex }))
+  record.state.trainbusting = trainbusting
+  assert.throws(() => submit(record, 'axis', action), /allowance exceeded/)
+  record.state.units.moving.allowance = 4
+  assert.equal(submit(record, 'axis', action).state.units.moving.hex, rows[2])
+  record.state.units.moving = { ...units.moving, mobility: 'leg', allowance: 3 }
+  assert.equal(submit(record, 'axis', action).state.units.moving.hex, rows[2])
+  record.state.units.moving = { ...units.moving, mobility: 'leg', allowance: 2 }
+  assert.throws(() => submit(record, 'axis', action), /allowance exceeded/)
+  assert.equal(railCapacityCost(2, rows, false, trainbusting, 'axis', route.neighbors), 4)
+  assert.equal(railCapacityCost(2, rows, true, trainbusting, 'axis', route.neighbors), 2)
+  assert.equal(railCapacityCost(2, rows, true, trainbusting, 'soviet', route.neighbors), 1)
+})
+
+test('trainbusting can raise an otherwise legal overrun entry above the 3 MP threshold', () => {
+  const map = line('Forest')
+  const units = { attacker: ground('axis', hex(rows[1]), { mobility: 'track', fueled: true, allowance: 5, attackCapable: true }),
+    defender: ground('soviet', hex(rows[2])) }
+  const { record, submit } = match([], { units, phasing: 'axis', map,
+    board: { combat: {}, supplyRail: { railGauge: () => 'axis' } } })
+  const dumpId = `axis:hex:${rows[1]}`
+  record.state.dumps[dumpId] = { side: 'axis', location: 'on-map', tokens: 1 }
+  const action = { type: 'declare-overrun', target: rows[2], attackers: ['attacker'],
+    payments: [{ unitId: 'attacker', dumpId, tokens: 1 }] }
+  record.state.trainbusting = [{ side: 'soviet', hex: rows[3] }]
+  assert.throws(() => submit(record, 'axis', action), /3 MP.*Trainbusting/)
+  record.state.trainbusting = []
+  assert.equal(submit(record, 'axis', action).state.combat.kind, 'overrun')
 })

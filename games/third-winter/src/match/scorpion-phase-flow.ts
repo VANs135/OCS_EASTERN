@@ -59,7 +59,9 @@ export function applyScorpionPhaseFlow(state: Readonly<ScorpionInPlay>, actor: S
   const riverSteps = Object.values(units).filter((unit) => unit.side === 'axis' && unit.combat && onDnepr(unit.hex))
     .reduce((sum, unit) => sum + Math.max(1, unit.printedRe - unit.stepsLost), 0)
   const next = completeScorpionCleanup(state.turn, state, actor, riverSteps, state.rerollHolder, roll)
+  // OCS 14.8d. Remove markers placed by the side that opposes the player performing this cleanup.
+  const trainbusting = state.trainbusting?.filter((marker) => marker.side === actor)
   return { ...state, turn: next.turn, cursor: next.cursor ?? state.cursor, rng, units, moved: [], overrunMarch: null, groundCaptureMove: null,
-    combatTargets: [], combatAttackers: [], arrival: { ...state.arrival, sovietVp: next.turn.vp },
+    trainbusting, combatTargets: [], combatAttackers: [], arrival: { ...state.arrival, sovietVp: next.turn.vp },
     victory: next.turn.step.kind === 'ended' ? next.turn.step.result : null }
 }

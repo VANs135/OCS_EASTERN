@@ -63,7 +63,8 @@ export function rollGroundBarrage(table: BarrageTable, initialColumn: number, fa
 export function rollFacilityBarrage(table: BarrageTable, column: number, roll: RollDie) {
   const die = roll()
   const code = lookupCell(table.matrix, die - 1, column, 'facility barrage')
-  const result = /^(?:([12]) )?(?:S )?\(([3-6])\)$/.exec(code)
+  const result = /^(?:([12]) )?(?:(S|\*) )?\(([3-6])\)$/.exec(code)
   if (code !== '-' && !result) throw new Error('Invalid Barrage vs Facility result')
-  return { die, code, damage: Number(result?.[1] ?? 0), aircraftLossAt: result ? Number(result[2]) : null }
+  return { die, code, damage: Number(result?.[1] ?? 0), aircraftLossAt: result ? Number(result[3]) : null,
+    trainbusting: Boolean(result?.[2]) }
 }
