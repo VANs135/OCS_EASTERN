@@ -25,11 +25,11 @@ function hexCost(terrains: readonly Terrain[], index: number, freeze: boolean): 
 
 /** OCS 6.1d and 6.2. Supply callers can ask for Normal costs separately. */
 export function scorpionStepCost(
-  map: ScorpionMap, from: string, to: string, mobility: Mobility, weather: 'dry' | 'freeze',
+  map: ScorpionMap, from: string, to: string, mobility: Mobility, weather: 'dry' | 'freeze', useRoutes = true,
 ): StepCost {
   const edge = map.edge(from, to)
   if (!edge) return null
-  if ((!edge.river || edge.bridge) && (edge.road || edge.rail)) {
+  if (useRoutes && (!edge.river || edge.bridge) && (edge.road || edge.rail)) {
     return edge.road === 'road' ? 0.5 : 1
   }
   const a = map.hexes.get(scorpionHexId(from))

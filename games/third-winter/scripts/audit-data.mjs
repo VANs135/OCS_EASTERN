@@ -133,6 +133,11 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     firstMoveDestination: record.state.units[unitId].hex,
     reserveMove: { from: reserveMove.from, to: reserveMove.to, counters: reserveMove.unitIds.length },
   }
+  if (combat) {
+    const beforeOverrun = record
+    opening.sampleOverrun = sampleBattle(record.state, map, submit, () => record.state, true)
+    record = beforeOverrun
+  }
   if (barrage) {
     const { deployed, finished, front, center, result } = sampleScorpionFrontBarrage(record, assets, board)
     opening.sampleFrontBarrage = { front, center, activeHex: deployed.state.frontBarrage.center,
@@ -224,24 +229,37 @@ function sampleArtillery(state, map, table, submit, latest) {
   throw new Error('No eligible opening artillery barrage for the audit')
 }
 
-function sampleBattle(state, map, submit, latest) {
+function sampleBattle(state, map, submit, latest, overrun = false) {
   const sovietSupply = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, 'soviet'))
   let chosen
   for (const [unitId, unit] of Object.entries(state.units)) {
     if (unit.side !== 'soviet' || !unit.attackCapable || unit.reserve || unit.mobility !== 'leg') continue
+    if (overrun && (unit.allowance < 3 || state.moved.includes(unitId) ||
+      Object.values(state.units).filter((other) => other.hex === unit.hex && other.combat)
+        .reduce((total, other) => total + other.printedRe - other.stepsLost, 0) > 10)) continue
     const dumpId = Object.keys(state.dumps).find((id) => id.startsWith('soviet:hex:') &&
       state.dumps[id].tokens >= remainingSteps(unit) && sovietSupply.canUseDump(unit.hex, id.split(':')[2]))
-    const target = map.neighbors(unit.hex).find((hex) => !map.edge(unit.hex, hex)?.river &&
-      !scorpionAxisSources.includes(hex) && Object.values(state.units).some((enemy) =>
-        enemy.side === 'axis' && enemy.combat && enemy.hex === hex))
+    const target = map.neighbors(unit.hex).find((hex) => {
+      if (map.edge(unit.hex, hex)?.river || scorpionAxisSources.includes(hex) || !Object.values(state.units).some((enemy) =>
+        enemy.side === 'axis' && enemy.combat && enemy.hex === hex)) return false
+      if (!overrun) return true
+      const cost = scorpionStepCost(map, unit.hex, hex, 'leg', 'freeze', false)
+      return typeof cost === 'number' && cost <= 3 &&
+        !Object.values(state.units).some((enemy) => enemy.side === 'axis' && !enemy.combat && enemy.hex === hex) &&
+        !state.airBases.some((base) => base.side === 'axis' && base.hex === hex) &&
+        !state.pieces.some((piece) => piece.side === 'axis' && piece.location.kind === 'hex' && piece.location.hex === hex) &&
+        !state.dumps[`axis:hex:${hex}`]?.tokens
+    })
     if (dumpId && target) {
       chosen = { unitId, unit, dumpId, target }
       break
     }
   }
-  if (!chosen) throw new Error('No eligible opening regular combat for the audit')
+  if (!chosen) throw new Error(`No eligible opening ${overrun ? 'overrun' : 'regular combat'} for the audit`)
   const { unitId, unit, dumpId, target } = chosen
-  submit({ type: 'declare-combat', target, attackers: [unitId], payments: [{ unitId, dumpId, tokens: remainingSteps(unit) }] })
+  submit({ type: overrun ? 'declare-overrun' : 'declare-combat', target, attackers: [unitId],
+    payments: [{ unitId, dumpId, tokens: remainingSteps(unit) }] })
+  const movementPointsSpent = overrun ? unit.allowance - latest().overrunMarch.remaining[unitId] : undefined
   submit({ type: 'defend-combat', payments: [] }, 'axis')
   submit({ type: 'select-combat-rating', unitId })
   submit({ type: 'select-combat-rating', unitId: latest().combat.defenders[0] }, 'axis')
@@ -265,7 +283,8 @@ function sampleBattle(state, map, submit, latest) {
     submit({ type: 'resolve-combat', lossOrder, optionLosses: lossOrder.length - hard, retreats: [] }, seat)
   }
   if (latest().combat?.step === 'advance') submit({ type: 'advance-after-combat', unitIds: [] })
-  return { from: unit.hex, target, result: rolled.code }
+  return { from: unit.hex, target, result: rolled.code, movementPointsSpent,
+    finalHex: overrun ? latest().units[unitId]?.hex ?? null : undefined }
 }
 const railGauge = scorpionInitialRailGauge(map)
 const axisSources = new Set(scorpionAxisSources)

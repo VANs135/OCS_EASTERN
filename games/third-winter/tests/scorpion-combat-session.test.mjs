@@ -204,6 +204,99 @@ test('regular odds floor to the printed column and then shift for surprise', () 
   assert.deepEqual(result.attacker, { loss: 1, option: 1 })
 })
 
+test('overrun uses the 9 and 6 surprise thresholds and never grants exploitation', () => {
+  for (const [dice, shift] of [[[4, 5], 4], [[3, 3], -4]]) {
+    const makeRoll = () => [...dice, 4, 3, 3]
+    const regularDice = makeRoll()
+    const overrunDice = makeRoll()
+    assert.equal(rollRegularCombat(table('Ae4 DL1'), 'Open', 4, 4, 0, 0, () => regularDice.shift()).shift, 0)
+    assert.equal(rollRegularCombat(table('Ae4 DL1'), 'Open', 4, 4, 0, 0, () => overrunDice.shift(), true).shift, shift)
+  }
+})
+
+test('an overrun stack can repeat its attack and automatically enters a cleared hex before continuing on remaining MP', () => {
+  const option = board('Ae4 DL1')
+  const unitId = 'attack'
+  const dumpId = 'soviet:hex:s10.01'
+  let record = fixture('movement', { [unitId]: unit('soviet', 's10.01', { allowance: 7 }),
+    bystander: unit('soviet', 's10.01'), defense: unit('axis', 's10.02', { printedRe: 2 }) })
+  const attack = { type: 'declare-overrun', target: 's10.02', attackers: [unitId],
+    payments: [{ unitId, dumpId, tokens: 1 }] }
+  for (const remaining of [4, 1]) {
+    record = submit(record, 'soviet', attack, option)
+    assert.equal(record.state.overrunMarch.remaining[unitId], remaining)
+    assert.equal(record.state.units.attack.hex, 's10.01')
+    assert.throws(() => submit(record, 'soviet', { type: 'complete-movement' }, option), /supply is unavailable/)
+    record = submit(record, 'axis', { type: 'defend-combat', payments: [] }, option)
+    record = submit(record, 'soviet', { type: 'select-combat-rating', unitId }, option)
+    record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'defense' }, option)
+    record = submit(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } }, option)
+    record = submit(record, 'soviet', { type: 'resolve-combat', lossOrder: [], optionLosses: 0, retreats: [] }, option)
+    record = submit(record, 'axis', { type: 'resolve-combat', lossOrder: ['defense'], optionLosses: 0, retreats: [] }, option)
+    assert.equal(record.state.combat, null)
+    assert.equal(record.state.units.attack.exploit, undefined)
+  }
+  assert.equal(record.state.units.attack.hex, 's10.02')
+  assert.equal(record.state.units.bystander.hex, 's10.01')
+  assert.equal(record.state.dumps[dumpId].tokens, 8)
+  assert.deepEqual(record.state.combatTargets, [])
+  record = submit(record, 'soviet', { type: 'continue-overrun-move', path: ['s10.03'] }, option)
+  assert.equal(record.state.units.attack.hex, 's10.03')
+  assert.equal(record.state.overrunMarch, null)
+})
+
+test('overrun approach and fuel are atomic, and a road cannot legalize the overrun entry', () => {
+  const options = board('AL1')
+  const from = 's10.01'
+  const through = 's10.02'
+  const target = 's10.03'
+  const dumpId = `soviet:hex:${from}`
+  const approach = scorpionMap([from, through, target].map((hex_id) => ({ hex_id, on_map: true,
+    terrains_present: [hex_id === target ? 'Rough' : 'Open'] })),
+  [[from, through], [through, target]].map(([hex_a, hex_b]) => ({ hex_a, hex_b, edge_terrain: 'none',
+    road_present: true, road_subclass: 'Secondary Road', rail_present: false, bridge: false })))
+  const record = fixture('movement', { trucks: unit('soviet', from, { allowance: 8, mobility: 'truck' }),
+    defense: unit('axis', target) })
+  const attack = { type: 'declare-overrun', target, attackers: ['trucks'], path: [through],
+    fuel: [{ unitId: 'trucks', dumpId }], payments: [{ unitId: 'trucks', dumpId, tokens: 1 }] }
+  const play = () => submitScorpionSession(record, 'soviet', command(record, attack), { ...assets, map: approach }, options)
+  assert.throws(play, /before roads/)
+  assert.equal(record.state.units.trucks.hex, from)
+  assert.equal(record.state.dumps[dumpId].tokens, 10)
+  const started = submit(record, 'soviet', attack, options)
+  assert.equal(started.state.units.trucks.hex, through)
+  assert.equal(started.state.overrunMarch.remaining.trucks, 4)
+  assert.equal(started.state.dumps[dumpId].tokens, 8)
+})
+
+test('a released reaction stack that retreats from an overrun cannot resume movement', () => {
+  const option = board('Ao1 Do1')
+  let record = fixture('reaction', { attacker: unit('axis', 's10.02', { allowance: 8, reserve: 'attacker' }),
+    bystander: unit('axis', 's10.02'), defense: unit('soviet', 's10.03') })
+  const dumpId = 'axis:hex:s10.02'
+  record.state.dumps = { [dumpId]: { side: 'axis', location: 'on-map', tokens: 3 } }
+  const attack = { type: 'declare-overrun', target: 's10.03', attackers: ['attacker'],
+    payments: [{ unitId: 'attacker', dumpId, tokens: 1 }] }
+  assert.throws(() => submit(record, 'axis', attack, option), /eligible attackers/)
+  record = submit(record, 'axis', { type: 'release-reserve', unitId: 'attacker' }, option)
+  record = submit(record, 'axis', attack, option)
+  assert.equal(record.state.overrunMarch.remaining.attacker, 1)
+  record = submit(record, 'soviet', { type: 'defend-combat', payments: [] }, option)
+  record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'attacker' }, option)
+  record = submit(record, 'soviet', { type: 'select-combat-rating', unitId: 'defense' }, option)
+  record = submit(record, 'soviet', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.02': 'Open' } }, option)
+  const retreat = (units) => ({ type: 'resolve-combat', lossOrder: [], optionLosses: 0, retreats: [{ units, path: ['s10.01'] }] })
+  assert.throws(() => submit(record, 'axis', retreat(['attacker', 'bystander']), option), /Only overrun participants/)
+  record = submit(record, 'axis', retreat(['attacker']), option)
+  record = submit(record, 'soviet', { type: 'resolve-combat', lossOrder: [], optionLosses: 0,
+    ignoreDefenderOption: true, retreats: [] }, option)
+  assert.equal(record.state.units.attacker.hex, 's10.01')
+  assert.equal(record.state.units.bystander.hex, 's10.02')
+  assert.equal(record.state.overrunMarch, null)
+  assert.throws(() => submit(record, 'axis', { type: 'continue-overrun-move', path: ['s10.02'] }, option), /current overrun stack/)
+  assert.throws(() => submit(record, 'axis', { type: 'ground-move', unitId: 'attacker', path: ['s10.02'] }, option), /unavailable/)
+})
+
 test('attackers can mix map supply and internal stocks across counters, and partial supply is lost for a division', () => {
   const dumpId = 'soviet:hex:s10.01'
   const record = fixture('combat', { division: unit('soviet', 's10.01', { printedRe: 3 }),

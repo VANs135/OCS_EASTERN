@@ -97,9 +97,10 @@ export function assertScorpionStacking(state: Readonly<ScorpionInPlay>, hex: str
     .reduce((re, unit) => re + unit.printedRe - unit.stepsLost, 0) > 10) throw new Error('Position exceeds stacking limit')
 }
 
-export function assertNoScorpionSpecialCapture(state: Readonly<ScorpionInPlay>, side: Side, hex: string) {
+export function assertNoScorpionSpecialCapture(state: Readonly<ScorpionInPlay>, side: Side, hex: string,
+  combatExpectedToVacate = false) {
   const enemy = side === 'axis' ? 'soviet' : 'axis'
-  if (Object.values(state.units).some((unit) => unit.side === enemy && unit.hex === hex) ||
+  if (Object.values(state.units).some((unit) => unit.side === enemy && unit.hex === hex && (!combatExpectedToVacate || !unit.combat)) ||
     state.pieces.some((piece) => piece.side === enemy && piece.location.kind === 'hex' && piece.location.hex === hex) ||
     state.airBases?.some((base) => base.side === enemy && base.hex === hex) || state.dumps[`${enemy}:hex:${hex}`]?.tokens) {
     throw new Error('This entry requires the specialized OCS 9.14 capture procedure')

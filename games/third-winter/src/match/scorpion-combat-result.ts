@@ -3,6 +3,7 @@ import { scorpionHexDistance } from '../import/hex-id.ts'
 import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
+import { finishScorpionOverrun } from './scorpion-overrun.ts'
 import { assertNoScorpionSpecialCapture, assertScorpionStacking, retreatScorpionCombat } from './scorpion-retreat.ts'
 import type { RetreatPlan } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -32,16 +33,19 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   const losses = mandatory + action.optionLosses
   const allocations = validateCombatLossOrder(state, ids, leader, action.lossOrder, losses)
   let settled = applyScorpionCombatLosses(state, allocations, assets, rail)
-  if (settled.victory) return { ...settled, combat: null }
+  if (settled.victory) return { ...settled, combat: null, overrunMarch: null }
   const unmet = options - action.optionLosses
   const retreat = available > losses ? unmet : 0
+  if (combat.kind === 'overrun' && attacker && action.retreats.some(({ units }) => units.some((id) => !ids.includes(id)))) {
+    throw new Error('Only overrun participants can retreat with the attacking stack')
+  }
   settled = retreatScorpionCombat(settled, actor, ids, retreat, action.retreats, combat, assets, rail)
-  if (settled.victory) return { ...settled, combat: null }
+  if (settled.victory) return { ...settled, combat: null, overrunMarch: null }
 
   if (attacker) {
     const threshold = combat.roll.exploit
     const origins = [...new Set(ids.map((id) => state.units[id]!.hex))]
-    if (threshold !== null && unmet === 0 && state.cursor.phase === 'combat' && origins.length <= 2 &&
+    if (combat.kind !== 'overrun' && threshold !== null && unmet === 0 && state.cursor.phase === 'combat' && origins.length <= 2 &&
       (origins.length === 1 || scorpionHexDistance(origins[0]!, origins[1]!) === 1)) {
       const units = { ...settled.units }
       for (const id of ids) {
@@ -56,6 +60,7 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
       attackerRetreated: retreat > 0 } }
   }
   const empty = !Object.values(settled.units).some((unit) => unit.side === actor && unit.combat && unit.hex === combat.target)
+  if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty)
   const advance = empty && !combat.attackerRetreated && combat.attackers.some((id) => Object.hasOwn(settled.units, id))
   return { ...settled, combat: advance ? { ...combat, step: 'advance' } : null }
 }

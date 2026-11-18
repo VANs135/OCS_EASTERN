@@ -15,7 +15,7 @@ type MovingCounter = { unitId: string; fuelDumpId?: string; reserveFace?: Scorpi
 export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[] } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
 
-interface GroundPolicies {
+export interface GroundPolicies {
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather'>
   supplyRail?: SupplyRailBoard
   combat?: { hedgehogAt?: (hex: string) => number }
@@ -38,13 +38,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
       moved = prepareScorpionReserve(moved, side, unitId, reserveFace ?? 'current', assets)
     }
   }
-  const facts = scorpionSupplyPosition(moved, map, side, board.supplyRail, true)
-  const movement = board.movement?.(moved) ?? {
-    enemyCombat: (hex: string) => facts.enemyCombat.has(hex),
-    enemySupplySource: (hex: string) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis'].some((source) => source === hex),
-    unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
-  }
-  const rules = { ...movement, map, weather: state.turn.weather.ground }
+  const { rules, facts } = scorpionMovementRules(moved, side, map, board)
   for (const { unitId, fuelDumpId } of counters) {
     const move = { unitId, path: action.path }
     moved = fuelDumpId === undefined ? applyScorpionGroundMove(moved, side, move, rules)
@@ -60,4 +54,14 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   if (!counters.some(({ unitId }) => moved.units[unitId]!.combat)) return moved
   const occupied = Object.fromEntries(action.path.map((hex) => [scorpionHexId(hex), side]))
   return { ...moved, railControl: { ...moved.railControl, ...occupied } }
+}
+
+export function scorpionMovementRules(state: Readonly<ScorpionInPlay>, side: Side, map: MovementBoard['map'], board: GroundPolicies) {
+  const facts = scorpionSupplyPosition(state, map, side, board.supplyRail, true)
+  const movement = board.movement?.(state) ?? {
+    enemyCombat: (hex: string) => facts.enemyCombat.has(hex),
+    enemySupplySource: (hex: string) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis'].some((source) => source === hex),
+    unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
+  }
+  return { facts, rules: { ...movement, map, weather: state.turn.weather.ground } }
 }

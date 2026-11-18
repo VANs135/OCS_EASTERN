@@ -25,6 +25,8 @@ import type { ResolveCombat } from './scorpion-combat-result.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
+import { continueScorpionOverrunMove, declareScorpionOverrun } from './scorpion-overrun.ts'
+import type { DeclareOverrun, FinishOverrunMove, ScorpionOverrunMarch } from './scorpion-overrun.ts'
 import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-player-turn.ts'
 import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
@@ -54,6 +56,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   supply: ScorpionSupplyWindow | null
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
+  overrunMarch?: ScorpionOverrunMarch | null
   barrage?: ScorpionBarrage | null
   barrageHistory?: readonly ScorpionBarrageRecord[]
   frontBarrage?: ScorpionFrontBarrage | null
@@ -67,6 +70,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
+  | DeclareOverrun | FinishOverrunMove
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -125,7 +129,7 @@ export function submitScorpionSession(
           throw new Error('Reserve action is unavailable')
         }
         if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
-        return applyScorpionReserve(state, actor, action, assets)
+        return applyScorpionReserve({ ...state, overrunMarch: null }, actor, action, assets)
       case 'settle-airfield-capacity':
         if (state.kind !== 'playing') throw new Error('There is no active air base capacity decision')
         return settleScorpionAirfieldCapacity(state, actor, action.unitIds)
@@ -141,6 +145,7 @@ export function submitScorpionSession(
         return applyScorpionBarrage(state, actor, action, assets, table, board.combat?.hedgehogAt, board.supplyRail)
       }
       case 'declare-combat':
+      case 'declare-overrun':
       case 'defend-combat':
       case 'select-combat-rating':
       case 'choose-combat-terrain':
@@ -150,21 +155,25 @@ export function submitScorpionSession(
           throw new Error('Combat requires an active player turn and the OCS v4.3 table')
         }
         if (action.type === 'declare-combat') return declareScorpionCombat(state, actor, action, assets.map, board.combat, board.supplyRail)
+        if (action.type === 'declare-overrun') return declareScorpionOverrun(state, actor, action, assets, board, board.combat)
         if (action.type === 'defend-combat') return defendScorpionCombat(state, actor, action, assets.map, board.supplyRail)
         if (action.type === 'select-combat-rating') return selectScorpionCombatRating(state, actor, action.unitId)
         if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table)
         if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
         return advanceScorpionCombat(state, actor, action.unitIds)
+      case 'continue-overrun-move':
+        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
+        return continueScorpionOverrunMove(state, actor, action, assets, board)
       case 'ground-move':
       case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
         if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
-        return applyScorpionGroundAction(state, actor, action, assets, board)
+        return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
       case 'complete-movement':
-        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
+        if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
         assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
-        return openScorpionSupply(state, actor, assets.map, board.supplyRail)
+        return openScorpionSupply({ ...state, overrunMarch: null }, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
       case 'recover-internal-stocks':
       case 'feed-units':

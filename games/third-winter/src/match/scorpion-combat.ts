@@ -22,6 +22,7 @@ export interface ScorpionCombatBoard {
 }
 
 export interface ScorpionCombat {
+  kind?: 'overrun'
   target: string
   attacker: Side
   attackers: readonly string[]
@@ -40,6 +41,7 @@ export interface ScorpionCombat {
 
 export type DeclareCombat = { type: 'declare-combat'; target: string; attackers: readonly string[];
   payments: readonly AttackSupplyPayment[]; internalUnitIds?: readonly string[] }
+export type ScorpionAttackOrder = Omit<DeclareCombat, 'type'>
 export type DefendCombat = { type: 'defend-combat'; payments: readonly SupplyPayment[]; internalUnitIds?: readonly string[] }
 export type ChooseCombatTerrain = { type: 'choose-combat-terrain'; terrain: Terrain;
   attackingTerrain: Readonly<Record<string, AttackTerrain>> }
@@ -64,6 +66,15 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
       throw new Error('Each attacker must be eligible, unused and able to enter the target hex')
     }
   }
+  const started = startScorpionCombat(state, actor, action, map, board, railroad)
+  return { ...started, overrunMarch: null, combatTargets: [...(state.combatTargets ?? []), target],
+    combatAttackers: [...(state.combatAttackers ?? []), ...action.attackers] }
+}
+
+export function startScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Side, action: ScorpionAttackOrder,
+  map: ScorpionMap, board: ScorpionCombatBoard, railroad?: SupplyRailBoard, kind?: 'overrun'): ScorpionInPlay {
+  const target = scorpionHexId(action.target)
+  const enemy = actor === 'axis' ? 'soviet' : 'axis'
   const all = Object.entries(state.units).filter(([, unit]) => unit.combat)
   const defenders = all.filter(([, unit]) => unit.side === enemy && unit.hex === target).map(([id]) => id)
   if (!defenders.length) throw new Error('Choose a hex containing enemy combat units')
@@ -74,9 +85,8 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   const units = attackWithSupply(state, ledger, action.attackers, action.payments, action.internalUnitIds ?? [])
   const heldAtStart = { axis: all.filter(([, unit]) => unit.side === 'axis').map(([, unit]) => unit.hex),
     soviet: all.filter(([, unit]) => unit.side === 'soviet').map(([, unit]) => unit.hex) }
-  return { ...state, units, dumps: ledger.dumps, combat: { target, attacker: actor, attackers: [...action.attackers], defenders,
-    hedgehog, heldAtStart, step: 'defender-supply' }, combatTargets: [...(state.combatTargets ?? []), target],
-    combatAttackers: [...(state.combatAttackers ?? []), ...action.attackers] }
+  return { ...state, units, dumps: ledger.dumps, combat: { kind, target, attacker: actor, attackers: [...action.attackers], defenders,
+    hedgehog, heldAtStart, step: 'defender-supply' } }
 }
 
 export function defendScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Side, action: DefendCombat,
@@ -131,7 +141,7 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
       const draw = rollDie(rng)
       rng = draw.rng
       return draw.value
-    })
+    }, combat.kind === 'overrun')
   const units = { ...state.units }
   const removeReserve = result.defender.loss > 0 || result.defender.option > 0 || result.disorganize
   for (const unitId of combat.defenders) {

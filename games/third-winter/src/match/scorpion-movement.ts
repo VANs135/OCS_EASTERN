@@ -57,8 +57,7 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
 ): State {
   const unit = Object.hasOwn(state.units, move.unitId) ? state.units[move.unitId] : undefined
   const phase = state.cursor.phase
-  const permitted = phase === 'movement' || (phase === 'reaction' && unit?.released) ||
-    (phase === 'exploitation' && (unit?.released || unit?.exploit))
+  const permitted = unit && canMoveInPhase(unit, phase)
   if (!permitted || actingSide(state.cursor.phasing, phase) !== side ||
     !unit || unit.side !== side || state.moved.includes(move.unitId) || board.weather === 'thaw') {
     throw new Error('Ground movement is unavailable for this counter in the current phase')
@@ -68,30 +67,45 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
     throw new Error('Unit must be eligible and fueled to move')
   }
 
+  const { destination } = walkScorpionGroundRoute(unit, move.path, board, scorpionMovementAllowance(unit, phase), true)
+  return { ...state, units: { ...state.units, [move.unitId]: { ...unit, hex: destination } },
+    moved: [...state.moved, move.unitId] }
+}
+
+export function canMoveInPhase(unit: Unit, phase: PlayerTurn['phase']) {
+  return phase === 'movement' || (phase === 'reaction' && unit.released) ||
+    (phase === 'exploitation' && (unit.released || unit.exploit))
+}
+
+export function scorpionMovementAllowance(unit: Unit, phase: PlayerTurn['phase']) {
+  return unit.allowance * reserveMovementFactor(phase, Boolean(unit.reserve), Boolean(unit.released)) *
+    (unit.disorganized ? 0.5 : 1)
+}
+
+export function walkScorpionGroundRoute(unit: Unit, path: readonly string[], board: MovementBoard, allowance: number,
+  minimumMove = false) {
   let from = scorpionHexId(unit.hex)
   let spent = 0
-  const phaseFactor = reserveMovementFactor(phase, Boolean(unit.reserve), Boolean(unit.released))
-  const allowance = unit.allowance * phaseFactor * (unit.disorganized ? 0.5 : 1)
-  for (const [index, raw] of move.path.entries()) {
+  for (const [index, raw] of path.entries()) {
     const to = scorpionHexId(raw)
-    const last = index === move.path.length - 1
-    if (board.enemyCombat(to, side) || board.enemySupplySource(to, side)) {
+    const last = index === path.length - 1
+    if (board.enemyCombat(to, unit.side) || board.enemySupplySource(to, unit.side)) {
       throw new Error('Enemy combat unit or supply source blocks movement')
     }
-    const step = scorpionStepCost(board.map, from, to, unit.mobility, board.weather)
+    const step = scorpionStepCost(board.map, from, to, unit.mobility, board.weather === 'freeze' ? 'freeze' : 'dry')
     if (step === null) throw new Error('No passable hexside')
     if (step === 'all') {
-      if (index !== 0 || !last) throw new Error('This crossing uses the entire allowance')
+      if (!minimumMove || index !== 0 || !last) throw new Error('This crossing uses the entire allowance')
+      spent = allowance
     } else {
       spent += step
       // OCS 6.1c, minimum move applies to one otherwise legal hex only.
-      if (spent > allowance && move.path.length !== 1) throw new Error('Movement allowance exceeded')
+      if (spent > allowance && (!minimumMove || path.length !== 1)) throw new Error('Movement allowance exceeded')
     }
-    if (!last && unit.mobility === 'truck' && board.unnegatedEnemyZoc(to, side)) {
+    if (!last && unit.mobility === 'truck' && board.unnegatedEnemyZoc(to, unit.side)) {
       throw new Error('Truck movement must stop in enemy ZOC')
     }
     from = to
   }
-  return { ...state, units: { ...state.units, [move.unitId]: { ...unit, hex: from } },
-    moved: [...state.moved, move.unitId] }
+  return { destination: from, spent }
 }
