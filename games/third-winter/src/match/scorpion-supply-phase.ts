@@ -7,6 +7,7 @@ import { advanceScorpionPhase } from './scorpion-player-turn.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { usableDump } from './scorpion-sp-payment.ts'
 
 interface SplitFormation {
   formation: string
@@ -80,15 +81,6 @@ export function readyForSupplyAllocation(window: Readonly<ScorpionSupplyWindow>)
   if (window.attrition !== null || window.splits.some((split) => !split.selected)) {
     throw new Error('Resolve the formation trace choices before paying or checking attrition')
   }
-}
-
-export function usableDump(state: Readonly<ScorpionInPlay>, side: Side, id: string) {
-  const prefix = `${side}:hex:`
-  const dump = Object.hasOwn(state.dumps, id) ? state.dumps[id] : undefined
-  if (dump?.side !== side || dump.location !== 'on-map' || !id.startsWith(prefix) || dump.tokens <= 0) {
-    throw new Error('Choose a friendly on-map supply dump with tokens')
-  }
-  return { dump, hex: id.slice(prefix.length) }
 }
 
 export function feedScorpionUnits(state: Readonly<ScorpionInPlay>, window: ScorpionSupplyWindow,

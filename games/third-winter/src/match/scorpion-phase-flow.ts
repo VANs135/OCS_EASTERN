@@ -5,7 +5,7 @@ import { answerRetention, chooseFirstPlayer, rollInitiative } from '../ttw/scorp
 import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-player-turn.ts'
 import { completeScorpionCleanup } from './scorpion-round.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
-import { usableDump } from './scorpion-supply-phase.ts'
+import { usableDump } from './scorpion-sp-payment.ts'
 
 export type ScorpionPhaseAction = { type: 'complete-reaction' | 'complete-combat' | 'complete-exploitation' | 'complete-cleanup' }
   | { type: 'retain-initiative'; dumpId: string }

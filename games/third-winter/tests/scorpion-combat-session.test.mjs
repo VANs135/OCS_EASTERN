@@ -189,3 +189,43 @@ test('regular odds floor to the printed column and then shift for surprise', () 
   assert.equal(result.column, 12)
   assert.deepEqual(result.attacker, { loss: 1, option: 1 })
 })
+
+test('attackers can mix map supply and internal stocks across counters, and partial supply is lost for a division', () => {
+  const dumpId = 'soviet:hex:s10.01'
+  const record = fixture('combat', { division: unit('soviet', 's10.01', { printedRe: 3 }),
+    infantry: unit('soviet', 's10.01'), enemy: unit('axis', 's10.02') })
+  record.state.dumps[dumpId].tokens = 1
+  const attack = { type: 'declare-combat', target: 's10.02', attackers: ['division', 'infantry'] }
+  assert.throws(() => submit(record, 'soviet', { ...attack, payments: [], internalUnitIds: ['division', 'infantry'] }),
+    /required on-map/)
+  assert.equal(record.state.dumps[dumpId].tokens, 1)
+  const mixed = submit(record, 'soviet', { ...attack, payments: [{ unitId: 'infantry', dumpId, tokens: 1 }],
+    internalUnitIds: ['division'] })
+  assert.equal(mixed.state.units.division.internalStocks, 'low')
+  assert.equal(mixed.state.units.infantry.internalStocks, undefined)
+  const division = { ...attack, attackers: ['division'], payments: [], internalUnitIds: ['division'] }
+  record.state.units.division.internalStocks = 'low'
+  const result = submit(record, 'soviet', division)
+  assert.equal(result.state.units.division.internalStocks, 'exhausted')
+  assert.equal(result.state.dumps[dumpId].tokens, 0)
+  record.state.units.division.internalStocks = 'exhausted'
+  assert.throws(() => submit(record, 'soviet', division), /exhausted/)
+  record.state.dumps[dumpId].tokens = 3
+  const paid = submit(record, 'soviet', { ...division, internalUnitIds: [], payments: [{ unitId: 'division', dumpId, tokens: 3 }] })
+  assert.equal(paid.state.units.division.internalStocks, 'exhausted')
+})
+
+test('only the defender spending its own internal stocks defends at supplied strength', () => {
+  let record = fixture('combat', { attacker: unit('soviet', 's10.01', { strength: 11 }),
+    ready: unit('axis', 's10.02'), exhausted: unit('axis', 's10.02', { internalStocks: 'exhausted' }) })
+  record = submit(record, 'soviet', { type: 'declare-combat', target: 's10.02', attackers: ['attacker'],
+    payments: [{ unitId: 'attacker', dumpId: 'soviet:hex:s10.01', tokens: 1 }] })
+  assert.throws(() => submit(record, 'axis', { type: 'defend-combat', payments: [], internalUnitIds: ['exhausted'] }),
+    /exhausted/)
+  record = submit(record, 'axis', { type: 'defend-combat', payments: [], internalUnitIds: ['ready'] })
+  assert.equal(record.state.units.ready.internalStocks, 'low')
+  record = submit(record, 'soviet', { type: 'select-combat-rating', unitId: 'attacker' })
+  record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'ready' })
+  record = submit(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } })
+  assert.equal(record.state.combat.roll.initialColumn, columns.indexOf('2:1'))
+})

@@ -82,3 +82,23 @@ test('the OCS attrition table uses unsupplied steps and its large-stack modifier
   assert.equal(attritionLoss(5, 5, [5, 5]), 5)
   assert.equal(attritionLoss(1, 0, [6, 6]), 1)
 })
+
+test('mandatory internal recovery allows a partial upgrade and spends an unusable token before attrition', () => {
+  const dumpId = 'axis:hex:s10.01'
+  const offRange = 'axis:hex:s15.08'
+  let record = submit(fixture({
+    division: counter('s10.01', { printedRe: 3, stepsLost: 1, internalStocks: 'exhausted' }),
+    detached: counter('s1.03', { internalStocks: 'low' }),
+  }, { [dumpId]: dump(5), [offRange]: dump(2) }), { type: 'complete-movement' })
+  assert.throws(() => submit(record, { type: 'check-attrition' }), /Recover affordable/)
+  assert.throws(() => submit(record, { type: 'recover-internal-stocks', unitId: 'division',
+    payments: [{ dumpId, tokens: 2 }] }), /exact token cost/)
+  record = submit(record, { type: 'recover-internal-stocks', unitId: 'division', payments: [{ dumpId, tokens: 4 }] })
+  assert.equal(record.state.units.division.internalStocks, 'low')
+  assert.equal(record.state.dumps[dumpId].tokens, 1)
+  record = submit(record, { type: 'check-attrition' })
+  assert.equal(record.state.dumps[dumpId].tokens, 0)
+  assert.equal(record.state.dumps[offRange].tokens, 2)
+  assert.equal(record.state.units.division.internalStocks, 'low')
+  assert.equal(record.state.units.detached.internalStocks, 'low')
+})

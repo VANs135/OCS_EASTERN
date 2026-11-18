@@ -7,13 +7,13 @@ import type { ScorpionMap, Terrain } from '../import/scorpion-map.ts'
 import { combatRating, combatStrength, combatTerrainCategory } from '../ttw/scorpion/combat-terrain.ts'
 import type { AttackTerrain } from '../ttw/scorpion/combat-terrain.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
-import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
-import { remainingSteps } from './scorpion-losses.ts'
+import { attackWithSupply, defendWithSupply } from './scorpion-combat-supply.ts'
+import type { AttackSupplyPayment } from './scorpion-combat-supply.ts'
 import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
-import { usableDump } from './scorpion-supply-phase.ts'
-import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
+import { scorpionSpPayment } from './scorpion-sp-payment.ts'
+import type { SupplyPayment } from './scorpion-sp-payment.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 export interface ScorpionCombatBoard {
@@ -29,6 +29,7 @@ export interface ScorpionCombat {
   heldAtStart: Readonly<Record<Side, readonly string[]>>
   hedgehog: number
   defenseSupplied?: boolean
+  defenseInternalUnits?: readonly string[]
   attackerLeader?: string
   defenderLeader?: string
   roll?: ReturnType<typeof rollRegularCombat>
@@ -37,10 +38,9 @@ export interface ScorpionCombat {
   attackerRetreated?: boolean
 }
 
-type Payment = { dumpId: string; tokens: number }
 export type DeclareCombat = { type: 'declare-combat'; target: string; attackers: readonly string[];
-  payments: readonly (Payment & { unitId: string })[] }
-export type DefendCombat = { type: 'defend-combat'; payments: readonly Payment[] }
+  payments: readonly AttackSupplyPayment[]; internalUnitIds?: readonly string[] }
+export type DefendCombat = { type: 'defend-combat'; payments: readonly SupplyPayment[]; internalUnitIds?: readonly string[] }
 export type ChooseCombatTerrain = { type: 'choose-combat-terrain'; terrain: Terrain;
   attackingTerrain: Readonly<Record<string, AttackTerrain>> }
 
@@ -70,19 +70,11 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   const hedgehog = board.hedgehogAt?.(target) ?? 0
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
 
-  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, actor, railroad))
-  const totals = new Map<string, number>()
-  const dumps = payDumps(state, actor, action.payments, (payment, hex) => {
-    if (!action.attackers.includes(payment.unitId) || !network.canUseDump(state.units[payment.unitId]!.hex, hex)) return false
-    totals.set(payment.unitId, (totals.get(payment.unitId) ?? 0) + payment.tokens)
-    return true
-  })
-  if (action.attackers.some((id) => totals.get(id) !== remainingSteps(state.units[id]!))) {
-    throw new Error('Each attacker requires one token per surviving step')
-  }
+  const ledger = scorpionSpPayment(state, actor, map, railroad)
+  const units = attackWithSupply(state, ledger, action.attackers, action.payments, action.internalUnitIds ?? [])
   const heldAtStart = { axis: all.filter(([, unit]) => unit.side === 'axis').map(([, unit]) => unit.hex),
     soviet: all.filter(([, unit]) => unit.side === 'soviet').map(([, unit]) => unit.hex) }
-  return { ...state, dumps, combat: { target, attacker: actor, attackers: [...action.attackers], defenders,
+  return { ...state, units, dumps: ledger.dumps, combat: { target, attacker: actor, attackers: [...action.attackers], defenders,
     hedgehog, heldAtStart, step: 'defender-supply' }, combatTargets: [...(state.combatTargets ?? []), target],
     combatAttackers: [...(state.combatAttackers ?? []), ...action.attackers] }
 }
@@ -91,28 +83,11 @@ export function defendScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Sid
   map: ScorpionMap, railroad?: SupplyRailBoard): ScorpionInPlay {
   const combat = state.combat
   if (!combat || combat.step !== 'defender-supply' || actor === combat.attacker) throw new Error('The defender must respond')
-  const cost = combat.defenders.reduce((total, id) => total + state.units[id]!.printedRe - state.units[id]!.stepsLost, 0) <= 1 ? 1 : 2
-  const supplied = action.payments.length > 0
-  if (supplied && action.payments.reduce((sum, payment) => sum + payment.tokens, 0) !== cost) {
-    throw new Error('Pay the defensive stack cost or defend without combat supply')
-  }
-  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, actor, railroad))
-  const dumps = payDumps(state, actor, action.payments, (_, hex) =>
-    combat.defenders.every((id) => network.canUseDump(combat.target, hex, state.units[id]!.traceDrawMobility)))
-  return { ...state, dumps, combat: { ...combat, defenseSupplied: supplied, step: 'attacker-rating' } }
-}
-
-function payDumps<Row extends Payment>(state: Readonly<ScorpionInPlay>, side: Side, payments: readonly Row[],
-  permitted: (payment: Row, hex: string) => boolean) {
-  const dumps = { ...state.dumps }
-  for (const payment of payments) {
-    const { dump, hex } = usableDump({ ...state, dumps }, side, payment.dumpId)
-    if (!Number.isSafeInteger(payment.tokens) || payment.tokens < 1 || payment.tokens > dump.tokens || !permitted(payment, hex)) {
-      throw new Error('Combat supply must come from a reachable friendly dump with sufficient tokens')
-    }
-    dumps[payment.dumpId] = { ...dump, tokens: dump.tokens - payment.tokens }
-  }
-  return dumps
+  const ledger = scorpionSpPayment(state, actor, map, railroad)
+  const internal = action.internalUnitIds ?? []
+  const { units, supplied } = defendWithSupply(state, ledger, combat.defenders, action.payments, internal)
+  return { ...state, units, dumps: ledger.dumps,
+    combat: { ...combat, defenseSupplied: supplied, defenseInternalUnits: [...internal], step: 'attacker-rating' } }
 }
 
 export function selectScorpionCombatRating(state: Readonly<ScorpionInPlay>, actor: Side, id: string): ScorpionInPlay {
@@ -147,8 +122,9 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
   const antiTank = Math.max(combat.hedgehog > 0 ? 2 : 0, ...defenders.map((unit) => unit.antiTank))
   const attack = combat.attackers.map((unitId) => state.units[unitId]!).reduce((sum, unit) => sum +
     combatStrength(unit, true, attackingTerrain[unit.hex]!, frozen, true, antiTank), 0)
-  const defend = defenders.reduce((sum, unit) => sum +
-    combatStrength(unit, false, action.terrain, frozen, combat.defenseSupplied === true, 0), 0)
+  const defend = combat.defenders.reduce((sum, id) => sum +
+    combatStrength(state.units[id]!, false, action.terrain, frozen,
+      combat.defenseSupplied === true || combat.defenseInternalUnits?.includes(id) === true, 0), 0)
   let rng = state.rng
   const result = rollRegularCombat(table, combatTerrainCategory(action.terrain), attack, defend,
     combatRating(state.units[combat.attackerLeader]!) - combatRating(state.units[combat.defenderLeader]!), combat.hedgehog, () => {

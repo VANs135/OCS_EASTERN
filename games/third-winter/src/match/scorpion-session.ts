@@ -28,6 +28,8 @@ import { applyScorpionReserve, assertScorpionReserveAtMovementEnd } from './scor
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
 import type { ScorpionSetup, ScorpionSetupAction, ScorpionSetupAssets, ScorpionSetupData } from './scorpion-setup.ts'
+import { recoverScorpionStocks, settleScorpionStockRecovery } from './scorpion-stock-recovery.ts'
+import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
@@ -51,7 +53,7 @@ export interface ScorpionInPlay extends ReinforcementState {
 export type ScorpionSession = { kind: 'setup'; opening: ScorpionSetup } | ScorpionInPlay
 export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | ScorpionGroundAction
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
-  | FeedUnits | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
+  | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -127,6 +129,7 @@ export function submitScorpionSession(
         assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
         return openScorpionSupply(state, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
+      case 'recover-internal-stocks':
       case 'feed-units':
       case 'check-attrition':
       case 'assign-attrition':
@@ -135,8 +138,12 @@ export function submitScorpionSession(
           actor !== state.cursor.phasing || !state.supply) throw new Error('Scorpion supply is unavailable')
         const window = state.supply
         if (action.type === 'choose-formation-trace') return selectTraceAnchor(state, window, action.formation, action.anchor)
-        if (action.type === 'feed-units') return feedScorpionUnits(state, window, action, assets.map, board.supplyRail)
-        if (action.type === 'check-attrition') return checkScorpionAttrition(state, window)
+        if (action.type === 'recover-internal-stocks') return recoverScorpionStocks(state, action, assets.map, board.supplyRail)
+        if (action.type === 'feed-units' || action.type === 'check-attrition') {
+          const recovered = settleScorpionStockRecovery(state, assets.map, board.supplyRail)
+          return action.type === 'feed-units' ? feedScorpionUnits(recovered, window, action, assets.map, board.supplyRail)
+            : checkScorpionAttrition(recovered, window)
+        }
         if (action.type === 'assign-attrition') return assignScorpionAttrition(state, window, action, assets)
         if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
         const cursor = advanceScorpionPhase(state.cursor, actor)

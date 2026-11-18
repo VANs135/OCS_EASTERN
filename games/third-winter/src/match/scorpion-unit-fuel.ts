@@ -4,7 +4,7 @@ import type { TracePosition } from '../ttw/scorpion/supply-trace.ts'
 import { applyScorpionGroundMove } from './scorpion-movement.ts'
 import type { MoveCommand, MovementBoard } from './scorpion-movement.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
-import { usableDump } from './scorpion-supply-phase.ts'
+import { usableDump } from './scorpion-sp-payment.ts'
 
 /** OCS 12.5c(C). One token pays at the instant an eligible single counter moves. */
 export function moveScorpionWithFuel(state: Readonly<ScorpionInPlay>, side: Side, action: MoveCommand, dumpId: string,

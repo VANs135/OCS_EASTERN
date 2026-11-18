@@ -5,6 +5,7 @@ import type { ScorpionMap } from './scorpion-map.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
+import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
 import { scorpionCombatSymbols } from './scorpion-combat-symbols.ts'
 
 export interface GroundSetupRow {
@@ -31,6 +32,7 @@ export interface DeployedCounter extends GroundProfile {
   headquarters?: { throwRange: number; mobility: Mobility; kessel: boolean }
   traceDrawMobility?: Mobility
   outOfSupply?: boolean
+  internalStocks?: InternalStocks
   stepsLost: number
   fueled: boolean
   organicTruck?: 'full' | 'empty'
