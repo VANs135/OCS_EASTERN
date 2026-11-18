@@ -4,6 +4,7 @@ import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/s
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
+import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { ScorpionMap, Terrain } from '../import/scorpion-map.ts'
 import { scorpionBarrageFrontAt, scorpionBarrageFronts } from '../ttw/scorpion/barrage-markers.ts'
 import type { ScorpionBarrageFront } from '../ttw/scorpion/barrage-markers.ts'
@@ -11,6 +12,7 @@ import { combatTerrainCategory } from '../ttw/scorpion/combat-terrain.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { settleScorpionAirfieldBarrage } from './scorpion-airfield-barrage.ts'
 import type { AirfieldBarrageResult } from './scorpion-airfield-barrage.ts'
+import { scorpionPhaseBarrages, scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
@@ -38,8 +40,10 @@ export interface ScorpionBarrage {
   initialColumn: number
   cost: number
   hedgehog: number
+  air?: { hipShoot: boolean; shortRange: boolean; tankBuster: boolean }
   roll?: ReturnType<typeof rollGroundBarrage>
   lossesDue?: number
+  lossCandidates?: readonly string[]
 }
 
 export interface ScorpionFrontBarrage {
@@ -56,11 +60,6 @@ export type ScorpionBarrageRecord = ScorpionBarrage & {
   facilityRoll?: AirfieldBarrageResult
 }
 
-export function scorpionPhaseBarrages(state: Readonly<ScorpionInPlay>) {
-  return (state.barrageHistory ?? []).filter(({ turn, phasing, phase }) =>
-    turn === state.cursor.turn && phasing === state.cursor.phasing && phase === state.cursor.phase)
-}
-
 export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Side, action: BarrageAction,
   assets: ScorpionSetupAssets, table: BarrageTable, hedgehogAt?: (hex: string) => number,
   rail?: SupplyRailBoard): ScorpionInPlay {
@@ -74,7 +73,7 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
   if (!barrage || actor !== barrage.defender) throw new Error('The targeted player must respond to the barrage')
   if (action.type === 'choose-barrage-terrain') {
     if (barrage.roll) throw new Error('Barrage terrain is already settled')
-    return settleTerrain(state, actor, barrage, action.terrain, assets.map, table)
+    return settleTerrain(state, actor, barrage, action.terrain, assets, table)
   }
   if (!barrage.lossesDue || new Set(action.allocation.map(({ unitId }) => unitId)).size !== action.allocation.length ||
     action.allocation.reduce((total, { steps }) => total + steps, 0) !== barrage.lossesDue) {
@@ -85,6 +84,9 @@ export function applyScorpionBarrage(state: Readonly<ScorpionInPlay>, actor: Sid
     const unit = defenders.get(unitId)
     if (!unit || !Number.isSafeInteger(steps) || steps < 1 || steps > remainingSteps(unit)) {
       throw new Error('Only combat units in the target hex can take barrage losses')
+    }
+    if (barrage.lossCandidates && !barrage.lossCandidates.includes(unitId)) {
+      throw new Error('Tank-buster loss must be taken by an eligible unit with the highest Combat Mode strength')
     }
   }
   const settled = applyScorpionCombatLosses(state, new Map(action.allocation.map(({ unitId, steps }) => [unitId, steps])), assets, rail)
@@ -104,7 +106,7 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     : targetUnits(state, defender, target).length > 0
   if (state.barrage || state.combat || state.combatTargets?.length || actingSide(phasing, phase) !== actor ||
     (phase !== 'reaction' && phase !== 'combat' && phase !== 'exploitation') ||
-    !map.hexes.has(target) || !targetExists || history.some((event) => event.target === target)) {
+    !map.hexes.has(target) || !targetExists || scorpionRegularBarrageTargets(state).has(target)) {
     throw new Error('Artillery may barrage an enemy target once per phase before regular combat')
   }
   if (phase !== 'combat') assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
@@ -150,9 +152,10 @@ function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,
   }
   const targets = volleys.map((volley) => scorpionHexId(volley.target))
   const history = scorpionPhaseBarrages(state)
+  const firedAt = scorpionRegularBarrageTargets(state)
   if (volleys.length < 1 || volleys.length > 3 || !targets.includes(center) || new Set(targets).size !== targets.length ||
     targets.some((hex) => (hex !== center && !near.includes(hex)) ||
-      !targetUnits(state, 'axis', hex).length || history.some((event) => event.target === hex))) {
+      !targetUnits(state, 'axis', hex).length || firedAt.has(hex))) {
     throw new Error('Choose the marker hex and up to two adjacent unbarraged enemy stacks')
   }
   const used = history.flatMap((event) => event.batteries)
@@ -200,15 +203,17 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
 }
 
 function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: ScorpionBarrage, terrain: Terrain,
-  map: ScorpionMap, table: BarrageTable): ScorpionInPlay {
+  { map, catalog }: ScorpionSetupAssets, table: BarrageTable): ScorpionInPlay {
   if (!map.hexes.get(barrage.target)?.terrains.includes(terrain)) throw new Error('Choose a printed terrain in the target hex')
   const defenders = targetUnits(state, actor, barrage.target)
   const density = barrageDensity(defenders.map(([, unit]) => ({ re: unit.printedRe - unit.stepsLost, formation: unit.formation })))
-  const spotter = Object.values(state.units).some((unit) => unit.combat && unit.side !== actor &&
-    map.neighbors(barrage.target).includes(unit.hex))
+  const spotter = hasScorpionBarrageSpotter(state, actor === 'axis' ? 'soviet' : 'axis', barrage.target, map)
   let rng = state.rng
+  // TTW 2.2f. Override the printed result before any half-loss die is rolled.
+  const tankBuster = barrage.air?.tankBuster
   const roll = rollGroundBarrage(table, barrage.initialColumn, { density, hedgehog: barrage.hedgehog,
-    terrain: combatTerrainCategory(terrain), spotter }, () => {
+    terrain: combatTerrainCategory(terrain), spotter, air: barrage.air, dieModifier: tankBuster ? 1 : 0,
+    resultOverrides: tankBuster ? { '[1/2]': '1', '1/2': '1', '2': '1', '3': '1' } : undefined }, () => {
     const draw = rollDie(rng)
     rng = draw.rng
     return draw.value
@@ -220,7 +225,11 @@ function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: Sc
     else if (unit.organicTruck !== undefined && unit.reserve) units[id] = { ...unit, reserve: undefined }
   }
   const lossesDue = Math.min(roll.loss, defenders.reduce((sum, [, unit]) => sum + remainingSteps(unit), 0))
-  const result = { ...barrage, roll, lossesDue }
+  const eligible = barrage.air?.tankBuster && lossesDue ? defenders.filter(([, unit]) => unit.combatClass !== 'other')
+    .map(([id, unit]) => ({ id, strength: scorpionModeFace(unit, catalog.definitions.get(unit.definition), 'combat').strength })) : null
+  const strongest = eligible && Math.max(...eligible.map(({ strength }) => strength))
+  const candidates = eligible?.filter(({ strength }) => strength === strongest).map(({ id }) => id)
+  const result = { ...barrage, roll, lossesDue, ...(candidates ? { lossCandidates: candidates } : {}) }
   const { turn, phasing, phase } = state.cursor
   const settled = { ...state, units, rng, barrage: result,
     barrageHistory: [...(state.barrageHistory ?? []), { ...result, turn, phasing, phase, terrain }] }
@@ -235,6 +244,11 @@ function finishBarrage(state: Readonly<ScorpionInPlay>): ScorpionInPlay {
   return { ...state, barrage: null, frontBarrage: null, barrageRecovery: { ...state.barrageRecovery, [plan.front]: 1 } }
 }
 
-function targetUnits(state: Readonly<ScorpionInPlay>, side: Side, at: string) {
+export function targetUnits(state: Readonly<ScorpionInPlay>, side: Side, at: string) {
   return Object.entries(state.units).filter(([, unit]) => unit.combat && unit.side === side && unit.hex === at)
+}
+
+export function hasScorpionBarrageSpotter(state: Readonly<ScorpionInPlay>, side: Side, target: string, map: ScorpionMap) {
+  const adjacent = map.neighbors(target)
+  return Object.values(state.units).some((unit) => unit.combat && unit.side === side && adjacent.includes(unit.hex))
 }

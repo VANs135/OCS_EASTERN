@@ -15,7 +15,7 @@ import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
-import { sampleScorpionAirOperations } from './scorpion-air-example.mjs'
+import { sampleScorpionAirBarrage, sampleScorpionAirOperations } from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
@@ -147,6 +147,9 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
     record = beforeOverrun
   }
   if (barrage) {
+    const strike = sampleScorpionAirBarrage(record, assets, board)
+    opening.sampleAirBarrage = { target: strike.event.target, strength: strike.event.strength, result: strike.event.roll.code,
+      cost: strike.event.cost, shortRange: strike.event.air.shortRange, aircraft: strike.unitIds.length }
     const { deployed, finished, front, center, result } = sampleScorpionFrontBarrage(record, assets, board)
     opening.sampleFrontBarrage = { front, center, activeHex: deployed.state.frontBarrage.center,
       recoveryBox: finished.state.barrageRecovery[front], cost: result.cost, result: result.roll.code }

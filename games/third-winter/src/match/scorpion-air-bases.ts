@@ -2,6 +2,7 @@ import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
+import { mayHipShoot } from '../ttw/air/mission-permission.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -41,8 +42,10 @@ export function aircraftProfile(piece: ScorpionBoxPiece, { catalog }: ScorpionSe
   }
   const airArmy = /^(\d+)(?:st|nd|rd|th) Air Army$/.exec(source?.org?.airGroup ?? '')?.[1] ?? null
   const fighter = source?.abilities?.includes('interception') === true
-  const tankBuster = piece.side === 'axis' && /\b(?:Hs\.129|Ju\.87G)\b/.test(source?.name ?? '')
-  return { range, airCombat, bombing, airArmy, fighter, tankBuster }
+  const name = source?.name ?? ''
+  const airframe = /\b(Ju\.87|Hs\.129)[A-Z]?\b/.exec(name)?.[1] ?? ''
+  const tankBuster = piece.side === 'axis' && /\b(?:Hs\.129|Ju\.87G)\b/.test(name)
+  return { range, airCombat, bombing, airArmy, fighter, tankBuster, hipShoot: mayHipShoot(piece.side, airframe) }
 }
 
 export function activeAirfieldExcess(state: Readonly<ScorpionInPlay>, side: Side, destination: ScorpionAirBase) {

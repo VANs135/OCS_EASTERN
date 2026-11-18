@@ -2,7 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
-import { scorpionPhaseBarrages } from './scorpion-barrage.ts'
+import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import { resolveScorpionEntry, resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import { startScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionAttackOrder, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
@@ -99,7 +99,7 @@ export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: S
 
 function assertOverrunWindow(state: Readonly<ScorpionInPlay>, side: Side) {
   const { phase, phasing } = state.cursor
-  if (state.combat || state.barrage || state.combatTargets?.length || scorpionPhaseBarrages(state).length ||
+  if (state.combat || state.barrage || state.combatTargets?.length || scorpionRegularBarrageTargets(state).size ||
     state.turn.weather.ground === 'thaw' || actingSide(phasing, phase) !== side ||
     (phase !== 'movement' && phase !== 'reaction' && phase !== 'exploitation')) {
     throw new Error('Overrun movement requires the active Movement Segment')

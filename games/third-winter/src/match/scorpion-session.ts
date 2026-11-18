@@ -13,12 +13,13 @@ import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
 import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
 import type { AssignAttrition } from './scorpion-attrition.ts'
-import { launchScorpionAirMission, respondScorpionAirMission } from './scorpion-air-operations.ts'
+import { finishScorpionAirBarrage, launchScorpionAirMission, respondScorpionAirMission } from './scorpion-air-operations.ts'
 import type { LaunchAirMission, RespondAirMission, ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
 import { settleScorpionAirfieldCapacity } from './scorpion-airfield-barrage.ts'
 import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
-import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
+import { applyScorpionBarrage } from './scorpion-barrage.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
+import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { settleScorpionCapture } from './scorpion-capture.ts'
 import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
@@ -103,6 +104,7 @@ export function submitScorpionSession(
   record: Readonly<ScorpionSessionRecord>, seat: Side, command: Readonly<Command<ScorpionAction>>,
   assets: ScorpionSetupAssets, board: BoardPolicies = {},
 ) {
+  const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage, hedgehogAt: board.combat?.hedgehogAt }
   return acceptCommand(record, seat, command, (state, actor, action): ScorpionSession => {
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
@@ -114,9 +116,12 @@ export function submitScorpionSession(
       case 'choose-flak-loss':
       case 'return-aircraft':
         if (state.kind !== 'playing') throw new Error('There is no pending air mission')
-        return respondScorpionAirMission(state, actor, action, assets)
+        return respondScorpionAirMission(state, actor, action, assets, airBoard)
     }
-    if (state.kind === 'playing' && state.airMission) throw new Error('Resolve the pending air mission first')
+    if (state.kind === 'playing' && state.airMission &&
+      !(state.airMission.step.kind === 'barrage' && (action.type === 'choose-barrage-terrain' || action.type === 'assign-barrage-loss'))) {
+      throw new Error('Resolve the pending air mission first')
+    }
     if (state.kind === 'playing' && state.barrage && action.type !== 'choose-barrage-terrain' && action.type !== 'assign-barrage-loss') {
       throw new Error('Resolve the pending barrage first')
     }
@@ -153,7 +158,7 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') {
           throw new Error('Reserve action is unavailable')
         }
-        if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
+        if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionReserve({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, action, assets)
       case 'settle-airfield-capacity':
         if (state.kind !== 'playing') throw new Error('There is no active air base capacity decision')
@@ -166,7 +171,7 @@ export function submitScorpionSession(
         return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
       case 'launch-air-mission':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
-        return launchScorpionAirMission(state, actor, action, assets)
+        return launchScorpionAirMission(state, actor, action, assets, airBoard)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':
@@ -174,9 +179,9 @@ export function submitScorpionSession(
         const table = action.type === 'declare-artillery-barrage' && action.targetKind === 'air-base'
           ? board.facilityBarrage : board.barrage
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !table) {
-          throw new Error('Artillery requires an active player turn and the appropriate OCS v4.3 barrage table')
+          throw new Error('Barrage requires an active player turn and the appropriate OCS v4.3 barrage table')
         }
-        return applyScorpionBarrage(state, actor, action, assets, table, board.combat?.hedgehogAt, board.supplyRail)
+        return finishScorpionAirBarrage(applyScorpionBarrage(state, actor, action, assets, table, board.combat?.hedgehogAt, board.supplyRail))
       }
       case 'declare-combat':
       case 'declare-overrun':
@@ -202,7 +207,7 @@ export function submitScorpionSession(
       case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
-        if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
+        if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
