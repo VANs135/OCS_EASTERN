@@ -41,6 +41,7 @@ export interface DeployedCounter extends GroundProfile {
   fueled: boolean
   organicTruck?: 'full' | 'empty'
   transportCargoTokens?: number
+  extender?: { range: number; asset: string }
 }
 
 type Aliases = ReadonlyMap<string, readonly Definition<BackupUnit>[]>

@@ -12,6 +12,7 @@ import { canMoveInPhase, scorpionGroundMpAvailable, scorpionMovementStepCost, wa
 import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
+import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { fuelScorpionMovement } from './scorpion-fuel.ts'
 
 const overrunCost = 3
@@ -84,7 +85,7 @@ export function continueScorpionOverrunMove(state: Readonly<ScorpionInPlay>, sid
 }
 
 export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: ScorpionCombat, vacant: boolean,
-  assets: ScorpionSetupAssets): ScorpionInPlay {
+  assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
   const { attackers, target, attacker, attackerRetreated } = combat
   if (!state.overrunMarch || attackerRetreated) return { ...state, combat: null, overrunMarch: null }
   const survivors = attackers.filter((id) => Object.hasOwn(state.units, id))
@@ -96,7 +97,7 @@ export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: S
     units: { ...state.units, ...Object.fromEntries(survivors.map((id) => [id, { ...state.units[id]!, hex: target }])) },
     railControl: { ...state.railControl, [target]: attacker } }
   assertScorpionStacking(advanced, target)
-  return resolveScorpionEntry(advanced, attacker, target, survivors, assets, true)
+  return resolveScorpionEntry(advanced, attacker, target, survivors, assets, true, railroad)
 }
 
 function assertOverrunWindow(state: Readonly<ScorpionInPlay>, side: Side) {
@@ -139,5 +140,5 @@ function moveStack(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly st
   const moved = { ...state, units, groundActivity: { ...activity, spent },
     overrunMarch: { remaining, enteredHex: march.enteredHex || path.length > 0 },
     moved: [...new Set([...state.moved, ...ids])], railControl: { ...state.railControl, ...occupied } }
-  return resolveScorpionMoveEntries(moved, side, hexes, ids, assets)
+  return resolveScorpionMoveEntries(moved, side, hexes, ids, assets, board.supplyRail)
 }

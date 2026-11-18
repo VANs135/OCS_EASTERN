@@ -25,6 +25,7 @@ interface Unit {
   released?: boolean
   exploit?: boolean
   disorganized?: boolean
+  extender?: unknown
 }
 export interface GroundMoveState {
   cursor: PlayerTurn
@@ -72,7 +73,8 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
   }
 
   const activity = scorpionGroundActivity(state)
-  const handlingAtStart = activity.transport?.unitId === move.unitId && !activity.transport.enteredHex
+  const handlingAtStart = !state.moved.includes(move.unitId) ||
+    (activity.transport?.unitId === move.unitId && !activity.transport.enteredHex)
   if (continuation !== undefined && !handlingAtStart && unit.mobility === 'truck' && board.unnegatedEnemyZoc(unit.hex, side)) {
     throw new Error('Trucks entering enemy ZOC must stop or overrun')
   }
@@ -87,8 +89,8 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
 }
 
 export function canMoveInPhase(unit: Unit, phase: PlayerTurn['phase']) {
-  return phase === 'movement' || (phase === 'reaction' && unit.released) ||
-    (phase === 'exploitation' && (unit.released || unit.exploit))
+  return !unit.extender && (phase === 'movement' || (phase === 'reaction' && unit.released) ||
+    (phase === 'exploitation' && (unit.released || unit.exploit)))
 }
 
 export function scorpionMovementAllowance(unit: Unit, phase: PlayerTurn['phase']) {

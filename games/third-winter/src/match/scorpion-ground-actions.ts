@@ -62,14 +62,15 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     const unit = moved.units[unitId]
     const activity = scorpionGroundActivity(moved)
     const continuingTransport = !stack && unit && !unit.combat && activity.transport?.unitId === unitId
-    const remaining = continuingTransport
+    const priorHandling = !state.moved.includes(unitId) && unit && !unit.combat && (activity.spent[unitId] ?? 0) > 0
+    const remaining = continuingTransport || priorHandling
       ? scorpionMovementAllowance(unit, state.cursor.phase) - (activity.spent[unitId] ?? 0) : undefined
     if (remaining !== undefined && remaining <= 0) throw new Error('No movement remains for this transport')
     const fueled = fuelScorpionMovement(moved, side, unitId, { dumpId: fuelDumpId, headquartersId: fuelHeadquartersId }, map, facts)
     moved = applyScorpionGroundMove(fueled, side, move, rules, resumed ? prior![unitId] : remaining)
   }
   const entered = action.path.map(scorpionHexId)
-  moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets)
+  moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets, board.supplyRail)
   const groundCaptureMove = moved.capture ? Object.fromEntries(entrants.map((id) => {
     const available = scorpionGroundMpAvailable(boardState, id, resumed ? prior![id] : undefined)
     const spent = (scorpionGroundActivity(moved).spent[id] ?? 0) - (scorpionGroundActivity(boardState).spent[id] ?? 0)

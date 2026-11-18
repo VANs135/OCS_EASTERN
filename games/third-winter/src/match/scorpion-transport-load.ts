@@ -8,6 +8,7 @@ import { canMoveInPhase, scorpionMovementAllowance } from './scorpion-movement.t
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { carriedScorpionTokens, usableDump } from './scorpion-sp-payment.ts'
+import { transportPoints } from './scorpion-transport-points.ts'
 
 export type ScorpionTransportLoad = { type: 'load-transport' | 'unload-transport'; unitId: string; tokens: number }
 
@@ -20,12 +21,12 @@ export function handleScorpionTransport(state: Readonly<ScorpionInPlay>, side: S
   const activity = scorpionGroundActivity(state)
   const current = activity.transport?.unitId === unitId ? activity.transport : undefined
   const definition = unit && catalog.definitions.get(unit.definition)
-  const points = definition?.source.faces.combat?.stats.transport
+  const points = transportPoints(definition)
   if (state.turn.step.kind !== 'player-turn' || state.combat || side !== actingSide(phasing, phase) ||
     state.turn.weather.ground === 'thaw' || scorpionRegularBarrageTargets(state).size ||
     (phase === 'exploitation' && state.combatTargets.length) || !unit || unit.combat || unit.side !== side ||
     !canMoveInPhase(unit, phase) || (state.moved.includes(unitId) && !current) ||
-    typeof points !== 'number' || !Number.isSafeInteger(points) || points < 1) {
+    !points) {
     throw new Error('Choose a friendly transport in its active Movement Segment before it finishes moving')
   }
   const cost = transportHandlingCost(unit.allowance)

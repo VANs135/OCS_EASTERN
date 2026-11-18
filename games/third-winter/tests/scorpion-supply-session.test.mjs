@@ -6,6 +6,7 @@ import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
 
 const hexes = ['s1.03', 's1.04', 's10.01', 's10.02', 's15.08', 's15.09']
 const map = scorpionMap(hexes.map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -197,4 +198,118 @@ test('only the matching formation can use an organic truck, whose load does not 
   const checked = submit(supply, { type: 'check-attrition' })
   assert.equal(checked.state.units.organic.transportCargoTokens, 3)
   assert.equal(checked.state.units.tank.internalStocks, 'low')
+})
+
+function transportDefinition(points, side = 'axis') {
+  const key = `fixture-truck:${side}:${points}`
+  assets.catalog.definitions.set(key, { key, kind: 'transport', source: { name: `Truck ${points}`, side,
+    faces: { combat: { asset: 'truck.png', maColor: 'black', stats: { move: 45, transport: points } } } } })
+  return key
+}
+
+function ordinaryTruck(hex, points, tokens = 0, side = 'axis') {
+  return counter(hex, { side, combat: false, mobility: 'truck', allowance: 45, transportCargoTokens: tokens,
+    definition: transportDefinition(points, side) })
+}
+
+test('transport repacking conserves points and cargo and preserves only the selected ongoing movement', () => {
+  const a = 's1.03'
+  const b = 's1.04'
+  transportDefinition(3)
+  const start = fixture({ first: ordinaryTruck(a, 2, 3), second: ordinaryTruck(a, 1, 1) })
+  const repack = (unitIds, divisions, continueWith) => ({ type: 'repack-transport', unitIds, divisions, continueWith })
+  assert.throws(() => submit(start, repack(['first', 'second'], [{ points: 3, tokens: 3 }])), /Keep all/)
+  const merged = submit(start, repack(['first', 'second'], [{ points: 3, tokens: 4 }]))
+  const moved = submit(merged, { type: 'ground-move', unitId: 'first', path: [b] })
+  const stored = moved.state.groundActivity.spent.first
+  const split = submit(moved, repack(['first'], [{ points: 2, tokens: 4 }, { points: 1, tokens: 0 }], 1))
+  const continuation = split.state.groundActivity.transport.unitId
+  assert.equal(split.state.groundActivity.spent[continuation], stored)
+  assert.equal(split.state.units.first.transportCargoTokens, 4)
+  assert.throws(() => submit(split, { type: 'ground-move', unitId: 'first', path: [a] }), /unavailable/)
+  assert.equal(submit(split, { type: 'ground-move', unitId: continuation, path: [a] }).state.units[continuation].hex, a)
+})
+
+function extenderFixture() {
+  transportDefinition(5)
+  assets.catalog.aliases.set('Supply Extender - Truck 20MP', [{ source: { faces: { combat: { asset: 'extender.png' } } } }])
+  return fixture({ first: ordinaryTruck('s1.04', 2), second: ordinaryTruck('s1.04', 3) })
+}
+
+test('five unloaded Axis points form only where supplied and can flip and move separately next phase', () => {
+  const start = extenderFixture()
+  const action = { type: 'form-extender', unitIds: ['first', 'second'] }
+  const overSpent = { ...start, state: { ...start.state, groundActivity: { turn: 2, phasing: 'axis', phase: 'movement',
+    spent: { first: 23 }, airlifted: [] } } }
+  assert.throws(() => submit(overSpent, action), /half of its printed MA/)
+  const loaded = { ...start, state: { ...start.state, units: { ...start.state.units, first: ordinaryTruck('s1.04', 2, 1) } } }
+  assert.throws(() => submit(loaded, action), /five unloaded/)
+  const isolated = { ...start, state: { ...start.state, units: { first: ordinaryTruck('s10.01', 2), second: ordinaryTruck('s10.01', 3) } } }
+  assert.throws(() => submit(isolated, action), /connect to trace/)
+  const axle = submit(start, action)
+  assert.equal(axle.state.groundActivity.spent.first, 22.5)
+  assert.equal(axle.state.units.first.extender.range, 20)
+  assert.equal(scorpionMapStacks(axle.state, assets.catalog, [])[0].pages[0][0].asset, 'extender.png')
+  const later = { ...axle, state: { ...axle.state, cursor: { ...axle.state.cursor, turn: 3 }, moved: [] } }
+  assert.throws(() => submit(later, { type: 'ground-move', unitId: 'first', path: ['s1.03'] }), /unavailable/)
+  const collapsed = submit(later, { type: 'collapse-extender', unitId: 'first', destination: 's1.03' })
+  assert.equal(collapsed.state.units.first.hex, 's1.03')
+  assert.equal(collapsed.state.units.first.extender, undefined)
+  assert.ok(collapsed.state.moved.includes('first'))
+  const flipped = submit(later, { type: 'dismantle-extender', unitId: 'first', divisions: [2, 3] })
+  for (const id of Object.keys(flipped.state.units)) assert.equal(flipped.state.groundActivity.spent[id], 22.5)
+  const first = submit(flipped, { type: 'ground-move', unitId: 'first', path: ['s1.03'] })
+  const second = Object.keys(first.state.units).find((id) => id !== 'first')
+  assert.equal(submit(first, { type: 'ground-move', unitId: second, path: ['s1.03'] }).state.units[second].hex, 's1.03')
+})
+
+test('Scorpion blocks Soviet ordinary truck conversion under TTW 3.6', () => {
+  const base = fixture({ truck: ordinaryTruck('s1.04', 5, 0, 'soviet') })
+  const record = { ...base, state: { ...base.state, cursor: { ...base.state.cursor, phasing: 'soviet' } } }
+  const action = { type: 'form-extender', unitIds: ['truck'] }
+  assert.throws(() => submitScorpionSession(record, 'soviet', command(record, action), assets, board), /TTW 3.6/)
+})
+
+test('forced Extender collapse displaces only to a supplied hex or falls back to Transport Point capture', () => {
+  const start = submit(extenderFixture(), { type: 'form-extender', unitIds: ['first', 'second'] })
+  const raid = (blockSource) => {
+    const attacker = counter('s1.03', { side: 'soviet', disorganized: true })
+    const units = { ...start.state.units, attacker,
+      ...(blockSource ? { block: counter('s1.03', { side: 'soviet' }) } : {}) }
+    // With a fresh opposing Movement phase, record a fully supplied or isolated retreat destination.
+    const cursor = { ...start.state.cursor, phasing: 'soviet' }
+    const record = { ...start, state: { ...start.state, units, cursor, moved: [] } }
+    const action = { type: 'ground-move', unitId: 'attacker', path: ['s1.04'] }
+    return submitScorpionSession(record, 'soviet', command(record, action), assets, {
+      ...board, movement: () => ({ enemyCombat: () => false, enemySupplySource: () => false, unnegatedEnemyZoc: () => false }),
+    }).record
+  }
+  const pending = raid(false)
+  assert.deepEqual(pending.state.capture.extenders[0].destinations, ['s1.03'])
+  assert.equal(pending.state.capture.transports.length, 0)
+  assert.throws(() => submit(pending, { type: 'settle-capture', aircraft: [], extenders: [{ id: 'first', destination: 's10.01' }] }), /supplied displacement/)
+  const displaced = submit(JSON.parse(JSON.stringify(pending)),
+    { type: 'settle-capture', aircraft: [], extenders: [{ id: 'first', destination: 's1.03' }] })
+  assert.equal(displaced.state.units.first.hex, 's1.03')
+  assert.equal(displaced.state.units.first.extender, undefined)
+  assert.equal(displaced.state.rng.drawCount, start.state.rng.drawCount)
+  const fallen = raid(true)
+  assert.equal(fallen.state.units.first.extender, undefined)
+  assert.equal(fallen.state.capture.transports[0].members[0].points, 5)
+  assert.equal(fallen.state.rng.drawCount, start.state.rng.drawCount + 1)
+})
+
+test('Extender chains can connect a forward rail line to supply without creating a cargo route', () => {
+  const hexes = Array.from({ length: 10 }, (_, col) => ({ hex_id: `s${col + 1}.04`, on_map: true,
+    terrains_present: [col === 9 ? 'Village' : 'Open'], ...(col === 9 ? { city_level: 'Village' } : {}) }))
+  const networkMap = scorpionMap(hexes, hexes.slice(1).map(({ hex_id }, i) => ({ hex_a: hexes[i].hex_id, hex_b: hex_id,
+    edge_terrain: 'none', road_present: false, rail_present: i === 8, ...(i === 8 ? { rail_class: 'single' } : {}), bridge: false })))
+  const extenders = [{ hex: 's4.04', range: 2, mobility: 'leg' }, { hex: 's7.04', range: 2, mobility: 'leg' },
+    { hex: 's8.04', range: 0, mobility: 'leg' }].reverse()
+  const position = { side: 'axis', controlled: new Set(['s10.04']), detrainableFacilities: new Set(), headquarters: [],
+    enemyCombat: new Set(), unnegatedEnemyZoc: new Set(), railGauge: () => 'axis', weather: 'freeze', extenders }
+  const connected = scorpionSupplyNetwork(networkMap, { ...position, sources: new Set(['s1.04']) })
+  assert.ok(connected.trace('s10.04').some(({ source }) => source === 's10.04'))
+  assert.equal(connected.canUseDump('s10.04', 's1.04'), false)
+  assert.deepEqual(scorpionSupplyNetwork(networkMap, { ...position, sources: new Set() }).trace('s10.04'), [])
 })

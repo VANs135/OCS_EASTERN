@@ -45,6 +45,10 @@ import { buyScorpionFuel } from './scorpion-fuel.ts'
 import type { FormationFuel, HeadquartersFuel, ScorpionFuelAction } from './scorpion-fuel.ts'
 import { handleScorpionTransport } from './scorpion-transport-load.ts'
 import type { ScorpionTransportLoad } from './scorpion-transport-load.ts'
+import { changeScorpionExtender } from './scorpion-extender.ts'
+import type { ScorpionExtenderCommand } from './scorpion-extender.ts'
+import { repackScorpionTransport } from './scorpion-transport-points.ts'
+import type { RepackTransport } from './scorpion-transport-points.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
 import { refitScorpionAircraft } from './scorpion-refit.ts'
 import type { RefitScorpionAircraft } from './scorpion-refit.ts'
@@ -78,6 +82,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
   groundActivity?: ScorpionGroundActivity
+  nextTransportSerial?: number
   formationFuel?: readonly FormationFuel[]
   headquartersFuel?: readonly HeadquartersFuel[]
   supply: ScorpionSupplyWindow | null
@@ -101,7 +106,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
-  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad
+  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -225,7 +230,7 @@ export function submitScorpionSession(
         if (action.type === 'select-combat-rating') return selectScorpionCombatRating(state, actor, action.unitId)
         if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table)
         if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
-        return advanceScorpionCombat(state, actor, action.unitIds, assets)
+        return advanceScorpionCombat(state, actor, action.unitIds, assets, board.supplyRail)
       case 'continue-overrun-move':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
         return continueScorpionOverrunMove(state, actor, action, assets, board)
@@ -244,6 +249,14 @@ export function submitScorpionSession(
       case 'unload-transport':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return handleScorpionTransport(state, actor, action, assets)
+      case 'repack-transport':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return repackScorpionTransport(state, actor, action, assets)
+      case 'form-extender':
+      case 'dismantle-extender':
+      case 'collapse-extender':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return changeScorpionExtender(state, actor, action, assets, board.supplyRail)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
         assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
@@ -281,7 +294,8 @@ export function submitScorpionSession(
     const next = applyAction(state, actor, action)
     // OCS 6.1g, 13.2a. Only handling and fueling can interrupt this same transport's move.
     const keepTransport = action.type === 'ground-move' || action.type === 'load-transport' || action.type === 'unload-transport' ||
-      action.type === 'fuel-formation' || action.type === 'fuel-headquarters' || action.type === 'fuel-from-paused-transport'
+      action.type === 'fuel-formation' || action.type === 'fuel-headquarters' || action.type === 'fuel-from-paused-transport' ||
+      action.type === 'repack-transport'
     const settled: ScorpionSession = next.kind === 'playing' && next.groundActivity?.transport && !keepTransport
       ? { ...next, groundActivity: { ...next.groundActivity, transport: undefined } } : next
     return withScorpionPhaseOccupancy(state, settled)

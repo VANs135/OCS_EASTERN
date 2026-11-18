@@ -6,6 +6,7 @@ import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { carriedScorpionTokens } from './scorpion-sp-payment.ts'
+import { transportPoints } from './scorpion-transport-points.ts'
 
 type TransportClass = 'trucks' | 'wagons'
 type TransportMember = { id: string; points: number; tokens: number }
@@ -24,8 +25,8 @@ export function rollScorpionTransportCapture(state: Readonly<ScorpionInPlay>, id
   const members: Record<TransportClass, TransportMember[]> = { trucks: [], wagons: [] }
   for (const id of ids) {
     const unit = state.units[id]!
-    const capacity = assets.catalog.definitions.get(unit.definition)?.source.faces.combat?.stats.transport
-    if (typeof capacity !== 'number' || !Number.isSafeInteger(capacity) || capacity < 1) {
+    const capacity = transportPoints(assets.catalog.definitions.get(unit.definition))
+    if (!capacity) {
       throw new Error(`Missing printed transport capacity for ${unit.definition}`)
     }
     members[unit.allowance > 10 ? 'trucks' : 'wagons'].push({

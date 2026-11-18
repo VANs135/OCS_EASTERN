@@ -29,7 +29,7 @@ export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, m
   const cargo = new Map<string, number>()
   function transport(id: string) {
     const unit = Object.hasOwn(state.units, id) ? state.units[id] : undefined
-    return unit?.side === side && !unit.combat && (unit.organicTruck || unit.transportCargoTokens !== undefined) ? unit : undefined
+    return unit?.side === side && !unit.combat && !unit.extender && (unit.organicTruck || unit.transportCargoTokens !== undefined) ? unit : undefined
   }
   function source(id: string) {
     const truck = transport(id)

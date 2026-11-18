@@ -119,7 +119,7 @@ export function settleScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Sid
   if (landedId) {
     resolved = { ...resolved, moved: [...resolved.moved, landedId], dropTrace: { unitId: landedId, turn: state.cursor.turn },
       units: { ...resolved.units, [landedId]: { ...resolved.units[landedId]!, outOfSupply: false } } }
-    if (enemyStores) resolved = resolveScorpionEntry(resolved, side, target.hex, [landedId], assets, false)
+    if (enemyStores) resolved = resolveScorpionEntry(resolved, side, target.hex, [landedId], assets, false, railroad)
   }
   resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, abortBase, cargo.saved) }
   resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, target, landedTokens) }

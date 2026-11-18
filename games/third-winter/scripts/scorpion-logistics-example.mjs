@@ -1,5 +1,6 @@
 import { carriedScorpionTokens } from '../src/match/scorpion-sp-payment.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
 
 /** Use the actual Soviet deployment and map for both halves of the example. */
 export function sampleScorpionLogistics(opening, assets, board) {
@@ -30,4 +31,22 @@ export function sampleScorpionLogistics(opening, assets, board) {
     throw new Error('The Scorpion opening did not complete the load, delivery and formation fueling')
   }
   return { loaded, arrived: record, from, to, delivered, recipients: recipients.length, organicHex: organicUnit.hex }
+}
+
+/** The printed scenario does not place ordinary Axis Transport Points. Use a controlled branch. */
+export function sampleScorpionExtender(opening, assets, board) {
+  const hex = 's1.07'
+  const definitions = ['Ge Truck 2/45', 'Ge Truck 3/45'].map((name) => assets.catalog.aliases.get(name)?.[0])
+  if (definitions.some((definition) => !definition) || !assets.map.hexes.has(hex)) {
+    throw new Error('Missing the printed Axis transport counters or map hex')
+  }
+  const unitIds = ['sample-extender:one', 'sample-extender:two']
+  const units = { ...opening.state.units, ...Object.fromEntries(definitions.map((definition, i) =>
+    [unitIds[i], deployScorpionGroundCounter(definition, hex, 0)])) }
+  const before = { ...opening, state: { ...opening.state, units, moved: [],
+    cursor: { ...opening.state.cursor, phasing: 'axis' } } }
+  const command = { id: 'sample-extender-form', expectedRevision: before.revision, action: { type: 'form-extender', unitIds } }
+  const formed = submitScorpionSession(before, 'axis', command, assets, board).record
+  const { range, asset } = formed.state.units[unitIds[0]].extender
+  return { before, formed, hex, range, asset }
 }

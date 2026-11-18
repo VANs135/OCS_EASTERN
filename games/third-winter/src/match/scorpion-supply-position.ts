@@ -28,11 +28,13 @@ export function scorpionSupplyPosition(
     .map(([, unit]) => unit.hex)) : anchors
   const unnegatedEnemyZoc = new Set([...scorpionEnemyZoc(state, map, side)].filter((hex) => !negators.has(hex)))
   const headquarters = friendly.flatMap(([id, unit]) => unit.headquarters ? [{ id, hex: unit.hex, ...unit.headquarters }] : [])
+  const extenders = counters.flatMap(([, unit]) => unit.side === side && unit.extender
+    ? [{ hex: unit.hex, range: unit.extender.range, mobility: unit.mobility }] : [])
   const controlled = new Set([...map.hexes.keys()].filter((hex) => !enemyCombat.has(hex) &&
     (anchors.has(hex) || (railroad.controlOf?.(hex) ?? state.railControl?.[hex]) === side)))
   return { side, sources: new Set(scorpionSupplySources[side]), controlled, enemyCombat, unnegatedEnemyZoc,
     railGauge: railroad.railGauge ?? scorpionInitialRailGauge(map),
     detrainableFacilities: new Set(friendly.filter(([, unit]) => unit.headquarters &&
       !unit.headquarters.kessel && !unit.moveMode && !unit.reserve).map(([, unit]) => unit.hex)),
-    headquarters, weather: state.turn.weather.ground }
+    headquarters, extenders, weather: state.turn.weather.ground }
 }

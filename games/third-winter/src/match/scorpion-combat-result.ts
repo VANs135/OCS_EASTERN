@@ -61,13 +61,13 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
       attackerRetreated: retreat > 0 } }
   }
   const empty = !Object.values(settled.units).some((unit) => unit.side === actor && unit.combat && unit.hex === combat.target)
-  if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty, assets)
+  if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty, assets, rail)
   const advance = empty && !combat.attackerRetreated && combat.attackers.some((id) => Object.hasOwn(settled.units, id))
   return { ...settled, combat: advance ? { ...combat, step: 'advance' } : null }
 }
 
 export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly string[],
-  assets: ScorpionSetupAssets): ScorpionInPlay {
+  assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
   const combat = state.combat
   if (combat?.step !== 'advance' || combat.attacker !== side || new Set(ids).size !== ids.length) {
     throw new Error('Choose eligible surviving attackers for advancement')
@@ -81,5 +81,5 @@ export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
   const advanced = { ...state, units, combat: null, railControl: ids.length
     ? { ...state.railControl, [combat.target]: side } : state.railControl }
   assertScorpionStacking(advanced, combat.target)
-  return ids.length ? resolveScorpionEntry(advanced, side, combat.target, ids, assets, true) : advanced
+  return ids.length ? resolveScorpionEntry(advanced, side, combat.target, ids, assets, true, railroad) : advanced
 }
