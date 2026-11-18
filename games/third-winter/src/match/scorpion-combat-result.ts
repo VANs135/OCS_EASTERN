@@ -1,10 +1,11 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
+import { resolveScorpionEntry } from './scorpion-capture.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { finishScorpionOverrun } from './scorpion-overrun.ts'
-import { assertNoScorpionSpecialCapture, assertScorpionStacking, retreatScorpionCombat } from './scorpion-retreat.ts'
+import { assertScorpionStacking, retreatScorpionCombat } from './scorpion-retreat.ts'
 import type { RetreatPlan } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -60,18 +61,18 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
       attackerRetreated: retreat > 0 } }
   }
   const empty = !Object.values(settled.units).some((unit) => unit.side === actor && unit.combat && unit.hex === combat.target)
-  if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty)
+  if (combat.kind === 'overrun') return finishScorpionOverrun(settled, combat, empty, assets)
   const advance = empty && !combat.attackerRetreated && combat.attackers.some((id) => Object.hasOwn(settled.units, id))
   return { ...settled, combat: advance ? { ...combat, step: 'advance' } : null }
 }
 
-export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly string[]): ScorpionInPlay {
+export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly string[],
+  assets: ScorpionSetupAssets): ScorpionInPlay {
   const combat = state.combat
   if (combat?.step !== 'advance' || combat.attacker !== side || new Set(ids).size !== ids.length) {
     throw new Error('Choose eligible surviving attackers for advancement')
   }
   const units = { ...state.units }
-  if (ids.length) assertNoScorpionSpecialCapture(state, side, combat.target)
   for (const id of ids) {
     const unit = units[id]
     if (!unit || !combat.attackers.includes(id)) throw new Error('Only surviving attackers may advance')
@@ -80,5 +81,5 @@ export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
   const advanced = { ...state, units, combat: null, railControl: ids.length
     ? { ...state.railControl, [combat.target]: side } : state.railControl }
   assertScorpionStacking(advanced, combat.target)
-  return advanced
+  return ids.length ? resolveScorpionEntry(advanced, side, combat.target, ids, assets, true) : advanced
 }

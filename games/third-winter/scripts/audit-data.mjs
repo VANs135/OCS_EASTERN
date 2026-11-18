@@ -244,11 +244,7 @@ function sampleBattle(state, map, submit, latest, overrun = false) {
         enemy.side === 'axis' && enemy.combat && enemy.hex === hex)) return false
       if (!overrun) return true
       const cost = scorpionStepCost(map, unit.hex, hex, 'leg', 'freeze', false)
-      return typeof cost === 'number' && cost <= 3 &&
-        !Object.values(state.units).some((enemy) => enemy.side === 'axis' && !enemy.combat && enemy.hex === hex) &&
-        !state.airBases.some((base) => base.side === 'axis' && base.hex === hex) &&
-        !state.pieces.some((piece) => piece.side === 'axis' && piece.location.kind === 'hex' && piece.location.hex === hex) &&
-        !state.dumps[`axis:hex:${hex}`]?.tokens
+      return typeof cost === 'number' && cost <= 3
     })
     if (dumpId && target) {
       chosen = { unitId, unit, dumpId, target }

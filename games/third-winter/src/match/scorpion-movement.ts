@@ -53,13 +53,13 @@ export function submitScorpionGroundMove<State extends GroundMoveState>(
 }
 
 export function applyScorpionGroundMove<State extends GroundMoveState>(
-  state: Readonly<State>, side: Side, move: MoveCommand, board: MovementBoard,
+  state: Readonly<State>, side: Side, move: MoveCommand, board: MovementBoard, continuation?: number,
 ): State {
   const unit = Object.hasOwn(state.units, move.unitId) ? state.units[move.unitId] : undefined
   const phase = state.cursor.phase
   const permitted = unit && canMoveInPhase(unit, phase)
   if (!permitted || actingSide(state.cursor.phasing, phase) !== side ||
-    !unit || unit.side !== side || state.moved.includes(move.unitId) || board.weather === 'thaw') {
+    !unit || unit.side !== side || (continuation === undefined && state.moved.includes(move.unitId)) || board.weather === 'thaw') {
     throw new Error('Ground movement is unavailable for this counter in the current phase')
   }
   if (!Number.isFinite(unit.allowance) || unit.allowance <= 0 || !move.path.length ||
@@ -67,9 +67,13 @@ export function applyScorpionGroundMove<State extends GroundMoveState>(
     throw new Error('Unit must be eligible and fueled to move')
   }
 
-  const { destination } = walkScorpionGroundRoute(unit, move.path, board, scorpionMovementAllowance(unit, phase), true)
+  if (continuation !== undefined && unit.mobility === 'truck' && board.unnegatedEnemyZoc(unit.hex, side)) {
+    throw new Error('Trucks entering enemy ZOC must stop or overrun')
+  }
+  const { destination } = walkScorpionGroundRoute(unit, move.path, board,
+    continuation ?? scorpionMovementAllowance(unit, phase), continuation === undefined)
   return { ...state, units: { ...state.units, [move.unitId]: { ...unit, hex: destination } },
-    moved: [...state.moved, move.unitId] }
+    moved: [...new Set([...state.moved, move.unitId])] }
 }
 
 export function canMoveInPhase(unit: Unit, phase: PlayerTurn['phase']) {

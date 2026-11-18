@@ -83,7 +83,9 @@ function groundBadges(unit: DeployedCounter, catalog: Catalog): CounterBadge[] {
   if (unit.internalStocks === 'exhausted') add('Exhausted', '内部补给耗尽', '耗')
   if (unit.stepsLost) add(`Step Loss ${unit.stepsLost}`, `已损失 ${unit.stepsLost} 步`, String(unit.stepsLost))
   if (unit.fueled) badges.push({ label: '本阶段已加油', text: '油' })
-  if (unit.organicTruck) badges.push({ label: unit.organicTruck === 'full' ? '编内卡车满载' : '编内卡车空载',
+  if (unit.transportCargoTokens !== undefined) badges.push({ label: `装载 ${unit.transportCargoTokens}T`,
+    text: unit.transportCargoTokens ? `${unit.transportCargoTokens}T` : '空' })
+  else if (unit.organicTruck) badges.push({ label: unit.organicTruck === 'full' ? '编内卡车满载' : '编内卡车空载',
     text: unit.organicTruck === 'full' ? '满' : '空' })
   return badges
 }

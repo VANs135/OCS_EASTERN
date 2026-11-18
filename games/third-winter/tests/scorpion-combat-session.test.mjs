@@ -7,6 +7,7 @@ import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionBarrageFrontAt } from '../src/ttw/scorpion/barrage-markers.ts'
 import { scorpionBarrageMarkerFrame } from '../src/view/scorpion-barrage-markers.ts'
+import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
 
 const pairs = [['s10.01', 's10.02'], ['s10.02', 's10.03'], ['s15.08', 's15.09'], ['s15.09', 's15.10']]
 const map = scorpionMap([...new Set(pairs.flat())].map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -220,6 +221,7 @@ test('an overrun stack can repeat its attack and automatically enters a cleared 
   const dumpId = 'soviet:hex:s10.01'
   let record = fixture('movement', { [unitId]: unit('soviet', 's10.01', { allowance: 7 }),
     bystander: unit('soviet', 's10.01'), defense: unit('axis', 's10.02', { printedRe: 2 }) })
+  record.state.dumps['axis:hex:s10.02'] = { side: 'axis', tokens: 7, location: 'on-map' }
   const attack = { type: 'declare-overrun', target: 's10.02', attackers: [unitId],
     payments: [{ unitId, dumpId, tokens: 1 }] }
   for (const remaining of [4, 1]) {
@@ -239,10 +241,79 @@ test('an overrun stack can repeat its attack and automatically enters a cleared 
   assert.equal(record.state.units.attack.hex, 's10.02')
   assert.equal(record.state.units.bystander.hex, 's10.01')
   assert.equal(record.state.dumps[dumpId].tokens, 8)
+  assert.equal(record.state.dumps['axis:hex:s10.02'], undefined)
+  const [{ dump }] = record.state.captureHistory
+  assert.equal(dump.taken + dump.destroyed, 7)
   assert.deepEqual(record.state.combatTargets, [])
   record = submit(record, 'soviet', { type: 'continue-overrun-move', path: ['s10.03'] }, option)
   assert.equal(record.state.units.attack.hex, 's10.03')
   assert.equal(record.state.overrunMarch, null)
+})
+
+test('capturing an air base displaces survivors off-map with their reduced face and lets the captor resume movement', () => {
+  const from = 's10.01'
+  const target = 's10.02'
+  const next = 's10.03'
+  const record = fixture('movement', { attacker: unit('soviet', from) })
+  record.state.dumps['axis:hex:s10.02'] = { side: 'axis', tokens: 8, location: 'on-map' }
+  record.state.airBases = [{ side: 'axis', hex: target, level: 2 }]
+  const plane = { side: 'axis', kind: 'aircraft', definition: 'fighter', location: { kind: 'hex', hex: target } }
+  record.state.pieces = [{ ...plane, id: 'fighter', active: true }, { ...plane, id: 'reduced', reduced: true, active: false }]
+  const definition = { kind: 'aircraft', source: { name: 'Fighter', side: 'axis',
+    faces: { combat: { asset: 'fighter-full.png', stats: { range: 20 } },
+      move: { asset: 'fighter-reduced.png', stats: { range: 20 } } } } }
+  const aliases = new Map(['Turn', 'Ground', 'Flight', 'Soviet VPs Tracker'].map((name) =>
+    [name, [{ kind: 'marker', source: { faces: { combat: { asset: `${name}.png` } } } }]]))
+  const local = { ...assets, catalog: { definitions: new Map([['fighter', definition]]), aliases } }
+  const play = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, board()).record
+  const move = { type: 'ground-move', unitId: 'attacker', path: [target] }
+  assert.throws(() => play(record, 'soviet', { ...move, path: [target, next] }), /pending capture hex/)
+  assert.equal(record.state.rng.drawCount, 0)
+  const entered = play(record, 'soviet', move)
+  assert.equal(entered.state.units.attacker.hex, target)
+  assert.deepEqual(entered.state.airBases, [{ side: 'soviet', hex: target, level: 2 }])
+  assert.equal(entered.state.dumps['soviet:hex:s10.02'].tokens, 2)
+  assert.equal(entered.state.pieces[0].reduced, true)
+  assert.equal(entered.state.pieces[1].location.kind, 'dead-pile')
+  const flight = { type: 'settle-capture', aircraft: [{ id: 'fighter', destination: { kind: 'off-map-air' } }] }
+  assert.throws(() => play(entered, 'soviet', flight), /original owner/)
+  assert.throws(() => play(entered, 'soviet', { type: 'complete-movement' }), /pending special capture/)
+  const settled = play(JSON.parse(JSON.stringify(entered)), 'axis', flight)
+  assert.equal(settled.state.pieces[0].location.kind, 'off-map-air')
+  assert.equal(settled.state.pieces[0].active, false)
+  assert.equal(settled.state.rng.drawCount, 3)
+  const boxes = scorpionSessionBoxFrame(settled.state, local.catalog, 'axis').inventories
+  assert.equal(boxes.find(({ cell }) => cell === 20).counters[0].asset, 'fighter-reduced.png')
+  assert.equal(boxes.find(({ cell }) => cell === 19).counters[0].id, 'reduced')
+  assert.equal(play(settled, 'soviet', { ...move, path: [next] }).state.units.attacker.hex, next)
+})
+
+test('transport capture uses the group percentage and preserves the independently rounded points and cargo', () => {
+  const target = 's10.02'
+  const ground = (side, name, transport) => ({ key: name, kind: 'transport', source: { side, name,
+    faces: { combat: { stats: { transport, move: 45 }, maColor: 'black' } } } })
+  const rows = [ground('axis', 'two', 2), ground('axis', 'organic', 1), ground('soviet', 'Sov Truck', 1)]
+  const local = { ...assets, catalog: { definitions: new Map(rows.map((row) => [row.key, row])),
+    aliases: new Map(rows.map((row) => [row.key, [row]])) } }
+  const record = fixture('movement', { attacker: unit('soviet', 's10.01'),
+    transport: unit('axis', target, { combat: false, allowance: 45, definition: 'two' }),
+    organic: unit('axis', target, { combat: false, allowance: 45, definition: 'organic', organicTruck: 'full' }) })
+  record.state.rng = createRngState(12)
+  const play = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, board()).record
+  const entered = play(record, 'soviet', { type: 'ground-move', unitId: 'attacker', path: [target] })
+  const [group] = entered.state.capture.transports
+  assert.deepEqual([group.die, group.points, group.tokens], [3, 1, 1])
+  const displacedTo = 's10.03'
+  const choices = [{ id: 'organic', takenPoints: 1, takenTokens: 1, displacedTo },
+    { id: 'transport', takenPoints: 0, takenTokens: 0, displacedTo }]
+  assert.throws(() => play(entered, 'axis', { type: 'settle-capture', aircraft: [],
+    transports: [{ ...choices[0], takenPoints: 0 }, choices[1]] }), /exact transport/)
+  const settled = play(entered, 'axis', { type: 'settle-capture', aircraft: [], transports: choices })
+  const [captured] = Object.values(settled.state.units).filter((item) => item.side === 'soviet' && !item.combat)
+  assert.equal(captured.definition, 'Sov Truck')
+  assert.equal(captured.transportCargoTokens, 1)
+  assert.equal(settled.state.units.transport.hex, displacedTo)
+  assert.equal(settled.state.dumps[`axis:hex:${displacedTo}`].tokens, 3)
 })
 
 test('overrun approach and fuel are atomic, and a road cannot legalize the overrun entry', () => {

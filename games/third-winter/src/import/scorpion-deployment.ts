@@ -40,6 +40,7 @@ export interface DeployedCounter extends GroundProfile {
   stepsLost: number
   fueled: boolean
   organicTruck?: 'full' | 'empty'
+  transportCargoTokens?: number
 }
 
 type Aliases = ReadonlyMap<string, readonly Definition<BackupUnit>[]>

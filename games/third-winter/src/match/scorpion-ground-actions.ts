@@ -1,7 +1,8 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
-import { applyScorpionGroundMove } from './scorpion-movement.ts'
+import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
+import { applyScorpionGroundMove, scorpionMovementAllowance, walkScorpionGroundRoute } from './scorpion-movement.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
 import type { ScorpionReserveFace } from './scorpion-reserves.ts'
@@ -38,12 +39,26 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
       moved = prepareScorpionReserve(moved, side, unitId, reserveFace ?? 'current', assets)
     }
   }
-  const { rules, facts } = scorpionMovementRules(moved, side, map, board)
+  const entrants = counters.map(({ unitId }) => unitId)
+  const prior = state.groundCaptureMove
+  const resumed = Boolean(prior && entrants.every((id) => Object.hasOwn(prior, id)))
+  const boardState = resumed ? { ...moved, moved: moved.moved.filter((id) => !entrants.includes(id)) } : moved
+  const { rules, facts } = scorpionMovementRules(boardState, side, map, board)
+  const originalUnits = moved.units
   for (const { unitId, fuelDumpId } of counters) {
     const move = { unitId, path: action.path }
-    moved = fuelDumpId === undefined ? applyScorpionGroundMove(moved, side, move, rules)
+    moved = fuelDumpId === undefined ? applyScorpionGroundMove(moved, side, move, rules, resumed ? prior![unitId] : undefined)
       : moveScorpionWithFuel(moved, side, move, fuelDumpId, rules, facts)
   }
+  const entered = action.path.map(scorpionHexId)
+  moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets)
+  const groundCaptureMove = moved.capture ? Object.fromEntries(entrants.map((id) => {
+    const unit = originalUnits[id]!
+    const available = resumed ? prior![id]! : scorpionMovementAllowance(unit, moved.cursor.phase)
+    const { spent } = walkScorpionGroundRoute(unit, action.path, rules, available, !resumed)
+    return [id, Math.max(0, available - spent)]
+  })) : null
+  moved = { ...moved, groundCaptureMove }
   const destination = moved.units[counters[0]!.unitId]!.hex
   if (moved.units[counters[0]!.unitId]!.reserve) {
     assertScorpionReserveCapacity(moved, side)
@@ -52,7 +67,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     }
   }
   if (!counters.some(({ unitId }) => moved.units[unitId]!.combat)) return moved
-  const occupied = Object.fromEntries(action.path.map((hex) => [scorpionHexId(hex), side]))
+  const occupied = Object.fromEntries(entered.map((hex) => [hex, side]))
   return { ...moved, railControl: { ...moved.railControl, ...occupied } }
 }
 

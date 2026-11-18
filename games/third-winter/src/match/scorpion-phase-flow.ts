@@ -49,7 +49,7 @@ export function applyScorpionPhaseFlow(state: Readonly<ScorpionInPlay>, actor: S
   if (action.type !== 'complete-cleanup') {
     const cursor = advanceScorpionPhase(state.cursor, actor)
     if (!cursor) throw new Error('Invalid player phase transition')
-    return { ...state, cursor, units, moved: [], combatTargets: [], combatAttackers: [], overrunMarch: null }
+    return { ...state, cursor, units, moved: [], combatTargets: [], combatAttackers: [], overrunMarch: null, groundCaptureMove: null }
   }
 
   // Scenario Book p.53. The calibrated Scorpion major-river edges are the Dnepr reach.
@@ -59,7 +59,7 @@ export function applyScorpionPhaseFlow(state: Readonly<ScorpionInPlay>, actor: S
   const riverSteps = Object.values(units).filter((unit) => unit.side === 'axis' && unit.combat && onDnepr(unit.hex))
     .reduce((sum, unit) => sum + Math.max(1, unit.printedRe - unit.stepsLost), 0)
   const next = completeScorpionCleanup(state.turn, state, actor, riverSteps, state.rerollHolder, roll)
-  return { ...state, turn: next.turn, cursor: next.cursor ?? state.cursor, rng, units, moved: [], overrunMarch: null,
+  return { ...state, turn: next.turn, cursor: next.cursor ?? state.cursor, rng, units, moved: [], overrunMarch: null, groundCaptureMove: null,
     combatTargets: [], combatAttackers: [], arrival: { ...state.arrival, sovietVp: next.turn.vp },
     victory: next.turn.step.kind === 'ended' ? next.turn.step.result : null }
 }

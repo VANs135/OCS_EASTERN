@@ -3,12 +3,13 @@ import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { scorpionPhaseBarrages } from './scorpion-barrage.ts'
+import { resolveScorpionEntry, resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import { startScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionAttackOrder, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { scorpionMovementRules } from './scorpion-ground-actions.ts'
 import type { GroundPolicies } from './scorpion-ground-actions.ts'
 import { canMoveInPhase, scorpionMovementAllowance, walkScorpionGroundRoute } from './scorpion-movement.ts'
-import { assertNoScorpionSpecialCapture, assertScorpionStacking } from './scorpion-retreat.ts'
+import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { fuelScorpionCounter } from './scorpion-unit-fuel.ts'
@@ -32,7 +33,7 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
   const ids = action.attackers
   const origin = state.units[ids[0] ?? '']?.hex
   const phase = state.cursor.phase
-  const previous = state.overrunMarch
+  const previous = state.overrunMarch ?? (state.groundCaptureMove && { remaining: state.groundCaptureMove, enteredHex: true })
   const resumed = Boolean(previous && ids.every((id) => Object.hasOwn(previous.remaining, id)))
   if (!origin || new Set(ids).size !== ids.length || ids.some((id) => {
     const counter = Object.hasOwn(state.units, id) ? state.units[id] : undefined
@@ -52,12 +53,12 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
     : scorpionMovementAllowance(fueled.units[id]!, phase)]))
   const march = { remaining, enteredHex: resumed && previous!.enteredHex }
   const moved = moveStack(fueled, side, ids, path, march, assets, board)
+  if (moved.capture) throw new Error('Resolve this entry capture before declaring the overrun')
   const hex = moved.units[ids[0]!]!.hex
   assertScorpionStacking(moved, hex)
   if (!map.neighbors(hex).includes(target) || rules.enemySupplySource(target, side)) {
     throw new Error('Choose an enterable adjacent overrun target')
   }
-  assertNoScorpionSpecialCapture(moved, side, target, true)
   for (const id of ids) {
     if (moved.overrunMarch!.remaining[id]! < overrunCost) throw new Error('Each overrunning unit needs at least 3 MP left')
     const cost = scorpionStepCost(map, hex, target, moved.units[id]!.mobility, 'freeze', false)
@@ -65,7 +66,7 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
       throw new Error('Overrun entry must cost at most 3 MP before roads, rail or bridges')
     }
   }
-  const started = startScorpionCombat(moved, side, action, map, combatBoard, board.supplyRail, 'overrun')
+  const started = startScorpionCombat({ ...moved, groundCaptureMove: null }, side, action, map, combatBoard, board.supplyRail, 'overrun')
   return { ...started, overrunMarch: { ...moved.overrunMarch!,
     remaining: Object.fromEntries(ids.map((id) => [id, moved.overrunMarch!.remaining[id]! - overrunCost])) } }
 }
@@ -77,10 +78,11 @@ export function continueScorpionOverrunMove(state: Readonly<ScorpionInPlay>, sid
   if (!march || !action.path.length) throw new Error('Choose a path for the current overrun stack')
   const ids = Object.keys(march.remaining)
   const moved = moveStack(state, side, ids, action.path, march, assets, board)
-  return { ...moved, overrunMarch: null }
+  return moved.capture ? moved : { ...moved, overrunMarch: null }
 }
 
-export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: ScorpionCombat, vacant: boolean): ScorpionInPlay {
+export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: ScorpionCombat, vacant: boolean,
+  assets: ScorpionSetupAssets): ScorpionInPlay {
   const { attackers, target, attacker, attackerRetreated } = combat
   if (!state.overrunMarch || attackerRetreated) return { ...state, combat: null, overrunMarch: null }
   const survivors = attackers.filter((id) => Object.hasOwn(state.units, id))
@@ -92,7 +94,7 @@ export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: S
     units: { ...state.units, ...Object.fromEntries(survivors.map((id) => [id, { ...state.units[id]!, hex: target }])) },
     railControl: { ...state.railControl, [target]: attacker } }
   assertScorpionStacking(advanced, target)
-  return advanced
+  return resolveScorpionEntry(advanced, attacker, target, survivors, assets, true)
 }
 
 function assertOverrunWindow(state: Readonly<ScorpionInPlay>, side: Side) {
@@ -128,8 +130,8 @@ function moveStack(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly st
     units[id] = { ...counter, hex: route.destination }
   }
   const hexes = path.map(scorpionHexId)
-  for (const hex of hexes) assertNoScorpionSpecialCapture(state, side, hex)
   const occupied = Object.fromEntries(hexes.map((hex) => [hex, side]))
-  return { ...state, units, overrunMarch: { remaining, enteredHex: march.enteredHex || path.length > 0 },
+  const moved = { ...state, units, overrunMarch: { remaining, enteredHex: march.enteredHex || path.length > 0 },
     moved: [...new Set([...state.moved, ...ids])], railControl: { ...state.railControl, ...occupied } }
+  return resolveScorpionMoveEntries(moved, side, hexes, ids, assets)
 }

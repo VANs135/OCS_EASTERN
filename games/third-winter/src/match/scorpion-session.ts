@@ -18,6 +18,8 @@ import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
 import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
+import { settleScorpionCapture } from './scorpion-capture.ts'
+import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-result.ts'
@@ -56,6 +58,9 @@ export interface ScorpionInPlay extends ReinforcementState {
   supply: ScorpionSupplyWindow | null
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
+  capture?: ScorpionCaptureWindow | null
+  captureHistory?: readonly ScorpionCaptureReport[]
+  groundCaptureMove?: Readonly<Record<string, number>> | null
   overrunMarch?: ScorpionOverrunMarch | null
   barrage?: ScorpionBarrage | null
   barrageHistory?: readonly ScorpionBarrageRecord[]
@@ -70,7 +75,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
-  | DeclareOverrun | FinishOverrunMove
+  | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -101,6 +106,9 @@ export function submitScorpionSession(
     if (state.kind === 'playing' && state.airfieldCapacityChoice && action.type !== 'settle-airfield-capacity') {
       throw new Error('Resolve the air base’s active aircraft capacity first')
     }
+    if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
+      throw new Error('Resolve the pending special capture first')
+    }
     switch (action.type) {
       case 'base-aircraft':
       case 'place-setup-alert':
@@ -129,10 +137,13 @@ export function submitScorpionSession(
           throw new Error('Reserve action is unavailable')
         }
         if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
-        return applyScorpionReserve({ ...state, overrunMarch: null }, actor, action, assets)
+        return applyScorpionReserve({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, action, assets)
       case 'settle-airfield-capacity':
         if (state.kind !== 'playing') throw new Error('There is no active air base capacity decision')
         return settleScorpionAirfieldCapacity(state, actor, action.unitIds)
+      case 'settle-capture':
+        if (state.kind !== 'playing') throw new Error('There is no special capture to settle')
+        return settleScorpionCapture(state, actor, action, assets)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':
@@ -160,7 +171,7 @@ export function submitScorpionSession(
         if (action.type === 'select-combat-rating') return selectScorpionCombatRating(state, actor, action.unitId)
         if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table)
         if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
-        return advanceScorpionCombat(state, actor, action.unitIds)
+        return advanceScorpionCombat(state, actor, action.unitIds, assets)
       case 'continue-overrun-move':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
         return continueScorpionOverrunMove(state, actor, action, assets, board)
@@ -173,7 +184,7 @@ export function submitScorpionSession(
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
         assertScorpionReserveAtMovementEnd(state, actor, board.combat?.hedgehogAt)
-        return openScorpionSupply({ ...state, overrunMarch: null }, actor, assets.map, board.supplyRail)
+        return openScorpionSupply({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
       case 'recover-internal-stocks':
       case 'feed-units':
