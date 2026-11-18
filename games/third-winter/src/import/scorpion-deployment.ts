@@ -28,6 +28,7 @@ export interface DeployedCounter extends GroundProfile {
   disorganized?: boolean
   moveMode?: boolean
   exploit?: boolean
+  exploitRating?: number
   reserve?: string
   released?: boolean
   formation?: string

@@ -14,6 +14,7 @@ import { answerRetention, chooseFirstPlayer, rollInitiative } from '../src/ttw/s
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
+import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
@@ -37,8 +38,12 @@ const aid = { ...scorpionSovietAid, path: join(imageDirectory, scorpionSovietAid
 const { before, axisConfirmed, started } = sampleScorpionOpening(setup, { map: groundMap, catalog })
 const { pieces, turn: initial } = started.state
 const frames = []
+function boardFrame(state) {
+  const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
+  return { aidCounters, mapStacks: scorpionMapStacks(state, catalog, mapCounters) }
+}
 function sessionFrame(caption, state) {
-  frames.push({ caption, ...scorpionSessionBoxFrame(state, catalog), ...scorpionBarrageMarkerFrame(state, catalog) })
+  frames.push({ caption, ...scorpionSessionBoxFrame(state, catalog), ...boardFrame(state) })
 }
 sessionFrame('开局 · 轴心部署', before.state)
 sessionFrame('轴心已确认 · 苏军部署', axisConfirmed.state)
@@ -46,7 +51,7 @@ sessionFrame('双方部署已确认 · 1 月 26 日苏军先行', started.state)
 
 function frame(caption, turn, player) {
   frames.push({ caption, ...scorpionBoxFrame(turn, pieces, catalog, player),
-    ...scorpionBarrageMarkerFrame({ ...started.state, turn }, catalog) })
+    ...boardFrame({ ...started.state, turn }) })
 }
 
 function dice(...faces) {
@@ -98,8 +103,8 @@ submit({ type: 'place-arrival', arrivalId: optional.id, hex: optional.destinatio
 frame('第 24 装甲师入场 · 苏军净胜利分加 5', ready(fourth), record.state)
 
 const barragePath = process.env.OCS_V43_BARRAGE
-if (barragePath) {
-  const barrage = JSON.parse(await readFile(barragePath, 'utf8'))
+{
+  const barrage = barragePath ? JSON.parse(await readFile(barragePath, 'utf8')) : undefined
   const setupAssets = { map: groundMap, catalog }
   const rules = { barrage, reinforcements: () => ({ ...board, controlOf: () => 'soviet',
     supplySources: { axis: new Set(), soviet: new Set(['s22.02']) } }) }
@@ -115,21 +120,33 @@ if (barragePath) {
   issue({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
   issue({ type: 'finish-scheduled-arrivals' })
   issue({ type: 'complete-reinforcement' })
-  const { deployed, finished, center } = sampleScorpionFrontBarrage(opening, setupAssets, rules)
-  sessionFrame('首回合炮击 · 准备格', opening.state)
-  sessionFrame(`首回合炮击 · 标记移到 ${center}`, deployed.state)
-  sessionFrame('首回合炮击完毕 · 标记翻面回到恢复格 1', finished.state)
+  if (barrage) {
+    const { deployed, finished, center } = sampleScorpionFrontBarrage(opening, setupAssets, rules)
+    sessionFrame('首回合炮击 · 准备格', opening.state)
+    sessionFrame(`首回合炮击 · 标记移到 ${center}`, deployed.state)
+    sessionFrame('首回合炮击完毕 · 标记翻面回到恢复格 1', finished.state)
+  }
+  const counters = Object.entries(opening.state.units)
+    .filter(([, unit]) => unit.side === 'soviet' && unit.combat && unit.mobility === 'leg' && unit.hex === 's2.16')
+    .slice(0, 2).map(([unitId]) => ({ unitId }))
+  if (counters.length === 2) {
+    issue({ type: 'reserve-stack-move', path: ['s3.16'], counters })
+    sessionFrame('苏军预备队从 s2.16 移至 s3.16', opening.state)
+  }
 }
 
-const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapCounters }) =>
-  [...trackers, ...aidCounters, ...mapCounters, ...inventories.flatMap(({ counters }) => counters)].map(({ asset }) => asset)))
+const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
+  const onMap = mapStacks.flatMap(({ pages }) => pages.flat())
+  return [...trackers, ...aidCounters, ...onMap, ...inventories.flatMap(({ counters }) => counters),
+    ...onMap.flatMap(({ badges }) => badges ?? [])].flatMap(({ asset }) => asset ? [asset] : [])
+}))
 await Promise.all([access(map), access(aid.path), ...[...assets].map((asset) => access(join(imageDirectory, asset)))])
 const temporary = await mkdtemp(join(tmpdir(), 'ocs-scorpion-'))
 const model = join(temporary, 'frames.json')
 try {
   await writeFile(model, JSON.stringify({ width: surface.width, height: surface.height, map, boxes, frames, imageDirectory, aid,
     labels: { title: '第三冬 · 瓶中蝎', map: '小地图', aid: '苏军辅助卡', previous: '上一步', next: '下一步',
-      empty: '空', hidden: '仅本方可见' } }))
+      empty: '空', hidden: '仅本方可见', cycle: '查看这个格的下一页算子' } }))
   const renderer = fileURLToPath(new URL('../desktop/CalibratedMap.ps1', import.meta.url))
   const args = ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', renderer, '-ModelPath', model]
   if (renderOption) args.push('-RenderTo', resolve(renderOption.slice(renderOption.indexOf('=') + 1)))

@@ -9,6 +9,8 @@ import { scorpionBarrageFrontAt, scorpionBarrageFronts } from '../ttw/scorpion/b
 import type { ScorpionBarrageFront } from '../ttw/scorpion/barrage-markers.ts'
 import { combatTerrainCategory } from '../ttw/scorpion/combat-terrain.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
+import { settleScorpionAirfieldBarrage } from './scorpion-airfield-barrage.ts'
+import type { AirfieldBarrageResult } from './scorpion-airfield-barrage.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { assertScorpionReserveAtMovementEnd } from './scorpion-reserves.ts'
@@ -23,7 +25,7 @@ type Firing = { unitId: string; re?: number }
 type Volley = { target: string; batteries: readonly Firing[] }
 type Supply = { kind: 'direct'; payments: readonly SupplyPayment[] }
   | { kind: 'hq'; hqId: string; payments: readonly SupplyPayment[] }
-export type BarrageAction = ({ type: 'declare-artillery-barrage'; supply: Supply } & Volley)
+export type BarrageAction = ({ type: 'declare-artillery-barrage'; supply: Supply; targetKind?: 'units' | 'air-base' } & Volley)
   | { type: 'declare-front-barrage'; front: ScorpionBarrageFront; center: string; hqId: string; volleys: readonly Volley[] }
   | { type: 'choose-barrage-terrain'; terrain: Terrain }
   | { type: 'assign-barrage-loss'; allocation: readonly { unitId: string; steps: number }[] }
@@ -50,7 +52,8 @@ export type ScorpionBarrageRecord = ScorpionBarrage & {
   turn: number
   phasing: Side
   phase: ScorpionInPlay['cursor']['phase']
-  terrain: Terrain
+  terrain?: Terrain
+  facilityRoll?: AirfieldBarrageResult
 }
 
 export function scorpionPhaseBarrages(state: Readonly<ScorpionInPlay>) {
@@ -95,13 +98,18 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
   const history = scorpionPhaseBarrages(state)
   const target = scorpionHexId(action.target)
   const defender = actor === 'axis' ? 'soviet' : 'axis'
+  const facility = action.targetKind === 'air-base'
+  if (!facility && action.targetKind !== undefined && action.targetKind !== 'units') throw new Error('Invalid barrage target kind')
+  const targetExists = facility ? state.airBases.some((base) => base.side === defender && base.hex === target)
+    : targetUnits(state, defender, target).length > 0
   if (state.barrage || state.combat || state.combatTargets?.length || actingSide(phasing, phase) !== actor ||
     (phase !== 'reaction' && phase !== 'combat' && phase !== 'exploitation') ||
-    !map.hexes.has(target) || !targetUnits(state, defender, target).length || history.some((event) => event.target === target)) {
-    throw new Error('Artillery may barrage an enemy stack once per phase before regular combat')
+    !map.hexes.has(target) || !targetExists || history.some((event) => event.target === target)) {
+    throw new Error('Artillery may barrage an enemy target once per phase before regular combat')
   }
   if (phase !== 'combat') assertScorpionReserveAtMovementEnd(state, actor, hedgehogAt)
-  const barrage = prepareBarrage(state, actor, action, table, history.flatMap((event) => event.batteries), hedgehogAt)
+  const barrage = prepareBarrage(state, actor, action, table,
+    history.flatMap((event) => event.batteries), facility ? undefined : hedgehogAt)
   const { cost, batteries } = barrage
   const { supply } = action
   if (totalTokens(supply.payments) !== cost || (supply.kind === 'direct' && batteries.length > 1 &&
@@ -114,7 +122,8 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
     return supply.kind === 'hq' ? ledger.network.canUseDumpVia(supply.hqId, unit.hex, hex)
       : ledger.network.canDrawDump(unit.hex, hex, unit.traceDrawMobility)
   }))
-  return { ...state, dumps: ledger.dumps, barrage }
+  const paid = { ...state, dumps: ledger.dumps }
+  return facility ? settleScorpionAirfieldBarrage(paid, barrage, table) : { ...paid, barrage }
 }
 
 function declareFront(state: Readonly<ScorpionInPlay>, actor: Side,

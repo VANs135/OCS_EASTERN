@@ -35,6 +35,11 @@ const artilleryTable = (code) => ({
   costs: [1, 1, 2, 2, 2, 3, 3, 4],
   matrix: Array.from({ length: 11 }, () => Array(8).fill(code)),
 })
+const airfieldTable = (code) => ({
+  columns: ['1 or less', '2', '3-4', '5-10', '11-20', '21-40', '41-80', '81+'],
+  costs: [1, 1, 1, 1, 2, 4, 6, 8],
+  matrix: Array.from({ length: 6 }, () => Array(8).fill(code)),
+})
 
 test('regular combat discloses each decision in order, updates the dead pile and permits advancement', () => {
   let record = fixture('combat', { infantry: unit('soviet', 's10.01'), defense: unit('axis', 's10.02') })
@@ -327,6 +332,49 @@ test('two batteries may use multiple dumps only through a common HQ', () => {
   const pending = submit(record, 'soviet', { ...attack, supply: { kind: 'hq', hqId: 'hq', payments } }, option)
   assert.equal(pending.state.dumps[firstDump].tokens, 9)
   assert.equal(pending.state.dumps[secondDump].tokens, 0)
+})
+
+test('an airfield barrage changes the level and aircraft faces without hitting defending ground troops', () => {
+  const option = { ...board(), facilityBarrage: airfieldTable('2 S (3)') }
+  const record = fixture('combat', { battery: unit('soviet', 's10.01', { artillery: { strength: 14, range: 2 } }),
+    garrison: unit('axis', 's10.02') })
+  record.state.airBases = [{ hex: 's10.02', side: 'axis', level: 2 }]
+  record.state.pieces = [
+    { id: 'full', kind: 'aircraft', side: 'axis', active: true, location: { kind: 'hex', hex: 's10.02' } },
+    { id: 'reduced', kind: 'aircraft', side: 'axis', reduced: true, location: { kind: 'hex', hex: 's10.02' } },
+    { id: 'outside', kind: 'aircraft', side: 'axis', location: { kind: 'off-map-air' } },
+  ]
+  const attack = { type: 'declare-artillery-barrage', target: 's10.02', targetKind: 'air-base',
+    batteries: [{ unitId: 'battery' }], supply: { kind: 'direct', payments: [{ dumpId: 'soviet:hex:s10.01', tokens: 2 }] } }
+  assert.throws(() => submit(record, 'soviet', attack), /appropriate OCS/)
+  const hit = submit(record, 'soviet', attack, option)
+  assert.equal(hit.state.dumps['soviet:hex:s10.01'].tokens, 8)
+  assert.equal(hit.state.airBases[0].level, 1)
+  assert.equal(hit.state.pieces[0].reduced, true)
+  assert.equal(hit.state.pieces[1].location.kind, 'dead-pile')
+  assert.equal(hit.state.pieces[2].reduced, undefined)
+  assert.equal(hit.state.units.garrison.disorganized, undefined)
+  assert.deepEqual(hit.state.barrageHistory[0].facilityRoll.aircraft.map(({ die }) => die), [4, 6])
+  assert.throws(() => submit(hit, 'soviet', { ...attack, targetKind: 'units' }, { ...option, barrage: artilleryTable('-') }),
+    /once per phase/)
+})
+
+test('after airfield capacity falls only its owner may inactivate the required planes', () => {
+  const option = { ...board(), facilityBarrage: airfieldTable('1 (6)') }
+  const record = fixture('combat', { battery: unit('soviet', 's10.01', { artillery: { strength: 14, range: 2 } }) })
+  record.state.airBases = [{ hex: 's10.02', side: 'axis', level: 2 }]
+  record.state.pieces = Array.from({ length: 6 }, (_, index) => ({
+    id: `air-${index}`, kind: 'aircraft', side: 'axis', active: true, location: { kind: 'hex', hex: 's10.02' },
+  }))
+  const pending = submit(record, 'soviet', { type: 'declare-artillery-barrage', target: 's10.02', targetKind: 'air-base',
+    batteries: [{ unitId: 'battery' }], supply: { kind: 'direct', payments: [{ dumpId: 'soviet:hex:s10.01', tokens: 2 }] } }, option)
+  assert.equal(pending.state.airfieldCapacityChoice.excess, 1)
+  assert.throws(() => submit(pending, 'soviet', { type: 'complete-combat' }, option), /capacity first/)
+  const choose = { type: 'settle-airfield-capacity', unitIds: ['air-3'] }
+  assert.throws(() => submit(pending, 'soviet', choose, option), /excess active aircraft/)
+  const settled = submit(pending, 'axis', choose, option)
+  assert.equal(settled.state.pieces.filter((unit) => unit.active).length, 5)
+  assert.equal(settled.state.airfieldCapacityChoice, null)
 })
 
 test('the Scorpion front marker moves from the printed card to its sector, flips, and advances at Soviet reinforcement', () => {

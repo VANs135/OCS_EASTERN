@@ -7,6 +7,7 @@ import { openScorpionTurn } from '../src/ttw/scorpion/pre-turn.ts'
 import { scorpionWeather } from '../src/ttw/scorpion/weather.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
+import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 
 const definition = (name, kind, side, move = null) => ({ key: name, kind, source: { side, name,
   faces: { combat: { asset: `${name}.png` }, move: move && { asset: move } } } })
@@ -31,6 +32,40 @@ test('v3 and v4 calibrations use the saved pan and zoom to find the printed cell
     assert.deepEqual(surface.boxes.get(1), { x: 16, y: 40, w: 36, h: 44 })
     assert.throws(() => scorpionSurfaceBoxes(surface), /Wrong calibration/)
   }
+})
+
+test('map counters paginate within their hex and only their parent carries small status badges', () => {
+  const pieces = [definition('Ground unit', 'land', 'soviet', 'unit-move.png'),
+    ...['Sov Reserve', 'Step Loss 1', 'Low/Exhausted', 'Airbase Strength 1', 'Supply Point 1', 'Supply Ton 2T']
+      .map((name) => definition(name, 'marker', null))]
+  const local = { definitions: new Map(pieces.map((row) => [row.key, row])),
+    aliases: new Map(pieces.map((row) => [row.key, [row]])) }
+  const hex = 's3.16'
+  const counter = { side: 'soviet', definition: 'Ground unit', hex }
+  const state = { kind: 'playing', airBases: [{ side: 'soviet', hex, level: 1 }], pieces: [],
+    units: { first: { ...counter, moveMode: true, reserve: 'first', internalStocks: 'low', stepsLost: 1 }, other: counter },
+    dumps: { [`soviet:hex:${hex}`]: { location: 'on-map', side: 'soviet', tokens: 6 } } }
+  const marker = { hex, id: 'front', asset: 'front-art.png', label: 'Barrage' }
+  const [stack] = scorpionMapStacks(state, local, [marker])
+  assert.equal(stack.hex, hex)
+  assert.deepEqual(stack.pages.map((page) => page.length), [4, 2])
+  const placed = stack.pages.flat()
+  assert.equal(placed[0].id, marker.id)
+  assert.equal(placed[0].badges, undefined)
+  const first = placed.find(({ id }) => id === 'first')
+  assert.equal(first.asset, 'unit-move.png')
+  assert.deepEqual(first.badges.map(({ asset }) => asset), ['Sov Reserve.png', 'Low/Exhausted.png', 'Step Loss 1.png'])
+  assert.deepEqual(placed.find(({ id }) => id === 'other').badges, [])
+  for (const { x, y, size } of placed) {
+    const cornerX = Math.abs(x) + size / 2
+    const cornerY = Math.abs(y) + size / 2
+    assert.ok(cornerY <= 53.7 && cornerX + cornerY / Math.sqrt(3) < 62)
+  }
+  const moved = scorpionMapStacks({ ...state, units: { ...state.units,
+    first: { ...state.units.first, hex: 's2.16', reserve: undefined } } }, local, [marker])
+  const atDestination = moved.find((row) => row.hex === 's2.16').pages[0][0]
+  assert.equal(atDestination.id, first.id)
+  assert.equal(atDestination.badges.length, 2)
 })
 
 test('the turn advances once after both cleanups and weather moves both markers', () => {

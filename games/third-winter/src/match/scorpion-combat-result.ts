@@ -46,7 +46,9 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
       const units = { ...settled.units }
       for (const id of ids) {
         const unit = units[id]
-        if (unit && !unit.disorganized && combatRating(unit) >= threshold) units[id] = { ...unit, exploit: true }
+        if (unit && !unit.disorganized && combatRating(unit) >= threshold) {
+          units[id] = { ...unit, exploit: true, exploitRating: threshold }
+        }
       }
       settled = { ...settled, units }
     }

@@ -36,9 +36,64 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
     $image.Source = Get-Art (Join-Path $model.imageDirectory $counter.asset)
     $image.Width = $size
     $image.Height = $size
-    $image.ToolTip = $counter.label
+    $label = $counter.label
+    if ($counter.badges.Count) {
+        $label += [Environment]::NewLine + ($counter.badges.label -join ' / ')
+    }
+    $image.ToolTip = $label
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
     Add-At $image $x $y $surface
+    $badgeSize = $size * 0.30
+    for ($index = 0; $index -lt $counter.badges.Count; $index++) {
+        $badge = $counter.badges[$index]
+        if ($badge.asset) {
+            $visual = New-Object Windows.Controls.Image
+            $visual.Source = Get-Art (Join-Path $model.imageDirectory $badge.asset)
+        } else {
+            $visual = New-Object Windows.Controls.Border
+            $visual.Background = [Windows.Media.Brushes]::DarkSlateGray
+            $value = New-Object Windows.Controls.TextBlock
+            $value.Text = $badge.text
+            $value.Foreground = [Windows.Media.Brushes]::White
+            $value.FontFamily = 'Microsoft YaHei UI'
+            $value.FontSize = $badgeSize * 0.69
+            $value.HorizontalAlignment = 'Center'
+            $value.VerticalAlignment = 'Center'
+            $visual.Child = $value
+        }
+        $visual.Width = $badgeSize
+        $visual.Height = $badgeSize
+        $visual.IsHitTestVisible = $false
+        $badgeX = $x + $size - 1 - (($index % 3) + 1) * $badgeSize
+        $badgeY = $y + 1 + [Math]::Floor($index / 3) * $badgeSize
+        Add-At $visual $badgeX $badgeY $surface
+    }
+}
+
+function Show-MapStack($layer) {
+    $layer.Children.Clear()
+    $stack = $layer.Tag.Stack
+    $page = $layer.Tag.Page
+    foreach ($counter in $stack.pages[$page]) {
+        Add-Counter $counter (62 + $counter.x - $counter.size / 2) (54 + $counter.y - $counter.size / 2) $counter.size $layer
+    }
+    if ($stack.pages.Count -gt 1) {
+        $button = New-Object Windows.Controls.Button
+        $button.Content = "$($page + 1)/$($stack.pages.Count)"
+        $button.Width = 31
+        $button.Height = 15
+        $button.FontSize = 11
+        $button.Padding = 0
+        $button.Tag = $layer
+        $button.ToolTip = "$($stack.hex) · $($model.labels.cycle)"
+        $button.Add_Click({
+            param($sender, $eventArgs)
+            $stackLayer = $sender.Tag
+            $stackLayer.Tag.Page = ($stackLayer.Tag.Page + 1) % $stackLayer.Tag.Stack.pages.Count
+            Show-MapStack $stackLayer
+        })
+        Add-At $button 46.5 92 $layer
+    }
 }
 
 function Show-Frame([int]$index) {
@@ -88,8 +143,13 @@ function Show-Frame([int]$index) {
         $y = if ($marker.id -eq 'vp') { $box.y + 7 } else { $box.y + $box.h - $size - 7 }
         Add-Counter $marker ($box.x + $box.w - $size - 7) $y $size
     }
-    foreach ($marker in $frame.mapCounters) {
-        Add-Counter $marker ($marker.x - $marker.size / 2) ($marker.y - $marker.size / 2) $marker.size
+    foreach ($stack in $frame.mapStacks) {
+        $layer = New-Object Windows.Controls.Canvas
+        $layer.Width = 124
+        $layer.Height = 108
+        $layer.Tag = @{ Stack = $stack; Page = 0 }
+        Show-MapStack $layer
+        Add-At $layer ($stack.x - 62) ($stack.y - 54)
     }
     if ($script:aidCanvas) {
         $script:aidCanvas.Children.Clear()

@@ -13,6 +13,8 @@ import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
 import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
 import type { AssignAttrition } from './scorpion-attrition.ts'
+import { settleScorpionAirfieldCapacity } from './scorpion-airfield-barrage.ts'
+import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
 import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
@@ -45,6 +47,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   rng: RngState
   rerollHolder: Side | null
   airBases: readonly { hex: string; side: Side; level: number }[]
+  airfieldCapacityChoice?: AirfieldCapacityChoice | null
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
@@ -64,6 +67,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
+  | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies {
@@ -72,6 +76,7 @@ interface BoardPolicies {
   supplyRail?: SupplyRailBoard
   combat?: ScorpionCombatBoard
   barrage?: BarrageTable
+  facilityBarrage?: BarrageTable
 }
 
 export function createScorpionSession(data: ScorpionSetupData, assets: ScorpionSetupAssets, seed: number): ScorpionSessionRecord {
@@ -88,6 +93,9 @@ export function submitScorpionSession(
     }
     if (state.kind === 'playing' && state.barrage && action.type !== 'choose-barrage-terrain' && action.type !== 'assign-barrage-loss') {
       throw new Error('Resolve the pending barrage first')
+    }
+    if (state.kind === 'playing' && state.airfieldCapacityChoice && action.type !== 'settle-airfield-capacity') {
+      throw new Error('Resolve the air base’s active aircraft capacity first')
     }
     switch (action.type) {
       case 'base-aircraft':
@@ -118,14 +126,20 @@ export function submitScorpionSession(
         }
         if (scorpionPhaseBarrages(state).length) throw new Error('The Movement Segment has ended')
         return applyScorpionReserve(state, actor, action, assets)
+      case 'settle-airfield-capacity':
+        if (state.kind !== 'playing') throw new Error('There is no active air base capacity decision')
+        return settleScorpionAirfieldCapacity(state, actor, action.unitIds)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':
-      case 'assign-barrage-loss':
-        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.barrage) {
-          throw new Error('Artillery requires an active player turn and the OCS v4.3 Barrage Table')
+      case 'assign-barrage-loss': {
+        const table = action.type === 'declare-artillery-barrage' && action.targetKind === 'air-base'
+          ? board.facilityBarrage : board.barrage
+        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !table) {
+          throw new Error('Artillery requires an active player turn and the appropriate OCS v4.3 barrage table')
         }
-        return applyScorpionBarrage(state, actor, action, assets, board.barrage, board.combat?.hedgehogAt, board.supplyRail)
+        return applyScorpionBarrage(state, actor, action, assets, table, board.combat?.hedgehogAt, board.supplyRail)
+      }
       case 'declare-combat':
       case 'defend-combat':
       case 'select-combat-rating':

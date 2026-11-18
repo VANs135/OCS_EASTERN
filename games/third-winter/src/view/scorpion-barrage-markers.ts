@@ -1,7 +1,7 @@
-import { scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionSetupAssets } from '../match/scorpion-setup.ts'
 import type { ScorpionSession } from '../match/scorpion-session.ts'
 import { scorpionBarrageFronts } from '../ttw/scorpion/barrage-markers.ts'
+import type { HexCounter } from './scorpion-map-counters.ts'
 
 export const scorpionSovietAid = { asset: 'Soviet Off Map.jpg', width: 998, height: 1230 }
 
@@ -18,7 +18,7 @@ interface SurfaceCounter {
 }
 
 export function scorpionBarrageMarkerFrame(state: Readonly<ScorpionSession>, catalog: ScorpionSetupAssets['catalog']) {
-  const mapCounters: SurfaceCounter[] = []
+  const mapCounters: HexCounter[] = []
   const aidCounters: SurfaceCounter[] = []
   scorpionBarrageFronts.forEach((front, index) => {
     const unit = catalog.aliases.get(readyRefs[index]!)?.[0]
@@ -29,8 +29,7 @@ export function scorpionBarrageMarkerFrame(state: Readonly<ScorpionSession>, cat
     const label = `第 ${index + 1} 乌克兰方面军炮击标记`
     const plan = state.kind === 'playing' ? state.frontBarrage : undefined
     if (plan?.front === front) {
-      const { x, y } = scorpionArtworkHexCenter(plan.center)
-      mapCounters.push({ id, label: `${label} · ${plan.center}`, asset: unit.source.faces.combat.asset, x, y, size: 55 })
+      mapCounters.push({ id, hex: plan.center, label: `${label} · ${plan.center}`, asset: unit.source.faces.combat.asset })
       return
     }
     const box = state.kind === 'playing' ? state.barrageRecovery?.[front] : undefined
@@ -44,9 +43,4 @@ export function scorpionBarrageMarkerFrame(state: Readonly<ScorpionSession>, cat
       ...readySlots[index]!, size: 35 })
   })
   return { mapCounters, aidCounters }
-}
-
-function scorpionArtworkHexCenter(hex: string) {
-  const [col, row] = scorpionHexId(hex).slice(1).split('.').map(Number) as [number, number]
-  return { x: 55 + (col + 4) * 93, y: 41 + (17 - row) * 107.4 - (col % 2 === 0 ? 53.7 : 0) }
 }
