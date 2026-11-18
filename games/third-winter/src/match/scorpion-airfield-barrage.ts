@@ -2,6 +2,7 @@ import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable } from '@ocs-eastern/series/tables/barrage'
+import { activeAirfieldExcess } from './scorpion-air-bases.ts'
 import type { ScorpionBarrage } from './scorpion-barrage.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 
@@ -37,11 +38,10 @@ export function settleScorpionAirfieldBarrage(state: Readonly<ScorpionInPlay>, b
   })
   const airBases = state.airBases.map((base) => base.hex === barrage.target && base.side === barrage.defender
     ? { ...base, level: Math.max(1, base.level - result.damage) } : base)
-  const airfield = airBases.find((base) => base.hex === barrage.target && base.side === barrage.defender)!
-  const atBase = { side: barrage.defender, hex: barrage.target }
-  const excess = pieces.filter((unit) => activeAt(unit, atBase)).length - airbaseActiveCapacity(airfield.level)
+  const resolved = { ...state, rng, pieces, airBases }
+  const airfieldCapacityChoice = activeAirfieldExcess(resolved, barrage.defender, { kind: 'hex', hex: barrage.target })
   const { turn, phasing, phase } = state.cursor
-  return { ...state, rng, pieces, airBases, airfieldCapacityChoice: excess > 0 ? { ...atBase, excess } : null,
+  return { ...resolved, airfieldCapacityChoice,
     barrageHistory: [...(state.barrageHistory ?? []),
     { ...barrage, turn, phasing, phase, facilityRoll: { ...result, aircraft } }] }
 }
@@ -62,4 +62,3 @@ function activeAt(unit: ScorpionInPlay['pieces'][number], base: { side: Side; he
   return unit.kind === 'aircraft' && unit.side === base.side && unit.active &&
     unit.location.kind === 'hex' && unit.location.hex === base.hex
 }
-import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'

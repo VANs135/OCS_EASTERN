@@ -1,7 +1,7 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 
 export type AirMission = 'hip-shoot' | 'fighter-sweep' | 'trainbusting' |
-  'barrage' | 'facility-barrage' | 'intercept' | 'transport' | 'air-drop'
+  'barrage' | 'facility-barrage' | 'intercept' | 'transport' | 'air-drop' | 'base-transfer'
 
 export interface SovietAircraft {
   airArmy: string | null
@@ -23,8 +23,6 @@ export function sovietMissionRestriction(
   if (mission === 'hip-shoot') return 'ttw:3.2a'
   const airArmies = new Set(aircraft.flatMap((plane) => plane.airArmy === null ? [] : [plane.airArmy]))
   if (airArmies.size > 1) return 'ttw:3.2d'
-  if (!['fighter-sweep', 'trainbusting', 'barrage', 'facility-barrage'].includes(mission)) return null
-
   if (context.kind === 'scorpion') {
     for (const army of airArmies) {
       if (army === '2' && context.column <= 8) continue
@@ -34,6 +32,7 @@ export function sovietMissionRestriction(
     return null
   }
 
+  if (!['fighter-sweep', 'trainbusting', 'barrage', 'facility-barrage'].includes(mission)) return null
   for (const plane of aircraft) {
     const commands = context.commands.filter((hq) => plane.airArmy === null || plane.airArmy === hq.airArmy)
     const inRange = commands.filter((hq) => Math.min(hq.frontDistance, hq.airArmyDistance) <= 15)

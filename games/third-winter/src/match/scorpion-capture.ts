@@ -2,14 +2,15 @@ import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { airBaseCaptureLoss, capturedAmount } from '@ocs-eastern/series/tables/capture'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
-import type { ScorpionBoxPiece, ScorpionPieceLocation } from './scorpion-box-pieces.ts'
+import { printedAirRange } from './scorpion-air-bases.ts'
+import type { ScorpionAirBase } from './scorpion-air-bases.ts'
+import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { rollScorpionTransportCapture, settleScorpionTransports } from './scorpion-transport-capture.ts'
 import type { CapturedTransportGroup, TransportCaptureChoice } from './scorpion-transport-capture.ts'
 
-type AirDestination = Extract<ScorpionPieceLocation, { kind: 'hex' }> | { kind: 'off-map-air' }
-type AirDisplacement = { id: string; destinations: readonly AirDestination[] }
+type AirDisplacement = { id: string; destinations: readonly ScorpionAirBase[] }
 
 export interface ScorpionCaptureWindow {
   hex: string
@@ -27,7 +28,7 @@ export interface ScorpionCaptureReport {
   transports: readonly CapturedTransportGroup[]
 }
 
-export type SettleScorpionCapture = { type: 'settle-capture'; aircraft: readonly { id: string; destination: AirDestination }[];
+export type SettleScorpionCapture = { type: 'settle-capture'; aircraft: readonly { id: string; destination: ScorpionAirBase }[];
   transports?: readonly TransportCaptureChoice[] }
 
 const opposite = (side: Side): Side => side === 'axis' ? 'soviet' : 'axis'
@@ -130,12 +131,8 @@ export function settleScorpionCapture(state: Readonly<ScorpionInPlay>, side: Sid
 }
 
 function airDestinations(piece: ScorpionBoxPiece, reduced: boolean, from: string, airBases: ScorpionInPlay['airBases'],
-  { catalog }: ScorpionSetupAssets): AirDestination[] {
-  const definition = catalog.definitions.get(piece.definition)
-  const range = (reduced ? definition?.source.faces.move : definition?.source.faces.combat)?.stats.range
-  if (typeof range !== 'number' || !Number.isFinite(range) || range <= 0) {
-    throw new Error(`Missing printed aircraft range for ${piece.definition}`)
-  }
+  { catalog }: ScorpionSetupAssets): ScorpionAirBase[] {
+  const range = printedAirRange(catalog.definitions.get(piece.definition)?.source, reduced, piece.definition)
   return [...airBases.filter((base) => base.side === piece.side && base.hex !== from &&
     scorpionHexDistance(from, base.hex) <= range * 2).map((base) => ({ kind: 'hex' as const, hex: base.hex })),
   { kind: 'off-map-air' }]

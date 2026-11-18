@@ -15,6 +15,7 @@ import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSessionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { sampleScorpionAirOperations } from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
@@ -134,6 +135,11 @@ const barragePath = process.env.OCS_V43_BARRAGE
     issue({ type: 'reserve-stack-move', path: ['s3.16'], counters })
     sessionFrame('苏军预备队从 s2.16 移至 s3.16', opening.state)
   }
+  const air = sampleScorpionAirOperations(opening, setupAssets, rules)
+  sessionFrame('转场演示 · 地图外战斗机抵达 s18.07，保持激活', air.transfer.state)
+  sessionFrame('扫荡演示 · 苏军战斗机飞抵 s13.11，等待空战', air.launched.state)
+  sessionFrame('空战结束 · 苏军战斗机等待返航', air.pendingReturn.state)
+  sessionFrame('返航完成 · 苏军战斗机回到地图外空军盒，转为非激活', air.returned.state)
 }
 
 const refit = sampleScorpionRefit(started, { map: groundMap, catalog })

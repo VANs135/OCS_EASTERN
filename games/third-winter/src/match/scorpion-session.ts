@@ -13,6 +13,8 @@ import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
 import { assignScorpionAttrition, checkScorpionAttrition } from './scorpion-attrition.ts'
 import type { AssignAttrition } from './scorpion-attrition.ts'
+import { launchScorpionAirMission, respondScorpionAirMission } from './scorpion-air-operations.ts'
+import type { LaunchAirMission, RespondAirMission, ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
 import { settleScorpionAirfieldCapacity } from './scorpion-airfield-barrage.ts'
 import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
 import { applyScorpionBarrage, scorpionPhaseBarrages } from './scorpion-barrage.ts'
@@ -55,6 +57,8 @@ export interface ScorpionInPlay extends ReinforcementState {
   airBases: readonly { hex: string; side: Side; level: number }[]
   refittedAirbases?: readonly string[]
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
+  airMission?: ScorpionAirMission | null
+  airHistory?: readonly ScorpionAirReport[]
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
@@ -78,7 +82,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'complete-movement' } | { type: 'choose-formation-trace'; formation: string; anchor: string }
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
-  | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft
+  | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -103,6 +107,16 @@ export function submitScorpionSession(
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
     }
+    switch (action.type) {
+      case 'respond-interception':
+      case 'choose-air-aborts':
+      case 'choose-air-combat-unit':
+      case 'choose-flak-loss':
+      case 'return-aircraft':
+        if (state.kind !== 'playing') throw new Error('There is no pending air mission')
+        return respondScorpionAirMission(state, actor, action, assets)
+    }
+    if (state.kind === 'playing' && state.airMission) throw new Error('Resolve the pending air mission first')
     if (state.kind === 'playing' && state.barrage && action.type !== 'choose-barrage-terrain' && action.type !== 'assign-barrage-loss') {
       throw new Error('Resolve the pending barrage first')
     }
@@ -150,6 +164,9 @@ export function submitScorpionSession(
       case 'refit-aircraft':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
+      case 'launch-air-mission':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return launchScorpionAirMission(state, actor, action, assets)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':

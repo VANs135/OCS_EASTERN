@@ -23,10 +23,12 @@ type Catalog = ScorpionSetupAssets['catalog']
 
 export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Catalog, markers: readonly HexCounter[]) {
   const board = state.kind === 'playing' ? state : state.opening
+  const mission = state.kind === 'playing' ? state.airMission : null
   const stacks = new Map<string, HexCounter[]>()
-  const push = (counter: HexCounter) => {
+  const push = (counter: HexCounter, priority = false) => {
     const stack = stacks.get(counter.hex) ?? []
-    stack.push(counter)
+    if (priority) stack.unshift(counter)
+    else stack.push(counter)
     stacks.set(counter.hex, stack)
   }
   for (const marker of markers) push(marker)
@@ -41,8 +43,13 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
     const source = catalog.definitions.get(unit.definition)?.source
     const face = unit.reduced ? source?.faces.move : source?.faces.combat
     if (!source || !face?.asset) throw new Error(`Missing artwork for aircraft ${unit.id}`)
-    push({ id: unit.id, hex: unit.location.hex, asset: face.asset, label: source.name,
-      badges: unit.active === false ? [{ text: '停', label: '非激活' }] : [] })
+    const inFlight = mission && mission.step.kind !== 'return' && mission.target.kind === 'hex' &&
+      mission.target.hex === unit.location.hex && (mission.flights.some(({ id }) => id === unit.id) || mission.interceptor?.id === unit.id)
+    const returning = mission?.returning.includes(unit.id)
+    const badges = returning ? [{ text: '返', label: '待返航' }]
+      : unit.active === false ? [{ text: '停', label: '非激活' }]
+        : inFlight ? [{ text: '飞', label: '执行空军任务' }] : []
+    push({ id: unit.id, hex: unit.location.hex, asset: face.asset, label: source.name, badges }, Boolean(inFlight || returning))
   }
   for (const { hex, side, level } of state.kind === 'playing' ? state.airBases : scorpionOpeningAirBases) {
     const asset = markerFace(catalog, `Airbase Strength ${level}`)

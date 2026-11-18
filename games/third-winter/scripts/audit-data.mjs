@@ -15,6 +15,7 @@ import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
+import { sampleScorpionAirOperations } from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
@@ -106,6 +107,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'place-supply', target: { kind: 'hex', id: 's22.02' }, tokens: 8 })
   submit({ type: 'finish-scheduled-arrivals' })
   submit({ type: 'complete-reinforcement' })
+  const air = sampleScorpionAirOperations(record, assets, board)
   const [unitId] = Object.entries(record.state.units).find(([, unit]) =>
     definitions.get(unit.definition)?.source.name === 'Sov 58 Rifle Div')
   submit({ type: 'ground-move', unitId, path: ['s1.12'] })
@@ -125,6 +127,8 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   submit({ type: 'reserve-stack-move', path: [reserveMove.to], counters: reserveMove.unitIds.map((id) => ({ unitId: id })) })
   opening = {
     startPhase: started.state.cursor.phase,
+    sampleAir: { id: air.unitId, transfer: air.transfer.state.airHistory.at(-1),
+      sweep: air.returned.state.airHistory.at(-1), returned: air.returned.state.pieces.find(({ id }) => id === air.unitId).location },
     sampleRefit: { airBase: refit.airBase, tokensSpent: refit.spent,
       offMapActive: refit.after.state.pieces.find(({ id }) => id === refit.offMap)?.active },
     startGroundCounters: Object.keys(started.state.units).length,
