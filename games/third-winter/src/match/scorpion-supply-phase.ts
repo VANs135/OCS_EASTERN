@@ -20,6 +20,7 @@ export interface ScorpionSupplyWindow {
   trace: Readonly<Record<string, readonly TraceOption[]>>
   splits: readonly SplitFormation[]
   fed: readonly string[]
+  traceExempt?: readonly string[]
   attrition: readonly ScorpionAttrition[] | null
 }
 
@@ -35,10 +36,12 @@ export function openScorpionSupply(
   if (!cursor || cursor.phase !== 'supply') throw new Error('Invalid supply transition')
   const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, railroad))
   const units = Object.entries(state.units).filter(([, unit]) => unit.combat && unit.side === side)
+  const traceExempt = units.filter(([id]) => state.dropTrace?.unitId === id && state.dropTrace.turn === cursor.turn)
+    .map(([id]) => id)
   const trace = Object.fromEntries(units.map(([id, unit]) => [id, network.trace(unit.hex, unit.traceDrawMobility)]))
   const formations = new Map<string, string[]>()
   for (const [id, unit] of units) {
-    if (!unit.formation) continue
+    if (!unit.formation || traceExempt.includes(id)) continue
     const members = formations.get(unit.formation) ?? []
     members.push(id)
     formations.set(unit.formation, members)
@@ -55,7 +58,8 @@ export function openScorpionSupply(
   // Single-counter fuel applies only during the phase in which it was spent.
   const withoutMovementFuel = Object.fromEntries(Object.entries(state.units).map(([id, unit]) =>
     [id, unit.side === side && unit.fueled ? { ...unit, fueled: false } : unit]))
-  return { ...state, cursor, units: withoutMovementFuel, supply: { trace, splits, fed: [], attrition: null } }
+  return { ...state, cursor, units: withoutMovementFuel, supply: { trace, splits, fed: [], attrition: null,
+    ...(traceExempt.length ? { traceExempt } : {}) } }
 }
 
 function traceAnchor(option: TraceOption): string {
@@ -63,6 +67,7 @@ function traceAnchor(option: TraceOption): string {
 }
 
 export function hasTrace(window: Readonly<ScorpionSupplyWindow>, id: string): boolean {
+  if (window.traceExempt?.includes(id)) return true
   const split = window.splits.find(({ members }) => members.includes(id))
   return window.trace[id]?.some((option) => !split || traceAnchor(option) === split.selected) === true
 }

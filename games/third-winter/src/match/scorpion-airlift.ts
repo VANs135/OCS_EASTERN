@@ -4,7 +4,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { aircraftProfile, atAirBase, inScorpionAirRange } from './scorpion-air-bases.ts'
 import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { scorpionPhaseAirMissions } from './scorpion-barrage-timing.ts'
-import { scorpionUnloadedTokens } from './scorpion-dumps.ts'
+import { creditScorpionAirCargo, scorpionUnloadedTokens } from './scorpion-dumps.ts'
 import { prepareScorpionGroundAirlift, unloadScorpionGroundAirlift } from './scorpion-ground-airlift.ts'
 import type { GroundAirliftCargo } from './scorpion-ground-airlift.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
@@ -28,6 +28,10 @@ export interface ScorpionAirlift {
 export function scorpionAirliftMode(airlift: ScorpionAirlift | undefined, id: string): AirTransportMode {
   if (airlift?.flightModes) return airlift.flightModes.find((flight) => flight.id === id)?.mode ?? 'normal'
   return airlift?.carriers.includes(id) ? 'double-capacity' : 'normal'
+}
+
+export function scorpionAirliftCapacity(airlift: ScorpionAirlift, plane: ScorpionInPlay['pieces'][number], assets: ScorpionSetupAssets) {
+  return aircraftProfile(plane, assets).transport * airTransportModes[scorpionAirliftMode(airlift, plane.id)].capacity
 }
 
 /** TTW Scenarios p.53 and OCS 14.9a/e. Cargo capacity pools across transports at the declared source. */
@@ -80,7 +84,7 @@ export function settleScorpionAirlift(state: Readonly<ScorpionInPlay>, side: Sid
   const { stay, cargo, railroad } = decision
   const extended = new Set(airlift.flightModes?.filter(({ mode }) => airTransportModes[mode].stay).map(({ id }) => id))
   const atDestination = state.pieces.filter((plane) => airlift.carriers.includes(plane.id) && atAirBase(plane.location, target))
-    .map((plane) => ({ plane, capacity: aircraftProfile(plane, assets).transport * airTransportModes[scorpionAirliftMode(airlift, plane.id)].capacity }))
+    .map((plane) => ({ plane, capacity: scorpionAirliftCapacity(airlift, plane, assets) }))
   const choices = atDestination.filter(({ plane, capacity }) => plane.active && !extended.has(plane.id) && capacity > 0).map(({ plane }) => plane.id)
   const selected = new Set(stay)
   if (stay && (selected.size !== stay.length || stay.some((id) => !choices.includes(id)))) {
@@ -118,13 +122,8 @@ export function settleScorpionAirlift(state: Readonly<ScorpionInPlay>, side: Sid
   }
   const pieces = state.pieces.map((plane) => selected.has(plane.id) || (extended.has(plane.id) && atAirBase(plane.location, target))
     ? { ...plane, active: false } : plane)
-  const id = `${side}:hex:${target.hex}`
-  const dump = state.dumps[id]
   const delivered = kept.tokens
-  const unloaded = (dump ? scorpionUnloadedTokens(state, id, dump) : 0) + delivered
-  const { turn, phasing, phase } = state.cursor
-  const dumps = delivered ? { ...state.dumps, [id]: { side, location: 'on-map' as const,
-    tokens: (dump?.tokens ?? 0) + delivered, unloaded: { turn, phasing, phase, tokens: unloaded } } } : state.dumps
+  const dumps = creditScorpionAirCargo(state, side, target, delivered)
   const lostUnits = lost.map(({ id }) => id)
   const landed = unloadScorpionGroundAirlift({ ...state, pieces, dumps }, side, target.hex, kept.unitIds, lostUnits, assets, railroad)
   return { kind: 'unloaded' as const, state: landed,

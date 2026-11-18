@@ -9,6 +9,7 @@ import type { Definition } from '../import/unit-catalog.ts'
 import { scorpionOpeningAirBases, scorpionOpeningDumps } from '../ttw/scorpion/setup-stores.ts'
 import { placeScorpionOffMapAircraft, scorpionSetupBoxPieces } from './scorpion-box-pieces.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
+import type { ScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { AlertCounter, SupplyDump } from './scorpion-reinforcement-state.ts'
 
 type UnitDefinition = Definition<BackupUnit>
@@ -42,6 +43,7 @@ export interface ScorpionSetup {
   drawnAlerts: readonly AlertCounter[]
   availableAlerts: readonly AlertCounter[]
   dumps: Readonly<Record<string, SupplyDump>>
+  dropPlan?: ScorpionDropPlan | null
 }
 
 export type ScorpionSetupAction =

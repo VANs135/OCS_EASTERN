@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile, rm, rmdir, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createRngState } from '@ocs-eastern/series/rng'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
@@ -17,7 +18,7 @@ import { scorpionBarrageMarkerFrame, scorpionSovietAid } from '../src/view/scorp
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import {
   sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionGroundAirlift, sampleScorpionOnMapSupplyAirlift,
-  sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
+  sampleScorpionSupplyAirlift, sampleScorpionSupplyDrop, sampleScorpionTrainbusting,
 } from './scorpion-air-example.mjs'
 import { sampleScorpionFrontBarrage } from './scorpion-front-barrage-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
@@ -175,6 +176,13 @@ const groundAirlift = sampleScorpionGroundAirlift(onMapAirlift.before, { map: gr
 sessionFrame('战斗单位空运演示 · 受控盘面，部队和运输机在出发机场集结', groundAirlift.before.state)
 sessionFrame('战斗单位空运 · 部队在 s18.07 卸载，运输机返场', groundAirlift.landed.state)
 sessionFrame(`战斗单位空运 · 部队使用剩余移动力抵达 ${groundAirlift.destination}`, groundAirlift.marched.state)
+// Use a separate preview branch so the PNG always shows a landed supply counter.
+const dropOpening = { ...airlift.before, state: { ...airlift.before.state, rng: createRngState(1) } }
+const supplyDrop = sampleScorpionSupplyDrop(dropOpening, { map: groundMap, catalog }, {})
+const { target: dropTarget, drop: { result: dropResult } } = supplyDrop.event
+if (!dropResult.landedTokens) throw new Error('The seeded drop preview needs a landed supply counter')
+sessionFrame(`补给空投 · ${dropTarget.hex} 落地 ${dropResult.landedTokens}T，损失 ${dropResult.lostTokens}T`, supplyDrop.returning.state)
+sessionFrame(`补给空投 · 飞机回到苏军空军盒，${dropTarget.hex} 保留落地补给`, supplyDrop.returned.state)
 
 const assets = new Set(frames.flatMap(({ trackers, inventories, aidCounters, mapStacks }) => {
   const onMap = mapStacks.flatMap(({ pages }) => pages.flat())

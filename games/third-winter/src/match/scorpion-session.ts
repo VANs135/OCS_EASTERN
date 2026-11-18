@@ -28,6 +28,8 @@ import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionComba
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { advanceScorpionCombat, resolveScorpionCombat } from './scorpion-combat-result.ts'
 import type { ResolveCombat } from './scorpion-combat-result.ts'
+import { applyScorpionDropPlan } from './scorpion-drop-plan.ts'
+import type { ScorpionDropPlan, ScorpionDropPlanAction } from './scorpion-drop-plan.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundAction } from './scorpion-ground-actions.ts'
 import type { ScorpionGroundActivity } from './scorpion-ground-activity.ts'
@@ -37,6 +39,8 @@ import type { DeclareOverrun, FinishOverrunMove, ScorpionOverrunMarch } from './
 import { advanceScorpionPhase, startScorpionPlayerTurns } from './scorpion-player-turn.ts'
 import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
+import { withScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
+import type { ScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
 import { refitScorpionAircraft } from './scorpion-refit.ts'
 import type { RefitScorpionAircraft } from './scorpion-refit.ts'
@@ -62,6 +66,9 @@ export interface ScorpionInPlay extends ReinforcementState {
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
   airMission?: ScorpionAirMission | null
   airHistory?: readonly ScorpionAirReport[]
+  dropPlan?: ScorpionDropPlan | null
+  phaseOccupancy?: ScorpionPhaseOccupancy
+  dropTrace?: { unitId: string; turn: number }
   trainbusting?: readonly TrainbustingMarker[]
   units: Readonly<Record<string, DeployedCounter>>
   pieces: readonly ScorpionBoxPiece[]
@@ -88,6 +95,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
+  | ScorpionDropPlanAction
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -110,9 +118,12 @@ export function submitScorpionSession(
 ) {
   const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
     hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail }
-  return acceptCommand(record, seat, command, (state, actor, action): ScorpionSession => {
+  function applyAction(state: ScorpionSession, actor: Side, action: ScorpionAction): ScorpionSession {
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
+    }
+    if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
+      throw new Error('Resolve the pending special capture first')
     }
     switch (action.type) {
       case 'respond-interception':
@@ -120,12 +131,13 @@ export function submitScorpionSession(
       case 'choose-air-combat-unit':
       case 'choose-flak-loss':
       case 'choose-airlift-cargo':
+      case 'choose-airdrop-cargo':
       case 'choose-airlift-landing':
       case 'return-aircraft':
         if (state.kind !== 'playing') throw new Error('There is no pending air mission')
         return respondScorpionAirMission(state, actor, action, assets, airBoard)
     }
-    if (state.kind === 'playing' && state.airMission &&
+    if (state.kind === 'playing' && state.airMission && action.type !== 'settle-capture' &&
       !(state.airMission.step.kind === 'barrage' && (action.type === 'choose-barrage-terrain' || action.type === 'assign-barrage-loss'))) {
       throw new Error('Resolve the pending air mission first')
     }
@@ -135,10 +147,11 @@ export function submitScorpionSession(
     if (state.kind === 'playing' && state.airfieldCapacityChoice && action.type !== 'settle-airfield-capacity') {
       throw new Error('Resolve the air base’s active aircraft capacity first')
     }
-    if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
-      throw new Error('Resolve the pending special capture first')
-    }
     switch (action.type) {
+      case 'plan-air-drop':
+      case 'delay-air-drop':
+      case 'cancel-air-drop':
+        return applyScorpionDropPlan(state, actor, action, assets)
       case 'base-aircraft':
       case 'place-setup-alert':
       case 'choose-setup-loss':
@@ -248,7 +261,9 @@ export function submitScorpionSession(
         }
         return resolveReinforcements(state, actor, action, assets, board.reinforcements(state))
     }
-  })
+  }
+  return acceptCommand(record, seat, command, (state, actor, action) =>
+    withScorpionPhaseOccupancy(state, applyAction(state, actor, action)))
 }
 
 export function scorpionFirstTurn(): ScorpionTurn {
@@ -262,6 +277,7 @@ function startMatch(opening: ScorpionSetup): ScorpionInPlay {
     .map(({ side, hex }) => [hex, side]))
   return { kind: 'playing', turn, cursor: startScorpionPlayerTurns(turn), rng: opening.rng,
     rerollHolder: 'soviet', airBases: scorpionOpeningAirBases, units: opening.units, pieces: opening.pieces,
+    ...(opening.dropPlan ? { dropPlan: opening.dropPlan } : {}),
     moved: [], supply: null, railControl, combat: null, combatTargets: [], combatAttackers: [], dumps: opening.dumps,
     arrival: { placed: [], mobilized: [], sovietVp: turn.vp }, arrivalsOnMap: [], window: null,
     pax: { axis: 0, soviet: 0 }, availableAlerts: opening.availableAlerts, placedAlerts: [], victory: null }

@@ -186,6 +186,33 @@ export function sampleScorpionSupplyAirlift(opening, assets, board) {
   return { before, returned: record, event }
 }
 
+export function sampleScorpionSupplyDrop(before, assets, board) {
+  const box = { kind: 'off-map-air' }
+  const target = { kind: 'hex', hex: 's21.13' }
+  const source = 'soviet:air-box'
+  const destination = `soviet:hex:${target.hex}`
+  if (before.state.airBases.some((base) => base.hex === target.hex)) throw new Error('The sample drop must target a hex without an air base')
+  const lift = before.state.pieces.find((piece) => piece.kind === 'aircraft' && piece.side === 'soviet' && piece.active &&
+    atAirBase(piece.location, box) && aircraftProfile(piece, assets).transport === 1)
+  if (!lift) throw new Error('Missing the Soviet transport for the supply drop')
+  let record = before
+  const submit = (seat, action) => {
+    const command = { id: `sample-drop-${record.revision}`, expectedRevision: record.revision, action }
+    record = submitScorpionSession(record, seat, command, assets, board).record
+  }
+  submit('soviet', { type: 'launch-air-mission', mission: 'air-drop', target, supplyTokens: 2, unitIds: [lift.id] })
+  if (record.state.airMission?.step.kind === 'interception') submit('axis', { type: 'respond-interception', unitId: null })
+  const returning = record
+  if (record.state.airMission?.step.kind === 'return') submit('soviet', { type: 'return-aircraft', unitId: lift.id, base: box })
+  const event = record.state.airHistory?.at(-1)
+  const result = event?.drop?.result
+  if (record.state.airMission || !result || record.state.dumps[source].tokens !== before.state.dumps[source].tokens - 2 ||
+    (record.state.dumps[destination]?.tokens ?? 0) !== (before.state.dumps[destination]?.tokens ?? 0) + result.landedTokens) {
+    throw new Error('The supply drop did not settle the departure and target hex supply')
+  }
+  return { before, returning, returned: record, event }
+}
+
 /** Actual airport, supply dump and unit data. Clear the defending stack to exercise capture in a controlled branch. */
 export function sampleScorpionOnMapSupplyAirlift(opening, assets, board) {
   const source = { kind: 'hex', hex: 's13.11' }

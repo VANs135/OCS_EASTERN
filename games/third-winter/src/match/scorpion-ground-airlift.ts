@@ -23,6 +23,9 @@ export function prepareScorpionGroundAirlift(state: Readonly<ScorpionInPlay>, si
   const phase = state.cursor.phase
   const cargo = ids.map((id): GroundAirliftCargo => {
     const unit = Object.hasOwn(units, id) ? units[id] : undefined
+    if (phase === 'movement' && state.dropTrace?.unitId === id && state.dropTrace.turn === state.cursor.turn) {
+      throw new Error('A ground unit has finished movement after dropping this phase')
+    }
     if (!unit?.combat || unit.side !== side || unit.hex !== source.hex || unit.reserve) {
       throw new Error('Choose friendly combat units at the departure air base in Move Mode')
     }

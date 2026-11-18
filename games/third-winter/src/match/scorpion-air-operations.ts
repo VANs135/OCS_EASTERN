@@ -7,6 +7,8 @@ import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { sovietMissionRestriction } from '../ttw/air/mission-permission.ts'
 import { executeScorpionAirBarrage, prepareScorpionAirBarrage } from './scorpion-air-barrage.ts'
 import type { AirBarrageTarget, ScorpionAirBarrageBoard, ScorpionAirBarragePlan } from './scorpion-air-barrage.ts'
+import { prepareScorpionAirdrop, settleScorpionAirdrop } from './scorpion-air-drop.ts'
+import type { DropUnitDisposition, ScorpionAirdrop } from './scorpion-air-drop.ts'
 import { activeAirfieldExcess, aircraftProfile, atAirBase, friendlyAirBases, inScorpionAirRange } from './scorpion-air-bases.ts'
 import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { scorpionPhaseAirMissions, scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
@@ -20,7 +22,7 @@ import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 type ScorpionAirBoard = ScorpionAirBarrageBoard & { supplyRail?: SupplyRailBoard }
 
-type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport'
+type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport' | 'air-drop'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
 type Flight = { id: string; origin: ScorpionAirBase; normalRange: boolean }
 type AirRound = Omit<ReturnType<typeof rollAirCombat>, 'rng'> & { attackerId: string; defenderId: string }
@@ -33,6 +35,8 @@ type AirStep =
   | { kind: 'pick-defender'; actor: Side; initiator: Side; attackerId: string }
   | { kind: 'flak-loss'; actor: Side; candidates: readonly string[] }
   | { kind: 'airlift-cargo'; actor: Side; capacity: number; unitIds: readonly string[]; tokens: number }
+  | { kind: 'airdrop-cargo'; actor: Side; unitId: string;
+    options: readonly { choice: DropUnitDisposition; attempts: number; saved: number }[] }
   | { kind: 'airlift-landing'; actor: Side; candidates: readonly string[]; delivered: number; remaining: number; cargo?: AirliftCargoSelection }
   | { kind: 'barrage' }
   | { kind: 'return' }
@@ -44,6 +48,7 @@ interface AirMissionData {
   flights: readonly Flight[]
   strike?: ScorpionAirBarragePlan
   airlift?: ScorpionAirlift
+  drop?: ScorpionAirdrop
   interceptor?: Flight
   patrol: boolean
   returning: readonly string[]
@@ -62,6 +67,7 @@ export type RespondAirMission =
   | { type: 'choose-air-aborts'; unitIds: readonly string[] }
   | { type: 'choose-air-combat-unit'; unitId: string } | { type: 'choose-flak-loss'; unitId: string }
   | { type: 'choose-airlift-cargo'; cargo: AirliftCargoSelection }
+  | { type: 'choose-airdrop-cargo'; disposition: DropUnitDisposition }
   | { type: 'choose-airlift-landing'; unitIds: readonly string[] }
   | { type: 'return-aircraft'; unitId: string; base: ScorpionAirBase }
 
@@ -103,8 +109,9 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     throw new Error('Flight conditions prohibit this mission')
   }
   const isStrike = barrageSegment || kind === 'hip-shoot'
-  if (action.cargoUnitIds?.length && kind !== 'transport') throw new Error('Ground cargo requires an air transport mission')
-  if ((!isStrike && kind !== 'fighter-sweep' && kind !== 'base-transfer' && kind !== 'transport') ||
+  const isCargo = kind === 'transport' || kind === 'air-drop'
+  if (action.cargoUnitIds?.length && !isCargo) throw new Error('Ground cargo requires an air transport mission')
+  if ((!isStrike && kind !== 'fighter-sweep' && kind !== 'base-transfer' && !isCargo) ||
     new Set(unitIds).size !== unitIds.length || !unitIds.length || unitIds.length > 4 ||
     ((kind === 'fighter-sweep' || kind === 'hip-shoot') && unitIds.length !== 1)) {
     throw new Error('Choose a legal mission and aircraft stack')
@@ -123,7 +130,13 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
   } else if ((kind === 'base-transfer' || kind === 'transport') && !friendlyAirBases(state, actor).some((base) => atAirBase(base, target))) {
     throw new Error('Base transfer or transport requires a friendly destination')
   }
-  if (kind === 'transport' && target.kind !== 'hex') throw new Error('Air transport requires a friendly on-map destination')
+  if (isCargo && target.kind !== 'hex') throw new Error('Air cargo missions require an on-map destination')
+  const drop = kind === 'air-drop' && target.kind === 'hex'
+    ? prepareScorpionAirdrop(state, actor, target, action.cargoUnitIds ?? [], assets) : undefined
+  if (drop && action.flightModes?.some(({ mode }) => mode === 'extended') &&
+    !friendlyAirBases(state, actor).some((base) => atAirBase(base, target))) {
+    throw new Error('Double-range cargo flights must land at a friendly destination air base')
+  }
   const used = new Set(scorpionPhaseAirMissions(state).flatMap((record) => record.flights.map(({ id }) => id)))
   const flights: Flight[] = []
   const profiles: ReturnType<typeof aircraftProfile>[] = []
@@ -134,7 +147,7 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
       used.has(id) || atAirBase(origin, target)) throw new Error('Choose unused active friendly aircraft at a different base')
     const profile = aircraftProfile(piece, assets)
     const normalRange = inScorpionAirRange(origin, target, profile.range)
-    if (!normalRange && kind !== 'transport' && (kind !== 'base-transfer' || !inScorpionAirRange(origin, target, profile.range * 2))) {
+    if (!normalRange && !isCargo && (kind !== 'base-transfer' || !inScorpionAirRange(origin, target, profile.range * 2))) {
       throw new Error('Aircraft is out of range')
     }
     if ((kind === 'fighter-sweep' && !profile.fighter) || (profile.tankBuster && (!isStrike || kind === 'trainbusting'))) {
@@ -154,17 +167,17 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
     ? prepareScorpionAirBarrage(state, actor, enemy, target.hex, kind === 'trainbusting' ? kind : action.targetKind ?? 'units',
       kind === 'hip-shoot', profiles, assets, board)
     : undefined
-  const cargo = kind === 'transport' ? loadScorpionAirlift(state, actor, target, {
+  const cargo = isCargo ? loadScorpionAirlift(state, actor, target, {
     tokens: action.supplyTokens ?? 0, source: action.supplySource ? normalizedBase(action.supplySource) : { kind: 'off-map-air' },
     modes: action.flightModes ?? [], unitIds: action.cargoUnitIds ?? [],
   }, flights, profiles, assets) : null
   const mission: AirMissionData = { kind, side: actor, target, flights, ...(strike ? { strike } : {}), ...(cargo ? { airlift: cargo.airlift } : {}),
-    patrol: false, returning: [], rounds: [] }
+    ...(drop ? { drop } : {}), patrol: false, returning: [], rounds: [] }
   // OCS 6.1g. Starting an air mission ends any interrupted ground movement.
   const launched = { ...state, overrunMarch: null, groundCaptureMove: null,
     ...(cargo ? { dumps: cargo.dumps, units: cargo.units } : {}),
     pieces: state.pieces.map((piece) => unitIds.includes(piece.id) ? { ...piece, location: target } : piece) }
-  const opposing = isStrike ? activeAt(state, enemy, target) : []
+  const opposing = isStrike || drop ? activeAt(state, enemy, target) : []
   if (kind === 'fighter-sweep' || (opposing.length && (profiles.some(({ fighter }) => fighter) ||
     opposing.some((piece) => aircraftProfile(piece, assets).fighter)))) return openAirCombat(launched, mission, actor)
   return offerInterception(launched, mission, assets, board)
@@ -246,6 +259,9 @@ export function respondScorpionAirMission(state: Readonly<ScorpionInPlay>, actor
   if (action.type === 'choose-airlift-cargo' && step.kind === 'airlift-cargo') {
     return unloadAirlift(state, mission, assets, { cargo: action.cargo, railroad: board.supplyRail })
   }
+  if (action.type === 'choose-airdrop-cargo' && step.kind === 'airdrop-cargo') {
+    return unloadAirdrop(state, mission, assets, board, action.disposition)
+  }
   if (action.type === 'return-aircraft' && step.kind === 'return') {
     const base = normalizedBase(action.base)
     if (!scorpionAirReturnOptions(state, actor, action.unitId, assets).some((allowed) => atAirBase(allowed, base))) {
@@ -277,7 +293,7 @@ function nextAirRound(state: Readonly<ScorpionInPlay>, mission: AirMissionData, 
 
 function afterAirCombat(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
   board: ScorpionAirBoard): ScorpionInPlay {
-  return mission.strike && !mission.interceptor ? offerInterception(state, mission, assets, board)
+  return (mission.strike || mission.drop) && !mission.interceptor ? offerInterception(state, mission, assets, board)
     : resolveAirMission(state, mission, assets, board)
 }
 
@@ -346,6 +362,7 @@ function activeMissionAircraft(state: Readonly<ScorpionInPlay>, mission: AirMiss
 
 function settleAirAction(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
   board: ScorpionAirBoard): ScorpionInPlay {
+  if (mission.drop) return unloadAirdrop(state, mission, assets, board)
   if (mission.airlift) return unloadAirlift(state, mission, assets, { railroad: board.supplyRail })
   if (!mission.strike || mission.target.kind !== 'hex') return landTransfer(state, mission, assets)
   const flights = activeMissionAircraft(state, mission).map((piece) =>
@@ -354,6 +371,19 @@ function settleAirAction(state: Readonly<ScorpionInPlay>, mission: AirMissionDat
     flights, assets, board)
   return resolved.barrage ? { ...resolved, airMission: { ...mission, step: { kind: 'barrage' } } }
     : returnSurvivors(resolved, mission)
+}
+
+function unloadAirdrop(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
+  board: ScorpionAirBoard, disposition?: DropUnitDisposition): ScorpionInPlay {
+  if (!mission.airlift || !mission.drop || mission.target.kind !== 'hex') throw new Error('Invalid air drop')
+  const result = settleScorpionAirdrop(state, mission.side, mission.target, mission.drop, mission.airlift,
+    assets, board.supplyRail, disposition)
+  if (result.kind === 'choose-cargo') {
+    return { ...state, airMission: { ...mission, step: { kind: 'airdrop-cargo', actor: mission.side,
+      unitId: result.unitId, options: result.options } } }
+  }
+  const settled = { ...mission, drop: result.drop }
+  return result.state.victory ? closeAirMission(result.state, { ...settled, returning: [] }) : returnSurvivors(result.state, settled)
 }
 
 function unloadAirlift(state: Readonly<ScorpionInPlay>, mission: AirMissionData, assets: ScorpionSetupAssets,
@@ -395,9 +425,9 @@ function landTransfer(state: Readonly<ScorpionInPlay>, mission: AirMissionData, 
 function closeAirMission(state: Readonly<ScorpionInPlay>, mission: AirMissionData): ScorpionInPlay {
   if (mission.returning.length) return { ...state, airMission: { ...mission, step: { kind: 'return' } } }
   const { turn, phasing, phase } = state.cursor
-  const { kind, side, target, flights, interceptor, patrol, rounds, flak, strike, airlift } = mission
+  const { kind, side, target, flights, interceptor, patrol, rounds, flak, strike, airlift, drop } = mission
   const report = { turn, phasing, phase, kind, side, target, flights, interceptor, patrol, rounds, flak,
-    ...(strike ? { strike } : {}), ...(airlift ? { airlift } : {}) }
+    ...(strike ? { strike } : {}), ...(airlift ? { airlift } : {}), ...(drop ? { drop } : {}) }
   return { ...state, airMission: null, airHistory: [...(state.airHistory ?? []), report] }
 }
 

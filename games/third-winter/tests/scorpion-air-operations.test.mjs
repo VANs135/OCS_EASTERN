@@ -6,6 +6,7 @@ import { railCapacityCost } from '@ocs-eastern/series/trainbusting'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { scorpionRegularBarrageTargets } from '../src/match/scorpion-barrage-timing.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { hasTrace } from '../src/match/scorpion-supply-phase.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 
 const hex = (hex) => ({ kind: 'hex', hex })
@@ -652,4 +653,137 @@ test('the owner chooses between ground cargo and supply when reduced transport c
   assert.equal(supplied.state.units.guard, undefined)
   assert.equal(supplied.state.pieces.find(({ id }) => id === 'guard').location.kind, 'dead-pile')
   assert.equal(supplied.state.dumps[destination].tokens, 1)
+})
+
+const supplyDrop = (target, tokens, id = 'lift') => ({ ...launch('air-drop', target, id), supplyTokens: tokens })
+
+test('supply drop uses phase-start occupancy, rolls each token and puts the surviving SP counter in the hex', () => {
+  const source = hex(rows[1])
+  const destination = hex(rows[0])
+  const seed = seedWhere((rng) => {
+    const first = roll2d6(rng)
+    return first.value.total === 6 && roll2d6(first.rng).value.total < 6
+  })
+  const { record, submit, assets } = match([li2('lift')], { map: line(), seed,
+    units: { guard: ground('soviet', destination, { definition: 'guard', moveMode: true, mobility: 'leg', allowance: 4 }) },
+    board: { supplyRail: { railGauge: () => 'soviet' } } })
+  assets.catalog.definitions.set('guard', { kind: 'land', source: { side: 'soviet', name: 'Guard', faces: { move: { asset: 'guard.png' } } } })
+  assets.catalog.aliases.set('Supply Ton 1T', [{ source: { faces: { combat: { asset: 'supply.png' } } } }])
+  record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 2 }
+  const advanced = submit(record, 'soviet', { type: 'ground-move', unitId: 'guard', path: [source.hex] })
+  const inFlight = submit(advanced, 'soviet', supplyDrop(destination, 2))
+  const { drop } = inFlight.state.airMission
+  assert.equal(drop.friendly, true)
+  assert.equal(drop.clear, true)
+  assert.deepEqual(drop.result.rolls.map(({ threshold, modifier, landed }) => [threshold, modifier, landed]),
+    [[5, -1, true], [5, -1, false]])
+  assert.equal(inFlight.state.dumps[`soviet:hex:${destination.hex}`].tokens, 1)
+  assert.equal(inFlight.state.dumps[sourceBox].tokens, 0)
+  const returned = submit(inFlight, 'soviet', flyHome('lift', box))
+  assert.equal(returned.state.airHistory.at(-1).drop.result.lostTokens, 1)
+  const stack = scorpionMapStacks(returned.state, assets.catalog, []).find(({ hex }) => hex === destination.hex)
+  assert.ok(stack.pages.flat().some(({ id }) => id === `soviet:hex:${destination.hex}:1`))
+})
+
+test('Axis can drop supply in Reaction with normal flight, but no cargo survives dropping on an enemy combat unit', () => {
+  const target = hex(rows[0])
+  const groundMap = line()
+  groundMap.hexes.get(target.hex).terrains = ['Woods']
+  const seed = seedWhere((rng) => roll2d6(rng).value.total >= 8)
+  const { record, submit } = match([plane('lift', 'axis', box, { name: 'Ge Ju.52', fighter: false })], {
+    map: groundMap, seed, phase: 'reaction', phasing: 'soviet', flight: 'normal', units: { guard: ground('soviet', target) },
+  })
+  record.state.dumps['axis:air-box'] = { side: 'axis', location: 'off-map', tokens: 1 }
+  const action = supplyDrop(target, 1)
+  const limited = { ...record, state: { ...record.state, turn: { ...record.state.turn, weather: { flight: 'limited' } } } }
+  assert.throws(() => submit(limited, 'axis', action), /Flight conditions/)
+  assert.throws(() => submit(record, 'axis', supplyDrop(hex('s22.07'), 1)), /legal on-map/)
+  const thrown = submit(record, 'axis', action)
+  const drop = thrown.state.airMission.drop
+  assert.equal(drop.clear, false)
+  assert.equal(drop.result.rolls[0].threshold, 7)
+  assert.equal(drop.result.rolls[0].success, true)
+  assert.equal(drop.result.rolls[0].landed, false)
+  assert.equal(drop.result.lostTokens, 1)
+  assert.equal(thrown.state.dumps[`axis:hex:${target.hex}`], undefined)
+})
+
+test('an aborted drop outside friendly bases returns only the cargo that fits, with no landing dice', () => {
+  for (const damaged of [false, true]) {
+    const seed = seedWhere((rng) => {
+      const result = rollAirCombat(rng, 10, 0)
+      return result.defenderAborts && result.stepLoss === damaged
+    })
+    const target = hex(rows[0])
+    const { record, submit } = match([li2('lift', { battle: 0 }), plane('patrol', 'axis', axisBase, { battle: 10 })],
+      { seed, map: line() })
+    record.state.dumps[sourceBox] = { side: 'soviet', location: 'off-map', tokens: 2 }
+    let pending = submit(record, 'soviet', supplyDrop(target, 2))
+    pending = submit(pending, 'axis', intercept('patrol'))
+    pending = submit(pending, 'axis', abort())
+    pending = submit(pending, 'soviet', abort())
+    pending = submit(pending, 'axis', choose('patrol'))
+    pending = submit(pending, 'soviet', choose('lift'))
+    pending = submit(pending, 'axis', abort())
+    const result = submit(JSON.parse(JSON.stringify(pending)), 'soviet', flyHome('lift', box))
+    assert.deepEqual(result.state.airHistory.at(-1).drop.result,
+      { rolls: [], landedTokens: 0, abortedTokens: damaged ? 1 : 2, lostTokens: damaged ? 1 : 0 })
+    assert.equal(result.state.dumps[sourceBox].tokens, damaged ? 1 : 2)
+    assert.equal(result.state.dumps[`soviet:hex:${target.hex}`], undefined)
+    assert.equal(getPlane(result, 'lift').reduced, damaged)
+  }
+})
+
+test('only the TTW brigade can plan in setup and Refit; a scheduled landing ends movement and waives trace that turn', () => {
+  const source = sovietBase
+  const target = hex(rows[0])
+  const seed = seedWhere((rng) => roll2d6(rng).value.total >= 8)
+  const brigade = ground('soviet', source, { definition: 'brigade', moveMode: true, mobility: 'leg', allowance: 5, attackCapable: true,
+    outOfSupply: true })
+  const { record, submit, assets } = match([plane('lift', 'soviet', source, { name: 'Sov Li.2', fighter: false })],
+    { seed, map: line(), units: { brigade, namesake: { ...brigade, definition: 'namesake' } },
+      board: { supplyRail: { railGauge: () => 'soviet' } } })
+  for (const [key, sourceId] of [['brigade', '4301'], ['namesake', '3109']]) {
+    assets.catalog.definitions.set(key, { kind: 'land', sourceId, source: { side: 'soviet', name: 'Airborne brigade',
+      faces: { move: { maColor: 'white', stats: { move: 5, attack: 2, artRange: 4 } } } } })
+  }
+  const setup = { ...record, state: { kind: 'setup', opening: { seat: 'soviet', units: record.state.units } } }
+  const plan = (turn, unitId = 'brigade') => ({ type: 'plan-air-drop', unitId, target: target.hex, turn })
+  assert.throws(() => submit(setup, 'axis', plan(1)), /Soviet player/)
+  assert.throws(() => submit(setup, 'soviet', plan(1, 'namesake')), /1st Guards/)
+  const opened = submit(setup, 'soviet', plan(1))
+  const dropPlan = opened.state.opening.dropPlan
+  assert.equal(dropPlan.turn, 1)
+  const refit = { ...record, state: { ...record.state, cursor: { ...record.state.cursor, phase: 'aircraft-refit' } } }
+  assert.throws(() => submit(refit, 'soviet', plan(2)), /two turns ahead/)
+  const planned = submit(refit, 'soviet', plan(3))
+  assert.throws(() => submit(planned, 'soviet', plan(4)), /existing drop plan/)
+  const delayed = submit(planned, 'soviet', { type: 'delay-air-drop' })
+  assert.deepEqual(delayed.state.dropPlan, { ...dropPlan, turn: 4 })
+  assert.equal(submit(delayed, 'soviet', { type: 'cancel-air-drop' }).state.dropPlan, null)
+  const action = { ...groundLift(source, target, ['lift'], ['brigade']), mission: 'air-drop' }
+  assert.throws(() => submit(record, 'soviet', action), /planned hex and turn/)
+  const scheduled = { ...record, state: { ...record.state, dropPlan } }
+  assert.throws(() => submit(scheduled, 'soviet', { ...action, target: hex(rows[1]) }), /planned hex and turn/)
+  const returned = submit(submit(scheduled, 'soviet', action), 'soviet', flyHome('lift', source))
+  assert.equal(returned.state.dropPlan, null)
+  assert.equal(returned.state.units.brigade.hex, target.hex)
+  assert.equal(returned.state.units.brigade.outOfSupply, false)
+  assert.throws(() => submit(returned, 'soviet', { type: 'ground-move', unitId: 'brigade', path: [rows[1]] }), /unavailable/)
+  const supply = submit(returned, 'soviet', { type: 'complete-movement' })
+  assert.equal(hasTrace(supply.state.supply, 'brigade'), true)
+  assert.equal(hasTrace(supply.state.supply, 'namesake'), false)
+
+  const garrison = plane('parked', 'axis', target, { active: false })
+  assets.catalog.definitions.set('parked', { kind: 'aircraft', source: garrison.source })
+  const opposed = { ...scheduled, state: { ...scheduled.state, pieces: [...scheduled.state.pieces, garrison.piece],
+    airBases: [...scheduled.state.airBases, airBase('axis', target)] } }
+  const captured = submit(opposed, 'soviet', action)
+  assert.equal(captured.state.airBases.find(({ hex }) => hex === target.hex).side, 'soviet')
+  assert.equal(captured.state.capture.aircraft[0].id, 'parked')
+  assert.throws(() => submit(captured, 'soviet', flyHome('lift', source)), /pending special capture/)
+  const displaced = submit(captured, 'axis', { type: 'settle-capture', aircraft: [{ id: 'parked', destination: box }] })
+  const finished = submit(displaced, 'soviet', flyHome('lift', source))
+  assert.equal(finished.state.airHistory.at(-1).drop.result.unit.outcome, 'landed')
+  assert.deepEqual(getPlane(finished, 'parked').location, box)
 })

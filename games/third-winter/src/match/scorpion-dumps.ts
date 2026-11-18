@@ -1,6 +1,19 @@
 import { inScorpionPhase, scorpionPhaseAirMissions } from './scorpion-barrage-timing.ts'
 import type { SupplyDump } from './scorpion-reinforcement-state.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
+import type { Side } from '@ocs-eastern/series/state-types'
+import type { ScorpionAirBase } from './scorpion-air-bases.ts'
+
+export function creditScorpionAirCargo(state: Readonly<ScorpionInPlay>, side: Side, base: ScorpionAirBase, tokens: number) {
+  if (!tokens) return state.dumps
+  const onMap = base.kind === 'hex'
+  const id = onMap ? `${side}:hex:${base.hex}` : `${side}:air-box`
+  const dump = state.dumps[id]
+  const unloaded = (dump ? scorpionUnloadedTokens(state, id, dump) : 0) + tokens
+  const { turn, phasing, phase } = state.cursor
+  return { ...state.dumps, [id]: { side, location: onMap ? 'on-map' as const : 'off-map' as const,
+    tokens: (dump?.tokens ?? 0) + tokens, unloaded: { turn, phasing, phase, tokens: unloaded } } }
+}
 
 /** OCS 12.2a. Unloaded supply stays usable, but cannot be loaded again until the next phase. */
 export function scorpionUnloadedTokens(state: Readonly<ScorpionInPlay>, id: string, dump: SupplyDump) {

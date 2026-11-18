@@ -33,7 +33,7 @@ export type SettleScorpionCapture = { type: 'settle-capture'; aircraft: readonly
 
 const opposite = (side: Side): Side => side === 'axis' ? 'soviet' : 'axis'
 
-function scorpionCaptureAt(state: Readonly<ScorpionInPlay>, side: Side, hex: string) {
+export function scorpionCaptureAt(state: Readonly<ScorpionInPlay>, side: Side, hex: string) {
   const owner = opposite(side)
   const dump = state.dumps[`${owner}:hex:${hex}`]
   const transports = Object.entries(state.units).filter(([, unit]) => !unit.combat && unit.side === owner && unit.hex === hex)

@@ -18,7 +18,7 @@ import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import {
   sampleScorpionAirBarrage, sampleScorpionAirOperations, sampleScorpionGroundAirlift, sampleScorpionOnMapSupplyAirlift,
-  sampleScorpionSupplyAirlift, sampleScorpionTrainbusting,
+  sampleScorpionSupplyAirlift, sampleScorpionSupplyDrop, sampleScorpionTrainbusting,
 } from './scorpion-air-example.mjs'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 import { sampleScorpionRefit } from './scorpion-refit-example.mjs'
@@ -230,6 +230,8 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   } else {
     const lift = sampleScorpionSupplyAirlift(record, assets, board)
     opening.sampleAirlift = { target: lift.event.target.hex, loaded: lift.event.airlift.tokens, ...lift.event.airlift.unloading }
+    const { event } = sampleScorpionSupplyDrop(lift.before, assets, board)
+    opening.sampleSupplyDrop = { target: event.target.hex, aircraft: event.flights[0].id, ...event.drop.result }
   }
   const onMap = sampleScorpionOnMapSupplyAirlift(started, assets, board)
   opening.controlledOnMapAirlift = { aircraft: onMap.aircraft, source: onMap.event.airlift.source.hex,
