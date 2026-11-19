@@ -46,7 +46,7 @@ function Write-DesktopPng($surface, [int]$width, [int]$height, [string]$path) {
     try { $encoder.Save($output) } finally { $output.Dispose() }
 }
 
-function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface = $script:canvas) {
+function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface = $script:canvas, $cell = $null) {
     $image = New-Object Windows.Controls.Image
     $image.Source = Get-Art (Join-Path $model.imageDirectory $counter.asset)
     $image.Width = $size
@@ -58,15 +58,11 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
     $image.ToolTip = $label
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
     Add-At $image $x $y $surface
-    if ($Local -and $script:localRoster.ContainsKey([string]$counter.id)) {
-        $image.Tag = [string]$counter.id
-        $image.Cursor = [Windows.Input.Cursors]::Hand
-        $image.Add_MouseLeftButtonDown({
-            param($sender, $eventArgs)
-            $eventArgs.Handled = $true
-            Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag }
-        })
-        if ($script:localView.unitId -eq $counter.id) {
+    if ($Local -and $surface -ne $script:aidCanvas) {
+        $image.Tag = @{ UnitId = [string]$counter.id; Cell = $cell }
+        Register-LocalMapClicks $image
+        if ($script:localRoster.ContainsKey([string]$counter.id)) { $image.Cursor = [Windows.Input.Cursors]::Hand }
+        if ($script:localView.unitIds -contains $counter.id) {
             $outline = New-Object Windows.Controls.Border
             $outline.Width = $size
             $outline.Height = $size
@@ -155,6 +151,10 @@ function Show-Frame([int]$index) {
             $entry.counters.label -join [Environment]::NewLine
         } else { $model.labels.empty }
         $region.ToolTip = $entry.label + [Environment]::NewLine + $contents
+        if ($Local) {
+            $region.Tag = @{ Cell = $entry.cell }
+            Register-LocalMapClicks $region
+        }
         Add-At $region $box.x $box.y
 
         $count = $entry.counters.Count
@@ -165,7 +165,7 @@ function Show-Frame([int]$index) {
         for ($n = 0; $n -lt $count; $n++) {
             $x = $box.x + 14 + ($n % $columns) * ($size + 6)
             $y = $box.y + 82 + [Math]::Floor($n / $columns) * ($size + 6)
-            Add-Counter $entry.counters[$n] $x $y $size
+            Add-Counter $entry.counters[$n] $x $y $size $script:canvas $entry.cell
         }
     }
 

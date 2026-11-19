@@ -48,11 +48,90 @@ function Invoke-LocalRequest($request) {
             $script:localStatus.Text = "操作未提交。$($reply.error)"
             return
         }
+        if ($request.kind -in @('board-menu', 'counter-menu')) { return $reply.view.menu }
         Update-LocalView $reply.view
     } catch {
         $script:localStatus.Foreground = [Windows.Media.Brushes]::DarkRed
         $script:localStatus.Text = $_.Exception.Message
     }
+}
+
+function New-LocalContextMenu($actions) {
+    $menu = New-Object Windows.Controls.ContextMenu
+    $menu.FontFamily = 'Microsoft YaHei UI'
+    $menu.FontSize = 14
+    foreach ($group in @($actions | Group-Object -Property group)) {
+        $parent = New-Object Windows.Controls.MenuItem
+        $parent.Header = $group.Name
+        foreach ($action in $group.Group) {
+            $item = New-Object Windows.Controls.MenuItem
+            $item.Header = $action.label
+            $item.Tag = $action.key
+            $item.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'apply'; key = $sender.Tag } })
+            [void]$parent.Items.Add($item)
+        }
+        [void]$menu.Items.Add($parent)
+    }
+    return $menu
+}
+
+function Show-LocalContext($target, $request) {
+    $actions = @(Invoke-LocalRequest $request)
+    if (!$actions.Count) { return }
+    $menu = New-LocalContextMenu $actions
+    $menu.PlacementTarget = $target
+    $menu.Placement = 'MousePoint'
+    $menu.IsOpen = $true
+}
+
+function Register-LocalMapClicks($element) {
+    $element.Add_MouseLeftButtonDown({
+        param($sender, $args)
+        $args.Handled = $true
+        $point = $args.GetPosition($script:canvas)
+        $toggle = [bool]([Windows.Input.Keyboard]::Modifiers -band [Windows.Input.ModifierKeys]::Control)
+        $request = @{ kind = 'board-left'; x = $point.X; y = $point.Y; toggle = $toggle; confirm = $args.ClickCount -eq 2 }
+        if ($sender.Tag.UnitId) { $request.unitId = $sender.Tag.UnitId }
+        if ($null -ne $sender.Tag.Cell) { $request.cell = $sender.Tag.Cell }
+        Invoke-LocalRequest $request
+    })
+    $element.Add_MouseRightButtonUp({
+        param($sender, $args)
+        $args.Handled = $true
+        $point = $args.GetPosition($script:canvas)
+        $request = @{ kind = 'board-menu'; x = $point.X; y = $point.Y }
+        if ($sender.Tag.UnitId) { $request.unitId = $sender.Tag.UnitId }
+        if ($null -ne $sender.Tag.Cell) { $request.cell = $sender.Tag.Cell }
+        Show-LocalContext $sender $request
+    })
+}
+
+function Test-LocalWindow($dock) {
+    $visibleSize = New-Object Windows.Size(1460, 920)
+    $dock.Measure($visibleSize)
+    $dock.Arrange((New-Object Windows.Rect(0, 0, 1460, 920)))
+    while ($script:localView.phase -ne '移动') {
+        $buttons = $script:localButtons.Children
+        $next = if ($script:localView.phase -eq '开局部署') {
+            $buttons | Where-Object { $_.Content.Text -match '确认本方部署|将剩余|警戒营部署|损失 \d+ 步' } | Select-Object -First 1
+        } elseif ($buttons.Count) { $buttons[0] }
+        if (!$next -or $script:localView.revision -ge 70) { throw "无法推进到移动阶段：$($script:localView.headline)" }
+        $before = $script:localView.revision
+        $next.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
+        if ($script:localView.revision -le $before) { throw $script:localStatus.Text }
+    }
+    $unit = $script:localView.roster | Where-Object { $_.label -like '*Sov 58 Rifle Div*' } | Select-Object -First 1
+    $position = $script:localView.frame.mapStacks | Where-Object { $_.hex -eq $unit.hex }
+    Invoke-LocalRequest @{ kind = 'board-left'; unitId = $unit.id; x = $position.x; y = $position.y }
+    if ($script:localView.unitId -ne $unit.id) { throw '地图算子未选中。' }
+    $items = @(Invoke-LocalRequest @{ kind = 'board-menu'; unitId = $unit.id; x = $position.x; y = $position.y })
+    $menu = New-LocalContextMenu $items
+    $group = $menu.Items | Where-Object { $_.Header -eq '模式' } | Select-Object -First 1
+    if (!$group -or $group.Items.Count -ne 1) { throw '算子菜单未显示换面动作。' }
+    $before = $script:localView.revision
+    $group.Items[0].RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.MenuItem]::ClickEvent)))
+    if ($script:localView.revision -ne ($before + 1)) { throw $script:localStatus.Text }
+    if ($LocalSmokeImage) { Write-DesktopPng $dock 1460 920 $LocalSmokeImage }
 }
 
 function Update-LocalView($view) {
@@ -64,8 +143,10 @@ function Update-LocalView($view) {
         $script:localStatus.Text = "已自动保存 · 第 $($view.revision) 条记录"
         $script:localStatus.Foreground = [Windows.Media.Brushes]::DarkSlateGray
         $script:localStatus.ToolTip = $model.local.savePath
-        $script:localSelected.Text = if ($view.route.Count) { '路线  ' + ($view.route -join ' → ') } elseif ($view.hex) { "选中格  $($view.hex)" } else { '在地图上点击格子或算子' }
-        $script:localClear.IsEnabled = [bool]$view.hex
+        $script:localSelected.Text = if ($view.route.Count) { '路线  ' + ($view.route -join ' → ') } elseif ($view.unitIds.Count -gt 1) {
+            "已选 $($view.unitIds.Count) 枚算子"
+        } elseif ($view.hex) { "选中格  $($view.hex)" } else { '左键选算子或点目的地，右键打开动作菜单' }
+        $script:localClear.IsEnabled = [bool]($view.hex -or $view.unitId)
         $script:localUnitBox.Items.Clear()
         foreach ($unit in $view.roster) {
             $script:localRoster[[string]$unit.id] = $unit
@@ -76,6 +157,22 @@ function Update-LocalView($view) {
             if ($unit.id -eq $view.unitId) { $script:localUnitBox.SelectedItem = $entry }
         }
         $script:localUnitBox.IsEnabled = $script:localUnitBox.Items.Count -gt 0
+        $script:localStack.Children.Clear()
+        $script:localStackFrame.Visibility = if ($view.stack.Count) { 'Visible' } else { 'Collapsed' }
+        foreach ($counter in $view.stack) {
+            $chip = New-Object Windows.Controls.CheckBox
+            $chip.Content = $counter.label
+            $chip.Margin = '4,3,4,3'
+            $chip.Tag = $counter.id
+            $chip.IsChecked = $view.unitIds -contains $counter.id
+            $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag; toggle = $true } })
+            $chip.Add_MouseRightButtonUp({
+                param($sender, $args)
+                $args.Handled = $true
+                Show-LocalContext $sender @{ kind = 'counter-menu'; unitId = $sender.Tag }
+            })
+            [void]$script:localStack.Children.Add($chip)
+        }
         $script:localButtons.Children.Clear()
         foreach ($item in $view.actions) {
             $button = New-LocalButton $item.label
@@ -87,11 +184,6 @@ function Update-LocalView($view) {
             $button.Tag = $item.key
             $button.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'apply'; key = $sender.Tag } })
             [void]$script:localButtons.Children.Add($button)
-        }
-        if (!$view.actions.Count -and !$view.ended) {
-            $text = New-LocalText 14
-            $text.Text = '请选择算子或目标格。需要填写多项分配时，可使用高级规则命令。'
-            [void]$script:localButtons.Children.Add($text)
         }
         $script:localAdvanced.IsEnabled = !$view.ended
         $model.frames = @($view.frame)
@@ -174,13 +266,27 @@ function Show-LocalScorpion {
             Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $script:localUnitBox.SelectedItem.Tag }
         }
     })
+    $script:localUnitBox.Add_MouseRightButtonUp({
+        param($sender, $args)
+        if ($sender.SelectedItem) { Show-LocalContext $sender @{ kind = 'counter-menu'; unitId = $sender.SelectedItem.Tag } }
+    })
     $script:localSelected = New-LocalText 14
     $script:localSelected.Margin = '0,0,0,6'
     [void]$header.Children.Add($script:localSelected)
-    $script:localClear = New-LocalButton '清除目标和路线'
+    $script:localClear = New-LocalButton '清除选择'
     $script:localClear.HorizontalAlignment = 'Left'
-    $script:localClear.Add_Click({ Invoke-LocalRequest @{ kind = 'clear-route' } })
+    $script:localClear.Add_Click({ Invoke-LocalRequest @{ kind = 'clear-selection' } })
     [void]$header.Children.Add($script:localClear)
+    $script:localStackFrame = New-Object Windows.Controls.GroupBox
+    $script:localStackFrame.Header = '本格堆叠'
+    $script:localStackFrame.Margin = '0,0,0,8'
+    $stackScroll = New-Object Windows.Controls.ScrollViewer
+    $stackScroll.MaxHeight = 136
+    $stackScroll.VerticalScrollBarVisibility = 'Auto'
+    $script:localStack = New-Object Windows.Controls.WrapPanel
+    $stackScroll.Content = $script:localStack
+    $script:localStackFrame.Content = $stackScroll
+    [void]$header.Children.Add($script:localStackFrame)
 
     $footer = New-Object Windows.Controls.StackPanel
     $footer.Margin = '0,8,0,0'
@@ -234,10 +340,13 @@ function Show-LocalScorpion {
     }
     [void]$dock.Children.Add($script:localTabs)
     $window.Content = $dock
-    $script:canvas.Add_MouseLeftButtonDown({
+    Register-LocalMapClicks $script:canvas
+    $window.Add_PreviewKeyDown({
         param($sender, $args)
-        $point = $args.GetPosition($script:canvas)
-        Invoke-LocalRequest @{ kind = 'select-hex'; x = $point.X; y = $point.Y }
+        if ($args.Key -eq 'Escape' -and !$script:localCommand.IsKeyboardFocusWithin) {
+            Invoke-LocalRequest @{ kind = 'clear-selection' }
+            $args.Handled = $true
+        }
     })
     $script:localZoom.Add_ValueChanged({ Set-LocalZoom $script:localZoom.Value })
     $fit.Add_Click({
@@ -249,14 +358,7 @@ function Show-LocalScorpion {
     Set-LocalZoom $script:localZoom.Value
     Update-LocalView $model.local
     if ($LocalSmoke) {
-        if (!$script:localButtons.Children.Count -or !$script:localUnitBox.Items.Count) { throw 'Local deployment controls are missing' }
-        $before = $script:localView.revision
-        $visibleSize = New-Object Windows.Size(1460, 920)
-        $dock.Measure($visibleSize)
-        $dock.Arrange((New-Object Windows.Rect(0, 0, 1460, 920)))
-        $script:localButtons.Children[0].RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
-        if ($script:localView.revision -le $before) { throw $script:localStatus.Text }
-        if ($LocalSmokeImage) { Write-DesktopPng $dock 1460 920 $LocalSmokeImage }
+        Test-LocalWindow $dock
         return
     }
     $window.Add_ContentRendered({

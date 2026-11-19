@@ -76,8 +76,10 @@ export function localChoices(state, side, selection, data) {
     const base = scorpionOpeningAirBases.find((item) => item.side === side)
     if (aircraft) {
       const parked = setup.pieces.filter((piece) => piece.id !== unitId && piece.location.kind === 'hex' && piece.location.hex === base.hex)
-      if (parked.length < airbaseActiveCapacity(base.level)) add(`部署到机场 ${base.hex}`, 'base-aircraft', { id: unitId, base: { kind: 'hex', hex: base.hex } })
-      add('部署到地图外空军盒', 'base-aircraft', { id: unitId, base: { kind: 'off-map-air' } })
+      if (aircraft.location.hex !== base.hex && parked.length < airbaseActiveCapacity(base.level)) {
+        add(`部署到机场 ${base.hex}`, 'base-aircraft', { id: unitId, base: { kind: 'hex', hex: base.hex } })
+      }
+      if (aircraft.location.kind !== 'off-map-air') add('部署到地图外空军盒', 'base-aircraft', { id: unitId, base: { kind: 'off-map-air' } })
     }
     if (waiting.length > 1) batch(`将剩余 ${waiting.length} 架飞机部署到空军盒`, waiting.map(({ id }) =>
       ({ type: 'base-aircraft', id, base: { kind: 'off-map-air' } })))
@@ -119,7 +121,13 @@ export function localChoices(state, side, selection, data) {
   } else if (phase === 'supply') {
     supplyChoices(state, side, unitId, data, add)
   } else {
-    if (['movement', 'reaction', 'exploitation'].includes(phase)) moveChoices(state, side, unitId, hex, route, data, add)
+    if (['movement', 'reaction', 'exploitation'].includes(phase)) {
+      const ids = selection.unitIds ?? []
+      if (ids.length > 1 && phase === 'movement' && route.length && ids.every((id) => state.units[id]?.reserve && state.units[id].hex === unit?.hex)) {
+        add(`预备堆叠沿途 ${route.join(' → ')} 移动`, 'reserve-stack-move', { path: route, counters: ids.map((unitId) => ({ unitId })) })
+      }
+      moveChoices(state, side, unitId, hex, route, data, add)
+    }
     if (['reaction', 'combat', 'exploitation'].includes(phase) && state.turn.weather.ground !== 'thaw') {
       engagementChoices(state, side, unitId, hex, data, add)
     }
@@ -207,6 +215,10 @@ function moveChoices(state, side, unitId, hex, route, data, add) {
   const unit = state.units[unitId]
   const { phase } = state.cursor
   if (unit?.side === side) {
+    if (state.overrunMarch?.remaining[unitId] !== undefined && route.length) {
+      add(`突袭后沿途 ${route.join(' → ')} 移动`, 'continue-overrun-move', { path: route })
+      return
+    }
     if (phase === 'movement' && !state.moved.includes(unitId)) {
       if (unit.combat && !unit.reserve) {
         add('切换到' + (unit.moveMode ? '战斗面' : '移动面'), 'set-ground-mode', { unitId, face: unit.moveMode ? 'combat' : 'move' })
@@ -231,6 +243,11 @@ function moveChoices(state, side, unitId, hex, route, data, add) {
         add(`移动到 ${path.at(-1)} · ${dumpId.split(':').at(-1)} 支付 1T`, 'ground-move', { unitId, path, fuelDumpId: dumpId })
       }
       else add(`沿途 ${path.join(' → ')} 移动`, 'ground-move', { unitId, path })
+      if (needsFuel) for (const { id } of state.headquartersFuel ?? []) {
+        const source = state.units[id]
+        if (source?.side === side) add(`移动到 ${path.at(-1)} · 由 ${source.hex} 已加油司令部投送`,
+          'ground-move', { unitId, path, fuelHeadquartersId: id })
+      }
     }
     return
   }
