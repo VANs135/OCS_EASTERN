@@ -72,6 +72,7 @@ import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { advanceScorpionThaw } from './scorpion-thaw.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
   kind: 'playing'
@@ -100,6 +101,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   formationFuel?: readonly FormationFuel[]
   headquartersFuel?: readonly HeadquartersFuel[]
   supply: ScorpionSupplyWindow | null
+  thawSupply?: ScorpionSupplyWindow
   /** Control of eligible sites. Rail gauge is stored independently of this save field. */
   railControl: Readonly<Record<string, Side>>
   combat: ScorpionCombat | null
@@ -148,6 +150,11 @@ export function submitScorpionSession(
       hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, offerRoll: offer }
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
+    }
+    if (state.kind === 'playing' && state.turn.weather.ground === 'thaw' && (
+      action.type === 'declare-combat' || action.type === 'declare-overrun' || action.type === 'declare-artillery-barrage' ||
+      action.type === 'declare-front-barrage' || action.type === 'work-hedgehog')) {
+      throw new Error('Combat, barrage and construction are unavailable in a Thaw Simulcast turn')
     }
     if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
       throw new Error('Resolve the pending special capture first')
@@ -261,6 +268,7 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
         return continueScorpionOverrunMove(state, actor, action, assets, board)
       case 'ground-move':
+      case 'set-ground-mode':
       case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
           state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
@@ -291,6 +299,9 @@ export function submitScorpionSession(
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
         assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
+        if (state.cursor.simulcast && state.cursor.phase === 'movement' && state.cursor.phasing === actor) {
+          return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
+        }
         return openScorpionSupply({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, assets.map, board.supplyRail)
       case 'choose-formation-trace':
       case 'recover-internal-stocks':
@@ -310,6 +321,7 @@ export function submitScorpionSession(
         }
         if (action.type === 'assign-attrition') return assignScorpionAttrition(state, window, action, assets)
         if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
+        if (state.cursor.simulcast) return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
         const cursor = advanceScorpionPhase(state.cursor, actor)
         if (!cursor || cursor.phase !== 'reaction') throw new Error('Invalid supply phase completion')
         return { ...state, cursor, supply: null }
@@ -318,7 +330,13 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.reinforcements) {
           throw new Error('Scorpion reinforcements are unavailable')
         }
-        return resolveReinforcements(state, actor, action, assets, board.reinforcements(state), offer)
+        if (state.cursor.simulcast && state.cursor.phasing === actor &&
+          action.type === 'complete-refit' && state.cursor.phase === 'aircraft-refit' && !state.window) {
+          return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
+        }
+        const updated = resolveReinforcements(state, actor, action, assets, board.reinforcements(state), offer)
+        return state.cursor.simulcast && action.type === 'complete-reinforcement'
+          ? advanceScorpionThaw({ ...updated, cursor: state.cursor }, actor, assets.map, board.supplyRail) : updated
     }
   }
   return acceptCommand(record, seat, command, (state, actor, action) => {

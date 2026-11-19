@@ -34,7 +34,8 @@ export function refitScorpionAircraft(state: Readonly<ScorpionInPlay>, actor: Si
   const field = state.airBases.find((candidate) => candidate.side === actor && candidate.hex === hex)
   if (!field || !map.hexes.has(field.hex)) throw new Error('Choose a friendly air base')
   if (state.refittedAirbases?.includes(field.hex)) throw new Error('This air base has already refitted in this phase')
-  if (selected.size > airbaseRefitCapacity(field.level) ||
+  const rate = airbaseRefitCapacity(field.level) / (state.turn.weather.ground === 'thaw' ? 2 : 1)
+  if (selected.size > rate ||
     based.length - inactive.size + selected.size > airbaseActiveCapacity(field.level)) {
     throw new Error('Selection exceeds the air base refit or active stacking capacity')
   }

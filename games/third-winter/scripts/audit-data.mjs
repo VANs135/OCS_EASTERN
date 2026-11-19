@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import assert from 'node:assert/strict'
 import { basename, dirname, join, resolve } from 'node:path'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
 import { campaignHexKey, scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
@@ -14,6 +15,7 @@ import { mayPlanTtwCombatAirDrop } from '../src/ttw/air/airdrop-eligibility.ts'
 import { scorpionAxisSources, scorpionControlSites, scorpionInitialRailGauge, scorpionOpeningFrontControl, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionSupplyNetwork, scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionEnemyZoc, scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
 import { scorpionSpPayment } from '../src/match/scorpion-sp-payment.ts'
 import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
@@ -29,6 +31,7 @@ import { sampleScorpionExtender, sampleScorpionLogistics } from './scorpion-logi
 import { sampleScorpionRetreatCapture } from './scorpion-retreat-example.mjs'
 import { sampleScorpionRemnant } from './scorpion-remnant-example.mjs'
 import { sampleScorpionReroll } from './scorpion-reroll-example.mjs'
+import { playScorpionToEnd } from './scorpion-playthrough.mjs'
 
 const root = process.argv[2]
 if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
@@ -96,11 +99,7 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const { before, started } = sampleScorpionOpening(setup, assets)
   const refit = sampleScorpionRefit(started, assets)
   let record = started
-  // First-turn source entries printed in Scorpion p.55. The general front-line control module is separate.
-  const reinforcements = () => ({ catalog: playableArrivals,
-    supplySources: { axis: new Set(scorpionAxisSources), soviet: new Set(scorpionSovietSources) },
-    controlOf: (id) => id === 's22.02' ? 'soviet' : null, arrivalDestinations: (entry) => entry.destinations,
-    alertDestinations: () => [] })
+  const reinforcements = (state) => scorpionReinforcementBoard(state, assets, playableArrivals)
   const tablePath = process.env.OCS_V43_CRT
   const combat = tablePath ? { table: await readAt(dirname(resolve(tablePath)), basename(tablePath)) } : undefined
   const barragePath = process.env.OCS_V43_BARRAGE
@@ -274,6 +273,38 @@ if (unresolved.length === 0 && missingSetupHexes.length === 0 && missingArrivalH
   const groundLift = sampleScorpionGroundAirlift(onMap.before, assets, board)
   opening.controlledGroundAirlift = { unit: groundLift.name, landingHex: groundLift.landed.state.units[groundLift.id].hex,
     groundDestination: groundLift.destination, groundMpUsed: groundLift.marched.state.groundActivity.spent[groundLift.id] }
+  opening.playthroughs = auditPlaythroughs(setup, assets, playableArrivals)
+  if (combat) assert.ok(opening.sampleBattle.losses.axis > 0 && opening.sampleBattle.losses.soviet > 0)
+}
+
+function auditPlaythroughs(setup, assets, arrivals) {
+  const full = playScorpionToEnd(setup, assets, arrivals, { seed: 19440126, withdraw: true })
+  const thawEnd = playScorpionToEnd(setup, assets, arrivals, { seed: 153, withdraw: true })
+  const sudden = playScorpionToEnd(setup, assets, arrivals, { seed: 19440126, withdraw: false, sovietOptional: true })
+  assert.equal(full.turns.length, 8)
+  assert.equal(full.reloads, 16)
+  assert.equal(full.vp, 6)
+  assert.deepEqual(full.result, { outcome: 'draw' })
+  assert.equal(new Set(full.turns.map(({ first }) => first)).size, 2)
+  assert.equal(full.turns.filter(({ ground }) => ground === 'thaw').length, 1)
+  assert.equal(full.arrivals, arrivals.filter(({ optionalForce, side }) => !optionalForce || side === 'axis').length)
+  assert.ok(full.alertsPlaced > 0)
+  for (const turn of full.turns) {
+    if (turn.ground === 'freeze') assert.equal(turn.phases.length, 16)
+    else {
+      const next = turn.first === 'axis' ? 'soviet' : 'axis'
+      assert.deepEqual(turn.phases, ['aircraft-refit', 'reinforcement', 'movement', 'supply', 'cleanup']
+        .flatMap((phase) => [`${turn.first}:${phase}`, `${next}:${phase}`]))
+    }
+  }
+  assert.equal(thawEnd.turns.length, 7)
+  assert.equal(thawEnd.endTurn, 8)
+  assert.equal(thawEnd.groundAtEnd, 'thaw')
+  assert.equal(sudden.endTurn, 3)
+  assert.equal(sudden.vp, -4)
+  assert.deepEqual(sudden.result, { outcome: 'axis', level: 'major' })
+  const compact = ({ turns, ...report }) => ({ ...report, turns: turns.map(({ phases, ...turn }) => ({ ...turn, phases: phases.length })) })
+  return { full: compact(full), thawEnd: compact(thawEnd), sudden: compact(sudden) }
 }
 
 function sampleArtillery(state, map, table, submit, latest) {
@@ -377,6 +408,7 @@ function sampleBattle(state, map, submit, latest, overrun = false) {
   const terrain = map.hexes.get(target).terrains[0]
   submit({ type: 'choose-combat-terrain', terrain, attackingTerrain: { [unit.hex]: terrain } }, 'axis')
   const rolled = latest().combat.roll
+  const losses = { soviet: 0, axis: 0 }
   for (const [seat, side] of [['soviet', 'attacker'], ['axis', 'defender']]) {
     const battle = latest().combat
     const slots = side === 'attacker' ? battle.attackers : battle.defenders
@@ -392,9 +424,10 @@ function sampleBattle(state, map, submit, latest, overrun = false) {
       }
     }
     submit({ type: 'resolve-combat', lossOrder, optionLosses: lossOrder.length - hard, retreats: [] }, seat)
+    losses[seat] = lossOrder.length
   }
   if (latest().combat?.step === 'advance') submit({ type: 'advance-after-combat', unitIds: [] })
-  return { from: unit.hex, target, result: rolled.code, movementPointsSpent,
+  return { from: unit.hex, target, result: rolled.code, losses, movementPointsSpent,
     finalHex: overrun ? latest().units[unitId]?.hex ?? null : undefined }
 }
 const railGauge = scorpionInitialRailGauge(map)

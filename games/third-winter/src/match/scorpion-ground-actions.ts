@@ -21,6 +21,7 @@ import { fuelScorpionMovement } from './scorpion-fuel.ts'
 type MovingCounter = { unitId: string; fuelDumpId?: string; fuelHeadquartersId?: string; reserveFace?: ScorpionReserveFace }
 export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
+  | { type: 'set-ground-mode'; unitId: string; face: GroundFace }
 
 export interface GroundPolicies {
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
@@ -31,6 +32,7 @@ export interface GroundPolicies {
 export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side: Side, action: ScorpionGroundAction,
   assets: ScorpionSetupAssets, board: GroundPolicies): ScorpionInPlay {
   const { map } = assets
+  if (action.type === 'set-ground-mode') return orient(state, side, action.unitId, action.face, assets)
   const stack = action.type === 'reserve-stack-move'
   const counters = stack ? action.counters : [action]
   const origin = state.units[counters[0]?.unitId ?? '']?.hex
@@ -41,12 +43,8 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   }
   let moved = state
   if (action.type === 'ground-move' && action.face !== undefined) {
-    const unit = state.units[action.unitId]
-    if (!unit?.combat || unit.side !== side || unit.reserve || action.reserveFace !== undefined || state.cursor.phase !== 'movement' ||
-      state.moved.includes(action.unitId) || scorpionGroundActivity(state).airlifted.includes(action.unitId) ||
-      (action.face !== 'move' && action.face !== 'combat')) throw new Error('Choose a friendly counter face before beginning its movement')
-    moved = { ...state, units: { ...state.units,
-      [action.unitId]: scorpionModeFace(unit, assets.catalog.definitions.get(unit.definition), action.face) } }
+    if (action.reserveFace !== undefined) throw new Error('Choose the orientation using the Reserve action')
+    moved = orient(state, side, action.unitId, action.face, assets)
   }
   for (const { unitId, reserveFace } of counters) {
     if (reserveFace !== undefined || (stack && !moved.units[unitId]?.reserve)) {
@@ -87,6 +85,16 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     }
   }
   return moved
+}
+
+function orient(state: Readonly<ScorpionInPlay>, side: Side, unitId: string, face: GroundFace,
+  { catalog }: ScorpionSetupAssets): ScorpionInPlay {
+  const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
+  if (!unit?.combat || unit.side !== side || unit.reserve || state.cursor.phase !== 'movement' || state.cursor.phasing !== side ||
+    state.moved.includes(unitId) || scorpionGroundActivity(state).airlifted.includes(unitId) || (face !== 'move' && face !== 'combat')) {
+    throw new Error('Choose a friendly counter face before beginning its movement')
+  }
+  return { ...state, units: { ...state.units, [unitId]: scorpionModeFace(unit, catalog.definitions.get(unit.definition), face) } }
 }
 
 export function scorpionMovementRules(state: Readonly<ScorpionInPlay>, side: Side, map: MovementBoard['map'], board: GroundPolicies) {

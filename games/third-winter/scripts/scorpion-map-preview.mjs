@@ -9,6 +9,7 @@ import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
+import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
 import { completeScorpionCleanup } from '../src/match/scorpion-round.ts'
 import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { answerRetention, chooseFirstPlayer, rollInitiative } from '../src/ttw/scorpion/initiative-step.ts'
@@ -97,6 +98,8 @@ const fourth = nextRound(ready(third), 0, 6)
 frame('2 月 5 日 · 解冻、禁飞', fourth)
 
 const arrivalCatalog = scorpionArrivalCatalog(arrivals, catalog.aliases)
+const setupAssets = { map: groundMap, catalog }
+const reinforcements = (state) => scorpionReinforcementBoard(state, setupAssets, arrivalCatalog)
 const optional = arrivalCatalog.find((entry) => entry.optionalForce === 'axis-24-panzer')
 if (!optional) throw new Error('Missing Scorpion 24th Panzer arrival')
 const cursor = startScorpionPlayerTurns(ready(fourth))
@@ -120,9 +123,7 @@ let extender
   const barrage = barragePath ? JSON.parse(await readFile(barragePath, 'utf8')) : undefined
   const facilityPath = process.env.OCS_V43_FACILITY
   const facilityBarrage = facilityPath ? JSON.parse(await readFile(facilityPath, 'utf8')) : undefined
-  const setupAssets = { map: groundMap, catalog }
-  const rules = { barrage, facilityBarrage, reinforcements: () => ({ ...board, controlOf: () => 'soviet',
-    supplySources: { axis: new Set(), soviet: new Set(['s22.02']) } }) }
+  const rules = { barrage, facilityBarrage, reinforcements }
   let opening = started
   function issue(action) {
     opening = submitScorpionDemo(opening, 'soviet',
@@ -174,7 +175,7 @@ sessionFrame(refit.airBase ? '整备完成 · 图上机场消耗 1T，地图外�
 
 const airliftTurn = ready(second, 'soviet')
 const airliftOpening = { ...started, state: { ...started.state, turn: airliftTurn, cursor: startScorpionPlayerTurns(airliftTurn) } }
-const airlift = sampleScorpionSupplyAirlift(airliftOpening, { map: groundMap, catalog }, { reinforcements: () => board })
+const airlift = sampleScorpionSupplyAirlift(airliftOpening, setupAssets, { reinforcements })
 sessionFrame('空运演示 · 增援补给放入苏军空军盒', airlift.before.state)
 sessionFrame(`空运结算 · ${airlift.event.target.hex} 收到 ${airlift.event.airlift.unloading.delivered}T`, airlift.returned.state)
 
@@ -205,7 +206,7 @@ if (combatTablePath) {
   const remnant = sampleScorpionRemnant(started, { map: groundMap, catalog }, { combat })
   sessionFrame(`受控战果 · 第 57 步兵师进死人堆，残部营放在 ${remnant.report.destination}，苏军加 1 分`, remnant.settled.state)
 }
-const reroll = sampleScorpionReroll(airliftOpening, { map: groundMap, catalog }, { reinforcements: () => board })
+const reroll = sampleScorpionReroll(airliftOpening, setupAssets, { reinforcements })
 sessionFrame('第 2 回合 · 苏军掷增援补给', reroll.initial.state)
 sessionFrame('苏军重掷 · 算子已转交轴心', reroll.transferred.state)
 sessionFrame(`轴心保留骰点 · 苏军获得 ${reroll.report.sp} SP`, reroll.settled.state)

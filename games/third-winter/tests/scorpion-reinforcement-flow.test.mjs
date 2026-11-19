@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { openScorpionTurn } from '../src/ttw/scorpion/pre-turn.ts'
 import { startScorpionPlayerTurns, advanceScorpionPhase } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
+import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
 
 const entry = { id: 'arrival', destinations: ['s22.02'], definition: 'unit', side: 'soviet', turn: 1 }
 const alert = { id: 'a2', definition: 'alert' }
@@ -72,4 +73,14 @@ test('second player gets a separate phase; restoring an award and retrying does 
   assert.equal(record.state.dumps['axis:air-box'].tokens, 20)
   assert.deepEqual(record.state.availableAlerts.map(({id}) => id), ['a1'])
   assert.equal(advanceScorpionPhase({ ...second, phase: 'cleanup' }, 'axis'), null)
+})
+
+test('blocked printed edge arrivals get the nearest clear edge while an interior arrival gets no substitute', () => {
+  const map = { hexes: new Map(['s1.11', 's1.12', 's1.13', 's1.14', 's2.16'].map((hex) => [hex, {}])) }
+  const state = { cursor: { turn: 2, phasing: 'soviet', phase: 'reinforcement' },
+    units: { a: { side: 'axis', hex: 's1.12' }, b: { side: 'axis', hex: 's2.16' } } }
+  const rules = scorpionReinforcementBoard(state, { map }, [])
+  assert.deepEqual(rules.arrivalDestinations({ side: 'soviet', destinations: ['s1.12'] }), ['s1.11', 's1.13'])
+  assert.deepEqual(rules.arrivalDestinations({ side: 'soviet', destinations: ['s1.14', 's1.12'] }), ['s1.14'])
+  assert.deepEqual(rules.arrivalDestinations({ side: 'soviet', destinations: ['s2.16'] }), [])
 })

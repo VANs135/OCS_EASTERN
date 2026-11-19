@@ -34,6 +34,7 @@ export function checkScorpionAttrition(state: Readonly<ScorpionInPlay>, window: 
     stack.push(id)
     stacks.set(unit.hex, stack)
   }
+  if (state.turn.weather.ground === 'thaw') return { ...state, units, supply: { ...window, attrition: [] } }
   let rng = state.rng
   const attrition = [...stacks.keys()].sort().map((hex): ScorpionAttrition => {
     const ids = stacks.get(hex)!

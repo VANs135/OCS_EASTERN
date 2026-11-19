@@ -30,7 +30,7 @@ export type FeedUnits = { type: 'feed-units'; payments: readonly {
 
 export function openScorpionSupply(
   state: Readonly<ScorpionInPlay>, side: Side, map: ScorpionMap, railroad?: SupplyRailBoard,
-): ScorpionInPlay {
+): ScorpionInPlay & { supply: ScorpionSupplyWindow } {
   if (state.cursor.phase !== 'movement' || state.supply) throw new Error('Scorpion supply is not due')
   const cursor = advanceScorpionPhase(state.cursor, side)
   if (!cursor || cursor.phase !== 'supply') throw new Error('Invalid supply transition')

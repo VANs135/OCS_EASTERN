@@ -15,15 +15,22 @@ const aircraft = { id: '4300', name: 'Sov test Yak.9', kind: 'air', category: 'h
 const marker = { id: '4154', name: 'Test marker', side: null,
   faces: { combat: face('marker.png', null, null), move: null } }
 
-test('the cleaned unit backup preserves source roles, scoped IDs and the legacy Scorpion reference', async () => {
+test('the cleaned unit backup preserves source roles, scoped IDs and the Scorpion setup references', async () => {
   const distinctSoviet = { ...soviet, id: '100' }
+  const breakdowns = [['axis', '4008', 'Ge 4-4-3'], ['axis', '4007', 'Ge 3-3-3'], ['soviet', '2574', 'Sov Gd 3-4-3'],
+    ['soviet', '2575', 'Sov Gd 3-3-3'], ['soviet', '1723', 'Sov 3-3-3'], ['soviet', '1724', 'Sov 3-2-2']]
+    .map(([side, id, printed]) => ({ ...wall, id, side, name: `${printed} Brkdwn` }))
   const tables = {
-    'units.axis.json': [wall, scout], 'units.soviet.json': [distinctSoviet],
+    'units.axis.json': [wall, scout, ...breakdowns.filter(({ side }) => side === 'axis')],
+    'units.soviet.json': [distinctSoviet, ...breakdowns.filter(({ side }) => side === 'soviet')],
     'units.air.json': [aircraft], 'units.marker.json': [marker],
   }
   const read = async (file) => ({ version: 1, units: tables[file] })
   const catalog = await loadScorpionUnits(read)
-  assert.equal(catalog.definitions.size, 5)
+  assert.equal(catalog.definitions.size, 11)
+  for (const { id, name } of breakdowns) {
+    assert.equal(catalog.aliases.get(name.replace('Brkdwn', '拆分单位'))[0].key, `land:id:${id}`)
+  }
   assert.deepEqual(catalog.rawIds.get('4154').map(({ key }) => key), ['land:id:4154', 'marker:id:4154'])
   assert.equal(catalog.aliases.get('Ge Wallonian SS Mot Inf Rgt')[0].source, wall)
   assert.equal(catalog.definitions.get('aircraft:id:4300').source, aircraft)

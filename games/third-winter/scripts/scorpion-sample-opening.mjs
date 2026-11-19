@@ -2,8 +2,8 @@ import { createScorpionSession, submitScorpionSession } from '../src/match/scorp
 import { scorpionOpeningAirBases } from '../src/ttw/scorpion/setup-stores.ts'
 
 /** Exercise the opening through the same command boundary that the desktop match will call. */
-export function sampleScorpionOpening(setup, assets) {
-  const before = createScorpionSession(setup, assets, 19440126)
+export function sampleScorpionOpening(setup, assets, seed = 19440126) {
+  const before = createScorpionSession(setup, assets, seed)
   let record = before
   function submit(seat, action) {
     const command = { id: `opening-${record.revision}`, expectedRevision: record.revision, action }

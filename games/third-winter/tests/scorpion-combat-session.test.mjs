@@ -97,7 +97,7 @@ test('TTW 1.1b ties paid construction, combat protection and capture to the hedg
 
 test('aircraft refit charges a reachable dump once per base and respects the active capacity in no-flight weather', () => {
   const record = fixture('aircraft-refit', {})
-  record.state.turn.weather = { ground: 'thaw', flight: 'none' }
+  record.state.turn.weather = { ground: 'freeze', flight: 'none' }
   record.state.airBases = [{ side: 'soviet', hex: 's10.02', level: 1 }]
   record.state.pieces = Array.from({ length: 6 }, (_, index) => ({
     id: `plane-${index}`, side: 'soviet', kind: 'aircraft', location: { kind: 'hex', hex: 's10.02' },
@@ -107,6 +107,9 @@ test('aircraft refit charges a reachable dump once per base and respects the act
   const action = { type: 'refit-aircraft', base: { kind: 'hex', hex: 's10.02', dumpId }, unitIds: ['plane-3', 'plane-4'] }
   assert.throws(() => submit(record, 'axis', action), /phasing side/)
   assert.throws(() => submit(record, 'soviet', { ...action, unitIds: [...action.unitIds, 'plane-5'] }), /capacity/)
+  const thaw = { ...record, state: { ...record.state, turn: { ...record.state.turn, weather: { ground: 'thaw', flight: 'none' } } } }
+  assert.throws(() => submit(thaw, 'soviet', action), /capacity/)
+  assert.equal(submit(thaw, 'soviet', { ...action, unitIds: ['plane-3'] }).state.pieces[3].active, true)
   const refitted = submit(record, 'soviet', action)
   assert.equal(refitted.state.dumps[dumpId].tokens, 9)
   assert.equal(refitted.state.pieces.filter((plane) => plane.active).length, 5)

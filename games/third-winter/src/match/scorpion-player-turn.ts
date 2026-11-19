@@ -10,12 +10,14 @@ export interface PlayerTurn {
   phasing: Side
   phase: Phase
   retention: Retention
+  simulcast?: true
 }
 
 export function startScorpionPlayerTurns(turn: Readonly<ScorpionTurn>): PlayerTurn {
   if (turn.step.kind !== 'player-turn') throw new Error('Scorpion initiative must be resolved first')
   const { first, retention } = turn.step
-  return { turn: turn.number, first, phasing: first, phase: 'aircraft-refit', retention }
+  return { turn: turn.number, first, phasing: first, phase: 'aircraft-refit', retention,
+    ...(turn.weather?.ground === 'thaw' ? { simulcast: true } : {}) }
 }
 
 /** The completed phase is checked by its own module before calling this cursor. */
