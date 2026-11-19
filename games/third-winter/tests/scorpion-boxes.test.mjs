@@ -8,7 +8,7 @@ import { scorpionWeather } from '../src/ttw/scorpion/weather.ts'
 import { calibratedSurface } from '../src/view/calibrated-surface.ts'
 import { scorpionBoxFrame, scorpionSurfaceBoxes } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
-import { scorpionHexLayout } from '../src/view/scorpion-grid-layout.ts'
+import { scorpionHexAt, scorpionHexLayout } from '../src/view/scorpion-grid-layout.ts'
 
 const definition = (name, kind, side, move = null) => ({ key: name, kind, source: { side, name,
   faces: { combat: { asset: `${name}.png` }, move: move && { asset: move } } } })
@@ -90,6 +90,12 @@ test('the Scorpion grid follows the printed hex centers on both parities and fit
     assert.ok(group.y - counter.size / 2 >= 42.04)
     assert.ok(group.y + counter.size / 2 <= 1832.5)
   }
+  for (let column = 1; column <= 22; column++) for (let row = 1; row <= 17; row++) {
+    const hex = `s${column}.${String(row).padStart(2, '0')}`
+    const { x, y } = scorpionHexLayout(hex)
+    assert.equal(scorpionHexAt(x, y), hex)
+  }
+  assert.equal(scorpionHexAt(175, 630), null)
 })
 
 test('supply in an off-map air box uses the printed markers and the box visibility rules', () => {

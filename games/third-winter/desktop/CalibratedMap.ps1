@@ -2,7 +2,10 @@ param(
     [Parameter(Mandatory = $true)][string]$ModelPath,
     [string]$RenderTo,
     [int]$RenderFrame = -1,
-    [switch]$RenderAid
+    [switch]$RenderAid,
+    [switch]$Local,
+    [switch]$LocalSmoke,
+    [string]$LocalSmokeImage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +34,18 @@ function Add-At($visual, [double]$x, [double]$y, $surface = $script:canvas) {
     [void]$surface.Children.Add($visual)
 }
 
+function Write-DesktopPng($surface, [int]$width, [int]$height, [string]$path) {
+    $surface.Measure((New-Object Windows.Size($width, $height)))
+    $surface.Arrange((New-Object Windows.Rect(0, 0, $width, $height)))
+    $surface.UpdateLayout()
+    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap($width, $height, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
+    $bitmap.Render($surface)
+    $encoder = New-Object Windows.Media.Imaging.PngBitmapEncoder
+    $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
+    $output = [IO.File]::Create($path)
+    try { $encoder.Save($output) } finally { $output.Dispose() }
+}
+
 function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface = $script:canvas) {
     $image = New-Object Windows.Controls.Image
     $image.Source = Get-Art (Join-Path $model.imageDirectory $counter.asset)
@@ -43,6 +58,24 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
     $image.ToolTip = $label
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
     Add-At $image $x $y $surface
+    if ($Local -and $script:localRoster.ContainsKey([string]$counter.id)) {
+        $image.Tag = [string]$counter.id
+        $image.Cursor = [Windows.Input.Cursors]::Hand
+        $image.Add_MouseLeftButtonDown({
+            param($sender, $eventArgs)
+            $eventArgs.Handled = $true
+            Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag }
+        })
+        if ($script:localView.unitId -eq $counter.id) {
+            $outline = New-Object Windows.Controls.Border
+            $outline.Width = $size
+            $outline.Height = $size
+            $outline.BorderThickness = 3
+            $outline.BorderBrush = [Windows.Media.Brushes]::DeepSkyBlue
+            $outline.IsHitTestVisible = $false
+            Add-At $outline $x $y $surface
+        }
+    }
     $badgeSize = $size * 0.30
     for ($index = 0; $index -lt $counter.badges.Count; $index++) {
         $badge = $counter.badges[$index]
@@ -110,6 +143,7 @@ function Show-Frame([int]$index) {
     $background.Width = $model.width
     $background.Height = $model.height
     Add-At $background 0 0
+    if ($Local) { Add-LocalRoute $frame }
 
     foreach ($entry in $frame.inventories) {
         $box = $boxes[[int]$entry.cell]
@@ -201,15 +235,13 @@ if ($RenderTo) {
     if ($RenderFrame -lt 0) { $RenderFrame = $model.frames.Count - 1 }
     Show-Frame $RenderFrame
     $surface = if ($RenderAid) { $script:aidCanvas } else { $script:canvas }
-    $size = New-Object Windows.Size($surface.Width, $surface.Height)
-    $surface.Measure($size)
-    $surface.Arrange((New-Object Windows.Rect(0, 0, $surface.Width, $surface.Height)))
-    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap($surface.Width, $surface.Height, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
-    $bitmap.Render($surface)
-    $encoder = New-Object Windows.Media.Imaging.PngBitmapEncoder
-    $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
-    $output = [IO.File]::Create($RenderTo)
-    try { $encoder.Save($output) } finally { $output.Dispose() }
+    Write-DesktopPng $surface $surface.Width $surface.Height $RenderTo
+    exit
+}
+
+if ($Local) {
+    . (Join-Path $PSScriptRoot 'ScorpionLocalPanel.ps1')
+    Show-LocalScorpion
     exit
 }
 
