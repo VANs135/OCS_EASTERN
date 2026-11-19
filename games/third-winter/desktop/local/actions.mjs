@@ -2,6 +2,7 @@ import { actingSide } from '@ocs-eastern/series/turn'
 import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
 import { scorpionGroundMpAvailable, canMoveInPhase, walkScorpionGroundRoute } from '../../src/match/scorpion-movement.ts'
+import { scorpionScheduledArrivals } from '../../src/match/scorpion-reinforcement.ts'
 import { scorpionMovementRules } from '../../src/match/scorpion-ground-actions.ts'
 import { hasScorpionBulkFuel } from '../../src/match/scorpion-fuel.ts'
 import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpion-sp-payment.ts'
@@ -141,7 +142,8 @@ function reinforcementChoices(state, side, { unitId, hex }, data, add, batch) {
   const rules = data.board.reinforcements(state)
   if (window.stage === 'scheduled') {
     const candidates = localArrivals(state, side, data)
-    const outstanding = candidates.filter((entry) => !entry.optionalForce && rules.arrivalDestinations(entry).length)
+    // Entry-hex availability decides what can be placed now, never whether an obligation exists.
+    const { placeable: outstanding, blocked } = scorpionScheduledArrivals(state, side, rules)
     const picked = candidates.find(({ id }) => id === unitId) ?? outstanding[0]
     if (picked) for (const at of rules.arrivalDestinations(picked)) {
       add(`入场到 ${at}${picked.optionalForce && !state.arrival.mobilized.includes(picked.optionalForce) ? ' · 首次调入扣 5 VP' : ''}`,
@@ -154,7 +156,13 @@ function reinforcementChoices(state, side, { unitId, hex }, data, add, batch) {
     if (fixedEntries.length > 1) batch(`放置 ${fixedEntries.length} 枚只有一个入场格的定期增援`, fixedEntries)
     if (window.fixedTokens) for (const id of window.fixedDestinations) add(`放置固定补给 ${window.fixedTokens}T · ${id}`,
       'place-supply', { target: { kind: 'hex', id }, tokens: window.fixedTokens })
-    if (!outstanding.length && !window.fixedTokens) add('完成定期增援并处理可变补给', 'finish-scheduled-arrivals')
+    if (!outstanding.length && !window.fixedTokens) {
+      // OCS 13.6 keeps a blocked arrival an obligation; the player must see where it goes, so the
+      // forfeiture is named on the choice that records it instead of disappearing.
+      for (const entry of blocked) add(`无法入场：${entry.id} 印刷入场格全部被敌方占据，按 OCS 13.6 记录为未到场`,
+        'finish-scheduled-arrivals')
+      add('完成定期增援并处理可变补给', 'finish-scheduled-arrivals')
+    }
     return
   }
   if (window.variableTokens) {

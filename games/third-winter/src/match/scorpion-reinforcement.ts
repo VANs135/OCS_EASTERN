@@ -2,7 +2,8 @@ import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { RollDie } from '@ocs-eastern/series/dice'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { placeScorpionArrival } from '../ttw/scorpion/arrival.ts'
+import type { UnitArrival } from '../import/scorpion-arrivals.ts'
+import { forfeitScorpionArrivals, forfeitedScorpionArrivals, placeScorpionArrival } from '../ttw/scorpion/arrival.ts'
 import type { ScorpionSupplyRoll } from '../ttw/scorpion/reinforcement-supply.ts'
 import { scorpionSuddenDeath } from '../ttw/scorpion/victory.ts'
 import { advanceScorpionPhase } from './scorpion-player-turn.ts'
@@ -18,6 +19,33 @@ export type ReinforcementCommand =
   | { type: 'place-alert'; hex: string }
   | { type: 'pass-alert' }
   | { type: 'complete-reinforcement' }
+
+/** One turn's scheduled reinforcement obligation, split by whether an entry hex is open. */
+export interface ScheduledArrivalStatus {
+  /** Every non-optional arrival of `turn` that is not on the map yet, regardless of entry hexes. */
+  outstanding: readonly UnitArrival[]
+  /** Obligations that can be placed right now; placement must finish before the variable award. */
+  placeable: readonly UnitArrival[]
+  /** Obligations with no legal entry hex: no printed hex left, and OCS 13.6b offers no substitute. */
+  blocked: readonly UnitArrival[]
+}
+
+/**
+ * OCS 13.6: reinforcements are placed in their arrival phase and cannot be delayed, so a scheduled
+ * arrival remains an obligation for its whole turn no matter whether an entry hex happens to be
+ * open. Only `placed` settles an obligation; entry-hex availability never removes one from this set.
+ */
+export function scorpionScheduledArrivals(
+  state: Readonly<ReinforcementState>, side: Side, board: ReinforcementBoard,
+): ScheduledArrivalStatus {
+  const outstanding = board.catalog.filter((arrival) =>
+    arrival.side === side && arrival.turn === state.cursor.turn && !arrival.optionalForce &&
+    !state.arrival.placed.includes(arrival.id) && !forfeitedScorpionArrivals(state.arrival).includes(arrival.id),
+  )
+  const placeable = outstanding.filter((arrival) => board.arrivalDestinations(arrival).length > 0)
+  const blocked = outstanding.filter((arrival) => board.arrivalDestinations(arrival).length === 0)
+  return { outstanding, placeable, blocked }
+}
 
 export function submitScorpionReinforcement(
   record: Readonly<MatchRecord<ReinforcementState, ReinforcementCommand, Side>>,
@@ -51,12 +79,13 @@ export function applyScorpionReinforcement(
     return deliverScorpionSupply(state, window, side, action.target, action.tokens, board)
   }
   if (action.type === 'finish-scheduled-arrivals') {
-    const outstanding = board.catalog.some((arrival) =>
-      arrival.side === side && arrival.turn === state.cursor.turn && !arrival.optionalForce &&
-      !state.arrival.placed.includes(arrival.id) && board.arrivalDestinations(arrival).length > 0,
-    )
-    if (outstanding) throw new Error('Place the available scheduled arrivals first')
-    return awardScorpionVariableSupply(state, window, side, roll, pickIndex)
+    const { placeable, blocked } = scorpionScheduledArrivals(state, side, board)
+    if (placeable.length) throw new Error('Place the available scheduled arrivals first')
+    // OCS 13.6 forbids delaying a reinforcement, and 13.6b substitutes only for blocked map-edge
+    // hexes. An arrival whose printed hexes are all enemy-held therefore never arrives; record that
+    // outcome instead of dropping the unit without a trace, then let the phase continue.
+    const arrival = blocked.length ? forfeitScorpionArrivals(state.arrival, blocked) : state.arrival
+    return awardScorpionVariableSupply({ ...state, arrival }, window, side, roll, pickIndex)
   }
   if (action.type === 'place-arrival') {
     if (window.stage !== 'scheduled') throw new Error('Scheduled arrivals are closed')
