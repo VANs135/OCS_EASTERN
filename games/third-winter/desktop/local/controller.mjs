@@ -7,6 +7,7 @@ import { scorpionBarrageMarkerFrame } from '../../src/view/scorpion-barrage-mark
 import { scorpionHexAt, scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } from './actions.mjs'
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
+import { editLocalCapture, localCapture, localCaptureOrder, offMapAir } from './capture.mjs'
 import { localScorpionEnvelope, lockLocalSave, readLocalJson, replaceLocalJson, restoreLocalScorpion } from './store.mjs'
 
 export async function openLocalScorpion(data, savePath, seed = randomBytes(4).readUInt32LE()) {
@@ -79,7 +80,25 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       }
       const priorMenu = menu
       menu = []
-      if (request.kind === 'select-unit') {
+      if (shown.capture && request.kind === 'capture-confirm') {
+        return commit([localCaptureOrder(shown.capture)])
+      } else if (shown.capture && request.kind === 'capture-edit') {
+        selection.capture = editLocalCapture(selection.capture, shown.capture, request)
+      } else if (shown.capture && request.kind === 'capture-focus') {
+        if (!shown.capture.rows.some(({ id }) => id === request.id)) throw new Error('请选择待处理的算子。')
+        selection.capture = { ...selection.capture, focus: request.id }
+      } else if (shown.capture && request.kind === 'board-left') {
+        const hit = hitAt(request)
+        if (!hit) return shown
+        const { focus, hex, rows } = shown.capture
+        if (hit.hex === hex && rows.some(({ id }) => id === hit.unitId)) {
+          selection.capture = { ...selection.capture, focus: hit.unitId }
+        } else if (focus?.destinations.length && (hit.hex || hit.box)) {
+          selection.capture = editLocalCapture(selection.capture, shown.capture, {
+            id: focus.id, field: 'destination', value: hit.box ? offMapAir : hit.hex,
+          })
+        } else return shown
+      } else if (request.kind === 'select-unit') {
         pickUnit(request.unitId, request.toggle)
       } else if (request.kind === 'board-left') {
         const hit = hitAt(request)
@@ -147,6 +166,7 @@ function render(record, selection, data) {
   const frame = scorpionSessionBoxFrame(state, catalog, actor)
   const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
   const mapStacks = scorpionMapStacks(state, catalog, mapCounters)
+  const capture = state.kind === 'playing' && localCapture(state, selection.capture, data.assets)
   const result = state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended' && state.turn.step.result)
   const phase = state.kind === 'setup' ? '开局部署' : result ? '对局结束' : state.turn.step.kind !== 'player-turn' ? '先手判定'
     : state.reroll ? '重掷应答' : state.capture ? '夺取应答' : state.barrage ? '射击应答' : state.airMission ? '空军任务'
@@ -160,14 +180,24 @@ function render(record, selection, data) {
   const stack = selection.stackHex ? countersAt(mapStacks, selection.stackHex).filter(({ id }) => roster.some((item) => item.id === id)) : []
   const selectedUnit = state.units?.[picked.unitId]
   const route = selectedUnit && picked.route?.length ? [selectedUnit.hex, ...picked.route] : []
-  return { revision, actor, headline, phase, roster, stack, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
+  const destination = capture?.focus?.destination
+  const targets = capture?.focus?.destinations ?? []
+  return { revision, actor, headline, phase, roster, stack, capture: capture || null,
+    unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, ended: Boolean(result),
-    frame: { ...frame, aidCounters, mapStacks, selectedUnits: unitIds, selectedHex: picked.hex && scorpionHexLayout(picked.hex),
+    frame: { ...frame, aidCounters, mapStacks, selectedUnits: capture?.focus ? [capture.focus.id] : unitIds,
+      selectedHex: capture ? scorpionHexLayout(destination && destination !== offMapAir ? destination : capture.hex) :
+        picked.hex && scorpionHexLayout(picked.hex),
+      captureTargets: targets.filter((id) => id !== offMapAir).map(scorpionHexLayout),
+      captureAirBox: targets.includes(offMapAir) ? (actor === 'axis' ? 20 : 26) : null,
+      captureAirBoxSelected: destination === offMapAir,
       route: route.map(scorpionHexLayout) } }
 }
 
 export function projectLocalScorpion(view) {
   const actions = view.actions.filter(sidebarChoice).map(({ key, label }) => ({ key, label }))
   const menu = view.menu?.map(({ key, label, group }) => ({ key, label, group }))
-  return { ...view, actions, menu }
+  const capture = view.capture && { ...view.capture, rows: view.capture.rows.map(({ id, label, kind, complete }) =>
+    ({ id, label, kind, complete })) }
+  return { ...view, capture, actions, menu }
 }

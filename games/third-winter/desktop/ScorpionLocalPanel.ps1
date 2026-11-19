@@ -14,6 +14,15 @@ function New-LocalText([double]$size) {
 }
 
 function Add-LocalRoute($frame) {
+    foreach ($target in $frame.captureTargets) {
+        $dot = New-Object Windows.Shapes.Ellipse
+        $dot.Width = $dot.Height = 20 * $target.scale
+        $dot.Fill = [Windows.Media.Brushes]::MediumSeaGreen
+        $dot.Stroke = [Windows.Media.Brushes]::White
+        $dot.StrokeThickness = 2
+        $dot.IsHitTestVisible = $false
+        Add-At $dot ($target.x - $dot.Width / 2) ($target.y - $dot.Height / 2)
+    }
     if ($frame.selectedHex) {
         $center = $frame.selectedHex
         $ring = New-Object Windows.Shapes.Ellipse
@@ -110,6 +119,10 @@ function Test-LocalWindow($dock) {
     $visibleSize = New-Object Windows.Size(1460, 920)
     $dock.Measure($visibleSize)
     $dock.Arrange((New-Object Windows.Rect(0, 0, 1460, 920)))
+    if ($script:localView.capture) {
+        Test-LocalCaptureWindow $dock
+        return
+    }
     while ($script:localView.phase -ne '移动') {
         $buttons = $script:localButtons.Children
         $next = if ($script:localView.phase -eq '开局部署') {
@@ -140,7 +153,9 @@ function Update-LocalView($view) {
         $script:localView = $view
         $script:localRoster = @{}
         $script:localHeading.Text = $view.headline
-        $script:localStatus.Text = "已自动保存 · 第 $($view.revision) 条记录"
+        $script:localBoardHeader.Visibility = if ($view.capture) { 'Collapsed' } else { 'Visible' }
+        Update-LocalCapturePanel $view.capture
+        $script:localStatus.Text = if ($view.capture) { "待确认 · 对局已保存至第 $($view.revision) 条记录" } else { "已自动保存 · 第 $($view.revision) 条记录" }
         $script:localStatus.Foreground = [Windows.Media.Brushes]::DarkSlateGray
         $script:localStatus.ToolTip = $model.local.savePath
         $script:localSelected.Text = if ($view.route.Count) { '路线  ' + ($view.route -join ' → ') } elseif ($view.unitIds.Count -gt 1) {
@@ -251,6 +266,7 @@ function Show-LocalScorpion {
     [Windows.Controls.DockPanel]::SetDock($panel, 'Right')
     [void]$dock.Children.Add($panel)
     $header = New-Object Windows.Controls.StackPanel
+    $script:localBoardHeader = $header
     [Windows.Controls.DockPanel]::SetDock($header, 'Top')
     [void]$panel.Children.Add($header)
     $unitLabel = New-LocalText 15
@@ -322,7 +338,10 @@ function Show-LocalScorpion {
     $actionsScroll = New-Object Windows.Controls.ScrollViewer
     $actionsScroll.VerticalScrollBarVisibility = 'Auto'
     $script:localButtons = New-Object Windows.Controls.StackPanel
-    $actionsScroll.Content = $script:localButtons
+    $body = New-Object Windows.Controls.StackPanel
+    [void]$body.Children.Add((New-LocalCapturePanel))
+    [void]$body.Children.Add($script:localButtons)
+    $actionsScroll.Content = $body
     [void]$panel.Children.Add($actionsScroll)
 
     $script:localTabs = New-Object Windows.Controls.TabControl
@@ -343,7 +362,7 @@ function Show-LocalScorpion {
     Register-LocalMapClicks $script:canvas
     $window.Add_PreviewKeyDown({
         param($sender, $args)
-        if ($args.Key -eq 'Escape' -and !$script:localCommand.IsKeyboardFocusWithin) {
+        if ($args.Key -eq 'Escape' -and !$script:localView.capture -and !$script:localCommand.IsKeyboardFocusWithin) {
             Invoke-LocalRequest @{ kind = 'clear-selection' }
             $args.Handled = $true
         }

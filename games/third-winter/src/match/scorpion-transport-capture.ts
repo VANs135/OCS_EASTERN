@@ -3,6 +3,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { capturedAmount } from '@ocs-eastern/series/tables/capture'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
+import type { ScorpionMap } from '../import/scorpion-map.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { carriedScorpionTokens } from './scorpion-sp-payment.ts'
@@ -19,6 +20,10 @@ export interface CapturedTransportGroup {
 }
 
 export type TransportCaptureChoice = { id: string; takenPoints: number; takenTokens: number; displacedTo?: string }
+
+export function canDisplaceScorpionTransport(map: ScorpionMap, kind: TransportClass, from: string, at: string) {
+  return at !== from && map.hexes.has(at) && scorpionHexDistance(from, at) <= (kind === 'trucks' ? 10 : 5)
+}
 
 export function rollScorpionTransportCapture(state: Readonly<ScorpionInPlay>, ids: readonly string[],
   assets: ScorpionSetupAssets, roll: RollDie): CapturedTransportGroup[] {
@@ -91,8 +96,7 @@ export function settleScorpionTransports(state: Readonly<ScorpionInPlay>, choice
       const left = member.points - choice.takenPoints
       const remainingCargo = member.tokens - choice.takenTokens
       const at = choice.displacedTo && scorpionHexId(choice.displacedTo)
-      const range = group.kind === 'trucks' ? 10 : 5
-      if ((left || remainingCargo) && (!at || at === hex || !assets.map.hexes.has(at) || scorpionHexDistance(hex, at) > range)) {
+      if ((left || remainingCargo) && (!at || !canDisplaceScorpionTransport(assets.map, group.kind, hex, at))) {
         throw new Error('Choose an in-range displacement hex for the remaining transports and cargo')
       }
       delete units[member.id]

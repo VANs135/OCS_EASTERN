@@ -147,6 +147,10 @@ function Show-Frame([int]$index) {
         $region.Width = $box.w
         $region.Height = $box.h
         $region.Background = [Windows.Media.Brushes]::Transparent
+        if ($Local -and $frame.captureAirBox -eq $entry.cell) {
+            $region.BorderThickness = 7
+            $region.BorderBrush = if ($frame.captureAirBoxSelected) { [Windows.Media.Brushes]::DeepSkyBlue } else { [Windows.Media.Brushes]::MediumSeaGreen }
+        }
         $contents = if ($entry.hidden) { $model.labels.hidden } elseif ($entry.counters.Count) {
             $entry.counters.label -join [Environment]::NewLine
         } else { $model.labels.empty }
@@ -240,6 +244,7 @@ if ($RenderTo) {
 }
 
 if ($Local) {
+    . (Join-Path $PSScriptRoot 'ScorpionCapturePanel.ps1')
     . (Join-Path $PSScriptRoot 'ScorpionLocalPanel.ps1')
     Show-LocalScorpion
     exit

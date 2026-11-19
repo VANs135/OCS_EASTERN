@@ -20,16 +20,7 @@ export function repliesFor(state, side, selection, data, add) {
     add('重掷并把算子交给对手', 'resolve-reroll', { decision: 'reroll' })
     return true
   }
-  if (state.capture) {
-    const capture = state.capture
-    const aircraft = capture.aircraft.map(({ id, destinations }) => ({ id, destination: destinations.find((base) => base.hex === hex) ?? destinations[0] }))
-    const extenders = (capture.extenders ?? []).map(({ id, destinations }) => ({ id, destination: destinations.includes(hex) ? hex : destinations[0] }))
-    if (!capture.transports.length && aircraft.every(({ destination }) => destination) && extenders.every(({ destination }) => destination)) {
-      const points = [...aircraft.map(({ destination }) => baseName(destination)), ...extenders.map(({ destination }) => destination)]
-      add(`确认位移${points.length ? ` · ${points.join('、')}` : ''}`, 'settle-capture', { aircraft, extenders })
-    }
-    return true
-  }
+  if (state.capture) return true
   if (state.combat?.retreat) {
     add('继续撤退余程', 'continue-combat-retreat')
     return true

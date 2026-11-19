@@ -7,11 +7,13 @@ import { scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { openLocalScorpion, projectLocalScorpion } from './controller.mjs'
 import { loadLocalScorpion } from './data.mjs'
 import { readLocalJson } from './store.mjs'
+import { testLocalCapture } from './capture-smoke.mjs'
 
-const root = process.argv[2]
+const args = process.argv.slice(2)
+const [root, unitRoot] = args.filter((value) => !value.startsWith('--'))
 if (!root) throw new Error('Pass the Third Winter data directory')
 const dist = fileURLToPath(new URL('../../../../dist/', import.meta.url))
-const data = await loadLocalScorpion(resolve(root), dist, process.argv[3] && resolve(process.argv[3]))
+const data = await loadLocalScorpion(resolve(root), dist, unitRoot && resolve(unitRoot))
 const folder = await mkdtemp(join(tmpdir(), 'scorpion-local-check-'))
 const file = join(folder, 'match.json')
 let client = await openLocalScorpion(data, file, 19440126)
@@ -57,6 +59,7 @@ try {
   await apply('place-supply')
   await apply('finish-scheduled-arrivals')
   await apply('complete-reinforcement')
+  const captureOpening = (await readLocalJson(file)).record
   const rifle = client.view().roster.find(({ label }) => label.includes('Sov 58 Rifle Div'))
   assert.equal(rifle.hex, 's1.11')
   const stack = await left(rifle.hex)
@@ -124,6 +127,9 @@ try {
     await apply('advance-after-combat', (action) => !action.unitIds.length)
   }
   console.log(`Local match passed map deployment, exact counter/context selection, double-click movement, combat and a saved reroll at revision ${client.view().revision}.`)
+  const nativeArgs = args.includes('--native-capture') ?
+    [root, unitRoot, args.find((value) => value.startsWith('--smoke-image='))].filter(Boolean) : undefined
+  await testLocalCapture(data, folder, captureOpening, nativeArgs)
 } finally {
   await client.close()
   await unlink(file)
