@@ -34,31 +34,35 @@ import { sampleScorpionReroll } from './scorpion-reroll-example.mjs'
 import { playScorpionToEnd } from './scorpion-playthrough.mjs'
 
 const root = process.argv[2]
-if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory]')
-const unitRoot = process.argv[3] ?? join(dirname(resolve(root)), 'DATA备份')
+const args = process.argv.slice(3)
+// --scorpion-only skips the campaign map checks. The Scorpion map ships its own files, so the
+// campaign 地图数据库/map_hexes.json and map_edges.json are not needed for a Scorpion audit.
+const scorpionOnly = args.includes('--scorpion-only')
+if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory] [--scorpion-only]')
+const unitRoot = args.find((arg) => !arg.startsWith('--')) ?? join(dirname(resolve(root)), 'DATA备份')
 const readAt = async (folder, ...path) => JSON.parse((await readFile(join(folder, ...path), 'utf8')).replace(/^\uFEFF/, ''))
 const read = (...path) => readAt(root, ...path)
 const scenarioPath = ['data', 'scenarios', '08-scorpion']
-const [{ definitions, aliases, rawIds }, setup, reinforcement, map, hexes, edges] = await Promise.all([
+const [{ definitions, aliases, rawIds }, setup, reinforcement, map, campaign] = await Promise.all([
   loadScorpionUnits((file) => readAt(unitRoot, file)),
   read(...scenarioPath, 'setup.json'),
   read(...scenarioPath, 'reinforcements.json'),
   loadScorpionMap(read),
-  read('地图数据库', 'map_hexes.json'),
-  read('地图数据库', 'map_edges.json'),
+  scorpionOnly ? null : Promise.all([read('地图数据库', 'map_hexes.json'), read('地图数据库', 'map_edges.json')]),
 ])
-const byHex = new Map(hexes.items.map((hex) => [campaignHexKey(hex.hex_id), hex]))
-if (byHex.size !== hexes.items.length) throw new Error('Campaign source hex ID collision')
-const seamIssues = hexes.items.filter((hex) => {
+const [hexes, edges] = campaign ?? [null, null]
+const byHex = hexes ? new Map(hexes.items.map((hex) => [campaignHexKey(hex.hex_id), hex])) : new Map()
+if (hexes && byHex.size !== hexes.items.length) throw new Error('Campaign source hex ID collision')
+const seamIssues = hexes ? hexes.items.filter((hex) => {
   if (!hex.seam_twin) return false
   const peer = byHex.get(campaignHexKey(hex.seam_twin))
   return peer?.seam_twin !== hex.hex_id || peer.seam_primary === hex.seam_primary
-})
-const danglingEdges = edges.items.filter((edge) =>
+}) : []
+const danglingEdges = edges ? edges.items.filter((edge) =>
   [edge.hex_a, edge.hex_b].some((id) => id !== null && !byHex.has(campaignHexKey(id))),
-)
+) : []
 const edgeGroups = new Map()
-for (const edge of edges.items) {
+for (const edge of edges?.items ?? []) {
   if (!edge.seam_dup_group) continue
   const keys = edgeGroups.get(edge.seam_dup_group) ?? new Set()
   keys.add(JSON.stringify([edge.road_present, edge.road_subclass, edge.rail_present, edge.rail_class]))
@@ -479,14 +483,14 @@ const report = {
     unusableSovietSources,
     opening,
   },
-  campaign: {
+  campaign: hexes ? {
     sourceHexes: hexes.items.length,
     sourceEdges: edges.items.length,
     openEndedEdges: edges.items.filter((edge) => edge.hex_a === null || edge.hex_b === null).length,
     danglingEdges: danglingEdges.map(({ edge_key }) => edge_key),
     mismatchedHexTwins: seamIssues.map(({ hex_id }) => hex_id),
     seamTransportDisagreements: [...edgeGroups].filter(([, values]) => values.size > 1).map(([id]) => id),
-  },
+  } : { skipped: true, reason: '--scorpion-only: campaign 地图数据库/map_hexes.json and map_edges.json not read' },
 }
 console.log(JSON.stringify(report, null, 2))
 if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length || unusableSovietSources.length ||
