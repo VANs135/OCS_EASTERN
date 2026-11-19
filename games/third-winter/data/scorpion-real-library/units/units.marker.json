@@ -1,0 +1,3834 @@
+{
+  "version": 1,
+  "units": [
+    {
+      "id": "",
+      "name": "Exhausted",
+      "nameZh": "耗尽",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_exhstd.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "与 misc_low(低下) 同为燃料/储备两级耗尽标志",
+      "ruleRefs": [
+        "12.10"
+      ]
+    },
+    {
+      "id": "14",
+      "name": "Low/Exhausted",
+      "nameZh": "储备低下/耗尽",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_low.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.10"
+      ]
+    },
+    {
+      "id": "15",
+      "name": "Out of Supply",
+      "nameZh": "断补(OoS)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_OoS.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.6d",
+        "12.8"
+      ]
+    },
+    {
+      "id": "4292",
+      "name": "Small Supply Dump A",
+      "nameZh": "小补给堆(A)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-As.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump B",
+      "nameZh": "小补给堆(B)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Bs.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump C",
+      "nameZh": "小补给堆(C)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Cs.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump D",
+      "nameZh": "小补给堆(D)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ds.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump E",
+      "nameZh": "小补给堆(E)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Es.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump F",
+      "nameZh": "小补给堆(F)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Fs.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump G",
+      "nameZh": "小补给堆(G)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Gs.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump H",
+      "nameZh": "小补给堆(H)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Hs.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump J",
+      "nameZh": "小补给堆(J)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Js.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump K",
+      "nameZh": "小补给堆(K)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ks.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump L",
+      "nameZh": "小补给堆(L)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ls.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump M",
+      "nameZh": "小补给堆(M)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ms.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump N",
+      "nameZh": "小补给堆(N)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ns.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Small Supply Dump P",
+      "nameZh": "小补给堆(P)",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_smallsupdump-Ps.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1d",
+        "9.14b"
+      ]
+    },
+    {
+      "id": "4335",
+      "name": "Supply Point 1",
+      "nameZh": "补给点1SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-1.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Point 15/10",
+      "nameZh": "补给点 15SP/10SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "BTR S05 R11 C05.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "BTR S05 R11 C05B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "两面补给点标记: 正面15SP, 背面10SP",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Point 2",
+      "nameZh": "补给点2SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-2.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Point 3",
+      "nameZh": "补给点3SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-3.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Point 4",
+      "nameZh": "补给点4SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-4.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Point 5",
+      "nameZh": "补给点5SP",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-5.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Ton 1T",
+      "nameZh": "补给1吨",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-1T.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "T=吨, 1SP=4T",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Ton 2T",
+      "nameZh": "补给2吨",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-2T.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "T=吨, 1SP=4T",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Ton 3T",
+      "nameZh": "补给3吨",
+      "side": null,
+      "category": "supply",
+      "faces": {
+        "combat": {
+          "asset": "misc_SP-3T.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "T=吨, 1SP=4T",
+      "ruleRefs": [
+        "12.1"
+      ]
+    },
+    {
+      "id": "4375",
+      "name": "Axis Reserve",
+      "nameZh": "轴心预备",
+      "side": "axis",
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R10 C03.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R10 C03B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.7"
+      ],
+      "mode": "reserve"
+    },
+    {
+      "id": "7",
+      "name": "DG (Disorganized)",
+      "nameZh": "混乱(DG)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "misc_DG.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.10"
+      ],
+      "mode": "dg"
+    },
+    {
+      "id": "",
+      "name": "Exploit 2",
+      "nameZh": "进击(AR≥2)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "misc_Explt-2.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.9",
+        "9.13"
+      ],
+      "mode": "exploit",
+      "minAr": 2
+    },
+    {
+      "id": "",
+      "name": "Exploit 3",
+      "nameZh": "进击(AR≥3)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "misc_Explt-3.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.9",
+        "9.13"
+      ],
+      "mode": "exploit",
+      "minAr": 3
+    },
+    {
+      "id": "8",
+      "name": "Exploit 4",
+      "nameZh": "进击(AR≥4)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "misc_Explt-4.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.9",
+        "9.13"
+      ],
+      "mode": "exploit",
+      "minAr": 4
+    },
+    {
+      "id": "",
+      "name": "Reserve (black)",
+      "nameZh": "预备(黑色)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R10 C05B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "预备标志颜色变体(仅美工效果, 玩家任选); 仅背面文件",
+      "ruleRefs": [
+        "5.7"
+      ],
+      "mode": "reserve"
+    },
+    {
+      "id": "",
+      "name": "Reserve (green)",
+      "nameZh": "预备(绿色)",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R10 C04B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "预备标志颜色变体(仅美工效果, 玩家任选); 仅背面文件",
+      "ruleRefs": [
+        "5.7"
+      ],
+      "mode": "reserve"
+    },
+    {
+      "id": "1718",
+      "name": "Sov Reserve",
+      "nameZh": "苏联预备",
+      "side": "soviet",
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R03 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R03 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.7"
+      ],
+      "mode": "reserve"
+    },
+    {
+      "id": "17",
+      "name": "Strategic Movement",
+      "nameZh": "战略移动",
+      "side": null,
+      "category": "mode",
+      "faces": {
+        "combat": {
+          "asset": "misc_Strat.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "5.6"
+      ],
+      "mode": "strategic"
+    },
+    {
+      "id": "",
+      "name": "Step Loss 0",
+      "nameZh": "军力损失0",
+      "side": null,
+      "category": "step_loss",
+      "faces": {
+        "combat": {
+          "asset": "misc_0steploss.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "9.11"
+      ]
+    },
+    {
+      "id": "2",
+      "name": "Step Loss 1",
+      "nameZh": "军力损失1",
+      "side": null,
+      "category": "step_loss",
+      "faces": {
+        "combat": {
+          "asset": "misc_1steploss.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "9.11"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Step Loss 2",
+      "nameZh": "军力损失2",
+      "side": null,
+      "category": "step_loss",
+      "faces": {
+        "combat": {
+          "asset": "misc_2steploss.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "9.11"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Step Loss 3",
+      "nameZh": "军力损失3",
+      "side": null,
+      "category": "step_loss",
+      "faces": {
+        "combat": {
+          "asset": "misc_3steploss.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "9.11"
+      ]
+    },
+    {
+      "id": "4398",
+      "name": "Month",
+      "nameZh": "月份",
+      "side": null,
+      "category": "turn",
+      "faces": {
+        "combat": {
+          "asset": "month.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "回合序列"
+      ]
+    },
+    {
+      "id": "4400",
+      "name": "Player Turn",
+      "nameZh": "玩家回合",
+      "side": null,
+      "category": "turn",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R14 C12.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R14 C12B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "回合序列"
+      ]
+    },
+    {
+      "id": "113",
+      "name": "Turn",
+      "nameZh": "回合",
+      "side": null,
+      "category": "turn",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R14 C13.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R14 C13B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "回合序列"
+      ]
+    },
+    {
+      "id": "4399",
+      "name": "Year",
+      "nameZh": "年份",
+      "side": null,
+      "category": "turn",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R14 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R14 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "回合序列"
+      ]
+    },
+    {
+      "id": "4493",
+      "name": "Dnepr River Condition",
+      "nameZh": "第聂伯河状态",
+      "side": null,
+      "category": "weather",
+      "faces": {
+        "combat": {
+          "asset": "River.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "116",
+      "name": "Axis Rail Cap",
+      "nameZh": "轴心铁路运力",
+      "side": "axis",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R13 C14.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.3",
+        "21.6"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Rail Cap x1SP - Axis",
+      "nameZh": "铁路运力×1SP(轴心)",
+      "side": "axis",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R14 C14.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "黑边, 铁路运力以 SP 为单位; 与 R13 C14 铁路运力不同格式",
+      "ruleRefs": [
+        "13.3",
+        "21.6"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Rail Cap x1T - Soviet",
+      "nameZh": "铁路运力×1T(苏联)",
+      "side": "soviet",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R14 C15.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "红边, 铁路运力以 T(吨) 为单位; 与 R13 C15 铁路运力不同格式",
+      "ruleRefs": [
+        "13.3",
+        "21.6"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Rail Line",
+      "nameZh": "铁路线",
+      "side": null,
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "RailLine.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "铁路线标记(标注已转换/可用铁路)",
+      "ruleRefs": [
+        "13.3"
+      ]
+    },
+    {
+      "id": "109",
+      "name": "Railhead",
+      "nameZh": "铁路终点",
+      "side": null,
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "Railhead.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.3"
+      ]
+    },
+    {
+      "id": "114",
+      "name": "Soviet Rail Cap",
+      "nameZh": "苏联铁路运力",
+      "side": "soviet",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R13 C15.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.3",
+        "21.6"
+      ]
+    },
+    {
+      "id": "19",
+      "name": "Trainbusting - Allied",
+      "nameZh": "列车破坏(盟军)",
+      "side": "soviet",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "Trainbusting-US.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "14.7"
+      ]
+    },
+    {
+      "id": "20",
+      "name": "Trainbusting - Axis",
+      "nameZh": "列车破坏(轴心)",
+      "side": "axis",
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "Trainbusting-German.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "14.7"
+      ]
+    },
+    {
+      "id": "4397",
+      "name": "Wrong Gauge",
+      "nameZh": "错误轨距",
+      "side": null,
+      "category": "rail",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R12 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.3"
+      ]
+    },
+    {
+      "id": "4409",
+      "name": "Air Strip 1",
+      "nameZh": "机场跑道1",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS1.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "4494",
+      "name": "Air Strip 2",
+      "nameZh": "机场跑道2",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS2.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "4495",
+      "name": "Air Strip 3",
+      "nameZh": "机场跑道3",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS3.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "4496",
+      "name": "Air Strip 4",
+      "nameZh": "机场跑道4",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS4.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "4497",
+      "name": "Air Strip 5",
+      "nameZh": "机场跑道5",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS5.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "4498",
+      "name": "Air Strip 6",
+      "nameZh": "机场跑道6",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "AS6.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Airbase Strength 1",
+      "nameZh": "机场强度1",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "Airbase-Strength-1 new.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2",
+        "15.3"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Airbase Strength 2",
+      "nameZh": "机场强度2",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "Airbase-Strength-2  new.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2",
+        "15.3"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Airbase Strength 3",
+      "nameZh": "机场强度3",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "Airbase-Strength-3 new.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "15.2",
+        "15.3"
+      ]
+    },
+    {
+      "id": "4395",
+      "name": "Axis Ferry/Pontoon",
+      "nameZh": "轴心渡口/浮桥",
+      "side": "axis",
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "Axis Ferry.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "Axis FerryB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.8b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Bridge",
+      "nameZh": "架桥",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R08 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R08 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.8b"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Bridge 3",
+      "nameZh": "架桥(3)",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R07 C09.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R07 C09B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "桥面标记, 数字3=容量/等级",
+      "ruleRefs": [
+        "13.8b"
+      ]
+    },
+    {
+      "id": "4252",
+      "name": "Bridge Status",
+      "nameZh": "架桥状态",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R07 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R07 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "13.8b"
+      ]
+    },
+    {
+      "id": "12",
+      "name": "Hedgehog 1",
+      "nameZh": "环形工事1级",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "misc_hog-1.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "16.0"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Hedgehog 2",
+      "nameZh": "环形工事2级",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "misc_hog-2.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "16.0"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Hedgehog 3",
+      "nameZh": "环形工事3级",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "misc_hog-3.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "16.0"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Hedgehog 4",
+      "nameZh": "环形工事4级",
+      "side": null,
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "misc_hog-4.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "16.0"
+      ]
+    },
+    {
+      "id": "4396",
+      "name": "Soviet Ferry/Pontoon",
+      "nameZh": "苏联渡口/浮桥",
+      "side": "soviet",
+      "category": "engineering",
+      "faces": {
+        "combat": {
+          "asset": "Soviet Ferry.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "Soviet FerryB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "正面在辅助卡目录, 背面在地图上标记算子目录",
+      "ruleRefs": [
+        "13.8b"
+      ]
+    },
+    {
+      "id": "112",
+      "name": "Flight",
+      "nameZh": "飞行",
+      "side": null,
+      "category": "air",
+      "faces": {
+        "combat": {
+          "asset": "flight.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "14"
+      ]
+    },
+    {
+      "id": "111",
+      "name": "Ground",
+      "nameZh": "地面",
+      "side": null,
+      "category": "air",
+      "faces": {
+        "combat": {
+          "asset": "ground.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "14"
+      ]
+    },
+    {
+      "id": "4361",
+      "name": "Interdiction - Allied",
+      "nameZh": "运输破坏(盟军)",
+      "side": "soviet",
+      "category": "air",
+      "faces": {
+        "combat": {
+          "asset": "Interdict.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "14.7"
+      ]
+    },
+    {
+      "id": "4362",
+      "name": "Interdiction - Axis",
+      "nameZh": "运输破坏(轴心)",
+      "side": "axis",
+      "category": "air",
+      "faces": {
+        "combat": {
+          "asset": "InterdictB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "units.json 将 InterdictB.png 视为轴心版(与 Interdict.png 为不同阵营, 非正背面)",
+      "ruleRefs": [
+        "14.7"
+      ]
+    },
+    {
+      "id": "4369",
+      "name": "Sov Sp Truck Extender",
+      "nameZh": "苏联补给卡车延补队",
+      "side": "soviet",
+      "category": "transport",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R05 C09.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "12.7",
+        "13.2g"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Extender - Leg 10MP",
+      "nameZh": "延补队(徒步10MP)",
+      "side": null,
+      "category": "transport",
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R13 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "延补队面, \"10 Leg MPs\"",
+      "ruleRefs": [
+        "12.7"
+      ]
+    },
+    {
+      "id": "",
+      "name": "Supply Extender - Truck 20MP",
+      "nameZh": "延补队(卡车20MP)",
+      "side": null,
+      "category": "transport",
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R13 C06B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "延补队面, \"20 Truck MPs\"",
+      "ruleRefs": [
+        "12.7"
+      ]
+    },
+    {
+      "id": "1184",
+      "name": "1 RVGK Strategic Reserve",
+      "nameZh": "最高统帅部战略预备队1",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "RGVK1.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "1169",
+      "name": "1st Ukr Arty Ready",
+      "nameZh": "第1乌克兰方面军炮兵准备",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R01 C05.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R01 C05B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "1180",
+      "name": "1st Ukr Turn Tracker",
+      "nameZh": "第1乌克兰方面军回合追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R02 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R02 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "1186",
+      "name": "2 RVGK Strategic Reserve",
+      "nameZh": "最高统帅部战略预备队2",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "RGVK2.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4387",
+      "name": "2nd Ukr Arty Ready",
+      "nameZh": "第2乌克兰方面军炮兵准备",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R01 C06.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R01 C06B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4388",
+      "name": "2nd Ukr Turn Tracker",
+      "nameZh": "第2乌克兰方面军回合追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R02 C02.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R02 C02B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4390",
+      "name": "3rd Ukr Arty Ready",
+      "nameZh": "第3乌克兰方面军炮兵准备",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R01 C07.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R01 C07B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4391",
+      "name": "3rd Ukr Turn Tracker",
+      "nameZh": "第3乌克兰方面军回合追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R02 C03.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW1 S7 R02 C03B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "背面为重整(Regrouping)面, 文件名为 TTW1 前缀",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4393",
+      "name": "4th Ukr Arty Ready",
+      "nameZh": "第4乌克兰方面军炮兵准备",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R01 C08.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R01 C08B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4394",
+      "name": "4th Ukr Turn Tracker",
+      "nameZh": "第4乌克兰方面军回合追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R02 C04.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R02 C04B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4406",
+      "name": "Axis Allies Pax Tracker",
+      "nameZh": "轴心盟国兵员追踪",
+      "side": "axis",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R11 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R11 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4491",
+      "name": "Axis Reserves Tracker",
+      "nameZh": "轴心预备队追踪",
+      "side": "axis",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "Reserves AvailX.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "Reserves AvailXB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4404",
+      "name": "German Pax Tracker",
+      "nameZh": "德国兵员追踪",
+      "side": "axis",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R11 C09.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R11 C09B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4405",
+      "name": "German Tiger Eq Tracker",
+      "nameZh": "德国虎式装备追踪",
+      "side": "axis",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R11 C08.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R11 C08B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "127",
+      "name": "Port Hits",
+      "nameZh": "港口受损",
+      "side": null,
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "BTR S06 R07 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "18.5"
+      ]
+    },
+    {
+      "id": "4541",
+      "name": "Soviet Pax Tracker",
+      "nameZh": "苏联兵员追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "TTW S7 R02 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S7 R02 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4490",
+      "name": "Soviet Reserves Tracker",
+      "nameZh": "苏联预备队追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "Reserves Avail.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "Reserves AvailB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4407",
+      "name": "Soviet VPs Tracker",
+      "nameZh": "苏联胜利点追踪",
+      "side": "soviet",
+      "category": "tracker",
+      "faces": {
+        "combat": {
+          "asset": "Soviet VP.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "Soviet VPB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4319",
+      "name": "Ge Balck KG",
+      "nameZh": "战斗群 Balck",
+      "side": "axis",
+      "category": "kg",
+      "faces": {
+        "combat": {
+          "asset": "TTW1 S5 R14 C09.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW1 S5 R14 C09B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "德国装甲军战斗群(Kampfgruppe)标记, 以指挥官名命名",
+      "ruleRefs": [
+        "3.1c"
+      ]
+    },
+    {
+      "id": "4321",
+      "name": "Ge Breith KG",
+      "nameZh": "战斗群 Breith",
+      "side": "axis",
+      "category": "kg",
+      "faces": {
+        "combat": {
+          "asset": "TTW1 S5 R13 C09.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW1 S5 R13 C09B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "德国装甲军战斗群(Kampfgruppe)标记, 以指挥官名命名",
+      "ruleRefs": [
+        "3.1c"
+      ]
+    },
+    {
+      "id": "4320",
+      "name": "Ge Hube KG",
+      "nameZh": "战斗群 Hube",
+      "side": "axis",
+      "category": "kg",
+      "faces": {
+        "combat": {
+          "asset": "TTW1 S5 R13 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW1 S5 R13 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "德国装甲军战斗群(Kampfgruppe)标记, 以指挥官名命名",
+      "ruleRefs": [
+        "3.1c"
+      ]
+    },
+    {
+      "id": "4317",
+      "name": "Ge Vorman KG",
+      "nameZh": "战斗群 Vorman",
+      "side": "axis",
+      "category": "kg",
+      "faces": {
+        "combat": {
+          "asset": "TTW1 S5 R14 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW1 S5 R14 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "德国装甲军战斗群(Kampfgruppe)标记, 以指挥官名命名",
+      "ruleRefs": [
+        "3.1c"
+      ]
+    },
+    {
+      "id": "4401",
+      "name": "Hero",
+      "nameZh": "英雄",
+      "side": "soviet",
+      "category": "special",
+      "faces": {
+        "combat": {
+          "asset": "Hero.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "HeroB.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    },
+    {
+      "id": "4408",
+      "name": "Re-Roll Chit",
+      "nameZh": "重掷标志",
+      "side": null,
+      "category": "special",
+      "faces": {
+        "combat": {
+          "asset": "reroll.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "note": "",
+      "ruleRefs": [
+        "专属"
+      ]
+    }
+  ]
+}

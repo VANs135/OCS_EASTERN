@@ -1,0 +1,3416 @@
+{
+  "version": 1,
+  "units": [
+    {
+      "id": "4300",
+      "name": "Sov Gd Yak.9 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2550",
+      "name": "Sov Gd Yak.7b 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C12.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C12B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2551",
+      "name": "Sov Yak.9 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C13.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C13B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2549",
+      "name": "Sov Yak.7b 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C15.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C15B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2548",
+      "name": "Sov La.5 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C16.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C16B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2552",
+      "name": "Sov IL.2 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R01 C19.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 8
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R01 C19B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "2nd Air Army",
+        "parentUnit": "2nd Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2554",
+      "name": "Sov Gd La.5 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R02 C16.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R02 C16B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "5th Air Army",
+        "parentUnit": "5th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2556",
+      "name": "Sov Gd Yak.9 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R02 C17.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R02 C17B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "5th Air Army",
+        "parentUnit": "5th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2555",
+      "name": "Sov Gd Yak.7b 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R02 C18.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R02 C18B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "5th Air Army",
+        "parentUnit": "5th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2553",
+      "name": "Sov La.5 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R02 C19.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R02 C19B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "5th Air Army",
+        "parentUnit": "5th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4164",
+      "name": "Ge Hartmann",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 53,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 6,
+            "bombing": 1
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 53,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4165",
+      "name": "Ge Bf.109G",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C02.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 53,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 1
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C02B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 53,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4166",
+      "name": "Ge Bf.110",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 68,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 5
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 68,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "2557",
+      "name": "Sov IL.2 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 8
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "5th Air Army",
+        "parentUnit": "5th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2559",
+      "name": "Sov Gd La.5 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C16.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C16B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "8th Air Army",
+        "parentUnit": "8th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2558",
+      "name": "Sov La.5 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C17.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C17B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "8th Air Army",
+        "parentUnit": "8th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2561",
+      "name": "Sov Yak.9 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C19.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C19B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "8th Air Army",
+        "parentUnit": "8th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2560",
+      "name": "Sov Yak.7b 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R03 C20.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R03 C20B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "8th Air Army",
+        "parentUnit": "8th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4167",
+      "name": "Ge Fw.190A",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R04 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 50,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 1
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R04 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 50,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4168",
+      "name": "Ge Fw.190F",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R04 C06.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 45,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 8
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R04 C06B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 45,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4169",
+      "name": "Ge He.111H",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R04 C08.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 128,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 12
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R04 C08B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 128,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 6
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "air_transport",
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "2562",
+      "name": "Sov IL.2 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R04 C13.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 8
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R04 C13B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "8th Air Army",
+        "parentUnit": "8th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2564",
+      "name": "Sov Yak.7b 17th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R04 C20.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R04 C20B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "17th Air Army",
+        "parentUnit": "17th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4287",
+      "name": "Ge He.177",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C03.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 304,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 13
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C03B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 304,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 7
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "air_transport",
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4289",
+      "name": "Ge Hs.129",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C04.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 54,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 10
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C04B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 54,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 5
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4170",
+      "name": "Ge Ju.87D",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C05.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 95,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 17
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C05B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 95,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 9
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4171",
+      "name": "Ge Ju.87G",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 62,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 62,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage",
+        "stuka_reserve"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "2565",
+      "name": "Sov Yak.9 17th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "17th Air Army",
+        "parentUnit": "17th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2563",
+      "name": "Sov La.5 17th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C12.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C12B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "17th Air Army",
+        "parentUnit": "17th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2566",
+      "name": "Sov IL.2 17th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C14.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 8
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C14B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 4
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "17th Air Army",
+        "parentUnit": "17th Air Army"
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2542",
+      "name": "Sov Yak.7b",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R05 C20.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R05 C20B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4172",
+      "name": "Ge Ju.88",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R06 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 106,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 12
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R06 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 106,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 6
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "4173",
+      "name": "Ge Ju.52",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R06 C06.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 62,
+            "transport": 1,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R06 C06B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 62,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "air_transport"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Ge",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    },
+    {
+      "id": "2543",
+      "name": "Sov Yak.9",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R06 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R06 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4175",
+      "name": "Rum Ju.88",
+      "side": "axis",
+      "nation": "Rum",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R07 C01.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 106,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 10
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R07 C01B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 106,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 5
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Rum",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Rum"
+      }
+    },
+    {
+      "id": "4176",
+      "name": "Rum Bf.109",
+      "side": "axis",
+      "nation": "Rum",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R07 C02.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 50,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 1
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R07 C02B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 50,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Rum",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Rum"
+      }
+    },
+    {
+      "id": "4174",
+      "name": "Rum IAR.81",
+      "side": "axis",
+      "nation": "Rum",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R07 C03.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 40,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 3,
+            "bombing": 1
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R07 C03B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 40,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "Rum",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Rum"
+      }
+    },
+    {
+      "id": "2546",
+      "name": "Sov IL.4",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R07 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 265,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 9
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R07 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 265,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 5
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2547",
+      "name": "Sov Li.2",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R07 C17.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 160,
+            "transport": 1,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R07 C17B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 160,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 0
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "air_transport"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2545",
+      "name": "Sov Pe.2",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R08 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 93,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 5
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R08 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 93,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 0,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4323",
+      "name": "Sov B-25",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R09 C11.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 135,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 2,
+            "bombing": 6
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R09 C11B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 135,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 1,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "barrage"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2544",
+      "name": "Sov Gd Yak.9",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R09 C13.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R09 C13B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 81,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "2541",
+      "name": "Sov Gd La.5",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "air",
+      "category": "air",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R09 C14.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 5,
+            "bombing": 3
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R09 C14B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": 48,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": 4,
+            "bombing": 2
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "guard",
+        "interception"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": "独立",
+        "parentUnit": ""
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "air",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4370",
+      "name": "Sov 1 Ukr Front - 2nd Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "airhq",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": null,
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "abilities": [
+        "air_army_hq",
+        "no_combat_value",
+        "transfers_if_enemy_enters"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": null,
+        "parentUnit": null
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4371",
+      "name": "Sov 2 Ukr Front - 5th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "airhq",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": null,
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "abilities": [
+        "air_army_hq",
+        "no_combat_value",
+        "transfers_if_enemy_enters"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": null,
+        "parentUnit": null
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4372",
+      "name": "Sov 3 Ukr Front - 17th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "airhq",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": null,
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "abilities": [
+        "air_army_hq",
+        "no_combat_value",
+        "transfers_if_enemy_enters"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": null,
+        "parentUnit": null
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4373",
+      "name": "Sov 4 Ukr Front - 8th Air Army",
+      "side": "soviet",
+      "nation": "Sov",
+      "kind": "airhq",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": null,
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": null
+      },
+      "abilities": [
+        "air_army_hq",
+        "no_combat_value",
+        "transfers_if_enemy_enters"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": null,
+        "indepCategory": null,
+        "airGroup": null,
+        "parentUnit": null
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Sov"
+      }
+    },
+    {
+      "id": "4359",
+      "name": "Ge HQ 4 Luftflotte",
+      "side": "axis",
+      "nation": "Ge",
+      "kind": "luft",
+      "category": "hq",
+      "re": null,
+      "faces": {
+        "combat": {
+          "asset": "TTW S6 R06 C10.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        },
+        "move": {
+          "asset": "TTW S6 R06 C10B.png",
+          "stats": {
+            "attack": null,
+            "artRange": null,
+            "move": null,
+            "aaMod": null,
+            "barrage": null,
+            "range": null,
+            "transport": null,
+            "defensiveOnly": false,
+            "dropRange": null,
+            "airCombat": null,
+            "bombing": null
+          },
+          "maColor": null,
+          "transportColor": null
+        }
+      },
+      "abilities": [
+        "air_transport_supply_1sp_60hex",
+        "luftflotte_hq",
+        "no_combat_value",
+        "task_range_60",
+        "transfers_if_enemy_enters"
+      ],
+      "org": {
+        "parentFmt": null,
+        "armyGroup": "Army Group South",
+        "indepCategory": null,
+        "airGroup": null,
+        "parentUnit": null
+      },
+      "audit": {
+        "validation": null,
+        "ooaMatched": null,
+        "inferred": [
+          {
+            "date": "2026-09-05",
+            "action": "update",
+            "field": "category",
+            "old": "other",
+            "new": "hq",
+            "reason": "规范8.4：按单位类型修正category字段"
+          }
+        ],
+        "nationRaw": "Ge"
+      }
+    }
+  ]
+}

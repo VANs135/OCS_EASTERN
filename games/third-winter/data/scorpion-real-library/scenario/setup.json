@@ -1,0 +1,1418 @@
+{
+ "_doc": "剧本8 初始部署（来源 TTW_Scenarios.pdf 英文原文 p53-56；德师拆分子算子）",
+ "units": [
+  {
+   "ref": "Sov HQ 40th Army",
+   "at": {
+    "col": 1,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Sov 9 AA Div",
+   "at": {
+    "col": 1,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Sov 58 Rifle Div",
+   "at": {
+    "col": 1,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 20 Gd Tk Bde",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 22 Gd Tk Bde",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 6 Gd Mot Inf Bde",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 48 Gd Tk Bn",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 1458 SU Bn",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 1462 SU Bn",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 5.Gd Tk 454 Mort Rgt",
+   "at": {
+    "col": 2,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 3 Gd Katy Div",
+   "at": {
+    "col": 2,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Sov 232 Rifle Div",
+   "at": {
+    "col": 2,
+    "row": 0
+   },
+   "face": "reduced",
+   "note": "232/340其一-1军力"
+  },
+  {
+   "ref": "Sov 340 Rifle Div",
+   "at": {
+    "col": 2,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Sov HQ 6th Tank Army",
+   "at": {
+    "col": 3,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 1 Gd Arty Div",
+   "at": {
+    "col": 3,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 33 Arty Bde",
+   "at": {
+    "col": 3,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 38 Rifle Div",
+   "at": {
+    "col": 3,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 233 Tk Bde",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 2 Mech Bde",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 45 Mech Bde",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 745 SU Bn",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 1827 SU Bn",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 1228 SU Bn",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 5.Mech 458 Mort Rgt",
+   "at": {
+    "col": 4,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 163 Rifle Div",
+   "at": {
+    "col": 4,
+    "row": -2
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 1889 SU Bn",
+   "at": {
+    "col": 4,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Sov 42 Gd Rifle Div",
+   "at": {
+    "col": 4,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Sov HQ 27th Army",
+   "at": {
+    "col": 5,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 1892 SU Bn",
+   "at": {
+    "col": 5,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Sov 74 Rifle Div",
+   "at": {
+    "col": 5,
+    "row": -3
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 28 AT Bde",
+   "at": {
+    "col": 5,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Sov 240 Rifle Div",
+   "at": {
+    "col": 6,
+    "row": -3
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 206 Rifle Div",
+   "at": {
+    "col": 7,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 359 Rifle Div",
+   "at": {
+    "col": 8,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 713 SU Bn",
+   "at": {
+    "col": 8,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 180 Rifle Div",
+   "at": {
+    "col": 9,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Sov 136 Rifle Div",
+   "at": {
+    "col": 10,
+    "row": -4
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 337 Rifle Div",
+   "at": {
+    "col": 11,
+    "row": -5
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 167 Rifle Div",
+   "at": {
+    "col": 12,
+    "row": -5
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 159 UR Bde",
+   "at": {
+    "col": 13,
+    "row": -6
+   }
+  },
+  {
+   "ref": "Sov 254 Rifle Div",
+   "at": {
+    "col": 17,
+    "row": -4
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 116 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Sov 57 Gd Tk Bn",
+   "at": {
+    "col": 18,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Sov 233 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 9
+   }
+  },
+  {
+   "ref": "Sov 213 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 8
+   },
+   "face": "reduced",
+   "note": "213/252其一-1军力"
+  },
+  {
+   "ref": "Sov 252 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 299 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 6 AT Bde",
+   "at": {
+    "col": 18,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 31 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 6
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 375 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Sov 138 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 5
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 14 Gd Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 4
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 25 Gd Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 3
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 173 Tk Bde",
+   "at": {
+    "col": 18,
+    "row": 3
+   }
+  },
+  {
+   "ref": "Sov 62 Gd Rifle Div",
+   "at": {
+    "col": 18,
+    "row": 1
+   },
+   "face": "reduced"
+  },
+  {
+   "ref": "Sov 7 Gd Abn Div",
+   "at": {
+    "col": 18,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Sov 373 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Sov 294 Rifle Div",
+   "at": {
+    "col": 18,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Sov 78 Gd Rifle Div",
+   "at": {
+    "col": 19,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 16a Arty Div",
+   "at": {
+    "col": 19,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Sov 16b Arty Div",
+   "at": {
+    "col": 19,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Sov 66 Gd Rifle Div",
+   "at": {
+    "col": 19,
+    "row": 4
+   },
+   "face": "reduced",
+   "note": "66/69其一-1军力"
+  },
+  {
+   "ref": "Sov 69 Gd Rifle Div",
+   "at": {
+    "col": 19,
+    "row": 4
+   }
+  },
+  {
+   "ref": "Sov 14 Assault Bde",
+   "at": {
+    "col": 19,
+    "row": 4
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 25 Tk Bde",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 32 Tk Bde",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 53 Mot Inf Bde",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 1446 SU Bn",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 1549 SU Bn",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 29.Tk 271 Mort Rgt",
+   "at": {
+    "col": 20,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 18.Tk 110 Tk Bde",
+   "at": {
+    "col": 20,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 18.Tk 170 Tk Bde",
+   "at": {
+    "col": 20,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 18.Tk 32 Mot Inf Bde",
+   "at": {
+    "col": 20,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 18.Tk 1543 SU Bn",
+   "at": {
+    "col": 20,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 18.Tk 292 Mort Rgt",
+   "at": {
+    "col": 20,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov HQ 4th Gd Army",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 53 Gd Tk Bn",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov 27 AA Div",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Sov HQ 52nd Army",
+   "at": {
+    "col": 21,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Sov 38 AA Div",
+   "at": {
+    "col": 21,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Sov HQ 5th Gd Tank Army",
+   "at": {
+    "col": 22,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 1 Gd MC Rgt",
+   "at": {
+    "col": 22,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Sov 6 AA Div",
+   "at": {
+    "col": 22,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Ge 277 AG Bn",
+   "at": {
+    "col": 1,
+    "row": 2
+   }
+  },
+  {
+   "ref": "Ge 75 Inf Div",
+   "at": {
+    "col": 1,
+    "row": 1
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 17.Pz 63 Mot Inf Rgt",
+   "at": {
+    "col": 2,
+    "row": 2
+   }
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 2,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Ge HQ 1 Pz Kessel",
+   "at": {
+    "col": 3,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 3,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Ge 198 Inf Div",
+   "at": {
+    "col": 4,
+    "row": 0
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 239 AG Bn",
+   "at": {
+    "col": 5,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Ge 34 Inf Div",
+   "at": {
+    "col": 5,
+    "row": -2
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 6,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 7,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge HQ 7 Corps",
+   "at": {
+    "col": 8,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Ge 617 Arty Rgt",
+   "at": {
+    "col": 8,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 8,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge 88 Inf Div",
+   "at": {
+    "col": 9,
+    "row": -3
+   },
+   "face": "reduced",
+   "note": "-3军力"
+  },
+  {
+   "ref": "Ge 4-4-3 拆分单位",
+   "at": {
+    "col": 10,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge 3-3-3 拆分单位",
+   "at": {
+    "col": 11,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz 5 AG Co",
+   "at": {
+    "col": 12,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Ge I-84 Arty Bn",
+   "at": {
+    "col": 12,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Ge 2-2-2 Alert",
+   "at": {
+    "col": 12,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge HQ 11 Corps",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 14.Pz 14 Aufk Bn",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 14.Pz Lngkt Pz Bn",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 14.Pz 103 PG Rgt",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 14.Pz 108 Mot Inf Rgt",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 14.Pz 4 Arty Rgt",
+   "at": {
+    "col": 13,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge HQ 42 Corps",
+   "at": {
+    "col": 13,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Ge 2-3-3 Mot Alert",
+   "at": {
+    "col": 13,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Ge 3-3-3 拆分单位",
+   "at": {
+    "col": 13,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Ge 3-3-3 拆分单位",
+   "at": {
+    "col": 14,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Ge HQ 47 Pz Corps",
+   "at": {
+    "col": 15,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Ge 32 Flak Bn",
+   "at": {
+    "col": 15,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Ge II-818 Arty Bn",
+   "at": {
+    "col": 15,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Ge II-857 Arty Bn",
+   "at": {
+    "col": 15,
+    "row": 10
+   }
+  },
+  {
+   "ref": "Ge 3.Pz 3 Aufk Bn",
+   "at": {
+    "col": 15,
+    "row": 9
+   }
+  },
+  {
+   "ref": "Ge 3.Pz 3 PG Rgt",
+   "at": {
+    "col": 15,
+    "row": 9
+   }
+  },
+  {
+   "ref": "Ge 3.Pz 75 Arty Rgt",
+   "at": {
+    "col": 15,
+    "row": 9
+   }
+  },
+  {
+   "ref": "Ge 3.Pz II-6 Pz Bn",
+   "at": {
+    "col": 15,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Ge 3.Pz 394 Mot Inf Rgt",
+   "at": {
+    "col": 15,
+    "row": 8
+   }
+  },
+  {
+   "ref": "Ge 112 Inf Div",
+   "at": {
+    "col": 15,
+    "row": 4
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 108 Arty Bn",
+   "at": {
+    "col": 15,
+    "row": 4
+   }
+  },
+  {
+   "ref": "Ge II-842 Arty Bn",
+   "at": {
+    "col": 15,
+    "row": 4
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz Narwa Mot Inf Bn",
+   "at": {
+    "col": 15,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz 5 Arty Rgt",
+   "at": {
+    "col": 15,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Ge Wallonian SS Mot Inf Rgt",
+   "at": {
+    "col": 15,
+    "row": -4
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz 10 Mot Inf Rgt",
+   "at": {
+    "col": 16,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Ge 800 Arty Rgt",
+   "at": {
+    "col": 16,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz 9 Mot Inf Rgt",
+   "at": {
+    "col": 16,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Ge 282 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 10
+   },
+   "face": "reduced",
+   "note": "-1军力"
+  },
+  {
+   "ref": "Ge 320 Inf KG",
+   "at": {
+    "col": 17,
+    "row": 9
+   }
+  },
+  {
+   "ref": "Ge 106 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 8
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 11.Pz 110 PG Rgt",
+   "at": {
+    "col": 17,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Ge 11.Pz 61 PJ Bn",
+   "at": {
+    "col": 17,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Ge 11.Pz 80 Arty Rgt",
+   "at": {
+    "col": 17,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Ge 11.Pz 11 Aufk",
+   "at": {
+    "col": 17,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 11.Pz 111 Mot Inf Rgt",
+   "at": {
+    "col": 17,
+    "row": 6
+   }
+  },
+  {
+   "ref": "Ge 228 AG Bn",
+   "at": {
+    "col": 17,
+    "row": 5
+   }
+  },
+  {
+   "ref": "Ge 261 AG Bn",
+   "at": {
+    "col": 17,
+    "row": 5
+   }
+  },
+  {
+   "ref": "Ge 389 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 4
+   },
+   "face": "reduced",
+   "note": "-1军力"
+  },
+  {
+   "ref": "Ge 72 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 3
+   },
+   "face": "reduced",
+   "note": "-1军力"
+  },
+  {
+   "ref": "Ge 167 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 2
+   },
+   "face": "reduced",
+   "note": "-3军力"
+  },
+  {
+   "ref": "Ge 57 Inf Div",
+   "at": {
+    "col": 17,
+    "row": 1
+   },
+   "face": "reduced",
+   "note": "-2军力"
+  },
+  {
+   "ref": "Ge 5.SS Pz 5 PJ Bn",
+   "at": {
+    "col": 17,
+    "row": -1
+   }
+  },
+  {
+   "ref": "Ge 5.SS Pz 5 Aufk Bn",
+   "at": {
+    "col": 17,
+    "row": -2
+   }
+  }
+ ],
+ "air": [
+  {
+   "ref": "Sov Pe.2",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov Pe.2",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov Pe.2",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov IL.4",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov IL.4",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov Li.2",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Sov Yak.9",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov Yak.9",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov Yak.9",
+   "entry": "any_airbase",
+   "note": "任意空军基地（其中1机减半）"
+  },
+  {
+   "ref": "Sov IL.2 2nd Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地（乌克兰第1方面军·空军第2集团军）"
+  },
+  {
+   "ref": "Sov IL.2 2nd Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地（乌克兰第1方面军·空军第2集团军）"
+  },
+  {
+   "ref": "Sov La.5 2nd Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地（乌克兰第1方面军·空军第2集团军）"
+  },
+  {
+   "ref": "Sov Gd Yak.9 2nd Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地（乌克兰第1方面军·空军第2集团军）"
+  },
+  {
+   "ref": "Sov IL.2 5th Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地或s18.07（乌克兰第2方面军·空军第5集团军）"
+  },
+  {
+   "ref": "Sov IL.2 5th Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地或s18.07（乌克兰第2方面军·空军第5集团军）"
+  },
+  {
+   "ref": "Sov La.5 5th Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地或s18.07（乌克兰第2方面军·空军第5集团军）"
+  },
+  {
+   "ref": "Sov Gd La.5 5th Air Army",
+   "entry": "any_airbase",
+   "note": "任意空军基地或s18.07（乌克兰第2方面军·空军第5集团军）"
+  },
+  {
+   "ref": "Ge Fw.190A",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge Bf.109G",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge Bf.109G",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge Ju.87D",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge Ju.88",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge He.111H",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  },
+  {
+   "ref": "Ge Ju.52",
+   "entry": "any_airbase",
+   "note": "任意空军基地"
+  }
+ ],
+ "markers": [
+  {
+   "ref": "Supply Point 2",
+   "at": {
+    "col": 1,
+    "row": -3
+   }
+  },
+  {
+   "ref": "Supply Point 1",
+   "at": {
+    "col": 3,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Supply Point 5",
+   "at": {
+    "col": 5,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Supply Point 4",
+   "at": {
+    "col": 5,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Supply Ton 2T",
+   "at": {
+    "col": 5,
+    "row": -5
+   }
+  },
+  {
+   "ref": "Supply Point 5",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Supply Point 5",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Supply Ton 3T",
+   "at": {
+    "col": 21,
+    "row": 7
+   }
+  },
+  {
+   "ref": "Railhead",
+   "at": {
+    "col": 21,
+    "row": 2
+   }
+  },
+  {
+   "ref": "Supply Point 3",
+   "at": {
+    "col": 21,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Railhead",
+   "at": {
+    "col": 21,
+    "row": -2
+   }
+  },
+  {
+   "ref": "Airbase Strength 1",
+   "at": {
+    "col": 18,
+    "row": 4
+   }
+  },
+  {
+   "ref": "Supply Ton 2T",
+   "at": {
+    "col": 3,
+    "row": 1
+   }
+  },
+  {
+   "ref": "Supply Point 1",
+   "at": {
+    "col": 8,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Supply Point 1",
+   "at": {
+    "col": 13,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Airbase Strength 2",
+   "at": {
+    "col": 13,
+    "row": 0
+   }
+  },
+  {
+   "ref": "Supply Point 4",
+   "at": {
+    "col": 15,
+    "row": 10
+   }
+  },
+  {
+   "ref": "1st Ukr Arty Ready",
+   "qty": 1,
+   "note": "乌克兰第1方面军炮兵轰炸指示物（仅第1回合可用）"
+  },
+  {
+   "ref": "2nd Ukr Arty Ready",
+   "qty": 1,
+   "note": "乌克兰第2方面军炮兵轰炸指示物（仅第1回合可用）"
+  },
+  {
+   "ref": "Sov Reserve",
+   "qty": 6,
+   "note": "苏联预备指示物（6个可用）"
+  },
+  {
+   "ref": "Axis Reserve",
+   "qty": 6,
+   "note": "轴心预备指示物（6个可用）"
+  },
+  {
+   "ref": "Ge Hube KG",
+   "qty": 1,
+   "note": "胡贝战斗群指示物"
+  },
+  {
+   "ref": "Ge Breith KG",
+   "qty": 1,
+   "note": "布莱特战斗群指示物"
+  },
+  {
+   "ref": "Re-Roll Chit",
+   "qty": 1,
+   "note": "重新掷骰算子（苏联玩家开局拥有）"
+  }
+ ],
+ "dead_pile": [
+  {
+   "ref": "Ge 14.Pz 4 Pio Bn",
+   "note": "起始于死亡堆（第14装甲师·第4战斗工兵营）"
+  },
+  {
+   "ref": "Ge 255 Inf KG",
+   "note": "起始于死亡堆（第255步兵战斗群）"
+  }
+ ],
+ "features": {},
+ "pools": {
+  "alert": [
+   {
+    "ref": "Ge 2-2-2 Alert",
+    "count": 3
+   },
+   {
+    "ref": "Ge 2-3-3 Alert",
+    "count": 2
+   },
+   {
+    "ref": "Ge 2-3-3 Mot Alert",
+    "count": 1
+   }
+  ],
+  "breakdown": {
+   "soviet": [
+    {
+     "ref": "Sov Gd 3-4-3 拆分单位",
+     "count": 2
+    },
+    {
+     "ref": "Sov Gd 3-3-3 拆分单位",
+     "count": 2
+    },
+    {
+     "ref": "Sov 3-3-3 拆分单位",
+     "count": 2
+    },
+    {
+     "ref": "Sov 3-2-2 拆分单位",
+     "count": 2
+    }
+   ],
+   "axis": [
+    {
+     "ref": "Ge 4-4-3 拆分单位",
+     "count": 3
+    },
+    {
+     "ref": "Ge 3-3-3 拆分单位",
+     "count": 1
+    }
+   ]
+  }
+ },
+ "crossings": {},
+ "setup_draws": [
+  {
+   "pool": "alert",
+   "count": 2,
+   "side": "axis",
+   "note": "起始部署：从警戒池随机抽取 2 个警戒营，与任意德军地面单位堆叠"
+  }
+ ]
+}

@@ -1,0 +1,628 @@
+[
+ {
+  "turn": 1,
+  "phase": "reinforce",
+  "side": "soviet",
+  "entries": [
+   {
+    "ref": "Sov 133 Rifle Div",
+    "entry": "s1.12"
+   },
+   {
+    "ref": "Sov HQ 53rd Army",
+    "entry": "s22.02"
+   },
+   {
+    "ref": "Sov 1 Gd Abn Div",
+    "entry": "s22.02"
+   }
+  ]
+ },
+ {
+  "turn": 2,
+  "phase": "reinforce",
+  "side": "soviet",
+  "entries": [
+   {
+    "ref": "Sov 20.Tk 80 Tk Bde",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 20.Tk 155 Tk Bde",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 20.Tk 7 Gd Mot Inf Bde",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 20.Tk 1834 SU Bn",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 20.Tk 1895 SU Bn",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 20.Tk 291 Mort Rgt",
+    "entry": "s20.01"
+   },
+   {
+    "ref": "Sov 214 Rifle Div",
+    "entry": "s20.01",
+    "face": "reduced"
+   },
+   {
+    "ref": "Sov 4 Gd Abn Div",
+    "entry": "s1.12"
+   },
+   {
+    "ref": "Sov 6 Gd Abn Div",
+    "entry": "s22.11",
+    "face": "reduced"
+   },
+   {
+    "ref": "Sov 89 Gd Rifle Div",
+    "entry": "s22.11"
+   },
+   {
+    "ref": "Sov 94 Gd Rifle Div",
+    "entry": "s22.11"
+   },
+   {
+    "ref": "Sov 5.Gd Cav 11 Gd Cav Div",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：1/29 起任一单位进场即支付5VP，此后编队可自由进场"
+   },
+   {
+    "ref": "Sov 5.Gd Cav 12 Gd Cav Div",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：1/29 起任一单位进场即支付5VP，此后编队可自由进场"
+   },
+   {
+    "ref": "Sov 5.Gd Cav 63 Cav Div",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：1/29 起任一单位进场即支付5VP，此后编队可自由进场"
+   },
+   {
+    "ref": "Sov 5.Gd Cav 9 Gd Mort Rgt",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：1/29 起任一单位进场即支付5VP，此后编队可自由进场"
+   },
+   {
+    "ref": "Sov 80 Gd Rifle Div",
+    "entry": "s22.09",
+    "face": "reduced",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与近卫骑兵第5军同一笔5VP（1/29 起）"
+   },
+   {
+    "ref": "Sov 27 Gd Tk Bde",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与近卫骑兵第5军同一笔5VP（1/29 起）"
+   },
+   {
+    "ref": "Sov 2 AT Bde",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与近卫骑兵第5军同一笔5VP（1/29 起）"
+   },
+   {
+    "ref": "Sov 31 AT Bde",
+    "entry": "s22.09",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与近卫骑兵第5军同一笔5VP（1/29 起）"
+   }
+  ]
+ },
+ {
+  "turn": 3,
+  "phase": "reinforce",
+  "side": "soviet",
+  "entries": [
+   {
+    "ref": "Sov 54 UR Bde",
+    "entry": "s5.17"
+   },
+   {
+    "ref": "Sov 78 Rifle Div",
+    "entry": "s22.02",
+    "face": "reduced",
+    "note": "78/84其一-1军力"
+   },
+   {
+    "ref": "Sov 84 Rifle Div",
+    "entry": "s22.02"
+   },
+   {
+    "ref": "Sov 11 AT Bde",
+    "entry": "s22.02"
+   }
+  ]
+ },
+ {
+  "turn": 4,
+  "phase": "reinforce",
+  "side": "soviet",
+  "entries": [
+   {
+    "ref": "Sov HQ 2nd Tank Army",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 50 Tk Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 51 Tk Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 57 Mot Inf Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 1540 SU Bn",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 1818 SU Bn",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 3.Tk 234 Mort Rgt",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 11.Tk 20 Tk Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 11.Tk 36 Tk Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 11.Tk 12 Mot Inf Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 16.Tk 107 Tk Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 16.Tk 15 Mot Inf Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 16.Tk 1239 SU Bn",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 16.Tk 1441 SU Bn",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 16.Tk 226 Mort Rgt",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 183 Rifle Div",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 32 AT Bde",
+    "entry": "s2.16"
+   },
+   {
+    "ref": "Sov 41 Gd Rifle Div",
+    "entry": "s22.11",
+    "face": "reduced"
+   },
+   {
+    "ref": "Sov 303 Rifle Div",
+    "entry": "s22.11"
+   }
+  ]
+ },
+ {
+  "turn": 7,
+  "phase": "reinforce",
+  "side": "soviet",
+  "entries": [
+   {
+    "ref": "Sov 58 Gd Tk Bn",
+    "entry": "s2.16"
+   }
+  ]
+ },
+ {
+  "turn": 2,
+  "phase": "reinforce",
+  "side": "axis",
+  "entries": [
+   {
+    "ref": "Ge 376 Inf Div",
+    "entry": "s15.01",
+    "face": "reduced",
+    "note": "-2军力"
+   },
+   {
+    "ref": "Ge 767 Arty Rgt",
+    "entry": "s15.01"
+   }
+  ]
+ },
+ {
+  "turn": 3,
+  "phase": "reinforce",
+  "side": "axis",
+  "entries": [
+   {
+    "ref": "Ge 13.Pz Haack Pz Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge HQ 3 Pz Corps",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz 16 Aufk Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz I-2 Pz Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz 64 PG Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz 79 Mot Inf Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz III-2 AG Co",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz 16 PJ Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 16.Pz 16 Arty Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 17.Pz 27 Aufk Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 17.Pz II-39 Pz Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 17.Pz 40 PG Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 17.Pz 27 PJ Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 2/Bake Pz Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1/Bake Tiger Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 82 Inf Div",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "face": "reduced",
+    "note": "-2军力；玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 54 Werfer Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   }
+  ]
+ },
+ {
+  "turn": 4,
+  "phase": "reinforce",
+  "side": "axis",
+  "entries": [
+   {
+    "ref": "Ge 1.Pz 113 PG Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.Pz 73 Arty Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz I-1 Pz Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 13.Pz 13 Aufk Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 13.Pz 66 PG Rgt",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 24.Pz 24 Aufk Bn",
+    "entry": "s15.01",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：2/5 起任一单位进场即支付5VP"
+   },
+   {
+    "ref": "Ge 24.Pz 21 Mot Inf Rgt",
+    "entry": "s15.01",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与第24装甲师同一笔5VP（2/5 起）"
+   },
+   {
+    "ref": "Ge 24.Pz 26 PG Rgt",
+    "entry": "s15.01",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与第24装甲师同一笔5VP（2/5 起）"
+   },
+   {
+    "ref": "Ge 24.Pz III-24 AG Bn",
+    "entry": "s15.01",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与第24装甲师同一笔5VP（2/5 起）"
+   },
+   {
+    "ref": "Ge 24.Pz 89 Arty Rgt",
+    "entry": "s15.01",
+    "vp_cost": 5,
+    "note": "可选增援（机动编队）：与第24装甲师同一笔5VP（2/5 起）"
+   }
+  ]
+ },
+ {
+  "turn": 5,
+  "phase": "reinforce",
+  "side": "axis",
+  "entries": [
+   {
+    "ref": "Ge 1.Pz 1 Aufk Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.Pz II-1 Pz Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.Pz 1 Mot Inf Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.Pz 37 PJ Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz 1 Aufk Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz 1 Mot Inf Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz 2 PG Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz Tiger Co",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz 1 AG Bn",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   },
+   {
+    "ref": "Ge 1.SS Pz 1 Arty Rgt",
+    "entry": [
+     "s1.03",
+     "s1.06",
+     "s7.01"
+    ],
+    "note": "玩家自由放置于 s1.03/s1.06/s7.01（可多格）；未于到达回合放置则移出游戏"
+   }
+  ]
+ },
+ {
+  "turn": 6,
+  "phase": "reinforce",
+  "side": "axis",
+  "entries": [
+   {
+    "ref": "Ge 13.Pz 93 Mot Inf Rgt",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 13.Pz 13 PJ Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 13.Pz 13 Arty Rgt",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 110 Aufk Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 20 Mot Inf Rgt",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 41 Mot Inf Rgt",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 7 AG Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 10 PJ Bn",
+    "entry": "s15.01"
+   },
+   {
+    "ref": "Ge 10.PG 10 Arty Rgt",
+    "entry": "s15.01"
+   }
+  ]
+ }
+]
