@@ -56,6 +56,7 @@ export function settleScorpionTransports(state: Readonly<ScorpionInPlay>, choice
   if (choices.length !== count || selected.size !== count) throw new Error('Choose outcomes for every affected transport')
   const units = { ...state.units }
   const dumps = { ...state.dumps }
+  const moved = [...state.moved]
 
   function placeCapacity(member: TransportMember, kind: TransportClass, side: Side, at: string,
     points: number, tokens: number) {
@@ -73,6 +74,7 @@ export function settleScorpionTransports(state: Readonly<ScorpionInPlay>, choice
         const id = `captured:${state.captureHistory!.length}:${side}:${copy}:${member.id}`
         const carried = Math.min(cargo, 4)
         units[id] = { ...deployScorpionGroundCounter(definition!, at, 0), transportCargoTokens: carried }
+        if (side === captor && state.cursor.phase !== 'movement') moved.push(id)
         cargo -= carried
       }
     }
@@ -105,5 +107,5 @@ export function settleScorpionTransports(state: Readonly<ScorpionInPlay>, choice
     }
     if (points !== group.points || tokens !== group.tokens) throw new Error('Allocate the exact transport and cargo totals from the capture roll')
   }
-  return { ...state, units, dumps }
+  return { ...state, units, dumps, moved }
 }

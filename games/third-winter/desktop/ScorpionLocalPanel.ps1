@@ -14,7 +14,7 @@ function New-LocalText([double]$size) {
 }
 
 function Add-LocalRoute($frame) {
-    foreach ($target in $frame.captureTargets) {
+    foreach ($target in $frame.targets) {
         $dot = New-Object Windows.Shapes.Ellipse
         $dot.Width = $dot.Height = 20 * $target.scale
         $dot.Fill = [Windows.Media.Brushes]::MediumSeaGreen
@@ -33,16 +33,20 @@ function Add-LocalRoute($frame) {
         $ring.IsHitTestVisible = $false
         Add-At $ring ($center.x - $ring.Width / 2) ($center.y - $ring.Height / 2)
     }
-    if ($frame.route.Count -gt 1) {
-        $line = New-Object Windows.Shapes.Polyline
-        $line.Stroke = [Windows.Media.Brushes]::DeepSkyBlue
-        $line.StrokeThickness = 7
-        $line.IsHitTestVisible = $false
-        foreach ($point in $frame.route) {
-            $line.Points.Add((New-Object Windows.Point($point.x, $point.y)))
-        }
-        Add-At $line 0 0
+    Add-LocalPath $frame.route
+    foreach ($path in $frame.retreatPaths) { Add-LocalPath $path }
+}
+
+function Add-LocalPath($points) {
+    if ($points.Count -lt 2) { return }
+    $line = New-Object Windows.Shapes.Polyline
+    $line.Stroke = [Windows.Media.Brushes]::DeepSkyBlue
+    $line.StrokeThickness = 7
+    $line.IsHitTestVisible = $false
+    foreach ($point in $points) {
+        $line.Points.Add((New-Object Windows.Point($point.x, $point.y)))
     }
+    Add-At $line 0 0
 }
 
 function Invoke-LocalRequest($request) {
@@ -119,8 +123,15 @@ function Test-LocalWindow($dock) {
     $visibleSize = New-Object Windows.Size(1460, 920)
     $dock.Measure($visibleSize)
     $dock.Arrange((New-Object Windows.Rect(0, 0, 1460, 920)))
-    if ($script:localView.capture) {
-        Test-LocalCaptureWindow $dock
+    if ($script:localView.combatPrompt) {
+        $before = $script:localView.revision
+        foreach ($pattern in @('^撤退 2 格$', ' 损失一步$', ' 损失一步$', '^撤退经过 s13.11$', '^撤退经过 s13.12$', '^确认战果$')) {
+            $button = $script:localButtons.Children | Where-Object { $_.Content.Text -match $pattern } | Select-Object -First 1
+            if (!$button) { throw "战果面板缺少对应操作 $pattern，当前为 $($script:localView.combatPrompt)" }
+            if ($LocalSmokeImage -and $pattern -eq '^撤退经过 s13.12$') { Write-DesktopPng $dock 1460 920 $LocalSmokeImage }
+            $button.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
+        }
+        if ($script:localView.revision -ne ($before + 1) -or !$script:localView.captureNotice) { throw $script:localStatus.Text }
         return
     }
     while ($script:localView.phase -ne '移动') {
@@ -153,9 +164,9 @@ function Update-LocalView($view) {
         $script:localView = $view
         $script:localRoster = @{}
         $script:localHeading.Text = $view.headline
-        $script:localBoardHeader.Visibility = if ($view.capture) { 'Collapsed' } else { 'Visible' }
-        Update-LocalCapturePanel $view.capture
-        $script:localStatus.Text = if ($view.capture) { "待确认 · 对局已保存至第 $($view.revision) 条记录" } else { "已自动保存 · 第 $($view.revision) 条记录" }
+        $script:localBoardHeader.Visibility = if ($view.combatPrompt) { 'Collapsed' } else { 'Visible' }
+        $script:localStatus.Text = "已自动保存 · 第 $($view.revision) 条记录"
+        if ($view.captureNotice) { $script:localStatus.Text += [Environment]::NewLine + $view.captureNotice }
         $script:localStatus.Foreground = [Windows.Media.Brushes]::DarkSlateGray
         $script:localStatus.ToolTip = $model.local.savePath
         $script:localSelected.Text = if ($view.route.Count) { '路线  ' + ($view.route -join ' → ') } elseif ($view.unitIds.Count -gt 1) {
@@ -189,6 +200,12 @@ function Update-LocalView($view) {
             [void]$script:localStack.Children.Add($chip)
         }
         $script:localButtons.Children.Clear()
+        if ($view.combatPrompt) {
+            $prompt = New-LocalText 15
+            $prompt.Text = $view.combatPrompt
+            $prompt.Margin = '0,2,0,10'
+            [void]$script:localButtons.Children.Add($prompt)
+        }
         foreach ($item in $view.actions) {
             $button = New-LocalButton $item.label
             $button.Margin = '0,0,0,6'
@@ -338,10 +355,7 @@ function Show-LocalScorpion {
     $actionsScroll = New-Object Windows.Controls.ScrollViewer
     $actionsScroll.VerticalScrollBarVisibility = 'Auto'
     $script:localButtons = New-Object Windows.Controls.StackPanel
-    $body = New-Object Windows.Controls.StackPanel
-    [void]$body.Children.Add((New-LocalCapturePanel))
-    [void]$body.Children.Add($script:localButtons)
-    $actionsScroll.Content = $body
+    $actionsScroll.Content = $script:localButtons
     [void]$panel.Children.Add($actionsScroll)
 
     $script:localTabs = New-Object Windows.Controls.TabControl
@@ -362,7 +376,7 @@ function Show-LocalScorpion {
     Register-LocalMapClicks $script:canvas
     $window.Add_PreviewKeyDown({
         param($sender, $args)
-        if ($args.Key -eq 'Escape' -and !$script:localView.capture -and !$script:localCommand.IsKeyboardFocusWithin) {
+        if ($args.Key -eq 'Escape' -and !$script:localCommand.IsKeyboardFocusWithin) {
             Invoke-LocalRequest @{ kind = 'clear-selection' }
             $args.Handled = $true
         }

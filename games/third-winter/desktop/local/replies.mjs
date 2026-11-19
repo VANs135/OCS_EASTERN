@@ -1,7 +1,6 @@
 import { scorpionAirReturnOptions } from '../../src/match/scorpion-air-operations.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
-import { scorpionRemnantDestinations } from '../../src/match/scorpion-remnants.ts'
 
 const terrainName = { Open: '开阔地', Village: '村庄', 'Minor City': '小城市', 'Major City': '大城市',
   Hills: '丘陵', Woods: '疏林', Forest: '密林', Rough: '崎岖地', Mountain: '山地', Swamp: '沼泽' }
@@ -14,7 +13,7 @@ function counterName(state, data, id) {
 }
 
 export function repliesFor(state, side, selection, data, add) {
-  const { unitId, hex } = selection
+  const { unitId } = selection
   if (state.reroll) {
     add('保留当前骰点', 'resolve-reroll', { decision: 'keep' })
     add('重掷并把算子交给对手', 'resolve-reroll', { decision: 'reroll' })
@@ -58,7 +57,7 @@ export function repliesFor(state, side, selection, data, add) {
     return true
   }
   if (state.combat) {
-    combatReplies(state, side, selection, data, add)
+    combatReplies(state, side, data, add)
     return true
   }
   const step = state.turn.step
@@ -110,7 +109,7 @@ function airReplies(state, side, unitId, data, add) {
   }
 }
 
-function combatReplies(state, side, selection, data, add) {
+function combatReplies(state, side, data, add) {
   const battle = state.combat
   const ids = side === battle.attacker ? battle.attackers : battle.defenders
   if (battle.step === 'defender-supply') {
@@ -136,41 +135,5 @@ function combatReplies(state, side, selection, data, add) {
     for (const unitId of ids.filter((id) => state.units[id])) {
       add(`推进 ${counterName(state, data, unitId)} 到 ${battle.target}`, 'advance-after-combat', { unitIds: [unitId] })
     }
-  } else {
-    combatResultChoices(state, side, ids, selection, data, add)
-  }
-}
-
-function combatResultChoices(state, side, ids, { hex }, data, add) {
-  const battle = state.combat
-  const attacker = side === battle.attacker
-  const result = attacker ? battle.roll.attacker : battle.roll.defender
-  const leader = attacker ? battle.attackerLeader : battle.defenderLeader
-  const order = [leader, ...ids.filter((id) => id !== leader)]
-  const available = ids.reduce((sum, id) => sum + remainingSteps(state.units[id]), 0)
-  const mandatory = Math.min(available, result.loss)
-  for (const ignoreDefenderOption of [false, ...(!attacker && battle.defenderMayIgnore && result.option ? [true] : [])]) {
-    const optionLosses = ignoreDefenderOption ? 0 : Math.min(available - mandatory, result.option)
-    const lossOrder = []
-    const remaining = new Map(order.map((id) => [id, remainingSteps(state.units[id])]))
-    while (lossOrder.length < mandatory + optionLosses) for (const id of order) {
-      if (lossOrder.length === mandatory + optionLosses) break
-      if (remaining.get(id) > 0) { lossOrder.push(id); remaining.set(id, remaining.get(id) - 1) }
-    }
-    const fields = { lossOrder, optionLosses, ignoreDefenderOption, retreats: [] }
-    const label = ignoreDefenderOption ? `忽略守方选项，结算 ${lossOrder.length} 步` : `结算 ${lossOrder.length} 步战斗损失`
-    const parent = ids.find((id) => {
-      if (side !== 'axis' || remaining.get(id)) return false
-      const definition = data.assets.catalog.definitions.get(state.units[id].definition)
-      const stats = definition.source.faces.combat.stats
-      return definition.source.name.startsWith('Ge ') && definition.source.category === 'infantry' &&
-        definition.source.re === 4 && stats.attack === 16 && stats.artRange === 4 && stats.move === 3
-    })
-    const active = Object.values(state.units).filter((unit) => unit.remnantOf).length
-    const destinations = parent && active < 2 ? scorpionRemnantDestinations(state, state.units[parent].hex, data.assets) : []
-    if (destinations.length > 1) {
-      for (const at of destinations.includes(hex) ? [hex] : destinations) add(`${label} · 残部放在 ${at}`, 'resolve-combat',
-        { ...fields, remnants: [{ divisionId: parent, hex: at }] })
-    } else add(label, 'resolve-combat', fields)
   }
 }

@@ -62,7 +62,7 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
         $image.Tag = @{ UnitId = [string]$counter.id; Cell = $cell }
         Register-LocalMapClicks $image
         if ($script:localRoster.ContainsKey([string]$counter.id)) { $image.Cursor = [Windows.Input.Cursors]::Hand }
-        if ($script:localView.unitIds -contains $counter.id) {
+        if ($script:localView.frame.selectedUnits -contains $counter.id) {
             $outline = New-Object Windows.Controls.Border
             $outline.Width = $size
             $outline.Height = $size
@@ -147,10 +147,6 @@ function Show-Frame([int]$index) {
         $region.Width = $box.w
         $region.Height = $box.h
         $region.Background = [Windows.Media.Brushes]::Transparent
-        if ($Local -and $frame.captureAirBox -eq $entry.cell) {
-            $region.BorderThickness = 7
-            $region.BorderBrush = if ($frame.captureAirBoxSelected) { [Windows.Media.Brushes]::DeepSkyBlue } else { [Windows.Media.Brushes]::MediumSeaGreen }
-        }
         $contents = if ($entry.hidden) { $model.labels.hidden } elseif ($entry.counters.Count) {
             $entry.counters.label -join [Environment]::NewLine
         } else { $model.labels.empty }
@@ -244,7 +240,6 @@ if ($RenderTo) {
 }
 
 if ($Local) {
-    . (Join-Path $PSScriptRoot 'ScorpionCapturePanel.ps1')
     . (Join-Path $PSScriptRoot 'ScorpionLocalPanel.ps1')
     Show-LocalScorpion
     exit

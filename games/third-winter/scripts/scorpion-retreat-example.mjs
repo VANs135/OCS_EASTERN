@@ -23,16 +23,13 @@ export function sampleScorpionRetreatCapture(opening, assets, board) {
   }
   issue('soviet', { type: 'resolve-combat', lossOrder: [], optionLosses: 0,
     retreats: [{ units: [defenderId], path: [airfield, destination] }] })
-  const paused = record
-  const aircraft = paused.state.capture?.aircraft.map(({ id }) => ({ id, destination: { kind: 'off-map-air' } }))
-  if (paused.state.units[defenderId].hex !== airfield || !aircraft?.length) {
-    throw new Error('The retreat must stop at the captured air base for Axis displacement')
-  }
-  issue('axis', { type: 'settle-capture', aircraft })
-  issue('soviet', { type: 'continue-combat-retreat' })
+  const report = record.state.captureHistory?.at(-1)
+  const displaced = report?.displacedAircraft?.length ?? 0
+  const draws = report ? report.aircraft.length + report.transports.length + Number(!!report.dump) : 0
   if (record.state.units[defenderId].hex !== destination || record.state.combat?.step !== 'advance' ||
-    record.state.rng.drawCount !== paused.state.rng.drawCount || record.state.captureHistory?.length !== 1) {
-    throw new Error('The retreat did not resume and complete without rolling for the same capture twice')
+    record.state.capture || report?.hex !== airfield || !displaced || record.state.captureHistory?.length !== 1 ||
+    record.state.rng.drawCount - opening.state.rng.drawCount !== draws) {
+    throw new Error('The retreat did not settle the captured air base once and complete the chosen route')
   }
-  return { paused, finished: record, origin, airfield, destination, displaced: aircraft.length }
+  return { finished: record, origin, airfield, destination, displaced }
 }

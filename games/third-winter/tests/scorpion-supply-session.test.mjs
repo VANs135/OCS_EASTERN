@@ -285,18 +285,17 @@ test('forced Extender collapse displaces only to a supplied hex or falls back to
       ...board, movement: () => ({ enemyCombat: () => false, enemySupplySource: () => false, unnegatedEnemyZoc: () => false }),
     }).record
   }
-  const pending = raid(false)
-  assert.deepEqual(pending.state.capture.extenders[0].destinations, ['s1.03'])
-  assert.equal(pending.state.capture.transports.length, 0)
-  assert.throws(() => submit(pending, { type: 'settle-capture', aircraft: [], extenders: [{ id: 'first', destination: 's10.01' }] }), /supplied displacement/)
-  const displaced = submit(JSON.parse(JSON.stringify(pending)),
-    { type: 'settle-capture', aircraft: [], extenders: [{ id: 'first', destination: 's1.03' }] })
+  const displaced = raid(false)
+  const report = displaced.state.captureHistory.at(-1)
+  assert.deepEqual(report.extenders[0], { id: 'first', destinations: ['s1.03'], displacedTo: 's1.03' })
+  assert.equal(report.transports.length, 0)
+  assert.equal(displaced.state.capture, null)
   assert.equal(displaced.state.units.first.hex, 's1.03')
   assert.equal(displaced.state.units.first.extender, undefined)
   assert.equal(displaced.state.rng.drawCount, start.state.rng.drawCount)
   const fallen = raid(true)
   assert.equal(fallen.state.units.first.extender, undefined)
-  assert.equal(fallen.state.capture.transports[0].members[0].points, 5)
+  assert.equal(fallen.state.captureHistory.at(-1).transports[0].members[0].points, 5)
   assert.equal(fallen.state.rng.drawCount, start.state.rng.drawCount + 1)
 })
 

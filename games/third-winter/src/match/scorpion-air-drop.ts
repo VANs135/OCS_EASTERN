@@ -8,13 +8,13 @@ import type { ScorpionAirBase } from './scorpion-air-bases.ts'
 import { scorpionAirliftCapacity, scorpionAirliftMode } from './scorpion-airlift.ts'
 import type { ScorpionAirlift } from './scorpion-airlift.ts'
 import { scorpionCaptureAt, resolveScorpionEntry } from './scorpion-capture.ts'
+import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { creditScorpionUnloadedSupply } from './scorpion-dumps.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { unloadScorpionGroundAirlift } from './scorpion-ground-airlift.ts'
 import { scorpionKnownPhaseOccupancy } from './scorpion-phase-occupancy.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
-import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 type HexTarget = Extract<ScorpionAirBase, { kind: 'hex' }>
 type DropRoll = Omit<ReturnType<typeof rollParachuteDrop>, 'rng'> & { unitId?: string; landed: boolean }
@@ -56,7 +56,7 @@ export function prepareScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Si
 /** OCS 14.4g and the player's ruling. Recompute the capacity left to drop or to carry cargo back. */
 export function settleScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Side, target: HexTarget,
   drop: ScorpionAirdrop, airlift: ScorpionAirlift, assets: ScorpionSetupAssets,
-  railroad?: SupplyRailBoard, disposition?: DropUnitDisposition) {
+  policy: ScorpionCapturePolicy, disposition?: DropUnitDisposition) {
   let active = 0
   let aborted = 0
   for (const plane of state.pieces) {
@@ -115,11 +115,11 @@ export function settleScorpionAirdrop(state: Readonly<ScorpionInPlay>, side: Sid
   const pieces = friendlyBase ? state.pieces.map((plane) => plane.active && atAirBase(plane.location, target) &&
     airlift.flightModes?.some(({ id }) => id === plane.id && airTransportModes[scorpionAirliftMode(airlift, id)].stay)
     ? { ...plane, active: false } : plane) : state.pieces
-  let resolved = unloadScorpionGroundAirlift({ ...state, rng, pieces }, side, target.hex, unitsAtTarget, lostIds, assets, railroad)
+  let resolved = unloadScorpionGroundAirlift({ ...state, rng, pieces }, side, target.hex, unitsAtTarget, lostIds, assets, policy.supplyRail)
   if (landedId) {
     resolved = { ...resolved, moved: [...resolved.moved, landedId], dropTrace: { unitId: landedId, turn: state.cursor.turn },
       units: { ...resolved.units, [landedId]: { ...resolved.units[landedId]!, outOfSupply: false } } }
-    if (enemyStores) resolved = resolveScorpionEntry(resolved, side, target.hex, [landedId], assets, false, railroad)
+    if (enemyStores) resolved = resolveScorpionEntry(resolved, side, target.hex, [landedId], assets, false, policy)
   }
   resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, abortBase, cargo.saved) }
   resolved = { ...resolved, dumps: creditScorpionUnloadedSupply(resolved, side, target, landedTokens) }

@@ -21,6 +21,17 @@ export type RebuildScorpionRemnant = { type: 'rebuild-remnant'; remnantId: strin
 // Scenario booklet p.55 supplies two interchangeable battalions. Use the first two printed counters.
 const scorpionRemnantDefinitions = ['land:id:3999', 'land:id:4499'] as const
 
+export class ScorpionRemnantChoice extends Error {
+  readonly division: string
+  readonly candidates: readonly string[]
+
+  constructor(division: string, candidates: readonly string[]) {
+    super(`Choose a remnant hex for ${division}: ${candidates.join(', ')}`)
+    this.division = division
+    this.candidates = candidates
+  }
+}
+
 function isParentDivision(catalog: ScorpionSetupAssets['catalog'], unit: DeployedCounter) {
   const definition = catalog.definitions.get(unit.definition)
   const stats = definition?.source.faces.combat?.stats
@@ -59,7 +70,7 @@ export function placeScorpionRemnant(state: ScorpionInPlay, divisionId: string, 
     return state
   }
   const hex = requested === undefined ? choices.length === 1 ? choices[0]! : '' : scorpionHexId(requested)
-  if (!choices.includes(hex)) throw new Error(`Choose a remnant hex for ${divisionId}: ${choices.join(', ')}`)
+  if (!choices.includes(hex)) throw new ScorpionRemnantChoice(divisionId, choices)
   const definition = assets.catalog.definitions.get(key)
   if (!definition) throw new Error(`Missing Scorpion remnant counter ${key}`)
   const id = `remnant:${definition.key}`

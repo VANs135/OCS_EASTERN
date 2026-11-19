@@ -8,6 +8,7 @@ import { openLocalScorpion, projectLocalScorpion } from './controller.mjs'
 import { loadLocalScorpion } from './data.mjs'
 import { readLocalJson } from './store.mjs'
 import { testLocalCapture } from './capture-smoke.mjs'
+import { testLocalCombatReview } from './combat-review-smoke.mjs'
 
 const args = process.argv.slice(2)
 const [root, unitRoot] = args.filter((value) => !value.startsWith('--'))
@@ -122,14 +123,24 @@ try {
   assert.deepEqual(client.view().frame.reroll, pending)
   while (client.view().phase === '重掷应答') await apply('resolve-reroll', (action) => action.decision === 'keep')
   phase(/战斗应答/)
-  for (let count = 0; count < 2; count++) await apply('resolve-combat')
+  for (let count = 0; count < 2; count++) {
+    while (!client.view().actions.some(({ actions }) => actions[0]?.type === 'resolve-combat')) {
+      const picks = client.view().actions.filter((entry) => entry.mapUnit || entry.mapHex ||
+        /^承担 \d+ 步选项损失$|^忽略守方选项$|^结算战果$/.test(entry.label))
+      assert.ok(picks.length, client.view().combatPrompt)
+      const step = picks.find((entry) => entry.label === '忽略守方选项') ?? picks.at(-1)
+      await send('apply', { key: step.key })
+    }
+    await apply('resolve-combat')
+  }
   if (client.view().actions.some(({ actions }) => actions.some(({ type }) => type === 'advance-after-combat'))) {
     await apply('advance-after-combat', (action) => !action.unitIds.length)
   }
   console.log(`Local match passed map deployment, exact counter/context selection, double-click movement, combat and a saved reroll at revision ${client.view().revision}.`)
-  const nativeArgs = args.includes('--native-capture') ?
+  await testLocalCapture(data, folder, captureOpening)
+  const nativeArgs = args.includes('--native-review') ?
     [root, unitRoot, args.find((value) => value.startsWith('--smoke-image='))].filter(Boolean) : undefined
-  await testLocalCapture(data, folder, captureOpening, nativeArgs)
+  await testLocalCombatReview(data, folder, captureOpening, nativeArgs)
 } finally {
   await client.close()
   await unlink(file)

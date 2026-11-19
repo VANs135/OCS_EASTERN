@@ -6,6 +6,7 @@ import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
+import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { applyScorpionGroundMove, scorpionGroundMpAvailable, scorpionMovementAllowance } from './scorpion-movement.ts'
@@ -15,7 +16,6 @@ import type { ScorpionReserveFace } from './scorpion-reserves.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
-import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { fuelScorpionMovement } from './scorpion-fuel.ts'
 
 type MovingCounter = { unitId: string; fuelDumpId?: string; fuelHeadquartersId?: string; reserveFace?: ScorpionReserveFace }
@@ -23,9 +23,8 @@ export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
   | { type: 'set-ground-mode'; unitId: string; face: GroundFace }
 
-export interface GroundPolicies {
+export interface GroundPolicies extends ScorpionCapturePolicy {
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
-  supplyRail?: SupplyRailBoard
   combat?: { hedgehogAt?: (hex: string) => number }
 }
 
@@ -69,7 +68,7 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     moved = applyScorpionGroundMove(fueled, side, move, rules, resumed ? prior![unitId] : remaining)
   }
   const entered = action.path.map(scorpionHexId)
-  moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets, board.supplyRail)
+  moved = resolveScorpionMoveEntries(moved, side, entered, entrants, assets, board)
   const groundCaptureMove = moved.capture ? Object.fromEntries(entrants.map((id) => {
     const available = scorpionGroundMpAvailable(boardState, id, resumed ? prior![id] : undefined)
     const spent = (scorpionGroundActivity(moved).spent[id] ?? 0) - (scorpionGroundActivity(boardState).spent[id] ?? 0)

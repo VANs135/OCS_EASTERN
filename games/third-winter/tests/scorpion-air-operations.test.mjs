@@ -796,10 +796,9 @@ test('only the TTW brigade can plan in setup and Refit; a scheduled landing ends
     airBases: [...scheduled.state.airBases, airBase('axis', target)] } }
   const captured = submit(opposed, 'soviet', action)
   assert.equal(captured.state.airBases.find(({ hex }) => hex === target.hex).side, 'soviet')
-  assert.equal(captured.state.capture.aircraft[0].id, 'parked')
-  assert.throws(() => submit(captured, 'soviet', flyHome('lift', source)), /pending special capture/)
-  const displaced = submit(captured, 'axis', { type: 'settle-capture', aircraft: [{ id: 'parked', destination: box }] })
-  const finished = submit(displaced, 'soviet', flyHome('lift', source))
+  assert.equal(captured.state.capture, null)
+  assert.equal(captured.state.captureHistory.at(-1).displacedAircraft[0].id, 'parked')
+  const finished = submit(captured, 'soviet', flyHome('lift', source))
   assert.equal(finished.state.airHistory.at(-1).drop.result.unit.outcome, 'landed')
   assert.deepEqual(getPlane(finished, 'parked').location, box)
 })

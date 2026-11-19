@@ -12,10 +12,16 @@ import type { ExtenderDisplacement } from './scorpion-extender.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { recordScorpionGroundControl } from './scorpion-hex-control.ts'
 import type { ScorpionHedgehog } from './scorpion-hedgehogs.ts'
-import { rollScorpionTransportCapture, settleScorpionTransports } from './scorpion-transport-capture.ts'
+import { canDisplaceScorpionTransport, rollScorpionTransportCapture, settleScorpionTransports } from './scorpion-transport-capture.ts'
 import type { CapturedTransportGroup, TransportCaptureChoice } from './scorpion-transport-capture.ts'
 
 type AirDisplacement = { id: string; destinations: readonly ScorpionAirBase[] }
+
+export interface ScorpionCapturePolicy {
+  supplyRail?: SupplyRailBoard
+  /** Retained for reproducing games saved while the original owner had to answer. */
+  captureResolution?: 'manual'
+}
 
 export interface ScorpionCaptureWindow {
   hex: string
@@ -31,7 +37,9 @@ export interface ScorpionCaptureReport {
   captor: Side
   dump?: { die: number; taken: number; destroyed: number }
   aircraft: readonly { id: string; die: number; loss: boolean; eliminated: boolean }[]
+  displacedAircraft?: SettleScorpionCapture['aircraft']
   transports: readonly CapturedTransportGroup[]
+  transportAllocation?: readonly TransportCaptureChoice[]
   hedgehog?: { before: ScorpionHedgehog; after: ScorpionHedgehog | null }
   extenders?: readonly ExtenderDisplacement[]
 }
@@ -64,17 +72,17 @@ function assertScorpionCaptor(state: Readonly<ScorpionInPlay>, side: Side, hex: 
 }
 
 export function resolveScorpionMoveEntries(state: Readonly<ScorpionInPlay>, side: Side, hexes: readonly string[],
-  ids: readonly string[], assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
+  ids: readonly string[], assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy = {}): ScorpionInPlay {
   let moved = state
   for (const [index, hex] of hexes.entries()) {
-    moved = resolveScorpionEntry(moved, side, hex, ids, assets, false, railroad)
+    moved = resolveScorpionEntry(moved, side, hex, ids, assets, false, policy, hexes.slice(index + 1))
     if (moved.capture && index !== hexes.length - 1) throw new Error('End this move at the pending capture hex')
   }
   return moved
 }
 
 export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Side, hex: string, ids: readonly string[],
-  assets: ScorpionSetupAssets, afterCombat: boolean, railroad?: SupplyRailBoard): ScorpionInPlay {
+  assets: ScorpionSetupAssets, afterCombat: boolean, policy: ScorpionCapturePolicy = {}, route: readonly string[] = []): ScorpionInPlay {
   const state = recordScorpionGroundControl(entered, side, hex, assets.map)
   const { owner, dump, airBase, aircraft, transports, hedgehog } = assertScorpionCaptor(state, side, hex, ids)
   if (!dump?.tokens && !airBase && !aircraft.length && !transports.length && !hedgehog) return state
@@ -86,7 +94,8 @@ export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Si
     return draw.value
   }
   const dumps = { ...state.dumps }
-  const extenders = scorpionExtenderDisplacements(state, owner, transports.filter((id) => state.units[id]?.extender), assets.map, railroad)
+  const extenders = scorpionExtenderDisplacements(state, owner, transports.filter((id) => state.units[id]?.extender),
+    assets.map, policy.supplyRail)
   const displacedExtenders = extenders.filter(({ destinations }) => destinations.length)
   let flipped = state
   for (const extender of extenders) if (!extender.destinations.length) flipped = flipScorpionExtender(flipped, extender.id, hex, false)
@@ -122,12 +131,52 @@ export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Si
       ...(displacedExtenders.length ? { extenders: displacedExtenders } : {}) } : null
   // TTW 1.1b. Taking a hedgehog reduces it immediately, without a capture die or response.
   const remainingHedgehog: ScorpionHedgehog | null = hedgehog?.level === 2 ? { side, level: 1 } : null
-  return { ...flipped, rng, dumps, airBases, pieces, capture,
+  const rolled = { ...flipped, rng, dumps, airBases, pieces, capture,
     ...(hedgehog ? { hedgehogs: { ...flipped.hedgehogs, [hex]: remainingHedgehog } } : {}),
     captureHistory: [...(state.captureHistory ?? []), { hex, captor: side, dump: dumpResult,
       aircraft: aircraftResults, transports: transportResults, ...(extenders.length ? { extenders } : {}),
       ...(hedgehog ? { hedgehog: { before: hedgehog, after: remainingHedgehog } } : {}) }] }
+  return capture && policy.captureResolution !== 'manual'
+    ? settleScorpionCapture(rolled, owner, automaticScorpionCaptureOrder(capture, rolled, assets, route), assets) : rolled
 }
+
+export function automaticScorpionCaptureOrder(capture: ScorpionCaptureWindow, state: Readonly<ScorpionInPlay>,
+  { map }: ScorpionSetupAssets, route: readonly string[] = []): SettleScorpionCapture {
+  const blocked = new Set(Object.values(state.units).filter((unit) => unit.side === capture.captor && unit.combat).map(({ hex }) => hex))
+  const danger = (hex: string) => 2 * Number(blocked.has(hex)) + Number(route.includes(hex))
+  const nearest = (destinations: readonly string[]) => [...destinations].sort((a, b) =>
+    danger(a) - danger(b) || scorpionHexDistance(capture.hex, a) - scorpionHexDistance(capture.hex, b) || compareId(a, b))[0]
+  const aircraft = capture.aircraft.map(({ id, destinations }) => {
+    const bases = destinations.flatMap((base) => base.kind === 'hex' ? [base.hex] : [])
+    const hex = nearest(bases.filter((at) => danger(at) === 0))
+    const destination = hex === undefined ? destinations.find((base) => base.kind === 'off-map-air') ?? destinations[0] :
+      { kind: 'hex' as const, hex }
+    if (!destination) throw new Error('Missing aircraft displacement destination')
+    return { id, destination }
+  })
+  const extenders = (capture.extenders ?? []).map(({ id, destinations }) => {
+    const destination = nearest(destinations)
+    if (!destination) throw new Error('Missing Extender displacement destination')
+    return { id, destination }
+  })
+  const transports = capture.transports.flatMap((group) => {
+    const destination = nearest([...map.hexes.keys()].filter((at) => canDisplaceScorpionTransport(map, group.kind, capture.hex, at)))
+    let points = group.points
+    let tokens = group.tokens
+    return [...group.members].sort((a, b) => compareId(a.id, b.id)).map((member) => {
+      const takenPoints = Math.min(points, member.points)
+      const takenTokens = Math.min(tokens, member.tokens)
+      points -= takenPoints
+      tokens -= takenTokens
+      const remaining = takenPoints < member.points || takenTokens < member.tokens
+      if (remaining && !destination) throw new Error('Missing transport displacement destination')
+      return { id: member.id, takenPoints, takenTokens, ...(remaining ? { displacedTo: destination } : {}) }
+    })
+  })
+  return { type: 'settle-capture', aircraft, extenders, transports }
+}
+
+const compareId = (a: string, b: string) => a < b ? -1 : a === b ? 0 : 1
 
 export function settleScorpionCapture(state: Readonly<ScorpionInPlay>, side: Side, action: SettleScorpionCapture,
   assets: ScorpionSetupAssets): ScorpionInPlay {
@@ -156,15 +205,18 @@ export function settleScorpionCapture(state: Readonly<ScorpionInPlay>, side: Sid
   for (const [id, destination] of destinations) settled = flipScorpionExtender(settled, id, destination, false)
   const history = settled.captureHistory
   const latest = history?.at(-1)
-  const captureHistory = pending.length && latest && history ? [...history.slice(0, -1), { ...latest,
-    extenders: latest.extenders?.map((entry) => ({ ...entry, displacedTo: destinations.get(entry.id) })) }] : history
+  const captureHistory = latest && history ? [...history.slice(0, -1), { ...latest,
+    ...(action.aircraft.length ? { displacedAircraft: action.aircraft } : {}),
+    ...(action.transports?.length ? { transportAllocation: action.transports } : {}),
+    ...(pending.length ? { extenders: latest.extenders?.map((entry) => ({ ...entry, displacedTo: destinations.get(entry.id) })) } : {}),
+  }] : history
   return { ...settled, pieces, capture: null, captureHistory }
 }
 
 function airDestinations(piece: ScorpionBoxPiece, reduced: boolean, from: string, airBases: ScorpionInPlay['airBases'],
-  { catalog }: ScorpionSetupAssets): ScorpionAirBase[] {
+  { catalog, map }: ScorpionSetupAssets): ScorpionAirBase[] {
   const range = printedAirRange(catalog.definitions.get(piece.definition)?.source, reduced, piece.definition)
-  return [...airBases.filter((base) => base.side === piece.side && base.hex !== from &&
+  return [...airBases.filter((base) => base.side === piece.side && base.hex !== from && map.hexes.has(base.hex) &&
     scorpionHexDistance(from, base.hex) <= range * 2).map((base) => ({ kind: 'hex' as const, hex: base.hex })),
   { kind: 'off-map-air' }]
 }

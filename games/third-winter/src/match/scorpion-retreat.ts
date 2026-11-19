@@ -5,12 +5,13 @@ import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
+import { ScorpionRemnantChoice } from './scorpion-remnants.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
+import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
-import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 
 export interface RetreatPlan {
   units: readonly string[]
@@ -33,9 +34,51 @@ export interface ScorpionCombatRetreat {
 
 export type ContinueCombatRetreat = { type: 'continue-combat-retreat'; routes?: readonly RetreatRouteSuffix[] }
 
+export class ScorpionRetreatLossChoice extends Error {
+  readonly origin: string
+  readonly hex: string
+  readonly step: number
+  readonly candidates: readonly string[]
+
+  constructor(origin: string, hex: string, step: number, candidates: readonly string[]) {
+    super('Choose a DG retreating unit to lose one step in enemy ZOC')
+    this.origin = origin
+    this.hex = hex
+    this.step = step
+    this.candidates = candidates
+  }
+}
+
+export class ScorpionRetreatRemnantChoice extends ScorpionRemnantChoice {
+  readonly origin: string
+  readonly step: number
+
+  constructor(origin: string, step: number, choice: ScorpionRemnantChoice) {
+    super(choice.division, choice.candidates)
+    this.origin = origin
+    this.step = step
+  }
+}
+
+function scorpionRetreatNeighbors(origin: string, path: readonly string[], side: Side,
+  combat: ScorpionCombat, map: ScorpionSetupAssets['map']) {
+  const enemy = opposing(side)
+  return map.neighbors(path.at(-1) ?? origin).filter((hex) => hex !== origin && !path.includes(hex) &&
+    !combat.heldAtStart[enemy].includes(hex) && !scorpionSupplySources[enemy].some((id) => id === hex))
+}
+
+export function scorpionRetreatPathOptions(state: Readonly<ScorpionInPlay>, side: Side, route: RetreatRoute,
+  combat: ScorpionCombat, assets: ScorpionSetupAssets): readonly string[] {
+  const { origin, path, units } = route
+  let counters
+  try { counters = units.map((id) => retreatMode(state.units[id], side, origin, assets.catalog)) } catch { return [] }
+  return scorpionRetreatNeighbors(origin, path, side, combat, assets.map).filter((hex) =>
+    passableRetreatStep(state, side, path.at(-1) ?? origin, hex, counters, assets.map))
+}
+
 export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, involved: readonly string[],
   distance: number, plans: readonly RetreatPlan[], combat: ScorpionCombat, assets: ScorpionSetupAssets,
-  rail?: SupplyRailBoard) {
+  policy: ScorpionCapturePolicy) {
   if (distance === 0 && !plans.length) return { state, pending: null }
   const expected = involved.filter((id) => Object.hasOwn(state.units, id))
   const all = plans.flatMap((plan) => plan.units)
@@ -50,13 +93,13 @@ export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
     for (const id of route.units) retreatMode(state.units[id], side, origin, assets.catalog)
     return route
   })
-  return followRetreat(state, { side, distance, routes, nextRoute: 0, nextStep: 0 }, combat, assets, rail)
+  return followRetreat(state, { side, distance, routes, nextRoute: 0, nextStep: 0 }, combat, assets, policy)
 }
 
 export function resumeScorpionCombatRetreat(state: Readonly<ScorpionInPlay>, progress: ScorpionCombatRetreat,
-  changes: ContinueCombatRetreat['routes'], combat: ScorpionCombat, assets: ScorpionSetupAssets, rail?: SupplyRailBoard) {
+  changes: ContinueCombatRetreat['routes'], combat: ScorpionCombat, assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy) {
   if (state.capture) throw new Error('Resolve the pending special capture before continuing the retreat')
-  if (!changes) return followRetreat(state, progress, combat, assets, rail)
+  if (!changes) return followRetreat(state, progress, combat, assets, policy)
   const { routes, nextRoute, nextStep, side, distance } = progress
   if (changes.length !== routes.length - nextRoute) throw new Error('Provide a new route suffix for every unfinished retreat stack')
   const updated = routes.map((route, index) => {
@@ -69,7 +112,7 @@ export function resumeScorpionCombatRetreat(state: Readonly<ScorpionInPlay>, pro
     validateRoute(updatedRoute, side, distance, combat, assets.map)
     return updatedRoute
   })
-  return followRetreat(state, { ...progress, routes: updated }, combat, assets, rail)
+  return followRetreat(state, { ...progress, routes: updated }, combat, assets, policy)
 }
 
 function replaceRetreatChoices(previous: RetreatPlan['zocLosses'], proposed: RetreatPlan['zocLosses'], prefix: number, length: number) {
@@ -87,16 +130,10 @@ function validateRoute(route: RetreatRoute, side: Side, distance: number, combat
   if (!endpoint || scorpionHexDistance(route.origin, endpoint) !== distance) {
     throw new Error('Retreat must end the full option distance from its origin')
   }
-  const enemy = opposing(side)
-  const seen = new Set([route.origin])
-  let from = route.origin
-  for (const hex of route.path) {
-    if (seen.has(hex) || !map.neighbors(from).includes(hex) || combat.heldAtStart[enemy].includes(hex) ||
-      scorpionSupplySources[enemy].some((id) => id === hex)) {
+  for (const [index, hex] of route.path.entries()) {
+    if (!scorpionRetreatNeighbors(route.origin, route.path.slice(0, index), side, combat, map).includes(hex)) {
       throw new Error('Retreat crosses an illegal hex or a hex occupied by the enemy at combat start')
     }
-    seen.add(hex)
-    from = hex
   }
   if (Object.keys(route.zocLosses ?? {}).some((step) => !/^(0|[1-9]\d*)$/.test(step) || Number(step) >= route.path.length)) {
     throw new Error('Choose a loss on the retreat path')
@@ -123,7 +160,7 @@ function retreatMode(unit: DeployedCounter | undefined, side: Side, origin: stri
 }
 
 function followRetreat(state: Readonly<ScorpionInPlay>, progress: ScorpionCombatRetreat, combat: ScorpionCombat,
-  assets: ScorpionSetupAssets, rail?: SupplyRailBoard): { state: ScorpionInPlay; pending: ScorpionCombatRetreat | null } {
+  assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy): { state: ScorpionInPlay; pending: ScorpionCombatRetreat | null } {
   const { side, routes, nextRoute, nextStep } = progress
   const rawZoc = scorpionEnemyZoc(state, assets.map, side)
   let settled = state
@@ -132,7 +169,7 @@ function followRetreat(state: Readonly<ScorpionInPlay>, progress: ScorpionCombat
     const firstStep = i === nextRoute ? nextStep : 0
     if (firstStep === 0) settled = prepareRoute(settled, side, route, assets)
     for (let step = firstStep; step < route.path.length; step++) {
-      settled = retreatStep(settled, side, route, step, rawZoc, assets, rail)
+      settled = retreatStep(settled, side, route, step, rawZoc, assets, policy)
       if (settled.victory) return { state: settled, pending: null }
       if (settled.capture) return { state: settled, pending: { ...progress, nextRoute: i, nextStep: step + 1 } }
     }
@@ -144,7 +181,7 @@ function followRetreat(state: Readonly<ScorpionInPlay>, progress: ScorpionCombat
 }
 
 function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: RetreatRoute, index: number,
-  rawZoc: ReadonlySet<string>, assets: ScorpionSetupAssets, rail?: SupplyRailBoard): ScorpionInPlay {
+  rawZoc: ReadonlySet<string>, assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy): ScorpionInPlay {
   const to = route.path[index]!
   const from = index === 0 ? route.origin : route.path[index - 1]!
   const moving = route.units.filter((id) => Object.hasOwn(state.units, id))
@@ -153,15 +190,13 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
     if (loss !== undefined) throw new Error('Retreat includes an unnecessary ZOC loss')
     return state
   }
-  const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'
-  if (moving.some((id) => scorpionStepCost(assets.map, from, to, state.units[id]!.mobility, weather) === null) ||
-    Object.values(state.units).some((unit) => unit.hex === to && unit.side !== side && unit.combat)) {
+  if (!passableRetreatStep(state, side, from, to, moving.map((id) => state.units[id]!), assets.map)) {
     throw new Error('Retreat crosses an illegal hex or an enemy combat unit')
   }
   const units = { ...state.units }
   const enteredZoc = rawZoc.has(to) && moving.some((id) => units[id]!.combat)
   const dg = enteredZoc ? moving.filter((id) => units[id]!.combat && units[id]!.disorganized) : []
-  if (dg.length && (!loss || !dg.includes(loss))) throw new Error('Choose a DG retreating unit to lose one step in enemy ZOC')
+  if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg)
   if (loss !== undefined && !dg.length) throw new Error('Retreat includes an unnecessary ZOC loss')
   for (const id of moving) units[id] = { ...units[id]!, hex: to,
     disorganized: units[id]!.combat && (units[id]!.disorganized || enteredZoc || index >= 1) }
@@ -169,10 +204,23 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
     if (unit.hex === to && unit.side === side && unit.combat) units[id] = { ...unit, disorganized: true }
   }
   // OCS 9.12f. The 9.14 entry uses movement timing, even though the retreat follows combat.
-  const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, rail)
+  const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, policy, route.path.slice(index + 1))
+  if (!loss) return captured
   const remnantHex = route.remnantHexes?.[index]
-  return loss ? applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, rail,
-    remnantHex === undefined ? [] : [{ divisionId: loss, hex: remnantHex }]) : captured
+  try {
+    return applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, policy.supplyRail,
+      remnantHex === undefined ? [] : [{ divisionId: loss, hex: remnantHex }])
+  } catch (error) {
+    if (error instanceof ScorpionRemnantChoice) throw new ScorpionRetreatRemnantChoice(route.origin, index, error)
+    throw error
+  }
+}
+
+function passableRetreatStep(state: Readonly<ScorpionInPlay>, side: Side, from: string, to: string,
+  counters: readonly DeployedCounter[], map: ScorpionSetupAssets['map']) {
+  const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'
+  return counters.every((unit) => scorpionStepCost(map, from, to, unit.mobility, weather) !== null) &&
+    !Object.values(state.units).some((unit) => unit.hex === to && unit.side !== side && unit.combat)
 }
 
 export function assertScorpionStacking(state: Readonly<ScorpionInPlay>, hex: string) {

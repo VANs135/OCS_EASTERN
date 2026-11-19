@@ -226,10 +226,6 @@ export function sampleScorpionOnMapSupplyAirlift(opening, assets, board) {
     record = submitScorpionDemo(record, seat, command, assets, board).record
   }
   submit('axis', { type: 'ground-move', unitId: captor, path: [target.hex] })
-  if (record.state.capture) {
-    const aircraft = record.state.capture.aircraft.map(({ id }) => ({ id, destination: { kind: 'off-map-air' } }))
-    submit('soviet', { type: 'settle-capture', aircraft })
-  }
   const before = record
   submit('axis', { type: 'launch-air-mission', mission: 'transport', target, supplySource: source, supplyTokens: 1,
     unitIds: [plane.id], flightModes: [{ id: plane.id, mode: 'double-capacity' }] })

@@ -17,10 +17,10 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { loadScorpionAirlift, scorpionAirliftMode, settleScorpionAirlift } from './scorpion-airlift.ts'
 import type { AirliftCargoSelection, AirliftDecision, AirliftFlightMode, ScorpionAirlift } from './scorpion-airlift.ts'
-import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { scorpionRolls } from './scorpion-reroll.ts'
 
-type ScorpionAirBoard = ScorpionAirBarrageBoard & { supplyRail?: SupplyRailBoard }
+type ScorpionAirBoard = ScorpionAirBarrageBoard & ScorpionCapturePolicy
 
 type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport' | 'air-drop'
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
@@ -382,7 +382,7 @@ function unloadAirdrop(state: Readonly<ScorpionInPlay>, mission: AirMissionData,
   board: ScorpionAirBoard, disposition?: DropUnitDisposition): ScorpionInPlay {
   if (!mission.airlift || !mission.drop || mission.target.kind !== 'hex') throw new Error('Invalid air drop')
   const result = settleScorpionAirdrop(state, mission.side, mission.target, mission.drop, mission.airlift,
-    assets, board.supplyRail, disposition)
+    assets, board, disposition)
   if (result.kind === 'choose-cargo') {
     return { ...state, airMission: { ...mission, step: { kind: 'airdrop-cargo', actor: mission.side,
       unitId: result.unitId, options: result.options } } }

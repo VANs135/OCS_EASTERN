@@ -182,7 +182,7 @@ test('the defending player can retreat the unresolved option along a legal hex p
   assert.equal(record.state.combat.step, 'advance')
 })
 
-test('9.12f captures a dump and air base on retreat, then resumes after the original owner displaces its plane', () => {
+test('9.12f settles captures during retreat and preserves the previous pause for legacy saves', () => {
   const origin = 's10.02'
   const target = 's10.03'
   const destination = 's10.04'
@@ -198,7 +198,7 @@ test('9.12f captures a dump and air base on retreat, then resumes after the orig
   const local = { ...assets, map, catalog: { definitions: new Map([['fighter', { kind: 'aircraft', source }],
     ['Sov Truck', sovietTruck], ['Ge Truck', axisTruck]]), aliases: new Map([['Ge Truck', [axisTruck]]]) } }
   const options = board('Ae4 Do2')
-  const issue = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, options).record
+  const issue = (at, side, action, legacy = {}) => submitScorpionSession(at, side, command(at, action), local, { ...options, ...legacy }).record
   let record = fixture('combat', { a: unit('soviet', 's10.01'), d: unit('axis', origin) })
   const dumpId = `soviet:hex:${target}`
   record.state.dumps[dumpId] = { side: 'soviet', tokens: 4, location: 'on-map' }
@@ -222,7 +222,13 @@ test('9.12f captures a dump and air base on retreat, then resumes after the orig
 
   const nonCaptor = { ...record, state: { ...record.state, units: { ...record.state.units, d: { ...record.state.units.d, attackCapable: false } } } }
   assert.throws(() => issue(nonCaptor, 'axis', retreat), /attack-capable/)
-  const paused = issue(record, 'axis', retreat)
+  const automatically = issue(record, 'axis', retreat)
+  assert.equal(automatically.state.units.d.hex, destination)
+  assert.equal(automatically.state.capture, null)
+  assert.equal(automatically.state.pieces[0].location.kind, 'off-map-air')
+  assert.equal(automatically.state.combat.step, 'advance')
+  const legacy = { captureResolution: 'manual' }
+  const paused = issue(record, 'axis', retreat, legacy)
   assert.equal(paused.state.units.d.hex, target)
   assert.equal(paused.state.railControl[target], undefined)
   assert.equal(paused.state.capture.owner, 'soviet')
@@ -254,8 +260,12 @@ test('9.12f captures a dump and air base on retreat, then resumes after the orig
 
   const twoCaptures = { ...record, state: { ...record.state, units: { ...record.state.units,
     truck: unit('soviet', destination, { combat: false, allowance: 45, definition: 'Sov Truck' }) } } }
-  const passedAirBase = issue(issue(twoCaptures, 'axis', retreat), 'soviet', displace)
-  const stoppedAgain = issue(passedAirBase, 'axis', move)
+  const autoTwo = issue(twoCaptures, 'axis', retreat)
+  assert.deepEqual(autoTwo.state.captureHistory.map(({ hex }) => hex), [target, destination])
+  assert.ok(Object.entries(autoTwo.state.units).filter(([id, unit]) => id.startsWith('captured:') && unit.side === 'axis')
+    .every(([id]) => autoTwo.state.moved.includes(id)))
+  const passedAirBase = issue(issue(twoCaptures, 'axis', retreat, legacy), 'soviet', displace)
+  const stoppedAgain = issue(passedAirBase, 'axis', move, legacy)
   assert.equal(stoppedAgain.state.units.d.hex, destination)
   assert.equal(stoppedAgain.state.capture.hex, destination)
   const [group] = stoppedAgain.state.capture.transports
@@ -432,7 +442,7 @@ test('an overrun stack can repeat its attack and automatically enters a cleared 
   assert.equal(record.state.overrunMarch, null)
 })
 
-test('capturing an air base displaces survivors off-map with their reduced face and lets the captor resume movement', () => {
+test('capturing an air base displaces survivors automatically and movement continues through the hex', () => {
   const from = 's10.01'
   const target = 's10.02'
   const next = 's10.03'
@@ -448,26 +458,22 @@ test('capturing an air base displaces survivors off-map with their reduced face 
     [name, [{ kind: 'marker', source: { faces: { combat: { asset: `${name}.png` } } } }]]))
   const local = { ...assets, catalog: { definitions: new Map([['fighter', definition]]), aliases } }
   const play = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, board()).record
-  const move = { type: 'ground-move', unitId: 'attacker', path: [target] }
-  assert.throws(() => play(record, 'soviet', { ...move, path: [target, next] }), /pending capture hex/)
+  const move = { type: 'ground-move', unitId: 'attacker', path: [target, next] }
   assert.equal(record.state.rng.drawCount, 0)
-  const entered = play(record, 'soviet', move)
-  assert.equal(entered.state.units.attacker.hex, target)
-  assert.deepEqual(entered.state.airBases, [{ side: 'soviet', hex: target, level: 2 }])
-  assert.equal(entered.state.dumps['soviet:hex:s10.02'].tokens, 2)
-  assert.equal(entered.state.pieces[0].reduced, true)
-  assert.equal(entered.state.pieces[1].location.kind, 'dead-pile')
-  const flight = { type: 'settle-capture', aircraft: [{ id: 'fighter', destination: { kind: 'off-map-air' } }] }
-  assert.throws(() => play(entered, 'soviet', flight), /original owner/)
-  assert.throws(() => play(entered, 'soviet', { type: 'complete-movement' }), /pending special capture/)
-  const settled = play(JSON.parse(JSON.stringify(entered)), 'axis', flight)
+  const settled = play(record, 'soviet', move)
+  assert.equal(settled.state.units.attacker.hex, next)
+  assert.equal(settled.state.capture, null)
+  assert.deepEqual(settled.state.airBases, [{ side: 'soviet', hex: target, level: 2 }])
+  assert.equal(settled.state.dumps['soviet:hex:s10.02'].tokens, 2)
+  assert.equal(settled.state.pieces[0].reduced, true)
+  assert.equal(settled.state.pieces[1].location.kind, 'dead-pile')
   assert.equal(settled.state.pieces[0].location.kind, 'off-map-air')
   assert.equal(settled.state.pieces[0].active, false)
   assert.equal(settled.state.rng.drawCount, 3)
   const boxes = scorpionSessionBoxFrame(settled.state, local.catalog, 'axis').inventories
   assert.equal(boxes.find(({ cell }) => cell === 20).counters[0].asset, 'fighter-reduced.png')
   assert.equal(boxes.find(({ cell }) => cell === 19).counters[0].id, 'reduced')
-  assert.equal(play(settled, 'soviet', { ...move, path: [next] }).state.units.attacker.hex, next)
+  assert.deepEqual(play(record, 'soviet', move), settled)
 })
 
 test('transport capture uses the group percentage and preserves the independently rounded points and cargo', () => {
@@ -482,18 +488,20 @@ test('transport capture uses the group percentage and preserves the independentl
     organic: unit('axis', target, { combat: false, allowance: 45, definition: 'organic', organicTruck: 'full' }) })
   record.state.rng = createRngState(12)
   const play = (at, side, action) => submitScorpionSession(at, side, command(at, action), local, board()).record
-  const entered = play(record, 'soviet', { type: 'ground-move', unitId: 'attacker', path: [target] })
-  const [group] = entered.state.capture.transports
+  const settled = play(record, 'soviet', { type: 'ground-move', unitId: 'attacker', path: [target, 's10.03'] })
+  const report = settled.state.captureHistory.at(-1)
+  const [group] = report.transports
   assert.deepEqual([group.die, group.points, group.tokens], [3, 1, 1])
-  const displacedTo = 's10.03'
-  const choices = [{ id: 'organic', takenPoints: 1, takenTokens: 1, displacedTo },
-    { id: 'transport', takenPoints: 0, takenTokens: 0, displacedTo }]
-  assert.throws(() => play(entered, 'axis', { type: 'settle-capture', aircraft: [],
-    transports: [{ ...choices[0], takenPoints: 0 }, choices[1]] }), /exact transport/)
-  const settled = play(entered, 'axis', { type: 'settle-capture', aircraft: [], transports: choices })
+  assert.equal(settled.state.capture, null)
+  assert.equal(settled.state.captureHistory.length, 1)
+  assert.equal(settled.state.units.attacker.hex, 's10.03')
+  const displacedTo = 's10.01'
+  assert.deepEqual(report.transportAllocation, [{ id: 'organic', takenPoints: 1, takenTokens: 1, displacedTo },
+    { id: 'transport', takenPoints: 0, takenTokens: 0, displacedTo }])
   const [captured] = Object.values(settled.state.units).filter((item) => item.side === 'soviet' && !item.combat)
   assert.equal(captured.definition, 'Sov Truck')
   assert.equal(captured.transportCargoTokens, 1)
+  assert.equal(settled.state.moved.some((id) => id.startsWith('captured:')), false)
   assert.equal(settled.state.units.transport.hex, displacedTo)
   assert.equal(settled.state.dumps[`axis:hex:${displacedTo}`].tokens, 3)
 })

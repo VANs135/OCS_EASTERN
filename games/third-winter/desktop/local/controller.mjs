@@ -1,5 +1,6 @@
 import { randomUUID, randomBytes } from 'node:crypto'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
+import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
@@ -7,19 +8,20 @@ import { scorpionBarrageMarkerFrame } from '../../src/view/scorpion-barrage-mark
 import { scorpionHexAt, scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } from './actions.mjs'
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
-import { editLocalCapture, localCapture, localCaptureOrder, offMapAir } from './capture.mjs'
+import { localCombatReview } from './combat-review.mjs'
 import { localScorpionEnvelope, lockLocalSave, readLocalJson, replaceLocalJson, restoreLocalScorpion } from './store.mjs'
 
 export async function openLocalScorpion(data, savePath, seed = randomBytes(4).readUInt32LE()) {
   const unlock = await lockLocalSave(savePath)
   try {
     const saved = await readLocalJson(savePath)
-    let record = saved === undefined ? createScorpionSession(data.setup, data.assets, seed) : restoreLocalScorpion(saved, data)
+    const initial = saved === undefined ? createScorpionSession(data.setup, data.assets, seed) : restoreLocalScorpion(saved, data)
+    let record = resumeLegacyCapture(initial, data)
     let selection = {}
     let shown = render(record, selection, data)
     let menu = []
     let menuVersion = 0
-    if (saved === undefined) await replaceLocalJson(savePath, localScorpionEnvelope(record, data.fingerprint))
+    if (saved === undefined || record !== initial) await replaceLocalJson(savePath, localScorpionEnvelope(record, data.fingerprint))
 
     function run(steps, preview = false) {
       return steps.reduce((next, action, i) => submitScorpionSession(next, shown.actor, {
@@ -35,10 +37,12 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       const next = run(steps)
       const rng = next.state.kind === 'setup' ? next.state.opening.rng : next.state.rng
       if (!verifyRngState(rng)) throw new Error('骰序无法保存')
-      const nextView = render(next, keep, data)
+      const captures = next.state.captureHistory?.slice(record.state.captureHistory?.length ?? 0)
+      const picked = captures?.length ? { ...keep, captureNotice: captures.map(captureNotice).join('\n') } : keep
+      const nextView = render(next, picked, data)
       await replaceLocalJson(savePath, localScorpionEnvelope(next, data.fingerprint))
       record = next
-      selection = keep
+      selection = picked
       shown = nextView
       return shown
     }
@@ -80,24 +84,12 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       }
       const priorMenu = menu
       menu = []
-      if (shown.capture && request.kind === 'capture-confirm') {
-        return commit([localCaptureOrder(shown.capture)])
-      } else if (shown.capture && request.kind === 'capture-edit') {
-        selection.capture = editLocalCapture(selection.capture, shown.capture, request)
-      } else if (shown.capture && request.kind === 'capture-focus') {
-        if (!shown.capture.rows.some(({ id }) => id === request.id)) throw new Error('请选择待处理的算子。')
-        selection.capture = { ...selection.capture, focus: request.id }
-      } else if (shown.capture && request.kind === 'board-left') {
+      if (shown.combatPrompt && request.kind === 'board-left') {
         const hit = hitAt(request)
-        if (!hit) return shown
-        const { focus, hex, rows } = shown.capture
-        if (hit.hex === hex && rows.some(({ id }) => id === hit.unitId)) {
-          selection.capture = { ...selection.capture, focus: hit.unitId }
-        } else if (focus?.destinations.length && (hit.hex || hit.box)) {
-          selection.capture = editLocalCapture(selection.capture, shown.capture, {
-            id: focus.id, field: 'destination', value: hit.box ? offMapAir : hit.hex,
-          })
-        } else return shown
+        const choice = hit && shown.actions.find((entry) => (entry.mapUnit && entry.mapUnit === hit.unitId) ||
+          (entry.mapHex && entry.mapHex === hit.hex))
+        if (choice) selection.combatReview = choice.reviewDraft
+        else return shown
       } else if (request.kind === 'select-unit') {
         pickUnit(request.unitId, request.toggle)
       } else if (request.kind === 'board-left') {
@@ -130,6 +122,11 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         const chosen = request.kind === 'apply' ? [...shown.actions, ...priorMenu].find(({ key }) => key === request.key) : null
         const action = request.action
         if (!chosen && (request.kind !== 'command' || !action || typeof action.type !== 'string')) throw new Error('这项操作已不可用')
+        if (chosen?.reviewDraft) {
+          selection.combatReview = chosen.reviewDraft
+          shown = render(record, selection, data)
+          return shown
+        }
         const step = chosen?.actions[0] ?? action
         const id = step.unitId ?? step.headquartersId ?? (step.unitIds?.length === 1 ? step.unitIds[0] : shown.unitId)
         const keep = retainCounter(step) && id ? { unitId: id, unitIds: [id], stackHex: selection.stackHex } : {}
@@ -143,6 +140,31 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
     await unlock()
     throw error
   }
+}
+
+function resumeLegacyCapture(record, data) {
+  const submit = (seat, action) => submitScorpionSession(record, seat, { id: randomUUID(), expectedRevision: record.revision, action },
+    data.assets, data.board).record
+  const capture = record.state.capture
+  if (capture) {
+    const retreat = record.state.combat?.retreat
+    const route = retreat?.routes[retreat.nextRoute]?.path.slice(retreat.nextStep)
+    record = submit(capture.owner, automaticScorpionCaptureOrder(capture, record.state, data.assets, route))
+  }
+  const retreat = record.state.combat?.retreat
+  return retreat ? submit(retreat.side, { type: 'continue-combat-retreat' }) : record
+}
+
+function captureNotice(report) {
+  const parts = report.transports.map(({ kind, points, tokens }) => `${kind === 'trucks' ? '卡车' : '马车'} ${points} 点、${tokens}T`)
+  if (report.dump) parts.push(`补给堆夺取 ${report.dump.taken}T、摧毁 ${report.dump.destroyed}T`)
+  if (report.aircraft.length) {
+    const eliminated = report.aircraft.filter((plane) => plane.eliminated).length
+    parts.push(`飞机位移 ${report.aircraft.length - eliminated} 枚、损失 ${eliminated} 枚`)
+  }
+  if (report.extenders?.some((unit) => unit.displacedTo)) parts.push('延补队崩溃并位移')
+  if (report.hedgehog) parts.push('工事降级')
+  return `${report.hex} 自动夺取${parts.length ? ` · ${parts.join('；')}` : ''}`
 }
 
 function countersAt(stacks, hex) {
@@ -166,7 +188,6 @@ function render(record, selection, data) {
   const frame = scorpionSessionBoxFrame(state, catalog, actor)
   const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
   const mapStacks = scorpionMapStacks(state, catalog, mapCounters)
-  const capture = state.kind === 'playing' && localCapture(state, selection.capture, data.assets)
   const result = state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended' && state.turn.step.result)
   const phase = state.kind === 'setup' ? '开局部署' : result ? '对局结束' : state.turn.step.kind !== 'player-turn' ? '先手判定'
     : state.reroll ? '重掷应答' : state.capture ? '夺取应答' : state.barrage ? '射击应答' : state.airMission ? '空军任务'
@@ -174,30 +195,23 @@ function render(record, selection, data) {
   const stamp = state.kind === 'setup' ? '' : `第 ${state.turn.number} 回合 · `
   const headline = result ? `${stamp}${result.outcome === 'draw' ? '平局' : `${sideName(result.outcome)}${result.level === 'major' ? '大胜' : '小胜'}`}`
     : `${stamp}${sideName(actor)} · ${phase}`
-  const actions = localChoices(state, actor, { ...picked, unitIds }, data)
-    .filter((entry) => unitIds.length < 2 || entry.actions[0].type !== 'ground-move')
+  const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, (action) =>
+    submitScorpionSession(record, actor, { id: `preview-result:${revision}`, expectedRevision: revision, action }, data.assets, data.board))
+  const actions = (review?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data))
+    .filter((entry) => unitIds.length < 2 || entry.actions[0]?.type !== 'ground-move')
     .map((entry, index) => ({ ...entry, key: String(index) }))
   const stack = selection.stackHex ? countersAt(mapStacks, selection.stackHex).filter(({ id }) => roster.some((item) => item.id === id)) : []
   const selectedUnit = state.units?.[picked.unitId]
   const route = selectedUnit && picked.route?.length ? [selectedUnit.hex, ...picked.route] : []
-  const destination = capture?.focus?.destination
-  const targets = capture?.focus?.destinations ?? []
-  return { revision, actor, headline, phase, roster, stack, capture: capture || null,
-    unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
-    route: picked.route ?? [], actions, ended: Boolean(result),
-    frame: { ...frame, aidCounters, mapStacks, selectedUnits: capture?.focus ? [capture.focus.id] : unitIds,
-      selectedHex: capture ? scorpionHexLayout(destination && destination !== offMapAir ? destination : capture.hex) :
-        picked.hex && scorpionHexLayout(picked.hex),
-      captureTargets: targets.filter((id) => id !== offMapAir).map(scorpionHexLayout),
-      captureAirBox: targets.includes(offMapAir) ? (actor === 'axis' ? 20 : 26) : null,
-      captureAirBoxSelected: destination === offMapAir,
-      route: route.map(scorpionHexLayout) } }
+  return { revision, actor, headline, phase, roster, stack, captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
+    route: picked.route ?? [], actions, combatPrompt: review?.prompt, ended: Boolean(result),
+    frame: { ...frame, aidCounters, mapStacks, selectedUnits: review ? actions.flatMap(({ mapUnit }) => mapUnit ? [mapUnit] : []) : unitIds,
+      selectedHex: !review && picked.hex && scorpionHexLayout(picked.hex), targets: (review?.targets ?? []).map(scorpionHexLayout),
+      route: route.map(scorpionHexLayout), retreatPaths: review?.paths?.map((path) => path.map(scorpionHexLayout)) } }
 }
 
 export function projectLocalScorpion(view) {
-  const actions = view.actions.filter(sidebarChoice).map(({ key, label }) => ({ key, label }))
+  const actions = view.actions.filter((entry) => entry.reviewDraft || sidebarChoice(entry)).map(({ key, label }) => ({ key, label }))
   const menu = view.menu?.map(({ key, label, group }) => ({ key, label, group }))
-  const capture = view.capture && { ...view.capture, rows: view.capture.rows.map(({ id, label, kind, complete }) =>
-    ({ id, label, kind, complete })) }
-  return { ...view, capture, actions, menu }
+  return { ...view, actions, menu }
 }

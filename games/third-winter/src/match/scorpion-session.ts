@@ -23,7 +23,7 @@ import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFro
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { settleScorpionCapture } from './scorpion-capture.ts'
-import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
+import type { ScorpionCapturePolicy, ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { advanceScorpionCombat, continueScorpionRetreatResult, resolveScorpionCombat } from './scorpion-combat-result.ts'
@@ -71,7 +71,6 @@ import { recoverScorpionStocks, settleScorpionStockRecovery } from './scorpion-s
 import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
-import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { advanceScorpionThaw } from './scorpion-thaw.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
@@ -128,10 +127,9 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
-interface BoardPolicies {
+interface BoardPolicies extends ScorpionCapturePolicy {
   reinforcements?: (state: Readonly<ScorpionInPlay>) => ReinforcementBoard
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
-  supplyRail?: SupplyRailBoard
   combat?: ScorpionCombatBoard
   barrage?: BarrageTable
   facilityBarrage?: BarrageTable
@@ -147,7 +145,7 @@ export function submitScorpionSession(
 ) {
   function applyAction(state: ScorpionSession, actor: Side, action: ScorpionPlayAction, offer?: ScorpionRoll): ScorpionSession {
     const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
-      hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, offerRoll: offer }
+      hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, captureResolution: board.captureResolution, offerRoll: offer }
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
     }
@@ -225,7 +223,7 @@ export function submitScorpionSession(
         return settleScorpionCapture(state, actor, action, assets)
       case 'continue-combat-retreat':
         if (state.kind !== 'playing') throw new Error('There is no combat retreat to continue')
-        return continueScorpionRetreatResult(state, actor, action, assets, board.supplyRail)
+        return continueScorpionRetreatResult(state, actor, action, assets, board)
       case 'refit-aircraft':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
@@ -262,8 +260,8 @@ export function submitScorpionSession(
         if (action.type === 'defend-combat') return defendScorpionCombat(state, actor, action, assets.map, board.supplyRail)
         if (action.type === 'select-combat-rating') return selectScorpionCombatRating(state, actor, action.unitId)
         if (action.type === 'choose-combat-terrain') return chooseScorpionCombatTerrain(state, actor, action, assets.map, board.combat.table, offer)
-        if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board.supplyRail)
-        return advanceScorpionCombat(state, actor, action.unitIds, assets, board.supplyRail)
+        if (action.type === 'resolve-combat') return resolveScorpionCombat(state, actor, action, assets, board)
+        return advanceScorpionCombat(state, actor, action.unitIds, assets, board)
       case 'continue-overrun-move':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
         return continueScorpionOverrunMove(state, actor, action, assets, board)

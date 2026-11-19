@@ -201,7 +201,6 @@ const combatTablePath = process.env.OCS_V43_CRT
 if (combatTablePath) {
   const combat = { table: JSON.parse(await readFile(combatTablePath, 'utf8')) }
   const retreat = sampleScorpionRetreatCapture(started, { map: groundMap, catalog }, { combat })
-  sessionFrame(`撤退 · ${retreat.airfield} 机场易手，等待轴心飞机位移`, retreat.paused.state)
   sessionFrame(`撤退完成 · 部队抵达 ${retreat.destination}，轴心飞机移入地图外空军盒`, retreat.finished.state)
   const remnant = sampleScorpionRemnant(started, { map: groundMap, catalog }, { combat })
   sessionFrame(`受控战果 · 第 57 步兵师进死人堆，残部营放在 ${remnant.report.destination}，苏军加 1 分`, remnant.settled.state)
