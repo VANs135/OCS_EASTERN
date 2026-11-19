@@ -9,6 +9,7 @@ import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpi
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { hasTrace } from '../../src/match/scorpion-supply-phase.ts'
 import { scorpionOpeningAirBases } from '../../src/ttw/scorpion/setup-stores.ts'
+import { refitBaseOf, refitChoiceLabels, refitDraft, sameBase } from './refit.mjs'
 import { repliesFor } from './replies.mjs'
 
 export const opponent = (side) => side === 'axis' ? 'soviet' : 'axis'
@@ -35,7 +36,7 @@ export function localDecisionSide(state) {
   return actingSide(state.cursor.phasing, state.cursor.phase)
 }
 
-export function localRoster(state, side, data) {
+export function localRoster(state, side, data, base) {
   const { catalog } = data.assets
   const pick = (id, definition, hex, detail) => ({ id, hex, label: [catalog.definitions.get(definition)?.source.name ?? id, detail ?? hex].filter(Boolean).join(' · ') })
   if (state.kind === 'setup') {
@@ -54,9 +55,17 @@ export function localRoster(state, side, data) {
     return localArrivals(state, side, data).map((entry) => pick(entry.id, entry.definition, undefined,
       entry.optionalForce ? '可选增援' : '定期增援'))
   }
+  const aircraft = pieces.filter((piece) => piece.side === side && piece.kind === 'aircraft' && piece.location.kind !== 'dead-pile')
+  if (cursor.phase === 'aircraft-refit') {
+    // The panel lists aircraft only, and once a base is open it lists that base alone, so the
+    // player cannot tick a plane the rule layer would reject for this airfield or air box.
+    const listed = base ? aircraft.filter((piece) => sameBase(refitBaseOf(state, side, piece), base) && !piece.active) : aircraft
+    return listed.map((piece) => pick(piece.id, piece.definition, piece.location.hex,
+      [`${piece.active ? '已激活' : '非激活'} · ${piece.location.hex ?? '地图外空军盒'}`,
+        ...(base ? [] : [refitBaseOf(state, side, piece) ? '可整备' : '无机场'])].join(' · ')))
+  }
   return [...Object.entries(units).filter(([, unit]) => unit.side === side).map(([id, unit]) => pick(id, unit.definition, unit.hex)),
-    ...pieces.filter((piece) => piece.side === side && piece.kind === 'aircraft' && piece.location.kind !== 'dead-pile')
-      .map((piece) => pick(piece.id, piece.definition, piece.location.hex, piece.location.hex ?? '地图外空军盒'))]
+    ...aircraft.map((piece) => pick(piece.id, piece.definition, piece.location.hex, piece.location.hex ?? '地图外空军盒'))]
 }
 
 function localArrivals(state, side, data) {
@@ -106,14 +115,23 @@ export function localChoices(state, side, selection, data) {
   const { phase } = state.cursor
   const unit = state.units[unitId]
   if (phase === 'aircraft-refit') {
-    const aircraft = state.pieces.find((piece) => piece.id === unitId && piece.side === side && !piece.active && piece.location.kind !== 'dead-pile')
-    if (aircraft?.location.kind === 'off-map-air') add('免费整备选中飞机', 'refit-aircraft', { base: { kind: 'off-map-air' }, unitIds: [unitId] })
-    if (aircraft?.location.kind === 'hex') {
-      const hex = aircraft.location.hex
-      const ledger = scorpionSpPayment(state, side, map)
-      for (const [dumpId, dump] of Object.entries(state.dumps)) if (dump.side === side && dump.location === 'on-map' && dump.tokens &&
-        ledger.network.canUseDump(hex, dumpId.split(':').at(-1))) {
-        add(`整备选中飞机 · ${dumpId.split(':').at(-1)} 支付 1T`, 'refit-aircraft', { base: { kind: 'hex', hex, dumpId }, unitIds: [unitId] })
+    // One draft per base: the player opens an airfield hex (or the off-map air box), ticks the
+    // inactive aircraft of that base, picks a payable dump, and submits the whole batch once.
+    const draft = refitDraft(state, side, selection.refitBase, selection.unitIds ?? [], data)
+    if (draft) for (const option of refitChoiceLabels(draft)) {
+      add(option.label, 'refit-aircraft', { base: option.base, unitIds: option.unitIds })
+    }
+    else if (unitId) {
+      // Without an opened base the roster click still refits one aircraft, as it always could.
+      const aircraft = state.pieces.find((piece) => piece.id === unitId && piece.side === side && !piece.active && piece.location.kind !== 'dead-pile')
+      if (aircraft?.location.kind === 'off-map-air') add('免费整备选中飞机', 'refit-aircraft', { base: { kind: 'off-map-air' }, unitIds: [unitId] })
+      if (aircraft?.location.kind === 'hex') {
+        const hex = aircraft.location.hex
+        const ledger = scorpionSpPayment(state, side, map, data.board?.supplyRail)
+        for (const [dumpId, dump] of Object.entries(state.dumps)) if (dump.side === side && dump.location === 'on-map' && dump.tokens &&
+          ledger.network.canUseDump(hex, dumpId.split(':').at(-1))) {
+          add(`整备选中飞机 · ${dumpId.split(':').at(-1)} 支付 1T`, 'refit-aircraft', { base: { kind: 'hex', hex, dumpId }, unitIds: [unitId] })
+        }
       }
     }
     add('结束飞机整备', 'complete-refit')

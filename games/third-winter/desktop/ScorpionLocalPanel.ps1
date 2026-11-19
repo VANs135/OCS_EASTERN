@@ -199,6 +199,30 @@ function Update-LocalView($view) {
             })
             [void]$script:localStack.Children.Add($chip)
         }
+        if ($view.refit) {
+            $refit = $view.refit
+            $script:localRefitFrame.Visibility = 'Visible'
+            $script:localRefitBase = $refit.base
+            $script:localRefitSummary.Text = "$($refit.baseLabel) · 本阶段最多 $($refit.limit) 架 · 已选 $(@($refit.selected).Count) 架 · 合计 $($refit.total)"
+            $script:localRefit.Children.Clear()
+            $script:localRefitPay.Text = ''
+            foreach ($plane in $refit.aircraft) {
+                $chip = New-Object Windows.Controls.CheckBox
+                $chip.Content = $plane.label
+                $chip.Margin = '4,3,4,3'
+                $chip.Tag = $plane.id
+                $chip.IsChecked = @($refit.selected) -contains $plane.id
+                $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{
+                    kind = 'select-unit'; unitId = $sender.Tag; toggle = $true; base = $script:localRefitBase } })
+                [void]$script:localRefit.Children.Add($chip)
+            }
+            $lines = @()
+            if (@($refit.payments).Count) {
+                $lines += '可付款来源 ' + (($refit.payments | ForEach-Object { "$($_.label)（$($_.tokens)T）" }) -join '、')
+            }
+            if (@($refit.notes).Count) { $lines += ($refit.notes -join '；') }
+            $script:localRefitPay.Text = $lines -join ([Environment]::NewLine)
+        } else { $script:localRefitFrame.Visibility = 'Collapsed' }
         $script:localButtons.Children.Clear()
         if ($view.combatPrompt) {
             $prompt = New-LocalText 15
@@ -320,6 +344,28 @@ function Show-LocalScorpion {
     $stackScroll.Content = $script:localStack
     $script:localStackFrame.Content = $stackScroll
     [void]$header.Children.Add($script:localStackFrame)
+
+    # 飞机整备草稿：面板只列当前基地的本方非激活飞机，并把付款来源与合计费用写在下面。
+    $script:localRefitFrame = New-Object Windows.Controls.GroupBox
+    $script:localRefitFrame.Header = '飞机整备'
+    $script:localRefitFrame.Margin = '0,0,0,8'
+    $script:localRefitFrame.Visibility = 'Collapsed'
+    $refitStack = New-Object Windows.Controls.StackPanel
+    $script:localRefitSummary = New-LocalText 13
+    $script:localRefitSummary.Margin = '4,2,4,4'
+    [void]$refitStack.Children.Add($script:localRefitSummary)
+    $refitScroll = New-Object Windows.Controls.ScrollViewer
+    $refitScroll.MaxHeight = 132
+    $refitScroll.VerticalScrollBarVisibility = 'Auto'
+    $script:localRefit = New-Object Windows.Controls.WrapPanel
+    $refitScroll.Content = $script:localRefit
+    [void]$refitStack.Children.Add($refitScroll)
+    $script:localRefitPay = New-LocalText 13
+    $script:localRefitPay.Margin = '4,4,4,2'
+    $script:localRefitPay.Foreground = [Windows.Media.Brushes]::DarkSlateGray
+    [void]$refitStack.Children.Add($script:localRefitPay)
+    $script:localRefitFrame.Content = $refitStack
+    [void]$header.Children.Add($script:localRefitFrame)
 
     $footer = New-Object Windows.Controls.StackPanel
     $footer.Margin = '0,8,0,0'

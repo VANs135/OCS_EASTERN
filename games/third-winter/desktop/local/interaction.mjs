@@ -7,6 +7,7 @@ import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { aircraftProfile } from '../../src/match/scorpion-air-bases.ts'
 import { internalRecoveryPerLevel } from '@ocs-eastern/series/internal-stocks'
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
+import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
 const categories = new Map([
@@ -66,11 +67,25 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
   const add = (label, type, fields) => append({ label, actions: [{ type, ...fields }] })
   const selected = selection.unitIds?.length ? selection.unitIds : selection.unitId ? [selection.unitId] : []
   const targets = hit.unitId ? hit.ownIds.filter((id) => id === hit.unitId) : hit.ownIds
+  // Right-clicking the airfield itself (or the own air box) offers the batch draft before any
+  // aircraft has been picked, so the player can start from the base as the spec describes.
+  let draftOffered = false
+  if (state.cursor?.phase === 'aircraft-refit' && !hit.unitId) {
+    const base = refitBaseAt(state, side, hit)
+    const draft = refitDraft(state, side, base, selection.unitIds ?? [], data)
+    for (const option of refitChoiceLabels(draft)) {
+      draftOffered = true
+      add(option.label, 'refit-aircraft', { base: option.base, unitIds: option.unitIds })
+    }
+  }
   for (const id of targets) {
     const unit = state.units?.[id]
     const label = targets.length > 1 ? hit.labels[id] : ''
     for (const choice of choicesAt({ unitId: id, hex: hit.hex })) {
       const action = choice.actions[0]
+      // The batch draft already covers every plane of this base, so the per-aircraft fallback would
+      // only repeat the same charge under a second name.
+      if (draftOffered && action.type === 'refit-aircraft') continue
       if (keepSelection.has(menuGroup(action))) append(choice, label)
     }
     if (unit && (movingWindow(state) || state.supply)) {

@@ -8,6 +8,7 @@ import { scorpionBarrageMarkerFrame } from '../../src/view/scorpion-barrage-mark
 import { scorpionHexAt, scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } from './actions.mjs'
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
+import { refitBaseAt, refitBaseOf, refitDraft, toggleRefitSelection } from './refit.mjs'
 import { localCombatReview } from './combat-review.mjs'
 import { localScorpionEnvelope, lockLocalSave, readLocalJson, replaceLocalJson, restoreLocalScorpion } from './store.mjs'
 
@@ -47,9 +48,18 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       return shown
     }
 
-    function pickUnit(unitId, toggle) {
+    function pickUnit(unitId, toggle, base) {
       const unit = shown.roster.find(({ id }) => id === unitId)
       if (!unit) throw new Error('请选择当前一方的算子')
+      if (record.state.kind === 'playing' && record.state.cursor.phase === 'aircraft-refit') {
+        const piece = record.state.pieces.find((candidate) => candidate.id === unitId)
+        const at = base ?? refitBaseOf(record.state, shown.actor, piece)
+        if (!at) throw new Error('这架飞机不在可整备的机场或地图外空军盒')
+        const unitIds = toggleRefitSelection(record.state, shown.actor, at, shown.unitIds, unitId, toggle)
+        const primary = shown.roster.find(({ id }) => id === unitIds.at(-1))
+        selection = { ...selection, refitBase: at, unitId: primary?.id, unitIds, hex: primary?.hex ?? selection.hex, stackHex: undefined }
+        return
+      }
       const multi = toggle && record.state.units?.[unitId]
       const current = shown.unitIds.filter((id) => record.state.units?.[id])
       const unitIds = multi ? current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId] : [unitId]
@@ -91,11 +101,26 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         if (choice) selection.combatReview = choice.reviewDraft
         else return shown
       } else if (request.kind === 'select-unit') {
-        pickUnit(request.unitId, request.toggle)
+        pickUnit(request.unitId, request.toggle, request.base)
       } else if (request.kind === 'board-left') {
         const hit = hitAt(request)
         if (!hit) return shown
         const own = hit.unitId && hit.ownIds.includes(hit.unitId)
+        // In the refit phase the base itself is the entry point: clicking an airfield hex opens its
+        // draft, then each click on an aircraft of that base toggles it into the batch.
+        if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit' && !hit.unitId) {
+          const base = refitBaseAt(state, shown.actor, hit)
+          if (base) {
+            selection = { refitBase: base, unitIds: [], hex: hit.hex }
+            shown = render(record, selection, data)
+            return shown
+          }
+        }
+        if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit' && own) {
+          pickUnit(hit.unitId, request.toggle, selection.refitBase)
+          shown = render(record, selection, data)
+          return shown
+        }
         const picked = { ...current, hex: hit.hex, route: [] }
         const direct = choicesAt(picked).filter((entry) => entry.actions.length === 1 &&
           pointActions.has(entry.actions[0].type) && actionTarget(entry.actions[0], hit) &&
@@ -129,6 +154,9 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         }
         const step = chosen?.actions[0] ?? action
         const id = step.unitId ?? step.headquartersId ?? (step.unitIds?.length === 1 ? step.unitIds[0] : shown.unitId)
+        // A refit batches several aircraft at once and closes its draft; keeping one counter selected
+        // would reopen a draft for a base that has already refitted this phase.
+        if (step.type === 'refit-aircraft') return commit(chosen?.actions ?? [action], {})
         const keep = retainCounter(step) && id ? { unitId: id, unitIds: [id], stackHex: selection.stackHex } : {}
         return commit(chosen?.actions ?? [action], keep)
       } else throw new Error('无法识别此操作')
@@ -179,7 +207,7 @@ function rosterHit(shown, id) {
 function render(record, selection, data) {
   const { state, revision } = record
   const actor = localDecisionSide(state) ?? (state.kind === 'playing' ? state.cursor.phasing : state.opening.seat)
-  const roster = localRoster(state, actor, data)
+  const roster = localRoster(state, actor, data, selection.refitBase)
   const selected = roster.find(({ id }) => id === selection.unitId) ?? (state.kind === 'setup' ? roster[0] :
     state.cursor.phase === 'reinforcement' && state.window?.stage === 'scheduled' ? roster[0] : undefined)
   const picked = { ...selection, unitId: selected?.id, hex: selection.hex ?? selected?.hex }
@@ -203,8 +231,14 @@ function render(record, selection, data) {
   const stack = selection.stackHex ? countersAt(mapStacks, selection.stackHex).filter(({ id }) => roster.some((item) => item.id === id)) : []
   const selectedUnit = state.units?.[picked.unitId]
   const route = selectedUnit && picked.route?.length ? [selectedUnit.hex, ...picked.route] : []
+  const refit = state.kind === 'playing' && state.cursor.phase === 'aircraft-refit'
+    ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
   return { revision, actor, headline, phase, roster, stack, captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, combatPrompt: review?.prompt, ended: Boolean(result),
+    refit: refit && { base: refit.base, baseLabel: refit.baseLabel, level: refit.level, limit: refit.limit, active: refit.active,
+      notes: refit.notes, total: refit.total, ready: refit.ready, fenced: refit.fenced, selected: refit.selected,
+      payments: refit.payments.map(({ dumpId, tokens }) => ({ dumpId, tokens, label: dumpId.split(':').at(-1) })),
+      aircraft: refit.inactive.map((piece) => ({ id: piece.id, label: catalog.definitions.get(piece.definition)?.source.name ?? piece.id })) },
     frame: { ...frame, aidCounters, mapStacks, selectedUnits: review ? actions.flatMap(({ mapUnit }) => mapUnit ? [mapUnit] : []) : unitIds,
       selectedHex: !review && picked.hex && scorpionHexLayout(picked.hex), targets: (review?.targets ?? []).map(scorpionHexLayout),
       route: route.map(scorpionHexLayout), retreatPaths: review?.paths?.map((path) => path.map(scorpionHexLayout)) } }
