@@ -15,7 +15,8 @@ const categories = new Map([
   ['load-transport', '运输'], ['unload-transport', '运输'], ['form-extender', '运输'], ['dismantle-extender', '运输'],
   ['fuel-formation', '加油'], ['fuel-headquarters', '加油'], ['fuel-from-paused-transport', '加油'],
   ['work-hedgehog', '工事'], ['feed-units', '补给'], ['recover-internal-stocks', '补给'], ['refit-aircraft', '飞机整备'],
-  ['declare-artillery-barrage', '射击'], ['declare-combat', '地面战斗'], ['declare-overrun', '地面战斗'],
+  ['declare-artillery-barrage', '射击'], ['declare-front-barrage', '射击'], ['declare-combat', '地面战斗'],
+  ['declare-overrun', '地面战斗'],
 ])
 export const pointActions = new Set(['base-aircraft', 'place-setup-alert', 'place-arrival', 'place-supply', 'place-alert'])
 export const moveActions = new Set(['ground-move', 'continue-overrun-move', 'reserve-stack-move'])

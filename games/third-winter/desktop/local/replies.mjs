@@ -1,6 +1,7 @@
 import { scorpionAirReturnOptions } from '../../src/match/scorpion-air-operations.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
+import { advanceChoices, advanceDraft, defenseSupplyChoices, defenseSupplyDraft, terrainChoices, terrainDraft } from './combat-draft.mjs'
 
 const terrainName = { Open: '开阔地', Village: '村庄', 'Minor City': '小城市', 'Major City': '大城市',
   Hills: '丘陵', Woods: '疏林', Forest: '密林', Rough: '崎岖地', Mountain: '山地', Swamp: '沼泽' }
@@ -112,28 +113,22 @@ function airReplies(state, side, unitId, data, add) {
 function combatReplies(state, side, data, add) {
   const battle = state.combat
   const ids = side === battle.attacker ? battle.attackers : battle.defenders
+  const counterNameOf = (id) => counterName(state, data, id)
   if (battle.step === 'defender-supply') {
-    const participants = ids.map((id) => state.units[id])
-    const cost = participants.reduce((sum, unit) => sum + unit.printedRe - unit.stepsLost, 0) > 1 ? 2 : 1
-    const ledger = scorpionSpPayment(state, side, data.assets.map)
-    for (const { dumpId, tokens } of ledger.available(participants)) if (tokens >= cost) {
-      add(`守方补给 · ${dumpId.split(':').at(-1)} 支付 ${cost}T`, 'defend-combat', { payments: [{ dumpId, tokens: cost }] })
-    }
-    const internalUnitIds = ids.filter((id) => state.units[id].internalStocks !== 'exhausted' && ledger.available([state.units[id]], false)
-      .reduce((sum, { tokens }) => sum + tokens, 0) < cost)
-    if (internalUnitIds.length) add(`守方部队储备 · ${internalUnitIds.length} 枚`, 'defend-combat', { payments: [], internalUnitIds })
-    add('守方免付战斗补给', 'defend-combat', { payments: [] })
+    const draft = defenseSupplyDraft(state, side, data, ids)
+    for (const row of defenseSupplyChoices(draft)) add(row.label, row.type, { payments: row.payments, internalUnitIds: row.internalUnitIds })
   } else if (battle.step.endsWith('-rating')) {
     for (const unitId of ids) add(`用 ${counterName(state, data, unitId)} 的行动值`, 'select-combat-rating', { unitId })
   } else if (battle.step === 'defender-terrain') {
-    for (const terrain of data.assets.map.hexes.get(battle.target).terrains) {
+    // Each attacking origin names its own terrain or the river it crosses on the way in.
+    const draft = terrainDraft(state, side, data)
+    if (draft) for (const row of terrainChoices(draft)) add(row.label, row.type, { terrain: row.terrain, attackingTerrain: row.attackingTerrain })
+    else for (const terrain of data.assets.map.hexes.get(battle.target).terrains) {
       const attackingTerrain = Object.fromEntries(battle.attackers.map((id) => [state.units[id].hex, terrain]))
       add(`选择${terrainName[terrain]}，结算奇袭与战斗`, 'choose-combat-terrain', { terrain, attackingTerrain })
     }
   } else if (battle.step === 'advance') {
-    add('放弃战后推进', 'advance-after-combat', { unitIds: [] })
-    for (const unitId of ids.filter((id) => state.units[id])) {
-      add(`推进 ${counterName(state, data, unitId)} 到 ${battle.target}`, 'advance-after-combat', { unitIds: [unitId] })
-    }
+    const draft = advanceDraft(state, side)
+    for (const row of advanceChoices(draft, counterNameOf)) add(row.label, row.type, { unitIds: row.unitIds })
   }
 }

@@ -9,6 +9,8 @@ import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpi
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { hasTrace } from '../../src/match/scorpion-supply-phase.ts'
 import { scorpionOpeningAirBases } from '../../src/ttw/scorpion/setup-stores.ts'
+import { scorpionBarrageFrontAt } from '../../src/ttw/scorpion/barrage-markers.ts'
+import { artilleryChoices, artilleryDraft, frontBarrageDraft, frontChoices } from './barrage-draft.mjs'
 import { refitBaseOf, refitChoiceLabels, refitDraft, sameBase } from './refit.mjs'
 import { repliesFor } from './replies.mjs'
 
@@ -149,6 +151,11 @@ export function localChoices(state, side, selection, data) {
     }
     if (['reaction', 'combat', 'exploitation'].includes(phase) && state.turn.weather.ground !== 'thaw') {
       engagementChoices(state, side, unitId, hex, data, add)
+    }
+    // TTW 3.4a: the front marker is spent in Soviet turn-one Movement. The marker itself, its centre
+    // and its targets are collected here; scorpion-barrage.ts still decides whether it may fire.
+    if (phase === 'movement' && side === 'soviet' && state.cursor.turn === 1) {
+      frontBarrageChoices(state, side, hex, data, add)
     }
     add(`结束${phaseNames[phase]}`, `complete-${phase}`)
   }
@@ -309,18 +316,39 @@ function engagementChoices(state, side, unitId, hex, data, add) {
       add(`攻击 ${hex} · 动用部队储备`, 'declare-combat', { target: hex, attackers: [unitId], payments: [], internalUnitIds: [unitId] })
     }
   }
+  // Combined fire: the target hex itself lists every battery that can join, alone or together, with
+  // the shared dump or common HQ that pays for the column.
+  const artillery = artilleryDraft(state, side, hex, data, [unitId])
+  for (const row of artilleryChoices(artillery)) add(row.label, row.type, { target: row.target, batteries: row.batteries, supply: row.supply })
   const base = state.airBases.some((item) => item.side === enemy && item.hex === hex)
-  if (!unit.artillery || unit.reserve || !groundTarget && !base) return
+  if (!unit.artillery || unit.reserve || !base) return
   const strength = unit.artillery.strength
   if (!strength) return
-  for (const targetKind of [...(groundTarget ? ['units'] : []), ...(base ? ['air-base'] : [])]) {
-    const table = targetKind === 'units' ? data.board.barrage : data.board.facilityBarrage
-    const { cost } = barrageColumn(table, strength)
-    const ledger = scorpionSpPayment(state, side, map)
-    for (const { dumpId, tokens } of ledger.available([unit]).filter(({ dumpId }) => ledger.canUse(unit, dumpId, {}))) {
-      if (tokens >= cost) add(`炮击${targetKind === 'air-base' ? '机场' : ''} ${hex} · ${cost}T`, 'declare-artillery-barrage',
-        { target: hex, targetKind, batteries: [{ unitId, ...(unit.artillery.independentRe ? { re: remainingSteps(unit) } : {}) }],
-          supply: { kind: 'direct', payments: [{ dumpId, tokens: cost }] } })
-    }
+  const { cost } = barrageColumn(data.board.facilityBarrage, strength)
+  const ledger = scorpionSpPayment(state, side, map)
+  for (const { dumpId, tokens } of ledger.available([unit]).filter(({ dumpId }) => ledger.canUse(unit, dumpId, {}))) {
+    if (tokens >= cost) add(`炮击机场 ${hex} · ${cost}T`, 'declare-artillery-barrage',
+      { target: hex, targetKind: 'air-base', batteries: [{ unitId, ...(unit.artillery.independentRe ? { re: remainingSteps(unit) } : {}) }],
+        supply: { kind: 'direct', payments: [{ dumpId, tokens: cost }] } })
   }
+}
+
+/**
+ * Front barrage candidate layer: the marker click opens its sector, a centre-hex click lists the
+ * Army HQ that can support it and the volleys it could fire. Only real commands are offered, so the
+ * window never shows a row the session would reject; an unavailable marker is surfaced by the
+ * controller from frontBarrageDraft's reason instead.
+ */
+function frontBarrageChoices(state, side, hex, data, add) {
+  // state.frontBarrage only exists once the marker has been placed; before that the sector comes from
+  // the centre hex the player clicked.
+  const front = state.frontBarrage?.front ?? (hex ? frontAtOf(hex) : undefined)
+  if (!front) return
+  for (const choice of frontChoices(frontBarrageDraft(state, side, data, front, hex))) {
+    add(choice.label, choice.type, { front: choice.front, center: choice.center, hqId: choice.hqId, volleys: choice.volleys })
+  }
+}
+
+const frontAtOf = (hex) => {
+  try { return scorpionBarrageFrontAt(hex) } catch { return undefined }
 }
