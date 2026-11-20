@@ -6,6 +6,8 @@
 
 进度、剩余规则和验收条件见[瓶中蝎研发任务清单](TASKS.md)。
 
+仅克隆仓库即可安装依赖、运行类型检查和自动化用例。当前实现范围、接手步骤及桌面运行所需外部素材见[项目交接指南](docs/2026-11-20-第三冬项目交接文档.md)。
+
 ## 源码与依赖
 
 | 目录 | 职责 | 可依赖 |
@@ -26,7 +28,7 @@
 - Node.js 22.12 或以上，TypeScript 5.7.3。在仓库根目录执行 `npm ci`。
 - 在仓库根目录执行 `npm run check` 检查 TypeScript、工作区依赖与回归。
 - 在仓库根目录执行 `npm run audit:data --workspace=@ocs-eastern/third-winter -- <第三冬资料根目录> [单位目录] [--scorpion-only]`，核对算子引用、瓶中蝎地面部署与开局铁路。省略 `--scorpion-only` 时也核对战役地图接缝。
-- 实库默认读取资料根目录 `data` 下的第三冬 `ocs-wargame-db-v2` 算子表。`地图数据库/map_hexes_scorpion.json` 与 `地图数据库/map_edges_scorpion.json` 提供小地图地形，`scenarios/08-korsun-pocket/reinforcements.json` 提供增援。新版初设的坐标、减员和标记仍待核对，开局从仓库内 `data/scorpion-real-library/scenario/setup.json` 读取已验证快照。
+- 桌面实库默认读取外部资料根目录中的新版第三冬地图数据库、`data` 下的 `ocs-wargame-db-v2` 算子表，以及 `scenarios/08-korsun-pocket/reinforcements.json` 增援数据；也可传入整理版算子目录。仓库内 `data/scorpion-real-library/` 提供审计和开发所用结构化快照，包括瓶中蝎小地图、标定、已验证初设、增援、整理版单位和 v4.3 图表。桌面视觉资源和外部最新版数据仍需项目方提供。该快照初设不代表新版初设的坐标、减员和标记已完成全项复核。
 - 第二个路径可指定独立算子目录。若传入旧式 `DATA备份`，资料根目录仍须提供其配套的 `data/scenarios/08-scorpion` 初设与增援。
 
 在安装了 PyMuPDF 的本机，也可从 OCS v4.3 原版图表第 3 页导出 CRT。指定这份表后，核对脚本会分别在真实盘面执行突袭和正规战斗，随后跑完双方整理并进入第 2 回合。导出文件留在本机。
