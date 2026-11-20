@@ -8,6 +8,7 @@ import { aircraftProfile } from '../../src/match/scorpion-air-bases.ts'
 import { internalRecoveryPerLevel } from '@ocs-eastern/series/internal-stocks'
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
 import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
+import { airGroupChoices } from './air-group.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
 const categories = new Map([
@@ -110,6 +111,8 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
       } else if (action.type === 'declare-artillery-barrage' || action.type === 'ground-move' && selected.length === 1) append(choice)
     }
     if (state.kind === 'playing' && !state.combat && !state.reroll && hit.hex) {
+      // 第一批第 5 项：按出发基地成组的任务行先出，单机的老入口保留作后备。
+      airGroupChoices(state, side, { kind: 'hex', hex: hit.hex }, data, add)
       airTargetChoices(state, side, subject, hit.hex, data, add)
       attackChoices(state, side, selected, hit.hex, selection.route ?? [], data, add)
     }

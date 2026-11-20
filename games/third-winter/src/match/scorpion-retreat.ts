@@ -14,6 +14,11 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
 
 export interface RetreatPlan {
+  /**
+   * Stable id for this retreat stack. Optional so existing callers that give one plan per origin
+   * keep working; when present it lets several stacks leave the same origin hex.
+   */
+  group?: string
   units: readonly string[]
   path: readonly string[]
   /** Unit selected for any loss required on entry to a particular step (zero based). */
@@ -36,13 +41,15 @@ export type ContinueCombatRetreat = { type: 'continue-combat-retreat'; routes?: 
 
 export class ScorpionRetreatLossChoice extends Error {
   readonly origin: string
+  readonly group?: string
   readonly hex: string
   readonly step: number
   readonly candidates: readonly string[]
 
-  constructor(origin: string, hex: string, step: number, candidates: readonly string[]) {
+  constructor(origin: string, hex: string, step: number, candidates: readonly string[], group?: string) {
     super('Choose a DG retreating unit to lose one step in enemy ZOC')
     this.origin = origin
+    this.group = group
     this.hex = hex
     this.step = step
     this.candidates = candidates
@@ -51,11 +58,13 @@ export class ScorpionRetreatLossChoice extends Error {
 
 export class ScorpionRetreatRemnantChoice extends ScorpionRemnantChoice {
   readonly origin: string
+  readonly group?: string
   readonly step: number
 
-  constructor(origin: string, step: number, choice: ScorpionRemnantChoice) {
+  constructor(origin: string, step: number, choice: ScorpionRemnantChoice, group?: string) {
     super(choice.division, choice.candidates)
     this.origin = origin
+    this.group = group
     this.step = step
   }
 }
@@ -85,14 +94,17 @@ export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
   if (!distance || all.length === 0 || new Set(all).size !== all.length || expected.some((id) => !all.includes(id))) {
     throw new Error('Give a retreat route for every surviving participant')
   }
-  const routes = plans.map((plan) => {
+  const routes = plans.map((plan, index) => {
     const origin = state.units[plan.units[0] ?? '']?.hex
     if (!origin || !plan.units.some((id) => involved.includes(id))) throw new Error('Each retreat stack must include a surviving participant')
-    const route = { ...plan, origin, path: plan.path.map(scorpionHexId) }
+    const route = { ...plan, group: retreatGroupKey(plan.group, index), origin, path: plan.path.map(scorpionHexId) }
     validateRoute(route, side, distance, combat, assets.map)
     for (const id of route.units) retreatMode(state.units[id], side, origin, assets.catalog)
+    validateRetreatTrucks(route, state)
     return route
   })
+  const groups = new Set(routes.map(({ group }) => group))
+  if (groups.size !== routes.length) throw new Error('Give each retreat stack its own group id')
   return followRetreat(state, { side, distance, routes, nextRoute: 0, nextStep: 0 }, combat, assets, policy)
 }
 
@@ -123,6 +135,33 @@ function replaceRetreatChoices(previous: RetreatPlan['zocLosses'], proposed: Ret
     return [prefix + offset, choice] as const
   })
   return Object.fromEntries([...kept, ...replacement])
+}
+
+/** Stable per-stack key; a plan that names no group falls back to its index, so old callers stay valid. */
+function retreatGroupKey(group: string | undefined, index: number) {
+  if (group === undefined) return `group:${index}`
+  if (!group) throw new Error('A retreat group id cannot be empty')
+  return group
+}
+
+/**
+ * TTW ships five loaded organic trucks and three plain truck points. Only organic trucks follow a
+ * retreat stack, and they follow it the way they pay supply: inside their own formation
+ * (scorpion-sp-payment.ts). A truck never forms a retreat stack by itself.
+ */
+function validateRetreatTrucks(route: RetreatRoute, state: Readonly<ScorpionInPlay>) {
+  const trucks = route.units.filter((id) => state.units[id]?.organicTruck !== undefined)
+  if (!trucks.length) return
+  const combat = route.units.filter((id) => state.units[id]?.combat)
+  if (!combat.length) throw new Error('An organic truck cannot retreat without a combat unit of its formation')
+  for (const id of trucks) {
+    const truck = state.units[id]!
+    const escort = combat.some((other) => {
+      const unit = state.units[other]!
+      return Boolean(unit.formation) && unit.formation === truck.formation
+    })
+    if (!escort) throw new Error('An organic truck may only retreat with a combat unit of its own formation')
+  }
 }
 
 function validateRoute(route: RetreatRoute, side: Side, distance: number, combat: ScorpionCombat, map: ScorpionSetupAssets['map']) {
@@ -196,7 +235,7 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
   const units = { ...state.units }
   const enteredZoc = rawZoc.has(to) && moving.some((id) => units[id]!.combat)
   const dg = enteredZoc ? moving.filter((id) => units[id]!.combat && units[id]!.disorganized) : []
-  if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg)
+  if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg, route.group)
   if (loss !== undefined && !dg.length) throw new Error('Retreat includes an unnecessary ZOC loss')
   for (const id of moving) units[id] = { ...units[id]!, hex: to,
     disorganized: units[id]!.combat && (units[id]!.disorganized || enteredZoc || index >= 1) }
@@ -211,7 +250,7 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
     return applyScorpionCombatLosses(captured, new Map([[loss, 1]]), assets, policy.supplyRail,
       remnantHex === undefined ? [] : [{ divisionId: loss, hex: remnantHex }])
   } catch (error) {
-    if (error instanceof ScorpionRemnantChoice) throw new ScorpionRetreatRemnantChoice(route.origin, index, error)
+    if (error instanceof ScorpionRemnantChoice) throw new ScorpionRetreatRemnantChoice(route.origin, index, error, route.group)
     throw error
   }
 }
