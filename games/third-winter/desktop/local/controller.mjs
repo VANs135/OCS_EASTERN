@@ -5,6 +5,7 @@ import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
 import { scorpionBarrageMarkerFrame } from '../../src/view/scorpion-barrage-markers.ts'
+import { scorpionAuxiliaryCardViews } from '../../src/view/scorpion-auxiliary-cards.ts'
 import { scorpionHexAt, scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } from './actions.mjs'
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
@@ -107,7 +108,7 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         if (choice) selection.combatReview = choice.reviewDraft
         else return shown
       } else if (request.kind === 'aid-left') {
-        if (shown.combatPrompt || !shown.frame.aidCounters.some(({ id }) => id === request.counterId)) return shown
+        if (shown.combatPrompt) return shown
         const next = { aidCounterId: request.counterId }
         const view = render(record, next, data)
         if (!view.aidPrompt) return shown
@@ -234,6 +235,7 @@ function render(record, selection, data) {
   const { catalog } = data.assets
   const frame = scorpionSessionBoxFrame(state, catalog, actor)
   const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
+  const auxiliaryCards = scorpionAuxiliaryCardViews(state, catalog, frame.inventories)
   const mapStacks = scorpionMapStacks(state, catalog, mapCounters)
   const result = state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended' && state.turn.step.result)
   const phase = state.kind === 'setup' ? '开局部署' : result ? '对局结束' : state.turn.step.kind !== 'player-turn' ? '先手判定'
@@ -245,7 +247,8 @@ function render(record, selection, data) {
   const validate = (action) => submitScorpionSession(record, actor,
     { id: `preview-choice:${revision}`, expectedRevision: revision, action }, data.assets, data.board)
   const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, validate)
-  const aid = selection.aidCounterId && localAidSelection(state, actor, selection, aidCounters, data, validate)
+  const aid = selection.aidCounterId && localAidSelection(state, actor, selection,
+    [...aidCounters, ...auxiliaryCards['axis-off-map'].counters], data, validate)
   const actions = (review?.choices ?? aid?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data))
     .filter((entry) => unitIds.length < 2 || entry.actions[0]?.type !== 'ground-move')
     .map((entry, index) => ({ ...entry, key: String(index) }))
@@ -262,7 +265,7 @@ function render(record, selection, data) {
       notes: refit.notes, total: refit.total, ready: refit.ready, fenced: refit.fenced, selected: refit.selected,
       payments: refit.payments.map(({ dumpId, tokens }) => ({ dumpId, tokens, label: dumpId.split(':').at(-1) })),
       aircraft: refit.inactive.map((piece) => ({ id: piece.id, label: catalog.definitions.get(piece.definition)?.source.name ?? piece.id })) },
-    frame: { ...frame, aidCounters, mapStacks, selectedUnits: review ? actions.flatMap(({ mapUnit }) => mapUnit ? [mapUnit] : []) : unitIds,
+    frame: { ...frame, aidCounters, auxiliaryCards, mapStacks, selectedUnits: review ? actions.flatMap(({ mapUnit }) => mapUnit ? [mapUnit] : []) : unitIds,
       selectedAidCounter: aid?.counterId, selectedHex: !review && picked.hex && scorpionHexLayout(picked.hex),
       targets: (review?.targets ?? aid?.targets ?? []).map(scorpionHexLayout),
       route: route.map(scorpionHexLayout), retreatPaths: review?.paths?.map((path) => path.map(scorpionHexLayout)) } }

@@ -7,6 +7,7 @@ import { scorpionReinforcementBoard } from '../../src/match/scorpion-reinforceme
 import { calibratedSurface } from '../../src/view/calibrated-surface.ts'
 import { scorpionSurfaceBoxes } from '../../src/view/scorpion-boxes.ts'
 import { scorpionSovietAid } from '../../src/view/scorpion-barrage-markers.ts'
+import { auxiliaryCardFiles } from '../../src/view/scorpion-auxiliary-cards.ts'
 
 export async function loadLocalScorpion(root, tables, unitRoot) {
   const data = new Map()
@@ -31,12 +32,20 @@ export async function loadLocalScorpion(root, tables, unitRoot) {
   const artwork = join(imageDirectory, 'Scorpion-Map-200929.png')
   const aid = { ...scorpionSovietAid, path: join(imageDirectory, scorpionSovietAid.asset) }
   await Promise.all([access(artwork), access(aid.path)])
+  const cards = (await Promise.all(auxiliaryCardFiles.map(async (card) => {
+    const path = join(imageDirectory, card.asset)
+    try { await access(path) } catch (error) {
+      if (error.code === 'ENOENT') return null
+      throw error
+    }
+    return { ...card, path }
+  }))).filter(Boolean)
   // Compare the loaded bytes by role so relocating a complete data directory keeps the same fingerprint.
   const hashes = [...data.values()].map((bytes) => createHash('sha256').update(bytes).digest('hex')).sort()
   const fingerprint = createHash('sha256').update(hashes.join('\n')).digest('hex')
   const assets = { map, catalog }
   const model = { width: surface.width, height: surface.height, map: artwork, boxes: scorpionSurfaceBoxes(surface),
-    imageDirectory, aid, labels: { title: '第三冬 · 瓶中蝎', map: '小地图', aid: '苏军辅助卡', empty: '空',
+    imageDirectory, aid, cards, labels: { title: '第三冬 · 瓶中蝎', map: '小地图', aid: '苏军辅助卡', empty: '空',
       hidden: '仅本方可见', cycle: '查看这个格的下一页算子' } }
   return { fingerprint, assets, setup, model, schema,
     board: { combat: { table }, barrage, facilityBarrage, reinforcements: (state) => scorpionReinforcementBoard(state, assets, arrivals) } }

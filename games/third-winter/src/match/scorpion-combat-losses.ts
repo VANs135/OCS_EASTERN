@@ -2,6 +2,7 @@ import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import { scorpionSuddenDeath } from '../ttw/scorpion/victory.ts'
 import { remainingSteps, takeScorpionSteps } from './scorpion-losses.ts'
 import { placeScorpionRemnant } from './scorpion-remnants.ts'
+import { kesselReturnAfterRemoval } from '../ttw/axis/kessel.ts'
 import type { ScorpionRemnantPlacement } from './scorpion-remnants.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
@@ -40,7 +41,12 @@ export function applyScorpionCombatLosses(state: Readonly<ScorpionInPlay>, alloc
       const network = scorpionSupplyNetwork(assets.map, scorpionSupplyPosition(current, assets.map, 'axis', railroad))
       isolated = !network.trace(unit.hex, unit.traceDrawMobility).length
     }
-    const settled = takeScorpionSteps(current, new Map([[id, steps]]), assets.catalog)
+    const lost = takeScorpionSteps(current, new Map([[id, steps]]), assets.catalog)
+    const settled = unit.headquarters?.kessel && !Object.hasOwn(lost.units, id)
+      ? { ...lost, pieces: lost.pieces.filter((piece) => piece.id !== id), kesselReturns: {
+        ...lost.kesselReturns, [unit.definition]: kesselReturnAfterRemoval(current.turn.number).availableFromTurn,
+      } }
+      : lost
     const deployed = remnants && unit.side === 'axis' && !Object.hasOwn(settled.units, id)
       ? placeScorpionRemnant(settled, id, unit, choices.get(id), assets) : settled
     if (deployed !== settled) choices.delete(id)

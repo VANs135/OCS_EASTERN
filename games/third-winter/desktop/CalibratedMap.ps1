@@ -61,7 +61,7 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
     Add-At $image $x $y $surface
     if ($Local) {
-        $onAid = $surface -eq $script:aidCanvas
+        $onAid = $surface -eq $script:aidCanvas -or $surface.Tag.AidCardId
         $image.Tag = if ($onAid) { @{ AidCounterId = [string]$counter.id } } else {
             @{ UnitId = [string]$counter.id; Cell = $cell }
         }
@@ -211,7 +211,9 @@ function Show-Frame([int]$index) {
         foreach ($marker in $frame.aidCounters) {
             Add-Counter $marker ($marker.x - $marker.size / 2) ($marker.y - $marker.size / 2) $marker.size $script:aidCanvas
         }
+        Add-AuxiliaryOverlays $frame.auxiliaryCards.'soviet-off-map' $script:aidCanvas
     }
+    if ($Local -and $script:localTabs) { Show-SelectedAuxiliaryCard $frame }
     if ($script:caption) {
         $script:caption.Text = $frame.caption
         $script:previous.IsEnabled = $index -gt 0
@@ -228,6 +230,34 @@ function Show-Frame([int]$index) {
             $script:rerollLabel.Visibility = 'Collapsed'
         }
     }
+}
+
+function Add-AuxiliaryOverlays($contents, $surface) {
+    foreach ($counter in $contents.counters) {
+        Add-Counter $counter ($counter.x - $counter.size / 2) ($counter.y - $counter.size / 2) $counter.size $surface
+    }
+    foreach ($caption in $contents.captions) {
+        $text = New-Object Windows.Controls.TextBlock
+        $text.Text = $caption.text
+        $text.FontSize = 16
+        $text.Background = [Windows.Media.Brushes]::Ivory
+        $text.IsHitTestVisible = $false
+        Add-At $text $caption.x $caption.y $surface
+    }
+}
+
+function Show-SelectedAuxiliaryCard($frame) {
+    $surface = $script:localTabs.SelectedItem.Content.Content
+    $id = $surface.Tag.AidCardId
+    if (!$id) { return }
+    $card = $surface.Tag.Card
+    $surface.Children.Clear()
+    $background = New-Object Windows.Controls.Image
+    $background.Source = Get-Art $card.path
+    $background.Width = $card.width
+    $background.Height = $card.height
+    Add-At $background 0 0 $surface
+    Add-AuxiliaryOverlays $frame.auxiliaryCards.$id $surface
 }
 
 $script:canvas = New-Object Windows.Controls.Canvas

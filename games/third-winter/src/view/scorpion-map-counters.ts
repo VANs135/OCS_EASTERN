@@ -48,14 +48,18 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
     if (!asset) throw new Error(`Missing Trainbusting artwork for ${side}`)
     push({ id: `trainbusting:${side}:${hex}`, hex, asset, label: `${side === 'axis' ? '轴心' : '苏军'}运输破坏` })
   }
+  const markedReserveHexes = new Set<string>()
   for (const [id, unit] of Object.entries(board.units)) {
     const source = catalog.definitions.get(unit.definition)?.source
     const face = unit.moveMode ? source?.faces.move ?? (!unit.combat ? source?.faces.combat : undefined) : source?.faces.combat
     const asset = unit.extender?.asset ?? face?.asset
     if (!source || !asset) throw new Error(`Missing artwork for ground counter ${id}`)
     const label = unit.extender ? `延补队 ${unit.extender.range} MP` : unit.remnantOf ? '德军残部营' : source.name
+    const reserveKey = `${unit.side}:${unit.hex}`
+    const showPhysicalReserve = Boolean(unit.reserve) && !markedReserveHexes.has(reserveKey)
+    if (showPhysicalReserve) markedReserveHexes.add(reserveKey)
     push({ id, hex: unit.hex, asset, label,
-      badges: groundBadges(unit, catalog, state.kind === 'playing' && Boolean(hasScorpionBulkFuel(state, id))) })
+      badges: groundBadges(unit, catalog, state.kind === 'playing' && Boolean(hasScorpionBulkFuel(state, id)), showPhysicalReserve) })
   }
   for (const unit of board.pieces) {
     if (unit.kind !== 'aircraft' || unit.location.kind !== 'hex') continue
@@ -85,14 +89,17 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
   })
 }
 
-function groundBadges(unit: DeployedCounter, catalog: Catalog, bulkFuel: boolean): CounterBadge[] {
+function groundBadges(unit: DeployedCounter, catalog: Catalog, bulkFuel: boolean, showPhysicalReserve: boolean): CounterBadge[] {
   const badges: CounterBadge[] = []
   const add = (ref: string, label: string, text: string) => {
     const asset = markerFace(catalog, ref)
     badges.push(asset ? { label, asset } : { label, text })
   }
   if (unit.disorganized) add('DG (Disorganized)', '混乱', 'DG')
-  if (unit.reserve) add(unit.side === 'axis' ? 'Axis Reserve' : 'Sov Reserve', '预备', '预')
+  if (unit.reserve) {
+    if (showPhysicalReserve) add(unit.side === 'axis' ? 'Axis Reserve' : 'Sov Reserve', '预备', '预')
+    else badges.push({ label: '同格预备堆叠', text: '预' })
+  }
   if (unit.exploit) add(`Exploit ${unit.exploitRating ?? ''}`, '扩张', '扩')
   if (unit.outOfSupply) add('Out of Supply', '断补', '断')
   if (unit.internalStocks === 'low') add('Low/Exhausted', '部队储备低下', '低')

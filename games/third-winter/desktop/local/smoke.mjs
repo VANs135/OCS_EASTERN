@@ -10,6 +10,7 @@ import { loadLocalScorpion } from './data.mjs'
 import { localScorpionEnvelope, readLocalJson, replaceLocalJson } from './store.mjs'
 import { testLocalCapture } from './capture-smoke.mjs'
 import { testLocalCombatReview } from './combat-review-smoke.mjs'
+import { testAuxiliaryCards } from './auxiliary-smoke.mjs'
 import { sampleScorpionFrontBarrage } from '../../scripts/scorpion-front-barrage-example.mjs'
 
 const args = process.argv.slice(2)
@@ -147,6 +148,7 @@ try {
   await testLocalCapture(data, folder, captureOpening)
   await checkAidCard(captureOpening)
   await checkAirBox(captureOpening)
+  await testAuxiliaryCards(data, folder, captureOpening)
   const nativeArgs = args.includes('--native-review') ?
     [root, unitRoot, args.find((value) => value.startsWith('--smoke-image='))].filter(Boolean) : undefined
   await testLocalCombatReview(data, folder, captureOpening, nativeArgs)

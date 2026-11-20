@@ -1,5 +1,6 @@
 import { reserveHexesInUse } from '@ocs-eastern/series/reserve'
 import type { Side } from '@ocs-eastern/series/state-types'
+import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
@@ -11,6 +12,11 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
 
 export type ScorpionReserveFace = GroundFace | 'current'
+export const scorpionReserveMarkerLimit = 6
+
+export function scorpionReserveStock(units: Iterable<DeployedCounter>, side: Side) {
+  return scorpionReserveMarkerLimit - reserveHexesInUse(units, side).size
+}
 export type ScorpionReserveAction = { type: 'mark-reserve'; unitId: string; face?: ScorpionReserveFace }
   | { type: 'leave-reserve'; unitId: string; face?: ScorpionReserveFace }
   | { type: 'release-reserve'; unitId: string }
@@ -54,7 +60,7 @@ export function prepareScorpionReserve(state: Readonly<ScorpionInPlay>, side: Si
 }
 
 export function assertScorpionReserveCapacity(state: Readonly<ScorpionInPlay>, side: Side) {
-  if (reserveHexesInUse(Object.values(state.units), side).size > 6) throw new Error('No free Reserve marker for this hex')
+  if (scorpionReserveStock(Object.values(state.units), side) < 0) throw new Error('No free Reserve marker for this hex')
 }
 
 export function assertScorpionMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,

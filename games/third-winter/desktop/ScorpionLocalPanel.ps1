@@ -157,6 +157,26 @@ function Test-LocalWindow($dock) {
     $marker.RaiseEvent($click)
     if ($script:localView.frame.selectedAidCounter -ne $markerId -or !$script:localView.aidPrompt -or
         !$script:localView.frame.targets.Count -or $script:localView.revision -ne $before) { throw '辅助卡点击未打开中心格选择。' }
+    foreach ($cardCheck in @(
+        @{ Id = 'axis-off-map'; Counter = 'kessel-box:hq:id:4151' },
+        @{ Id = 'turn-weather'; Counter = 'track-ground' }
+    )) {
+        $tab = $script:localTabs.Items | Where-Object { $_.Content.Content.Tag.AidCardId -eq $cardCheck.Id } | Select-Object -First 1
+        if (!$tab) { continue }
+        $script:localTabs.SelectedItem = $tab
+        $counter = $tab.Content.Content.Children | Where-Object { $_.Tag.AidCounterId -eq $cardCheck.Counter } | Select-Object -First 1
+        if (!$counter) { throw "辅助卡未显示联动标记：$($cardCheck.Id)" }
+        if ($cardCheck.Id -eq 'axis-off-map') {
+            $click = New-Object Windows.Input.MouseButtonEventArgs([Windows.Input.Mouse]::PrimaryDevice, 0, [Windows.Input.MouseButton]::Left)
+            $click.RoutedEvent = [Windows.UIElement]::MouseLeftButtonDownEvent
+            $counter.RaiseEvent($click)
+            if ($script:localView.frame.selectedAidCounter -ne $cardCheck.Counter -or
+                $script:localView.frame.targets.Count -or $script:localView.revision -ne $before) {
+                throw '轴心辅助卡点击没有保留阶段限制。'
+            }
+        }
+    }
+    $script:localTabs.SelectedIndex = 0
     Invoke-LocalRequest @{ kind = 'clear-selection' }
     $unit = $script:localView.roster | Where-Object { $_.label -like '*Sov 58 Rifle Div*' } | Select-Object -First 1
     $position = $script:localView.frame.mapStacks | Where-Object { $_.hex -eq $unit.hex }
@@ -268,7 +288,8 @@ function Update-LocalView($view) {
 }
 
 function Set-LocalZoom([double]$scale) {
-    foreach ($surface in @($script:canvas, $script:aidCanvas)) {
+    foreach ($tab in $script:localTabs.Items) {
+        $surface = $tab.Content.Content
         if ($surface) { $surface.LayoutTransform = New-Object Windows.Media.ScaleTransform($scale, $scale) }
     }
     $script:localZoomLabel.Text = ('{0:P0}' -f $scale)
@@ -425,7 +446,16 @@ function Show-LocalScorpion {
     [void]$panel.Children.Add($actionsScroll)
 
     $script:localTabs = New-Object Windows.Controls.TabControl
-    foreach ($item in @(@{ Header = $model.labels.map; Surface = $script:canvas }, @{ Header = $model.labels.aid; Surface = $script:aidCanvas })) {
+    $surfaces = @(@{ Header = $model.labels.map; Surface = $script:canvas }, @{ Header = $model.labels.aid; Surface = $script:aidCanvas })
+    foreach ($card in $model.cards) {
+        $surface = New-Object Windows.Controls.Canvas
+        $surface.Width = $card.width
+        $surface.Height = $card.height
+        $surface.ClipToBounds = $true
+        $surface.Tag = @{ AidCardId = $card.id; Card = $card }
+        $surfaces += @{ Header = $card.label; Surface = $surface; Reference = $card.reference }
+    }
+    foreach ($item in $surfaces) {
         if (!$item.Surface) { continue }
         $scroll = New-Object Windows.Controls.ScrollViewer
         $scroll.HorizontalScrollBarVisibility = 'Auto'
@@ -434,9 +464,16 @@ function Show-LocalScorpion {
         $scroll.Content = $item.Surface
         $tab = New-Object Windows.Controls.TabItem
         $tab.Header = $item.Header
+        if ($item.Reference) { $tab.ToolTip = '资料卡 · 本局尚无对应的盒区状态' }
         $tab.Content = $scroll
         [void]$script:localTabs.Items.Add($tab)
     }
+    $script:localTabs.Add_SelectionChanged({
+        param($sender, $eventArgs)
+        if ($eventArgs.Source -eq $script:localTabs -and $script:localView) {
+            Show-SelectedAuxiliaryCard $script:localView.frame
+        }
+    })
     [void]$dock.Children.Add($script:localTabs)
     $window.Content = $dock
     Register-LocalMapClicks $script:canvas

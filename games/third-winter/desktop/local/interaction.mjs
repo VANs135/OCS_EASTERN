@@ -10,12 +10,14 @@ import { airTransportModes } from '@ocs-eastern/series/air-transport'
 import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 import { airGroupChoices } from './air-group.mjs'
 import { transportMenuChoices } from './transport-menu.mjs'
+import { scorpionKesselWindow } from '../../src/match/scorpion-kessel.ts'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
 const categories = new Map([
   ['set-ground-mode', '模式'], ['mark-reserve', '预备队'], ['leave-reserve', '预备队'], ['release-reserve', '预备队'],
   ['load-transport', '运输'], ['unload-transport', '运输'], ['form-extender', '运输'], ['dismantle-extender', '运输'],
   ['repack-transport', '运输'], ['rebuild-remnant', '重建'],
+  ['remove-kessel-hq', '离图盒'],
   ['fuel-formation', '加油'], ['fuel-headquarters', '加油'], ['fuel-from-paused-transport', '加油'],
   ['work-hedgehog', '工事'], ['feed-units', '补给'], ['recover-internal-stocks', '补给'], ['refit-aircraft', '飞机整备'],
   ['declare-artillery-barrage', '射击'], ['declare-front-barrage', '射击'], ['declare-combat', '地面战斗'],
@@ -71,6 +73,10 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
   const add = (label, type, fields) => append({ label, actions: [{ type, ...fields }] })
   const selected = selection.unitIds?.length ? selection.unitIds : selection.unitId ? [selection.unitId] : []
   const targets = hit.unitId ? hit.ownIds.filter((id) => id === hit.unitId) : hit.ownIds
+  if (hit.unitId && state.kind === 'playing' && scorpionKesselWindow(state, side) &&
+    state.units[hit.unitId]?.headquarters?.kessel) {
+    add('移除 Kessel HQ，三回合后可用', 'remove-kessel-hq', { unitId: hit.unitId })
+  }
   // Right-clicking the airfield itself (or the own air box) offers the batch draft before any
   // aircraft has been picked, so the player can start from the base as the spec describes.
   let draftOffered = false

@@ -63,6 +63,8 @@ import { applyScorpionReserve, assertScorpionMovementEnd } from './scorpion-rese
 import type { ScorpionReserveAction } from './scorpion-reserves.ts'
 import { rebuildScorpionRemnant } from './scorpion-remnants.ts'
 import type { RebuildScorpionRemnant } from './scorpion-remnants.ts'
+import { applyScorpionKessel } from './scorpion-kessel.ts'
+import type { ScorpionKesselAction } from './scorpion-kessel.ts'
 import { applyScorpionReroll, scorpionRolls } from './scorpion-reroll.ts'
 import type { ResolveScorpionReroll, ScorpionPlayAction, ScorpionRerollUse, ScorpionRerollWindow, ScorpionRoll } from './scorpion-reroll.ts'
 import { applyScorpionSetup, createScorpionSetup } from './scorpion-setup.ts'
@@ -88,6 +90,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   dropPlan?: ScorpionDropPlan | null
   phaseOccupancy?: ScorpionPhaseOccupancy
   dropTrace?: { unitId: string; turn: number }
+  kesselReturns?: Readonly<Record<string, number>>
   trainbusting?: readonly TrainbustingMarker[]
   hedgehogs?: Readonly<Record<string, ScorpionHedgehog | null>>
   hedgehogBuiltAt?: Readonly<Record<string, number>>
@@ -122,6 +125,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | ContinueCombatRetreat | RebuildScorpionRemnant | ResolveScorpionReroll
+  | ScorpionKesselAction
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
@@ -230,6 +234,10 @@ export function submitScorpionSession(
       case 'rebuild-remnant':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Remnant rebuilding is unavailable')
         return rebuildScorpionRemnant(state, actor, action, assets, board.supplyRail)
+      case 'place-kessel-hq':
+      case 'remove-kessel-hq':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return applyScorpionKessel(state, actor, action, assets)
       case 'launch-air-mission':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return launchScorpionAirMission(state, actor, action, assets, airBoard)
