@@ -7,8 +7,7 @@ import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
 import { scorpionGroundDeployment } from '../src/import/scorpion-deployment.ts'
-import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
-import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
+import { loadScorpionFiles } from '../src/import/scorpion-files.mjs'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { mayPlanTtwCombatAirDrop } from '../src/ttw/air/airdrop-eligibility.ts'
@@ -38,16 +37,12 @@ const args = process.argv.slice(3)
 // --scorpion-only skips the campaign map checks. The Scorpion map ships its own files, so the
 // campaign 地图数据库/map_hexes.json and map_edges.json are not needed for a Scorpion audit.
 const scorpionOnly = args.includes('--scorpion-only')
-if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit backup directory] [--scorpion-only]')
-const unitRoot = args.find((arg) => !arg.startsWith('--')) ?? join(dirname(resolve(root)), 'DATA备份')
+if (!root) throw new Error('Usage: npm run audit:data --workspace=@ocs-eastern/third-winter -- <TTW directory> [unit directory] [--scorpion-only]')
+const unitRoot = args.find((arg) => !arg.startsWith('--'))
 const readAt = async (folder, ...path) => JSON.parse((await readFile(join(folder, ...path), 'utf8')).replace(/^\uFEFF/, ''))
 const read = (...path) => readAt(root, ...path)
-const scenarioPath = ['data', 'scenarios', '08-scorpion']
-const [{ definitions, aliases, rawIds }, setup, reinforcement, map, campaign] = await Promise.all([
-  loadScorpionUnits((file) => readAt(unitRoot, file)),
-  read(...scenarioPath, 'setup.json'),
-  read(...scenarioPath, 'reinforcements.json'),
-  loadScorpionMap(read),
+const [{ catalog: { definitions, aliases, rawIds }, setup, arrivals: reinforcement, map }, campaign] = await Promise.all([
+  loadScorpionFiles(root, unitRoot, (file) => readAt(file)),
   scorpionOnly ? null : Promise.all([read('地图数据库', 'map_hexes.json'), read('地图数据库', 'map_edges.json')]),
 ])
 const [hexes, edges] = campaign ?? [null, null]

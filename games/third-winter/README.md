@@ -25,7 +25,9 @@
 
 - Node.js 22.12 或以上，TypeScript 5.7.3。在仓库根目录执行 `npm ci`。
 - 在仓库根目录执行 `npm run check` 检查 TypeScript、工作区依赖与回归。
-- 在仓库根目录执行 `npm run audit:data --workspace=@ocs-eastern/third-winter -- <第三冬资料根目录> [单位备份目录]`，核对实际算子引用、瓶中蝎地面部署与开局铁路、战役地图接缝。单位备份目录默认为资料根目录同级的 `DATA备份`。地图读取资料根目录下 `地图数据库/map_hexes_scorpion.json` 和 `地图数据库/map_edges_scorpion.json`。
+- 在仓库根目录执行 `npm run audit:data --workspace=@ocs-eastern/third-winter -- <第三冬资料根目录> [单位目录] [--scorpion-only]`，核对算子引用、瓶中蝎地面部署与开局铁路。省略 `--scorpion-only` 时也核对战役地图接缝。
+- 实库默认读取资料根目录 `data` 下的第三冬 `ocs-wargame-db-v2` 算子表。`地图数据库/map_hexes_scorpion.json` 与 `地图数据库/map_edges_scorpion.json` 提供小地图地形，`scenarios/08-korsun-pocket/reinforcements.json` 提供增援。新版初设的坐标、减员和标记仍待核对，开局从仓库内 `data/scorpion-real-library/scenario/setup.json` 读取已验证快照。
+- 第二个路径可指定独立算子目录。若传入旧式 `DATA备份`，资料根目录仍须提供其配套的 `data/scenarios/08-scorpion` 初设与增援。
 
 在安装了 PyMuPDF 的本机，也可从 OCS v4.3 原版图表第 3 页导出 CRT。指定这份表后，核对脚本会分别在真实盘面执行突袭和正规战斗，随后跑完双方整理并进入第 2 回合。导出文件留在本机。
 
@@ -98,7 +100,7 @@ npm run play:local --workspace=@ocs-eastern/third-winter -- 'D:\war game\OCS各�
 
 按用户裁定，进格时自动结算特殊夺取。程序按表分配运输点和具象补给、处理位移，更新六角格、死人堆和空军盒，并在原行动中继续已提交的路线。旧存档中的待决夺取用已保存的骰点结算，已提交的撤退余程自动接续。
 
-默认存档 `dist/scorpion-local/continue.json`。关闭窗口后再次打开会恢复当前阶段、行动方和待决骰点。可使用 `--save=路径` 保留另一局。程序使用仓库 `dist` 内导出的三份 OCS v4.3 图表，也可用上面的 `OCS_V43_*` 环境变量指定本机文件。原图、辅助卡和实际算子从本机资料读取。规则由本机进程结算，存档留在本机。
+新版算子库的默认存档是 `dist/scorpion-local/continue-v2.json`，旧版算子库仍使用 `dist/scorpion-local/continue.json`。关闭窗口后再次打开会恢复当前阶段、行动方和待决骰点。可使用 `--save=路径` 保留另一局。程序使用仓库 `dist` 内导出的三份 OCS v4.3 图表，也可用上面的 `OCS_V43_*` 环境变量指定本机文件。原图、辅助卡和实际算子从本机资料读取。规则由本机进程结算，存档留在本机。
 
 用同一资料目录执行 `npm run test:local --workspace=@ocs-eastern/third-winter -- <资料目录>` 可核对地图落位、单枚与堆叠选择、右键菜单、双击移动、战斗应答、重掷读档和特殊夺取接续。正式 Windows 安装包、其余桌面操作和联网双人验收仍是后续交付项。
 

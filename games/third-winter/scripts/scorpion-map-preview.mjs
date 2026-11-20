@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process'
 import { access, mkdtemp, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
-import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
-import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
+import { loadScorpionFiles } from '../src/import/scorpion-files.mjs'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionReinforcement } from '../src/match/scorpion-reinforcement.ts'
 import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
@@ -30,16 +29,14 @@ import { sampleScorpionRemnant } from './scorpion-remnant-example.mjs'
 import { sampleScorpionReroll } from './scorpion-reroll-example.mjs'
 
 const [root, ...options] = process.argv.slice(2)
-if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit backup directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
+if (!root) throw new Error('Usage: preview:map -- <TTW directory> [unit directory] [--render=PNG path | --render-aid=PNG path] [--frame=N]')
 const renderOption = options.find((arg) => arg.startsWith('--render=') || arg.startsWith('--render-aid='))
 const renderIndex = options.find((arg) => arg.startsWith('--frame='))?.slice('--frame='.length)
-const unitRoot = options.find((arg) => !arg.startsWith('--')) ?? join(dirname(resolve(root)), 'DATA备份')
+const unitRoot = options.find((arg) => !arg.startsWith('--'))
 const json = async (...path) => JSON.parse((await readFile(join(...path), 'utf8')).replace(/^\uFEFF/, ''))
-const scenario = [root, 'data', 'scenarios', '08-scorpion']
-const [calibration, catalog, setup, arrivals, groundMap] = await Promise.all([
-  json(root, '地图标定', 'hex-calib-瓶中蝎.json'), loadScorpionUnits((file) => json(unitRoot, file)),
-  json(...scenario, 'setup.json'), json(...scenario, 'reinforcements.json'),
-  loadScorpionMap((...path) => json(root, ...path)),
+const [calibration, { catalog, setup, arrivals, map: groundMap }] = await Promise.all([
+  json(root, '地图标定', 'hex-calib-瓶中蝎.json'),
+  loadScorpionFiles(root, unitRoot, json),
 ])
 const surface = calibratedSurface(calibration)
 const boxes = scorpionSurfaceBoxes(surface)

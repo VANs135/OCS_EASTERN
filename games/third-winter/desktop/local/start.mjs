@@ -27,7 +27,8 @@ async function main() {
   const temporary = await mkdtemp(join(tmpdir(), 'scorpion-local-'))
   let controller
   try {
-    const savePath = resolve(option('save') ?? (smoke ? join(temporary, 'test.json') : join(dist, 'scorpion-local', 'continue.json')))
+    const defaultSave = data.schema === 'v2' ? 'continue-v2.json' : 'continue.json'
+    const savePath = resolve(option('save') ?? (smoke ? join(temporary, 'test.json') : join(dist, 'scorpion-local', defaultSave)))
     controller = await openLocalScorpion(data, savePath)
     if (!smoke) await replaceLocalJson(config, { root: source, ...(unitRoot ? { unitRoot: resolve(unitRoot) } : {}), tables })
     const bootstrap = join(temporary, 'model.json')

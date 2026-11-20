@@ -1,4 +1,5 @@
 import { loadThirdWinterUnits } from './unit-backup.ts'
+import { loadThirdWinterV2Units } from './unit-v2.ts'
 
 const scenarioNames = [
   ['Ge Wallonian SS Mot Inf Rgt', 'Ge Wall SS Mot Inf Rgt'],
@@ -11,15 +12,17 @@ const scenarioNames = [
 ] as const
 
 /** Reconcile names in the Scorpion setup with the printed counters in the TTW catalog. */
-export async function loadScorpionUnits(readJson: (file: string) => Promise<unknown>) {
-  const catalog = await loadThirdWinterUnits(readJson)
+export async function loadScorpionUnits(readJson: (file: string) => Promise<unknown>, schema: 'legacy' | 'v2' = 'legacy') {
+  const catalog = await (schema === 'v2' ? loadThirdWinterV2Units : loadThirdWinterUnits)(readJson)
   for (const [reference, name] of scenarioNames) {
-    const matches = catalog.aliases.get(name)
-    const existing = catalog.aliases.get(reference)
-    if (matches?.length !== 1 || matches[0]?.kind !== 'land' || (existing && (existing.length !== 1 || existing[0] !== matches[0]))) {
+    const preferred = catalog.aliases.get(schema === 'v2' ? reference : name)
+    const other = catalog.aliases.get(schema === 'v2' ? name : reference)
+    if (preferred?.length !== 1 || preferred[0]?.kind !== 'land' ||
+      (other && (other.length !== 1 || other[0] !== preferred[0]))) {
       throw new Error(`Cannot reconcile the Scorpion unit reference ${reference}`)
     }
-    catalog.aliases.set(reference, matches)
+    catalog.aliases.set(reference, preferred)
+    if (schema === 'v2') catalog.aliases.set(name, preferred)
   }
   return catalog
 }

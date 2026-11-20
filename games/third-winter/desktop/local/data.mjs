@@ -1,15 +1,14 @@
 import { createHash } from 'node:crypto'
 import { access, readFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { scorpionArrivalCatalog } from '../../src/import/scorpion-arrivals.ts'
-import { loadScorpionMap } from '../../src/import/scorpion-map-files.ts'
-import { loadScorpionUnits } from '../../src/import/scorpion-unit-sources.ts'
+import { loadScorpionFiles } from '../../src/import/scorpion-files.mjs'
 import { scorpionReinforcementBoard } from '../../src/match/scorpion-reinforcement-board.ts'
 import { calibratedSurface } from '../../src/view/calibrated-surface.ts'
 import { scorpionSurfaceBoxes } from '../../src/view/scorpion-boxes.ts'
 import { scorpionSovietAid } from '../../src/view/scorpion-barrage-markers.ts'
 
-export async function loadLocalScorpion(root, tables, unitRoot = join(dirname(root), 'DATA备份')) {
+export async function loadLocalScorpion(root, tables, unitRoot) {
   const data = new Map()
   async function json(path) {
     let raw
@@ -19,11 +18,9 @@ export async function loadLocalScorpion(root, tables, unitRoot = join(dirname(ro
     data.set(path, raw)
     return JSON.parse(raw.toString('utf8').replace(/^\uFEFF/, ''))
   }
-  const scenario = join(root, 'data', 'scenarios', '08-scorpion')
-  const [map, catalog, setup, arrivalsData, calibration, table, barrage, facilityBarrage] = await Promise.all([
-    loadScorpionMap((...parts) => json(join(root, ...parts))),
-    loadScorpionUnits((file) => json(join(unitRoot, file))), json(join(scenario, 'setup.json')),
-    json(join(scenario, 'reinforcements.json')), json(join(root, '地图标定', 'hex-calib-瓶中蝎.json')),
+  const [{ map, catalog, setup, arrivals: arrivalsData, schema }, calibration, table, barrage, facilityBarrage] = await Promise.all([
+    loadScorpionFiles(root, unitRoot, json),
+    json(join(root, '地图标定', 'hex-calib-瓶中蝎.json')),
     json(process.env.OCS_V43_CRT || join(tables, 'ocs-v43-crt.json')),
     json(process.env.OCS_V43_BARRAGE || join(tables, 'ocs-v43-barrage.json')),
     json(process.env.OCS_V43_FACILITY || join(tables, 'ocs-v43-facility.json')),
@@ -41,6 +38,6 @@ export async function loadLocalScorpion(root, tables, unitRoot = join(dirname(ro
   const model = { width: surface.width, height: surface.height, map: artwork, boxes: scorpionSurfaceBoxes(surface),
     imageDirectory, aid, labels: { title: '第三冬 · 瓶中蝎', map: '小地图', aid: '苏军辅助卡', empty: '空',
       hidden: '仅本方可见', cycle: '查看这个格的下一页算子' } }
-  return { fingerprint, assets, setup, model,
+  return { fingerprint, assets, setup, model, schema,
     board: { combat: { table }, barrage, facilityBarrage, reinforcements: (state) => scorpionReinforcementBoard(state, assets, arrivals) } }
 }
