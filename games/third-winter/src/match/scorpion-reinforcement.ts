@@ -97,7 +97,7 @@ export function applyScorpionReinforcement(
     return {
       ...state,
       arrival,
-      arrivalsOnMap: [...state.arrivalsOnMap, { arrival: entry, hex: action.hex }],
+      arrivalsOnMap: [...state.arrivalsOnMap, { arrival: entry, hex: action.hex, turn: state.cursor.turn }],
       victory: scorpionSuddenDeath(state.cursor.turn, arrival.sovietVp),
     }
   }

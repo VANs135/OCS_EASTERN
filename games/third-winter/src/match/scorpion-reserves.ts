@@ -64,10 +64,10 @@ export function assertScorpionReserveCapacity(state: Readonly<ScorpionInPlay>, s
 }
 
 export function assertScorpionMovementEnd(state: Readonly<ScorpionInPlay>, side: Side,
-  hedgehogAt: ((hex: string) => number) | undefined) {
+  hedgehogAt: ((hex: string) => number) | undefined, exempt?: ReadonlySet<string>) {
   const hexes = reserveHexesInUse(Object.values(state.units), side)
   if ([...hexes].some((hex) => scorpionHedgehogLevel(state, hex, hedgehogAt) > 0)) {
     throw new Error('A Reserve cannot share a hex with a hedgehog at the end of a Movement Segment')
   }
-  assertScorpionPhaseStacking(state, side)
+  assertScorpionPhaseStacking(state, side, exempt)
 }

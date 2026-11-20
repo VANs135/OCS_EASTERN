@@ -1,7 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
 import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
-import { scorpionStackingChoices } from '../../src/match/scorpion-stacking.ts'
+import { scorpionStackingChoices, scorpionThawEntryHexes } from '../../src/match/scorpion-stacking.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
@@ -56,7 +56,7 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       const unit = shown.roster.find(({ id }) => id === unitId)
       if (!unit) throw new Error('请选择当前一方的算子')
       const state = record.state
-      if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit') {
+      if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit' && !state.units[unitId]) {
         const piece = state.pieces.find((candidate) => candidate.id === unitId)
         const at = base ?? refitBaseOf(state, shown.actor, piece)
         if (!at) throw new Error('这架飞机不在可整备的机场或地图外空军盒')
@@ -213,6 +213,7 @@ function captureNotice(report) {
   }
   if (report.extenders?.some((unit) => unit.displacedTo)) parts.push('延补队崩溃并位移')
   if (report.hedgehog) parts.push('工事降级')
+  if (report.airstripRemoved) parts.push('轴心简易跑道回池')
   return `${report.hex} 自动夺取${parts.length ? ` · ${parts.join('；')}` : ''}`
 }
 
@@ -228,12 +229,23 @@ function rosterHit(shown, id) {
 function render(record, selection, data) {
   const { state, revision } = record
   const actor = localDecisionSide(state) ?? (state.kind === 'playing' ? state.cursor.phasing : state.opening.seat)
+  const { catalog } = data.assets
+  const exempt = state.kind === 'playing' && state.turn.weather.ground === 'thaw'
+    ? scorpionThawEntryHexes(state, data.board.reinforcements?.(state)) : undefined
+  const stacking = state.kind === 'playing' ? scorpionStackingChoices(state, actor, exempt) : []
   const roster = localRoster(state, actor, data, selection.refitBase)
+  if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit') {
+    // Thaw can leave overstacked entry hexes that must be settled once normal weather returns.
+    for (const { hex, candidates } of stacking) for (const { unitId } of candidates) {
+      const unit = state.units[unitId]
+      const name = catalog.definitions.get(unit.definition)?.source.name ?? unitId
+      roster.push({ id: unitId, hex, label: `${name} · ${hex}` })
+    }
+  }
   const placement = state.kind === 'setup' || state.cursor.phase === 'reinforcement' && state.window?.stage === 'scheduled'
   const selected = roster.find(({ id }) => id === selection.unitId) ?? (placement && !selection.unitIds ? roster[0] : undefined)
   const picked = { ...selection, unitId: selected?.id, hex: selection.hex ?? selected?.hex }
   const unitIds = selection.unitIds?.filter((id) => roster.some((item) => item.id === id)) ?? (selected ? [selected.id] : [])
-  const { catalog } = data.assets
   const frame = scorpionSessionBoxFrame(state, catalog, actor)
   const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
   const auxiliaryCards = scorpionAuxiliaryCardViews(state, catalog, frame.inventories)
@@ -250,7 +262,6 @@ function render(record, selection, data) {
   const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, validate)
   const aid = selection.aidCounterId && localAidSelection(state, actor, selection,
     [...aidCounters, ...auxiliaryCards['axis-off-map'].counters], data, validate)
-  const stacking = state.kind === 'playing' ? scorpionStackingChoices(state, actor) : []
   const choices = review?.choices ?? aid?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data)
   const selectedStack = stacking.find(({ candidates }) => unitIds.length &&
     unitIds.every((id) => candidates.some(({ unitId }) => unitId === id)))

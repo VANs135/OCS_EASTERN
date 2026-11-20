@@ -64,7 +64,7 @@ export function refitDraft(state, side, base, unitIds, data) {
       fenced = true
     }
     const thaw = state.turn.weather.ground === 'thaw'
-    const rate = airbaseRefitCapacity(field.level) / (thaw ? 2 : 1)
+    const rate = Math.floor(airbaseRefitCapacity(field.level) / (thaw ? 2 : 1))
     const room = Math.max(0, airbaseActiveCapacity(field.level) - active)
     limit = Math.min(rate, room)
     if (thaw) notes.push(`解冻：整备速率减半，本阶段最多 ${rate} 架`)
@@ -82,7 +82,8 @@ export function refitDraft(state, side, base, unitIds, data) {
   const total = base.kind === 'off-map-air' ? '0T' : '1T'
   const ready = !fenced && selected.length >= 1 && selected.length <= limit &&
     (base.kind === 'off-map-air' || payments.length > 0)
-  const baseLabel = base.kind === 'off-map-air' ? '地图外空军盒' : `${base.hex} 机场${level ? `（${level} 级）` : ''}`
+  const baseLabel = base.kind === 'off-map-air' ? '地图外空军盒' :
+    `${base.hex} ${level ? `${level} 级机场` : '简易跑道'}`
   return { base, baseLabel, level, based, inactive, selected, active, limit, payments, notes, total, fenced, ready }
 }
 

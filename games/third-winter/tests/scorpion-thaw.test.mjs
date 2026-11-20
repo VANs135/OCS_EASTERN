@@ -4,6 +4,7 @@ import { createRngState } from '@ocs-eastern/series/rng'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { startScorpionPlayerTurns } from '../src/match/scorpion-player-turn.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionStackingChoices, scorpionThawEntryHexes } from '../src/match/scorpion-stacking.ts'
 
 test('a Thaw shares each logistical phase, allows mode changes and marks out-of-supply units without rolling', () => {
   const first = 'axis'
@@ -66,4 +67,36 @@ test('a Thaw shares each logistical phase, allows mode changes and marks out-of-
   command('soviet', 'complete-cleanup')
   assert.equal(record.state.turn.number, 6)
   assert.equal(record.state.turn.weather.ground, 'freeze')
+})
+
+test('TTW Thaw exempts printed and used substitute entries from stacking but retains the cap elsewhere', () => {
+  const printed = 's10.01'
+  const substitute = 's10.02'
+  const interior = 's10.03'
+  const map = scorpionMap([printed, substitute, interior].map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
+    [[printed, substitute], [substitute, interior]].map(([hex_a, hex_b]) => ({
+      hex_a, hex_b, edge_terrain: 'none', road_present: false, rail_present: false, bridge: false,
+    })))
+  const asset = { map, catalog: { definitions: new Map() } }
+  const arrival = { destinations: [printed], turn: 4 }
+  const board = { reinforcements: () => ({ catalog: [arrival] }), supplyRail: { railGauge: () => 'axis' } }
+  const stack = (hex) => Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`${hex}-${i}`,
+    { side: 'axis', hex, combat: true, printedRe: 1, stepsLost: 0 }]))
+  const thaw = { kind: 'playing', cursor: { first: 'axis', phasing: 'axis', turn: 5, phase: 'movement', simulcast: true },
+    turn: { number: 5, weather: { ground: 'thaw', flight: 'none' }, step: { kind: 'player-turn' } },
+    units: { ...stack(printed), ...stack(substitute) }, moved: [], pieces: [], dumps: {}, railControl: {}, airBases: [],
+    arrivalsOnMap: [{ arrival, hex: substitute, turn: 5 }] }
+  const submit = (state, action = { type: 'complete-movement' }) => submitScorpionSession({ state, revision: 0, receipts: [] },
+    'axis', { id: 'thaw-stacking', expectedRevision: 0, action }, asset, board).record.state
+  const saved = JSON.parse(JSON.stringify(thaw))
+  const exemptions = scorpionThawEntryHexes(saved, board.reinforcements(saved))
+  assert.deepEqual([...exemptions], [printed, substitute])
+  assert.deepEqual(scorpionStackingChoices(saved, 'axis', exemptions), [])
+  assert.throws(() => submit(saved, { type: 'settle-stacking', hex: printed, unitIds: [`${printed}-0`] }), /overstacked hex/)
+  const next = submit(saved)
+  assert.equal(next.cursor.phasing, 'soviet')
+  assert.deepEqual(next.units, saved.units)
+  assert.throws(() => submit({ ...saved, units: { ...saved.units, ...stack(interior) } }), /s10\.03 \(11\/10 RE\)/)
+  const freeze = { ...saved, turn: { ...saved.turn, weather: { ground: 'freeze', flight: 'normal' } } }
+  assert.throws(() => submit(freeze), /s10\.01 \(11\/10 RE\)/)
 })

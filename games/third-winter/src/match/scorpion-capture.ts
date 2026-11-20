@@ -41,6 +41,7 @@ export interface ScorpionCaptureReport {
   transports: readonly CapturedTransportGroup[]
   transportAllocation?: readonly TransportCaptureChoice[]
   hedgehog?: { before: ScorpionHedgehog; after: ScorpionHedgehog | null }
+  airstripRemoved?: string
   extenders?: readonly ExtenderDisplacement[]
 }
 
@@ -65,7 +66,10 @@ export function scorpionCaptureAt(state: Readonly<ScorpionInPlay>, side: Side, h
 function assertScorpionCaptor(state: Readonly<ScorpionInPlay>, side: Side, hex: string, ids: readonly string[]) {
   const objects = scorpionCaptureAt(state, side, hex)
   if ((objects.dump?.tokens || objects.airBase || objects.aircraft.length || objects.transports.length || objects.hedgehog) &&
-    !ids.some((id) => state.units[id]?.side === side && state.units[id]!.attackCapable)) {
+    !ids.some((id) => {
+      const unit = state.units[id]
+      return unit?.side === side && unit.attackCapable && !unit.reserve
+    })) {
     throw new Error('Entry into a hex with enemy stores, an air base or a hedgehog needs an attack-capable unit')
   }
   return objects
@@ -110,8 +114,12 @@ export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Si
     if (taken) dumps[key] = { ...dumps[key], side, location: 'on-map', tokens: (dumps[key]?.tokens ?? 0) + taken }
     dumpResult = { die, taken, destroyed: dump.tokens - taken }
   }
-  const airBases = airBase ? state.airBases.map((base) =>
-    base.side === owner && base.hex === hex ? { ...base, side } : base) : state.airBases
+  const capturedBase = airBase ? state.airBases.find((base) => base.side === owner && base.hex === hex) : undefined
+  // TTW 2.2h. A Soviet occupation returns the Axis strip counter instead of capturing a base.
+  const airstripRemoved = side === 'soviet' ? capturedBase?.strip : undefined
+  const airBases = !capturedBase ? state.airBases : airstripRemoved
+    ? state.airBases.filter((base) => base !== capturedBase)
+    : state.airBases.map((base) => base === capturedBase ? { ...base, side } : base)
   const displaced: AirDisplacement[] = []
   const aircraftResults: ScorpionCaptureReport['aircraft'][number][] = []
   const atRisk = new Set(aircraft.map((piece) => piece.id))
@@ -135,7 +143,8 @@ export function resolveScorpionEntry(entered: Readonly<ScorpionInPlay>, side: Si
     ...(hedgehog ? { hedgehogs: { ...flipped.hedgehogs, [hex]: remainingHedgehog } } : {}),
     captureHistory: [...(state.captureHistory ?? []), { hex, captor: side, dump: dumpResult,
       aircraft: aircraftResults, transports: transportResults, ...(extenders.length ? { extenders } : {}),
-      ...(hedgehog ? { hedgehog: { before: hedgehog, after: remainingHedgehog } } : {}) }] }
+      ...(hedgehog ? { hedgehog: { before: hedgehog, after: remainingHedgehog } } : {}),
+      ...(airstripRemoved ? { airstripRemoved } : {}) }] }
   return capture && policy.captureResolution !== 'manual'
     ? settleScorpionCapture(rolled, owner, automaticScorpionCaptureOrder(capture, rolled, assets, route), assets) : rolled
 }

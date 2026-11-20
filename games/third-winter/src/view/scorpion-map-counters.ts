@@ -1,7 +1,7 @@
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
 import type { ScorpionSetupAssets } from '../match/scorpion-setup.ts'
-import type { ScorpionSession } from '../match/scorpion-session.ts'
+import type { ScorpionInPlay, ScorpionSession } from '../match/scorpion-session.ts'
 import { hasScorpionBulkFuel } from '../match/scorpion-fuel.ts'
 import { carriedScorpionTokens } from '../match/scorpion-sp-payment.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
@@ -74,9 +74,11 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
         : inFlight ? [{ text: '飞', label: '执行空军任务' }] : []
     push({ id: unit.id, hex: unit.location.hex, asset: face.asset, label: source.name, badges }, Boolean(inFlight || returning))
   }
-  for (const { hex, side, level } of state.kind === 'playing' ? state.airBases : scorpionOpeningAirBases) {
-    const asset = markerFace(catalog, `Airbase Strength ${level}`)
-    if (asset) push({ id: `airfield:${side}:${hex}`, hex, asset, label: `${side === 'axis' ? '轴心' : '苏军'} ${level} 级机场` })
+  const airfields: ScorpionInPlay['airBases'] = state.kind === 'playing' ? state.airBases : scorpionOpeningAirBases
+  for (const { hex, side, level, strip } of airfields) {
+    const asset = strip ? catalog.definitions.get(strip)?.source.faces.combat?.asset : markerFace(catalog, `Airbase Strength ${level}`)
+    const label = `${side === 'axis' ? '轴心' : '苏军'} ${strip ? '简易跑道' : `${level} 级机场`}`
+    if (asset) push({ id: `airfield:${side}:${hex}`, hex, asset, label })
   }
   for (const [id, dump] of Object.entries(board.dumps)) {
     if (dump.location !== 'on-map' || !dump.tokens) continue

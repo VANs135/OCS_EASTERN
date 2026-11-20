@@ -18,6 +18,7 @@ export interface SupplyDump {
 export interface ArrivalPlacement {
   arrival: UnitArrival
   hex: string
+  turn?: number
 }
 
 export interface ReinforcementWindow {

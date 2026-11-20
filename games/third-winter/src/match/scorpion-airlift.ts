@@ -1,4 +1,5 @@
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
+import { airbaseUnloadCapacity } from '@ocs-eastern/series/airbase'
 import type { AirTransportMode } from '@ocs-eastern/series/air-transport'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { aircraftProfile, atAirBase, inScorpionAirRange } from './scorpion-air-bases.ts'
@@ -111,7 +112,7 @@ export function settleScorpionAirlift(state: Readonly<ScorpionInPlay>, side: Sid
   const alreadyUsed = scorpionPhaseAirMissions(state).filter((mission) => atAirBase(mission.target, target))
     .reduce((total, mission) => total + (mission.airlift?.unloading?.capacityUsed ?? 0), 0)
   const level = state.airBases.find((base) => base.side === side && base.hex === target.hex)!.level
-  const remaining = Math.max(0, level * 2 - alreadyUsed)
+  const remaining = Math.max(0, airbaseUnloadCapacity(level) - alreadyUsed)
   const stayingCapacity = atDestination.reduce((total, { plane, capacity }) =>
     !plane.active || extended.has(plane.id) || selected.has(plane.id) ? total + capacity : total, 0)
   const survivalBonus = Math.max(0, keptCost - survivingCapacity)

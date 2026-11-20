@@ -1,7 +1,6 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
-import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
-import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
+import { scorpionHexId } from '../import/hex-id.ts'
+import { scorpionCanEngineerAt, scorpionStationaryCombatWorker } from './scorpion-engineering.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionSpPayment, totalTokens } from './scorpion-sp-payment.ts'
@@ -40,27 +39,15 @@ export function workScorpionHedgehog(state: Readonly<ScorpionInPlay>, side: Side
   const log = building ? state.hedgehogBuiltAt : state.hedgehogReducedAt
   if (log?.[hex] === state.cursor.turn) throw new Error('The level can change this way only once per turn')
   if (!unitIds.length || new Set(unitIds).size !== unitIds.length) throw new Error('Choose the distinct units doing the work')
-  const airlifted = scorpionGroundActivity(state).airlifted
   const workers = unitIds.map((id) => {
-    const unit = Object.hasOwn(state.units, id) ? state.units[id] : undefined
-    if (!unit?.combat || unit.side !== side || unit.moveMode || unit.reserve || state.moved.includes(id) || airlifted.includes(id)) {
-      throw new Error('Hedgehog work requires eligible stationary units in Combat Mode')
-    }
+    const unit = scorpionStationaryCombatWorker(state, side, id)
+    if (!unit) throw new Error('Hedgehog work requires eligible stationary units in Combat Mode')
     return unit
   })
-  const engineer = workers[0]!
-  // Scorpion's Engineer-Capable units are its regular HQs. TTW Kessel HQs cannot perform engineering functions.
-  const canEngineer = workers.length === 1 && engineer.headquarters && !engineer.headquarters.kessel
   const local = workers.every((unit) => unit.hex === hex && !unit.disorganized) &&
     workers.reduce((re, unit) => re + unit.printedRe - unit.stepsLost, 0) >= 1
-  if (!local) {
-    const distance = scorpionHexDistance(engineer.hex, hex)
-    const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'
-    const passable = (from: string, to: string) => scorpionStepCost(map, from, to, 'leg', weather) !== null
-    const blocked = new Set(Object.values(state.units).filter((unit) => unit.side !== side).map((unit) => unit.hex))
-    const reachable = distance <= 2 && (distance === 0 || passable(engineer.hex, hex) ||
-      map.neighbors(engineer.hex).some((near) => !blocked.has(near) && passable(engineer.hex, near) && passable(near, hex)))
-    if (!canEngineer || !reachable) throw new Error('Choose one local RE or an Engineer-Capable unit within two hexes')
+  if (!local && (workers.length !== 1 || !scorpionCanEngineerAt(state, side, unitIds[0]!, hex, map))) {
+    throw new Error('Choose one local RE or an Engineer-Capable unit within two hexes')
   }
   const cost = building ? 8 : 0
   if (totalTokens(payments) !== cost) throw new Error(`Hedgehog work requires exactly ${cost}T`)

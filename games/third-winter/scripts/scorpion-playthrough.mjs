@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyRngState } from '@ocs-eastern/series/rng'
-import { scorpionOverstackedHexes } from '../src/match/scorpion-stacking.ts'
+import { scorpionOverstackedHexes, scorpionThawEntryHexes } from '../src/match/scorpion-stacking.ts'
 import { currentScorpionTurn } from '../src/match/scorpion-round.ts'
 import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
@@ -106,7 +106,12 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
         if (river || stack(unit.hex) > 10) moveToRoom(side, unitId, unit, river)
       }
     }
-    for (const { hex, re, limit, candidates } of scorpionOverstackedHexes(current(), side)) {
+    if (settleStacking(side)) submit({ type: 'complete-movement' })
+  }
+
+  function settleStacking(side) {
+    const exempt = scorpionThawEntryHexes(current(), board.reinforcements(current()))
+    for (const { hex, re, limit, candidates } of scorpionOverstackedHexes(current(), side, exempt)) {
       let left = re
       const unitIds = []
       for (const candidate of [...candidates].sort((a, b) => a.re - b.re)) {
@@ -114,10 +119,10 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
         left -= candidate.re
         if (left <= limit) break
       }
-      submit({ type: 'settle-stacking', hex, unitIds })
-      if (current().victory) return
+      submit({ type: 'settle-stacking', hex, unitIds }, side)
+      if (current().victory) return false
     }
-    submit({ type: 'complete-movement' })
+    return true
   }
 
   function supply(side) {
@@ -169,11 +174,16 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
       if (turns.at(-1)?.turn !== turn.number) turns.push({ turn: turn.number, first: cursor.first,
         ground: turn.weather.ground, flight: turn.weather.flight, phases: [] })
       turns.at(-1).phases.push(`${cursor.phasing}:${cursor.phase}`)
-      if (cursor.phase === 'aircraft-refit') submit({ type: 'complete-refit' })
+      if (cursor.phase === 'aircraft-refit') {
+        if (settleStacking(cursor.phasing)) submit({ type: 'complete-refit' })
+      }
       else if (cursor.phase === 'reinforcement') reinforce(cursor.phasing, turn.number)
       else if (cursor.phase === 'movement') movement(cursor.phasing)
       else if (cursor.phase === 'supply') supply(cursor.phasing)
-      else submit({ type: `complete-${cursor.phase}` }, cursor.phase === 'reaction' ? opponent(cursor.phasing) : cursor.phasing)
+      else {
+        const actor = cursor.phase === 'reaction' ? opponent(cursor.phasing) : cursor.phasing
+        if (settleStacking(actor)) submit({ type: `complete-${cursor.phase}` }, actor)
+      }
     }
   }
   const end = currentScorpionTurn(current().turn, current().turn.step.kind === 'player-turn' ? current() : undefined)

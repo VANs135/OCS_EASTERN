@@ -18,6 +18,8 @@ import { finishScorpionAirBarrage, launchScorpionAirMission, respondScorpionAirM
 import type { LaunchAirMission, RespondAirMission, ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
 import { settleScorpionAirfieldCapacity } from './scorpion-airfield-barrage.ts'
 import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
+import { workScorpionAirfield } from './scorpion-airfield-work.ts'
+import type { ScorpionAirfield, ScorpionAirfieldWork } from './scorpion-airfield-work.ts'
 import { applyScorpionBarrage } from './scorpion-barrage.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
@@ -74,7 +76,7 @@ import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
 import { advanceScorpionThaw } from './scorpion-thaw.ts'
-import { assertScorpionPhaseStacking, settleScorpionStacking } from './scorpion-stacking.ts'
+import { assertScorpionPhaseStacking, scorpionThawEntryHexes, settleScorpionStacking } from './scorpion-stacking.ts'
 import type { SettleScorpionStacking } from './scorpion-stacking.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
@@ -84,7 +86,9 @@ export interface ScorpionInPlay extends ReinforcementState {
   rerollHolder: Side | null
   reroll?: ScorpionRerollWindow
   rerollHistory?: readonly ScorpionRerollUse[]
-  airBases: readonly { hex: string; side: Side; level: number }[]
+  airBases: readonly ScorpionAirfield[]
+  airfieldBuiltAt?: Readonly<Record<string, number>>
+  airfieldReducedAt?: Readonly<Record<string, number>>
   refittedAirbases?: readonly string[]
   airfieldCapacityChoice?: AirfieldCapacityChoice | null
   airMission?: ScorpionAirMission | null
@@ -129,7 +133,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | ContinueCombatRetreat | RebuildScorpionRemnant | ResolveScorpionReroll
   | ScorpionKesselAction | SettleScorpionStacking
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
-  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
+  | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork | ScorpionAirfieldWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
   | { type: 'select-combat-rating'; unitId: string } | { type: 'advance-after-combat'; unitIds: readonly string[] }
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
@@ -152,12 +156,14 @@ export function submitScorpionSession(
   function applyAction(state: ScorpionSession, actor: Side, action: ScorpionPlayAction, offer?: ScorpionRoll): ScorpionSession {
     const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
       hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, captureResolution: board.captureResolution, offerRoll: offer }
+    const stackingExempt = state.kind === 'playing' && state.turn.weather.ground === 'thaw'
+      ? scorpionThawEntryHexes(state, board.reinforcements?.(state)) : undefined
     if (state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended')) {
       throw new Error('The Scorpion match has ended')
     }
     if (state.kind === 'playing' && state.turn.weather.ground === 'thaw' && (
       action.type === 'declare-combat' || action.type === 'declare-overrun' || action.type === 'declare-artillery-barrage' ||
-      action.type === 'declare-front-barrage' || action.type === 'work-hedgehog')) {
+      action.type === 'declare-front-barrage' || action.type === 'work-hedgehog' || action.type === 'work-airfield')) {
       throw new Error('Combat, barrage and construction are unavailable in a Thaw Simulcast turn')
     }
     if (state.kind === 'playing' && state.capture && action.type !== 'settle-capture') {
@@ -210,13 +216,13 @@ export function submitScorpionSession(
       case 'choose-first':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         if (action.type === 'complete-reaction' || action.type === 'complete-exploitation') {
-          assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
+          assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt, stackingExempt)
         }
-        if (action.type === 'complete-combat' || action.type === 'complete-cleanup') assertScorpionPhaseStacking(state, actor)
+        if (action.type === 'complete-combat' || action.type === 'complete-cleanup') assertScorpionPhaseStacking(state, actor, stackingExempt)
         return applyScorpionPhaseFlow(state, actor, action, assets.map)
       case 'settle-stacking':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
-        return settleScorpionStacking(state, actor, action, assets, board.supplyRail)
+        return settleScorpionStacking(state, actor, action, assets, board.supplyRail, stackingExempt)
       case 'mark-reserve':
       case 'leave-reserve':
       case 'release-reserve':
@@ -288,10 +294,13 @@ export function submitScorpionSession(
         if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
       case 'work-hedgehog':
-        if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Hedgehog work is unavailable')
+      case 'work-airfield': {
+        if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Construction is unavailable')
         if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
-        return workScorpionHedgehog({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, action, assets,
-          board.supplyRail, board.combat?.hedgehogAt)
+        const ready = { ...state, overrunMarch: null, groundCaptureMove: null }
+        return action.type === 'work-airfield' ? workScorpionAirfield(ready, actor, action, assets, board.supplyRail) :
+          workScorpionHedgehog(ready, actor, action, assets, board.supplyRail, board.combat?.hedgehogAt)
+      }
       case 'fuel-formation':
       case 'fuel-headquarters':
       case 'fuel-from-paused-transport':
@@ -311,7 +320,7 @@ export function submitScorpionSession(
         return changeScorpionExtender(state, actor, action, assets, board.supplyRail)
       case 'complete-movement':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn') throw new Error('Scorpion supply is unavailable')
-        assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
+        assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt, stackingExempt)
         if (state.cursor.simulcast && state.cursor.phase === 'movement' && state.cursor.phasing === actor) {
           return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
         }
@@ -334,7 +343,7 @@ export function submitScorpionSession(
         }
         if (action.type === 'assign-attrition') return assignScorpionAttrition(state, window, action, assets)
         if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
-        assertScorpionPhaseStacking(state, actor)
+        assertScorpionPhaseStacking(state, actor, stackingExempt)
         if (state.cursor.simulcast) return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
         const cursor = advanceScorpionPhase(state.cursor, actor)
         if (!cursor || cursor.phase !== 'reaction') throw new Error('Invalid supply phase completion')
@@ -344,7 +353,7 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.reinforcements) {
           throw new Error('Scorpion reinforcements are unavailable')
         }
-        if (action.type === 'complete-refit') assertScorpionPhaseStacking(state, actor)
+        if (action.type === 'complete-refit') assertScorpionPhaseStacking(state, actor, stackingExempt)
         if (state.cursor.simulcast && state.cursor.phasing === actor &&
           action.type === 'complete-refit' && state.cursor.phase === 'aircraft-refit' && !state.window) {
           return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)

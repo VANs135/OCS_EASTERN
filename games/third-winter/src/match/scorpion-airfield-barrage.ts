@@ -33,7 +33,7 @@ export function settleScorpionAirfieldBarrage(state: Readonly<ScorpionInPlay>, b
     if (unit.reduced) return { ...unit, location: { kind: 'dead-pile' as const }, active: false }
     return { ...unit, reduced: true }
   })
-  const airBases = state.airBases.map((base) => base.hex === barrage.target && base.side === barrage.defender
+  const airBases = state.airBases.map((base) => base.hex === barrage.target && base.side === barrage.defender && base.level > 0
     ? { ...base, level: Math.max(1, base.level - result.damage) } : base)
   const resolved = { ...state, rng: rolls.rng, pieces, airBases }
   const airfieldCapacityChoice = activeAirfieldExcess(resolved, barrage.defender, { kind: 'hex', hex: barrage.target })
