@@ -9,7 +9,8 @@ import { localScorpionEnvelope, readLocalJson, replaceLocalJson } from './store.
 export async function testAuxiliaryCards(data, folder, opening) {
   await testReservePool(data, join(folder, 'reserves.json'), opening)
   await testKesselBox(data, join(folder, 'kessel.json'), opening)
-  console.log('Auxiliary cards passed reserve stock, Kessel placement, removal, combat loss and return after three turns.')
+  await testGroundStacking(data, join(folder, 'stacking.json'), opening)
+  console.log('Auxiliary cards passed reserve stock, Kessel placement, removal, return and ground stacking settlement.')
 }
 
 async function testReservePool(data, file, opening) {
@@ -114,6 +115,64 @@ async function testKesselBox(data, file, opening) {
     assert.ok(!state.units[unitId])
   } finally {
     await game?.close()
+    await rm(file, { force: true })
+  }
+}
+
+async function testGroundStacking(data, file, opening) {
+  const hex = 's10.02'
+  const definition = 'hq:id:4151'
+  const { state } = opening
+  const group = []
+  let re = 0
+  for (const [id, unit] of Object.entries(state.units)) {
+    if (unit.side !== 'axis' || !unit.combat || unit.headquarters?.kessel) continue
+    const remaining = unit.printedRe - unit.stepsLost
+    if (re + remaining > 10) continue
+    group.push([id, { ...unit, hex }])
+    re += remaining
+    if (re === 10) break
+  }
+  assert.equal(re, 10)
+  const reinforcements = { ...opening, state: { ...state, units: Object.fromEntries(group),
+    cursor: { ...state.cursor, phasing: 'axis', phase: 'reinforcement' },
+    window: { stage: 'variable', variableTokens: 0, pendingAlert: null } } }
+  await replaceLocalJson(file, localScorpionEnvelope(reinforcements, data.fingerprint))
+  const game = await openLocalScorpion(data, file)
+  const applyType = (view, type) => {
+    const action = view.actions.find(({ actionTypes }) => actionTypes.includes(type))
+    assert.ok(action, type)
+    return click(game, 'apply', { key: action.key })
+  }
+  try {
+    const selected = await click(game, 'aid-left', { counterId: `kessel-box:${definition}` })
+    assert.deepEqual(selected.aidTargets, [hex])
+    const picked = await click(game, 'board-left', scorpionHexLayout(hex))
+    const deployed = await applyType(projectLocalScorpion(picked), 'place-kessel-hq')
+    assert.deepEqual(deployed.stacking, [], 'Reinforcement ignores stacking')
+    const moved = await applyType(projectLocalScorpion(deployed), 'complete-reinforcement')
+    let view = projectLocalScorpion(moved)
+    assert.equal(view.protocolVersion, 1)
+    assert.equal(view.phaseId, 'movement')
+    assert.equal(view.phasingSide, 'axis')
+    assert.deepEqual(view.stacking.map(({ hex, re, limit }) => [hex, re, limit]), [['s10.02', 11, 10]])
+    assert.ok(!view.actions.some(({ actionTypes }) => actionTypes.includes('complete-movement')))
+    await assert.rejects(click(game, 'command', { action: { type: 'complete-movement' } }), /stacking limit/)
+    await assert.rejects(click(game, 'command', { action: { type: 'settle-stacking', hex, unitIds: ['missing'] } }), /whole combat units/)
+    const [[id]] = group
+    view = projectLocalScorpion(await click(game, 'board-left', { ...scorpionHexLayout(hex), unitId: id }))
+    const pending = view.actions.find(({ actionTypes }) => actionTypes.includes('settle-stacking'))
+    assert.ok(pending)
+    await click(game, 'clear-selection', {})
+    await assert.rejects(click(game, 'apply', { key: pending.key }), /这项操作已不可用/)
+    view = projectLocalScorpion(await click(game, 'board-left', { ...scorpionHexLayout(hex), unitId: id }))
+    const settled = await applyType(view, 'settle-stacking')
+    assert.deepEqual(settled.stacking, [])
+    assert.ok(settled.frame.auxiliaryCards['axis-dead'].counters.some((counter) => counter.id === id))
+    const supply = await applyType(projectLocalScorpion(settled), 'complete-movement')
+    assert.equal(supply.phaseId, 'supply')
+  } finally {
+    await game.close()
     await rm(file, { force: true })
   }
 }

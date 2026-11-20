@@ -5,6 +5,7 @@ import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
+import { disorganizeScorpionHex } from './scorpion-disorganization.ts'
 import { ScorpionRemnantChoice } from './scorpion-remnants.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
 import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
@@ -12,6 +13,7 @@ import type { ScorpionCombat } from './scorpion-combat.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionEnemyZoc } from './scorpion-supply-position.ts'
+import { assertScorpionStacking } from './scorpion-stacking.ts'
 
 export interface RetreatPlan {
   /**
@@ -85,6 +87,15 @@ export function scorpionRetreatPathOptions(state: Readonly<ScorpionInPlay>, side
     passableRetreatStep(state, side, path.at(-1) ?? origin, hex, counters, assets.map))
 }
 
+export function canScorpionRetreat(unit: DeployedCounter, side: Side, origin: string, catalog: ScorpionSetupAssets['catalog']) {
+  try {
+    retreatMode(unit, side, origin, catalog)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, involved: readonly string[],
   distance: number, plans: readonly RetreatPlan[], combat: ScorpionCombat, assets: ScorpionSetupAssets,
   policy: ScorpionCapturePolicy) {
@@ -144,23 +155,11 @@ function retreatGroupKey(group: string | undefined, index: number) {
   return group
 }
 
-/**
- * TTW ships five loaded organic trucks and three plain truck points. Only organic trucks follow a
- * retreat stack, and they follow it the way they pay supply: inside their own formation
- * (scorpion-sp-payment.ts). A truck never forms a retreat stack by itself.
- */
+/** OCS 9.12d and 13.2g(E). An organic truck can accompany retreating combat units. */
 function validateRetreatTrucks(route: RetreatRoute, state: Readonly<ScorpionInPlay>) {
-  const trucks = route.units.filter((id) => state.units[id]?.organicTruck !== undefined)
-  if (!trucks.length) return
-  const combat = route.units.filter((id) => state.units[id]?.combat)
-  if (!combat.length) throw new Error('An organic truck cannot retreat without a combat unit of its formation')
-  for (const id of trucks) {
-    const truck = state.units[id]!
-    const escort = combat.some((other) => {
-      const unit = state.units[other]!
-      return Boolean(unit.formation) && unit.formation === truck.formation
-    })
-    if (!escort) throw new Error('An organic truck may only retreat with a combat unit of its own formation')
+  if (route.units.some((id) => state.units[id]?.organicTruck !== undefined) &&
+      !route.units.some((id) => state.units[id]?.combat)) {
+    throw new Error('An organic truck cannot retreat without a combat unit')
   }
 }
 
@@ -237,11 +236,8 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
   const dg = enteredZoc ? moving.filter((id) => units[id]!.combat && units[id]!.disorganized) : []
   if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg, route.group)
   if (loss !== undefined && !dg.length) throw new Error('Retreat includes an unnecessary ZOC loss')
-  for (const id of moving) units[id] = { ...units[id]!, hex: to,
-    disorganized: units[id]!.combat && (units[id]!.disorganized || enteredZoc || index >= 1) }
-  if (enteredZoc) for (const [id, unit] of Object.entries(units)) {
-    if (unit.hex === to && unit.side === side && unit.combat) units[id] = { ...unit, disorganized: true }
-  }
+  for (const id of moving) units[id] = { ...units[id]!, hex: to }
+  if (enteredZoc || (index === 1 && moving.some((id) => units[id]!.combat))) disorganizeScorpionHex(units, to, side)
   // OCS 9.12f. The 9.14 entry uses movement timing, even though the retreat follows combat.
   const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, policy, route.path.slice(index + 1))
   if (!loss) return captured
@@ -260,11 +256,6 @@ function passableRetreatStep(state: Readonly<ScorpionInPlay>, side: Side, from: 
   const weather = state.turn.weather.ground === 'freeze' ? 'freeze' : 'dry'
   return counters.every((unit) => scorpionStepCost(map, from, to, unit.mobility, weather) !== null) &&
     !Object.values(state.units).some((unit) => unit.hex === to && unit.side !== side && unit.combat)
-}
-
-export function assertScorpionStacking(state: Readonly<ScorpionInPlay>, hex: string) {
-  if (Object.values(state.units).filter((unit) => unit.combat && unit.hex === hex)
-    .reduce((re, unit) => re + unit.printedRe - unit.stepsLost, 0) > 10) throw new Error('Position exceeds stacking limit')
 }
 
 const opposing = (side: Side): Side => side === 'axis' ? 'soviet' : 'axis'

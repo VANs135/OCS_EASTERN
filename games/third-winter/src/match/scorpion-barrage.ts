@@ -19,6 +19,7 @@ import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
 import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
+import { disorganizeScorpionHex } from './scorpion-disorganization.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment, totalTokens } from './scorpion-sp-payment.ts'
@@ -222,11 +223,7 @@ function settleTerrain(state: Readonly<ScorpionInPlay>, actor: Side, barrage: Sc
     halfLoss: () => rolls.one({ kind: 'barrage-half-loss', hex }),
   })
   const units = { ...state.units }
-  if (roll.disorganize) for (const [id, unit] of Object.entries(units)) {
-    if (unit.side !== actor || unit.hex !== barrage.target) continue
-    if (unit.combat) units[id] = { ...unit, disorganized: true, reserve: undefined, exploit: false }
-    else if (unit.organicTruck !== undefined && unit.reserve) units[id] = { ...unit, reserve: undefined }
-  }
+  if (roll.disorganize) disorganizeScorpionHex(units, barrage.target, actor)
   const lossesDue = Math.min(roll.loss, defenders.reduce((sum, [, unit]) => sum + remainingSteps(unit), 0))
   const eligible = barrage.air?.tankBuster && lossesDue ? defenders.filter(([, unit]) => unit.combatClass !== 'other')
     .map(([id, unit]) => ({ id, strength: scorpionModeFace(unit, catalog.definitions.get(unit.definition), 'combat').strength })) : null

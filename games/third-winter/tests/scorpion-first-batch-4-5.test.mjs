@@ -5,7 +5,7 @@ import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { remainingSteps } from '../src/match/scorpion-losses.ts'
 import { retreatScorpionCombat } from '../src/match/scorpion-retreat.ts'
-import { retreatStacks, stackKey } from '../desktop/local/combat-review.mjs'
+import { localCombatReview, retreatStacks, stackKey } from '../desktop/local/combat-review.mjs'
 import { airBaseOf, baseGroup, groupedAircraft, sameAirBase } from '../desktop/local/air-group.mjs'
 import { localScorpionEnvelope, restoreLocalScorpion } from '../desktop/local/store.mjs'
 
@@ -90,27 +90,45 @@ test('board 4-1: two stacks leaving one origin retreat on separate routes', () =
   assert.deepEqual(split.flatMap(({ combat }) => combat).sort(), ['a', 'b'], 'no survivor is dropped or duplicated')
 })
 
-// ── 第 4 项 · 验收盘面 2：编内卡车只随同编成制的战斗单位撤退 ────────────────────────────────
-test('board 4-2: an organic truck may only ride with a counter of its own formation', () => {
+// ── 第 4 项 · 验收盘面 2：按 9.12d、13.2g(E) 处理随撤 ────────────────────────────────
+test('board 4-2: an organic truck is assigned to one retreat group', () => {
   const record = playing({ a: unit('soviet', 's10.02', { index: 1, formation: 'one' }),
     b: unit('soviet', 's10.02', { index: 2, formation: 'two' }),
     truck: unit('soviet', 's10.02', { index: 3, combat: false, organicTruck: 'full', formation: 'one' }) })
   const stacks = retreatStacks(record.state, 'soviet', ['a', 'b'], { splits: { 's10.02': [['a'], ['b']] },
     trucks: { 's10.02': ['truck'] } })
-  assert.deepEqual(stacks[0].trucks, ['truck'], 'the truck rides with the stack holding its own formation')
-  assert.deepEqual(stacks[1].trucks, [], 'the other formation carries no truck')
+  assert.deepEqual(stacks[0].trucks, ['truck'])
+  assert.deepEqual(stacks[1].trucks, [])
 })
-test('board 4-2: the rule layer refuses a truck whose escort is a different formation', () => {
+test('board 4-2: an organic truck can follow a different formation from the same hex', () => {
   const units = { a: unit('soviet', 's10.01'), d: unit('axis', 's10.02', { index: 1, formation: 'one' }),
     truck: unit('axis', 's10.02', { index: 2, combat: false, organicTruck: 'full', formation: 'two' }) }
   const settled = defenderResult(units, optionBoard)
   const retreat = (ids) => ({ type: 'resolve-combat', lossOrder: [], optionLosses: 0, retreats: [{ group: 'g1', units: ids, path: ['s9.02'] }] })
-  assert.throws(() => submit(settled, 'axis', retreat(['d', 'truck']), optionBoard, zocAssets),
-    /编内卡车|only retreat with a combat unit of its own formation/, 'a mismatched escort is refused')
-  units.truck.formation = 'one'
+  assert.throws(() => submit(settled, 'axis', retreat(['truck']), optionBoard, zocAssets), /every surviving participant/)
   const rode = submit(settled, 'axis', retreat(['d', 'truck']), optionBoard, zocAssets)
-  assert.equal(rode.state.units.truck.hex, 's9.02', 'the same-formation truck rides along')
-  assert.equal(rode.state.units.d.hex, 's9.02', 'the escort and its truck land together')
+  assert.equal(rode.state.units.truck.hex, 's9.02')
+  assert.equal(rode.state.units.d.hex, 's9.02')
+})
+
+test('desktop retreat draft toggles a nonparticipant and submits it in the chosen group', () => {
+  const a = unit('soviet', 's10.02')
+  const combat = { target: 's10.01', attacker: 'soviet', attackers: ['a'], defenders: ['d'],
+    attackerLeader: 'a', heldAtStart: { soviet: ['s10.02'], axis: ['s10.01'] },
+    roll: { code: 'Ao1 D', attacker: { loss: 0, option: 1 }, defender: { loss: 0, option: 0 } }, step: 'attacker-result' }
+  const record = playing({ a, extra: { ...a, definition: 'counter-1' }, elsewhere: unit('soviet', 's10.04', { definition: 'counter-2' }),
+    d: unit('axis', combat.target) }, { combat })
+  const validate = (action) => submit(record, 'soviet', action, board, assets)
+  const review = (draft) => localCombatReview(record.state, 'soviet', draft, assets, validate)
+  const mode = review().choices.find(({ label }) => label === '撤退 1 格').reviewDraft
+  assert.ok(!review(mode).choices.some(({ mapUnit }) => mapUnit === 'elsewhere'))
+  const withExtra = review(mode).choices.find(({ mapUnit }) => mapUnit === 'extra').reviewDraft
+  const removed = review(withExtra).choices.find(({ mapUnit }) => mapUnit === 'extra').reviewDraft
+  assert.deepEqual(removed.tagalongs['s10.02'], [])
+  const routed = review(withExtra).choices.find(({ mapHex }) => mapHex === 's10.03').reviewDraft
+  const [action] = review(routed).choices.find(({ label }) => label === '确认战果').actions
+  assert.deepEqual(action.retreats[0].units, ['a', 'extra'])
+  assert.equal(validate(action).state.units.extra.hex, 's10.03')
 })
 
 // ── 第 4 项 · 验收盘面 3：路线草稿与堆叠键 ────────────────────────────────────────────────
@@ -162,6 +180,28 @@ test('board 4-4: a stack with steps to spare pays the ZOC loss as one step and k
   assert.equal(settled.state.units.a.stepsLost, 1, 'one step is charged')
   assert.equal(remainingSteps(settled.state.units.a), 2, 'two steps remain after the ZOC loss')
   assert.equal(settled.state.units.a.hex, 's9.02', 'the counter still ends on its route hex')
+})
+
+test('5.10 clears modes for combat units and Reserve for organic trucks in the newly DG hex', () => {
+  for (const route of [['s9.02'], ['s10.03', 's10.04']]) {
+    const hex = route.at(-1)
+    const units = { a: unit('soviet', 's10.02', { exploit: true, exploitRating: 4, moveMode: true }),
+      reserve: unit('soviet', hex, { reserve: 'reserve' }),
+      truck: unit('soviet', hex, { combat: false, organicTruck: 'full', reserve: 'truck' }),
+      lurker: unit('axis', 's9.03') }
+    const combat = { target: 's10.02', attacker: 'axis', attackers: ['lurker'], defenders: ['a'],
+      heldAtStart: { soviet: ['s10.02'], axis: ['s9.03'] }, hedgehog: 0, step: 'defender-result' }
+    const { state } = retreatScorpionCombat(playing(units).state, 'soviet', ['a'], route.length,
+      [{ units: ['a'], path: route }], combat, zocAssets, {})
+    assert.equal(state.units.a.disorganized, true)
+    assert.equal(state.units.a.moveMode, true)
+    assert.equal(state.units.a.exploit, false)
+    assert.equal(state.units.a.exploitRating, undefined)
+    assert.equal(state.units.reserve.disorganized, true)
+    assert.equal(state.units.reserve.reserve, undefined)
+    assert.equal(state.units.truck.disorganized, undefined)
+    assert.equal(state.units.truck.reserve, undefined)
+  }
 })
 
 test('board 4-4: every stack must carry its own group id', () => {

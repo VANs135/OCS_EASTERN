@@ -74,6 +74,8 @@ import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
 import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits, ScorpionSupplyWindow } from './scorpion-supply-phase.ts'
 import { advanceScorpionThaw } from './scorpion-thaw.ts'
+import { assertScorpionPhaseStacking, settleScorpionStacking } from './scorpion-stacking.ts'
+import type { SettleScorpionStacking } from './scorpion-stacking.ts'
 
 export interface ScorpionInPlay extends ReinforcementState {
   kind: 'playing'
@@ -125,7 +127,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | FeedUnits | RecoverInternalStocks | { type: 'check-attrition' } | AssignAttrition | { type: 'complete-supply' }
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | DeclareCombat | DefendCombat | ChooseCombatTerrain | ResolveCombat
   | ContinueCombatRetreat | RebuildScorpionRemnant | ResolveScorpionReroll
-  | ScorpionKesselAction
+  | ScorpionKesselAction | SettleScorpionStacking
   | DeclareOverrun | FinishOverrunMove | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
   | ScorpionDropPlanAction | ScorpionFuelAction | ScorpionTransportLoad | ScorpionExtenderCommand | RepackTransport | HedgehogWork
   | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
@@ -210,7 +212,11 @@ export function submitScorpionSession(
         if (action.type === 'complete-reaction' || action.type === 'complete-exploitation') {
           assertScorpionMovementEnd(state, actor, board.combat?.hedgehogAt)
         }
+        if (action.type === 'complete-combat' || action.type === 'complete-cleanup') assertScorpionPhaseStacking(state, actor)
         return applyScorpionPhaseFlow(state, actor, action, assets.map)
+      case 'settle-stacking':
+        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
+        return settleScorpionStacking(state, actor, action, assets, board.supplyRail)
       case 'mark-reserve':
       case 'leave-reserve':
       case 'release-reserve':
@@ -327,6 +333,7 @@ export function submitScorpionSession(
         }
         if (action.type === 'assign-attrition') return assignScorpionAttrition(state, window, action, assets)
         if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
+        assertScorpionPhaseStacking(state, actor)
         if (state.cursor.simulcast) return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)
         const cursor = advanceScorpionPhase(state.cursor, actor)
         if (!cursor || cursor.phase !== 'reaction') throw new Error('Invalid supply phase completion')
@@ -336,6 +343,7 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !board.reinforcements) {
           throw new Error('Scorpion reinforcements are unavailable')
         }
+        if (action.type === 'complete-refit') assertScorpionPhaseStacking(state, actor)
         if (state.cursor.simulcast && state.cursor.phasing === actor &&
           action.type === 'complete-refit' && state.cursor.phase === 'aircraft-refit' && !state.window) {
           return advanceScorpionThaw(state, actor, assets.map, board.supplyRail)

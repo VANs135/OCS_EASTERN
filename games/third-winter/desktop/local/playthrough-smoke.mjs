@@ -95,12 +95,15 @@ async function perform(action) {
     if (action.fuelDumpId || action.fuelHeadquartersId) {
       const { x, y } = scorpionHexLayout(action.path.at(-1))
       const menu = await dispatch('board-menu', { x, y })
-      return applyVisible(menu.menu, projectLocalScorpion(menu).menu, action)
+      return applyVisible(menu.menu, projectLocalScorpion(menu).menu, action, 'menu')
     }
   }
   if (['place-setup-alert', 'base-aircraft', 'choose-setup-loss'].includes(type)) await select(action.id)
   if (type === 'place-arrival') await select(action.arrivalId)
   if (type === 'feed-units') await select(action.payments[0].portions[0].unitId)
+  if (type === 'settle-stacking') {
+    for (const id of action.unitIds) await select(id)
+  }
   const view = game.view()
   return applyVisible(view.actions, projectLocalScorpion(view).actions, action)
 }
@@ -123,11 +126,12 @@ async function replayInWindow() {
   assert.deepEqual(saved.state, expected.state)
 }
 
-function applyVisible(candidates, visible, action) {
-  const controls = new Map(visible.map((control) => [control.key, control]))
+function applyVisible(candidates, visible, action, source = 'actions') {
+  const controls = new Map(visible.map(({ key }, ordinal) => [key, ordinal]))
   const next = candidates.find(({ key, actions }) => controls.has(key) && actions.length === 1 &&
     isDeepStrictEqual(JSON.parse(JSON.stringify(actions[0])), JSON.parse(JSON.stringify(action))))
   assert.ok(next, 'No matching visible control')
-  const { label, group } = controls.get(next.key)
-  return dispatch('apply', { key: next.key }, { label, group })
+  const ordinal = controls.get(next.key)
+  const { label, group } = visible[ordinal]
+  return dispatch('apply', { key: next.key }, { source, ordinal, label, group })
 }

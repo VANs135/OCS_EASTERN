@@ -4,6 +4,7 @@ function Test-LocalWindowReplay($dock, [string]$path) {
     $dock.Arrange((New-Object Windows.Rect(0, 0, 1460, 920)))
     $steps = (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json).steps
     $context = $null
+    $menuRows = @()
     for ($i = 0; $i -lt $steps.Count; $i++) {
         $step = $steps[$i]
         switch ($step.kind) {
@@ -31,25 +32,27 @@ function Test-LocalWindowReplay($dock, [string]$path) {
                 break
             }
             'board-menu' {
-                $items = @(Invoke-LocalRequest @{ kind = 'board-menu'; x = $step.x; y = $step.y })
-                $context = New-LocalContextMenu $items
+                $menuRows = @(Invoke-LocalRequest @{ kind = 'board-menu'; x = $step.x; y = $step.y })
+                $context = New-LocalContextMenu $menuRows
                 break
             }
             'apply' {
-                if ($step.key -like 'menu:*') {
-                    $ordinal = ($step.key -split ':')[-1]
+                $ordinal = [int]$step.control.ordinal
+                if ($step.control.source -ceq 'menu') {
+                    $key = $menuRows[$ordinal].key
                     $group = $context.Items | Where-Object { $_.Header -ceq $step.control.group } | Select-Object -First 1
                     $control = $group.Items | Where-Object {
-                        $_.Header -ceq $step.control.label -and ($_.Tag -split ':')[-1] -eq $ordinal
+                        $_.Header -ceq $step.control.label -and $_.Tag -ceq $key
                     } | Select-Object -First 1
                     $event = [Windows.Controls.MenuItem]::ClickEvent
                 } else {
+                    $key = @($script:localView.actions)[$ordinal].key
                     $control = $script:localButtons.Children | Where-Object {
-                        $_.Tag -eq $step.key -and $_.Content.Text -ceq $step.control.label
+                        $_.Tag -ceq $key -and $_.Content.Text -ceq $step.control.label
                     } | Select-Object -First 1
                     $event = [Windows.Controls.Button]::ClickEvent
                 }
-                if (!$control) { throw "Missing action control at step $($i + 1): $($step.key)" }
+                if (!$control) { throw "Missing action control at step $($i + 1): $($step.control.label)" }
                 $control.RaiseEvent((New-Object Windows.RoutedEventArgs($event)))
                 $context = $null
                 break

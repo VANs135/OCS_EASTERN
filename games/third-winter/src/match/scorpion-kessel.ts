@@ -2,7 +2,6 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { canPlaceKessel, kesselReturnAfterRemoval } from '../ttw/axis/kessel.ts'
-import { assertScorpionStacking } from './scorpion-retreat.ts'
 import type { ScorpionInPlay, ScorpionSession } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 
@@ -59,9 +58,7 @@ export function applyScorpionKessel(state: Readonly<ScorpionInPlay>, side: Side,
   const deployment = deployScorpionGroundCounter(catalog.definitions.get(slot.definition)!, hex, 0)
   const kesselReturns = { ...state.kesselReturns }
   delete kesselReturns[slot.definition]
-  const next = { ...state, units: { ...state.units, [slot.originalId]: deployment }, kesselReturns }
-  assertScorpionStacking(next, hex)
-  return next
+  return { ...state, units: { ...state.units, [slot.originalId]: deployment }, kesselReturns }
 }
 
 function recordKesselReturn(state: Readonly<ScorpionInPlay>, definition: string) {

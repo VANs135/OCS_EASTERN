@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { verifyRngState } from '@ocs-eastern/series/rng'
-import { assertScorpionStacking } from '../src/match/scorpion-retreat.ts'
+import { scorpionOverstackedHexes } from '../src/match/scorpion-stacking.ts'
 import { currentScorpionTurn } from '../src/match/scorpion-round.ts'
 import { scorpionReinforcementBoard } from '../src/match/scorpion-reinforcement-board.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
@@ -28,7 +28,6 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
   let blockedEntries = 0
   let relocations = 0
   const attrition = { axis: 0, soviet: 0 }
-  const entryHexes = new Set([...arrivals.flatMap(({ destinations }) => destinations), ...Object.values(scorpionSupplySources).flat()])
   const onDnepr = (hex) => hex === 's22.08' || map.neighbors(hex).some((near) => map.edge(hex, near)?.river === 'major')
 
   function displayed(state) {
@@ -107,8 +106,16 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
         if (river || stack(unit.hex) > 10) moveToRoom(side, unitId, unit, river)
       }
     }
-    for (const hex of new Set(own.map(([, unit]) => unit.hex))) {
-      if (current().turn.weather.ground === 'freeze' || !entryHexes.has(hex)) assertScorpionStacking(current(), hex)
+    for (const { hex, re, limit, candidates } of scorpionOverstackedHexes(current(), side)) {
+      let left = re
+      const unitIds = []
+      for (const candidate of [...candidates].sort((a, b) => a.re - b.re)) {
+        unitIds.push(candidate.unitId)
+        left -= candidate.re
+        if (left <= limit) break
+      }
+      submit({ type: 'settle-stacking', hex, unitIds })
+      if (current().victory) return
     }
     submit({ type: 'complete-movement' })
   }

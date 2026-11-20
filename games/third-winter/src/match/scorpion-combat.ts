@@ -11,6 +11,7 @@ import type { AttackTerrain } from '../ttw/scorpion/combat-terrain.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { attackWithSupply, defendWithSupply } from './scorpion-combat-supply.ts'
+import { disorganizeScorpionHex } from './scorpion-disorganization.ts'
 import type { AttackSupplyPayment } from './scorpion-combat-supply.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { assertScorpionMovementEnd } from './scorpion-reserves.ts'
@@ -150,18 +151,10 @@ export function chooseScorpionCombatTerrain(state: Readonly<ScorpionInPlay>, act
       combat: () => rolls.two({ kind: 'combat', hex }),
     }, combat.kind === 'overrun')
   const units = { ...state.units }
-  const removeReserve = result.defender.loss > 0 || result.defender.option > 0 || result.disorganize
-  for (const unitId of combat.defenders) {
-    // OCS 5.7d and 9.12a. Resolve DG before selecting losses or retreats.
-    units[unitId] = { ...units[unitId]!, reserve: removeReserve ? undefined : units[unitId]!.reserve,
-      disorganized: units[unitId]!.disorganized || result.disorganize }
-  }
-  if (result.disorganize) {
-    for (const [id, unit] of Object.entries(units)) {
-      if (unit.side === actor && unit.hex === combat.target && unit.organicTruck !== undefined && unit.reserve) {
-        units[id] = { ...unit, reserve: undefined }
-      }
-    }
+  // OCS 5.7d and 9.12a. Resolve DG before selecting losses or retreats.
+  if (result.disorganize) disorganizeScorpionHex(units, combat.target, actor)
+  else if (result.defender.loss > 0 || result.defender.option > 0) {
+    for (const unitId of combat.defenders) units[unitId] = { ...units[unitId]!, reserve: undefined }
   }
   return { ...state, rng: rolls.rng, units, combat: { ...combat, roll: result, step: 'attacker-result' } }
 }

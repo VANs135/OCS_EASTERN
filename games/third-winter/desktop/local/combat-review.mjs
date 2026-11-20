@@ -2,7 +2,7 @@ import { scorpionHexDistance } from '../../src/import/hex-id.ts'
 import { validateCombatLossOrder } from '../../src/match/scorpion-combat-losses.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { ScorpionRemnantChoice } from '../../src/match/scorpion-remnants.ts'
-import { ScorpionRetreatLossChoice, ScorpionRetreatRemnantChoice, scorpionRetreatPathOptions } from '../../src/match/scorpion-retreat.ts'
+import { canScorpionRetreat, ScorpionRetreatLossChoice, ScorpionRetreatRemnantChoice, scorpionRetreatPathOptions } from '../../src/match/scorpion-retreat.ts'
 
 // Draft keys are retreat-stack keys, not origin hexes: several stacks may leave one hex. The first
 // stack of an origin keeps the plain hex as its key, so a single-stack retreat behaves exactly as
@@ -66,7 +66,7 @@ export function localCombatReview(state, side, draft, assets, validate) {
     const members = here.flatMap(({ combat }) => combat)
     const alone = here.flatMap(({ combat, trucks }) => [...combat, ...trucks])
     if (alone.length < 2) continue
-    if (here.length > 1) add(`合并 ${origin} 的撤退堆叠`, { ...change, splits: dropSplit(draft?.splits, origin) })
+    if (here.length > 1) add(`合并 ${origin} 的撤退堆叠`, mergeStacks(change, origin, here))
     if (members.length < 2) continue // A lone counter has nothing to split away from.
     for (const id of members) {
       add(`拆出 ${name(id)} 单独成组 · ${origin}`, splitOff(draft, origin, members, id), { mapUnit: id })
@@ -76,27 +76,42 @@ export function localCombatReview(state, side, draft, assets, validate) {
     if (stack.path.length) add(`撤销 ${stack.key} 路线最后一格`, editPath(change, stack.key, stack.path.slice(0, -1)))
     if (!complete(stack) && stack !== focus) add(`改选 ${stack.key} 的撤退路线`, { ...change, origin: stack.key })
   }
-  // Organic trucks ride with a stack only when that stack has a combat unit of the same formation,
-  // which is also what the rule layer checks.
-  for (const stack of stacks) {
-    if (!stack.combat.length && stack.trucks.length) continue
-    const loaded = trucksAt(state, side, stack.origin).filter(({ id }) => !stack.trucks.includes(id) &&
-      stack.combat.some((other) => state.units[other]?.formation && state.units[other].formation === state.units[id]?.formation))
-    for (const { id, formation } of loaded) {
-      add(`让编内卡车 ${name(id)} 随 ${stack.key} 撤退 · ${formation}`, rideTruck(change, stack.key, stack.origin, stack.trucks, id, true))
+  // OCS 9.12d. Tagalongs may join a surviving participant's existing group.
+  if (!attacking || battle.kind !== 'overrun') for (const stack of stacks) {
+    for (const [id, unit] of Object.entries(state.units)) {
+      if (!unit.combat || ids.includes(id) || !canScorpionRetreat(unit, side, stack.origin, assets.catalog)) continue
+      const joined = stack.tagalongs.includes(id)
+      if (!joined && stacks.some((other) => other.tagalongs.includes(id))) continue
+      const tagalongs = joined ? stack.tagalongs.filter((other) => other !== id) : [...stack.tagalongs, id]
+      const rewrite = clearStackPaths(change, [stack.key])
+      add(joined ? `取消 ${name(id)} 随 ${stack.key} 撤退` : `让 ${name(id)} 随 ${stack.key} 撤退`, {
+        ...rewrite, origin: stack.key, tagalongs: { ...draft?.tagalongs, [stack.key]: tagalongs },
+      }, { mapUnit: id })
+    }
+  }
+  // OCS 13.2g(E). An organic truck may accompany any combat unit in its retreat stack.
+  if (!attacking || battle.kind !== 'overrun') for (const stack of stacks) {
+    for (const [id, unit] of Object.entries(state.units)) {
+      if (unit.combat || unit.organicTruck === undefined || !canScorpionRetreat(unit, side, stack.origin, assets.catalog)) continue
+      const joined = stack.trucks.includes(id)
+      if (!joined && stacks.some((other) => other.trucks.includes(id))) continue
+      const trucks = joined ? stack.trucks.filter((other) => other !== id) : [...stack.trucks, id]
+      add(`${joined ? '取消' : '让'}编内卡车 ${name(id)} 随 ${stack.key} 撤退`, {
+        ...clearStackPaths(change, [stack.key]), origin: stack.key, trucks: { ...draft?.trucks, [stack.key]: trucks },
+      })
     }
   }
   if (focus) {
     const { key, origin, path } = focus
-    for (const to of scorpionRetreatPathOptions(state, side, { origin, path, units: [...focus.combat, ...focus.trucks] }, battle, assets)) {
+    for (const to of scorpionRetreatPathOptions(state, side, { origin, path, units: [...focus.combat, ...focus.tagalongs, ...focus.trucks] }, battle, assets)) {
       add(`撤退经过 ${to}`, editPath(change, key, [...path, to]), { mapHex: to })
       targets.push(to)
     }
     return { ...diagram, prompt: `${key} · 左键逐格选路，终点须距起点 ${distance} 格` }
   }
 
-  const retreats = stacks.map(({ key, origin, combat, trucks, path }) => ({ group: key,
-    units: [...combat, ...trucks], path, zocLosses: draft?.zoc?.[key], remnantHexes: draft?.retreatRemnants?.[key] }))
+  const retreats = stacks.map(({ key, combat, tagalongs, trucks, path }) => ({ group: key,
+    units: [...combat, ...tagalongs, ...trucks], path, zocLosses: draft?.zoc?.[key], remnantHexes: draft?.retreatRemnants?.[key] }))
   const remnants = Object.entries(draft?.remnants ?? {}).map(([divisionId, hex]) => ({ divisionId, hex }))
   const action = { type: 'resolve-combat', ...mode, lossOrder, retreats, remnants }
   try {
@@ -142,6 +157,7 @@ export function retreatStacks(state, side, survivors, draft) {
     return partitions.map((combat, index) => {
       const key = stackKey(origin, index)
       return { key, origin, combat,
+        tagalongs: draft?.tagalongs?.[key] ?? [],
         trucks: (draft?.trucks?.[key] ?? []).filter((id) => Object.hasOwn(state.units, id)),
         path: draft?.paths?.[key] ?? [] }
     })
@@ -153,10 +169,6 @@ export function stackKey(origin, index) {
   return index === 0 ? origin : `${origin}#${index}`
 }
 
-const trucksAt = (state, side, origin) => Object.entries(state.units)
-  .filter(([, unit]) => unit.side === side && unit.combat !== true && unit.organicTruck !== undefined && unit.hex === origin)
-  .map(([id, unit]) => ({ id, formation: unit.formation }))
-
 /** Split one counter out of its origin's stack. Trucks stay with the stack they were riding. */
 function splitOff(draft, origin, members, unitId) {
   const current = draft?.splits?.[origin]
@@ -166,18 +178,22 @@ function splitOff(draft, origin, members, unitId) {
   if (parts[from].length < 2) return { ...draft, splits: draft?.splits }
   parts[from] = parts[from].filter((id) => id !== unitId)
   parts.push([unitId])
-  return { ...draft, splits: { ...draft?.splits, [origin]: parts } }
+  return { ...clearStackPaths(draft, [stackKey(origin, from)]), splits: { ...draft?.splits, [origin]: parts } }
 }
 
-function dropSplit(splits, origin) {
-  const { [origin]: _, ...rest } = splits ?? {}
-  return Object.keys(rest).length ? rest : undefined
+function mergeStacks(draft, origin, stacks) {
+  const keys = stacks.map(({ key }) => key)
+  return { ...clearStackPaths(draft, keys), origin, splits: omitKeys(draft.splits, [origin]),
+    tagalongs: { ...omitKeys(draft.tagalongs, keys), [origin]: stacks.flatMap(({ tagalongs }) => tagalongs) },
+    trucks: { ...omitKeys(draft.trucks, keys), [origin]: stacks.flatMap(({ trucks }) => trucks) } }
 }
 
-function rideTruck(draft, key, origin, current, unitId, join) {
-  const trucks = join ? [...new Set([...current, unitId])] : current.filter((id) => id !== unitId)
-  return { ...draft, trucks: { ...draft?.trucks, [key]: trucks } }
+function clearStackPaths(draft, keys) {
+  return { ...draft, paths: omitKeys(draft.paths, keys), zoc: omitKeys(draft.zoc, keys),
+    retreatRemnants: omitKeys(draft.retreatRemnants, keys) }
 }
+
+const omitKeys = (values, keys) => Object.fromEntries(Object.entries(values ?? {}).filter(([key]) => !keys.includes(key)))
 
 function editPath(draft, key, path) {
   return { ...draft, origin: key, paths: { ...draft?.paths, [key]: path } }

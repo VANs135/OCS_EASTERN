@@ -270,6 +270,12 @@ function Update-LocalView($view) {
             $supply.Margin = '0,2,0,10'
             [void]$script:localButtons.Children.Add($supply)
         }
+        foreach ($stack in @($view.stacking)) {
+            $warning = New-LocalText 13
+            $warning.Text = "$($stack.hex) 超堆叠（$($stack.re)/$($stack.limit) RE）。点选同格战斗单位后可确认移除。"
+            $warning.Margin = '0,2,0,10'
+            [void]$script:localButtons.Children.Add($warning)
+        }
         foreach ($item in $view.actions) {
             $button = New-LocalButton $item.label
             $button.Margin = '0,0,0,6'

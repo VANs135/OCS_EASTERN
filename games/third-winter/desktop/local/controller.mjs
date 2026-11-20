@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
 import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
+import { scorpionStackingChoices } from '../../src/match/scorpion-stacking.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
@@ -249,16 +250,32 @@ function render(record, selection, data) {
   const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, validate)
   const aid = selection.aidCounterId && localAidSelection(state, actor, selection,
     [...aidCounters, ...auxiliaryCards['axis-off-map'].counters], data, validate)
-  const actions = (review?.choices ?? aid?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data))
+  const stacking = state.kind === 'playing' ? scorpionStackingChoices(state, actor) : []
+  const choices = review?.choices ?? aid?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data)
+  const selectedStack = stacking.find(({ candidates }) => unitIds.length &&
+    unitIds.every((id) => candidates.some(({ unitId }) => unitId === id)))
+  if (selectedStack) {
+    const { hex, re, limit, candidates } = selectedStack
+    const left = re - candidates.filter(({ unitId }) => unitIds.includes(unitId)).reduce((sum, unit) => sum + unit.re, 0)
+    if (left <= limit) choices.push({ label: `确认移除所选单位 · ${hex}（${re} → ${left} RE）`,
+      actions: [{ type: 'settle-stacking', hex, unitIds }] })
+  }
+  const actionSet = randomUUID()
+  const actions = choices
     .filter((entry) => unitIds.length < 2 || entry.actions[0]?.type !== 'ground-move')
-    .map((entry, index) => ({ ...entry, key: String(index) }))
+    .filter((entry) => !stacking.length || !entry.actions[0]?.type.startsWith('complete-'))
+    .map((entry, index) => ({ ...entry, key: `action:${actionSet}:${index}` }))
   const stack = selection.stackHex ? countersAt(mapStacks, selection.stackHex).filter(({ id }) => roster.some((item) => item.id === id)) : []
   const selectedUnit = state.units?.[picked.unitId]
   const route = selectedUnit && picked.route?.length ? [selectedUnit.hex, ...picked.route] : []
   const refit = state.kind === 'playing' && state.cursor.phase === 'aircraft-refit'
     ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
   const supply = state.kind === 'playing' && phase === '补给' ? supplyDraft(state, actor, unitIds, data) : null
-  return { revision, actor, headline, phase, roster, stack, captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
+  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking,
+    phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
+    turnNumber: state.kind === 'playing' ? state.turn.number : null,
+    phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,
+    captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, combatPrompt: review?.prompt, ended: Boolean(result),
     aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [], supplyLines: supply?.lines ?? [],
     refit: refit && { base: refit.base, baseLabel: refit.baseLabel, level: refit.level, limit: refit.limit, active: refit.active,
@@ -272,9 +289,12 @@ function render(record, selection, data) {
 }
 
 export function projectLocalScorpion(view) {
+  const control = ({ key, label, group, mapHex, mapUnit, actions, reviewDraft }) => ({
+    key, label, group, mapHex, mapUnit, kind: reviewDraft ? 'draft' : 'command',
+    actionTypes: actions.map(({ type }) => type),
+  })
   const actions = view.actions.filter((entry) => entry.reviewDraft || entry.aidChoice ||
-    entry.actions[0]?.type === 'feed-units' || sidebarChoice(entry))
-    .map(({ key, label }) => ({ key, label }))
-  const menu = view.menu?.map(({ key, label, group }) => ({ key, label, group }))
+    entry.actions[0]?.type === 'feed-units' || sidebarChoice(entry)).map(control)
+  const menu = view.menu?.map(control)
   return { ...view, actions, menu }
 }
