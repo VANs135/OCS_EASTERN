@@ -58,11 +58,17 @@ function Add-Counter($counter, [double]$x, [double]$y, [double]$size, $surface =
     $image.ToolTip = $label
     [Windows.Automation.AutomationProperties]::SetName($image, $counter.label)
     Add-At $image $x $y $surface
-    if ($Local -and $surface -ne $script:aidCanvas) {
-        $image.Tag = @{ UnitId = [string]$counter.id; Cell = $cell }
+    if ($Local) {
+        $onAid = $surface -eq $script:aidCanvas
+        $image.Tag = if ($onAid) { @{ AidCounterId = [string]$counter.id } } else {
+            @{ UnitId = [string]$counter.id; Cell = $cell }
+        }
         Register-LocalMapClicks $image
-        if ($script:localRoster.ContainsKey([string]$counter.id)) { $image.Cursor = [Windows.Input.Cursors]::Hand }
-        if ($script:localView.frame.selectedUnits -contains $counter.id) {
+        if ($onAid -or $script:localRoster.ContainsKey([string]$counter.id)) { $image.Cursor = [Windows.Input.Cursors]::Hand }
+        $selected = if ($onAid) { $script:localView.frame.selectedAidCounter -eq $counter.id } else {
+            $script:localView.frame.selectedUnits -contains $counter.id
+        }
+        if ($selected) {
             $outline = New-Object Windows.Controls.Border
             $outline.Width = $size
             $outline.Height = $size

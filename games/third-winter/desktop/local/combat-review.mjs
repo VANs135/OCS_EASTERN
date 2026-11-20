@@ -53,7 +53,7 @@ export function localCombatReview(state, side, draft, assets, validate) {
   }
 
   const distance = total > needed && !mode.ignoreDefenderOption ? result.option - mode.optionLosses : 0
-  const survivors = ids.filter((id) => remaining[id] > 0 && Object.hasOwn(state.units, id))
+  const survivors = distance > 0 ? ids.filter((id) => remaining[id] > 0 && Object.hasOwn(state.units, id)) : []
   const stacks = retreatStacks(state, side, survivors, draft)
   const complete = ({ path, origin }) => path.length > 0 && scorpionHexDistance(origin, path.at(-1)) === distance
   const focus = stacks.find((stack) => stack.key === draft?.origin && !complete(stack)) ?? stacks.find((stack) => !complete(stack))

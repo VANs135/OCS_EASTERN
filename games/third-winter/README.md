@@ -102,7 +102,9 @@ npm run play:local --workspace=@ocs-eastern/third-winter -- 'D:\war game\OCS各�
 
 新版算子库的默认存档是 `dist/scorpion-local/continue-v2.json`，旧版算子库仍使用 `dist/scorpion-local/continue.json`。关闭窗口后再次打开会恢复当前阶段、行动方和待决骰点。可使用 `--save=路径` 保留另一局。程序使用仓库 `dist` 内导出的三份 OCS v4.3 图表，也可用上面的 `OCS_V43_*` 环境变量指定本机文件。原图、辅助卡和实际算子从本机资料读取。规则由本机进程结算，存档留在本机。
 
-用同一资料目录执行 `npm run test:local --workspace=@ocs-eastern/third-winter -- <资料目录>` 可核对地图落位、单枚与堆叠选择、右键菜单、双击移动、战斗应答、重掷读档和特殊夺取接续。正式 Windows 安装包、其余桌面操作和联网双人验收仍是后续交付项。
+在苏军首回合移动阶段，左键点苏军辅助卡上的就绪炮击标记，切回小地图选择绿色提示的中心格，再在侧栏确认司令部与射击方案。确认后标记移动到小地图，守方接手应答。
+
+用同一资料目录执行 `npm run test:local --workspace=@ocs-eastern/third-winter -- <资料目录>` 可核对地图落位、单枚与堆叠选择、右键菜单、双击移动、战斗应答、重掷读档、特殊夺取接续和辅助卡标记落位。正式 Windows 安装包、其余桌面操作和联网双人验收仍是后续交付项。
 
 ## 当前覆盖
 

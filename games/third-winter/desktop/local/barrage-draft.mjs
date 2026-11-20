@@ -150,20 +150,17 @@ export function frontBarrageDraft(state, side, data, front, center) {
   const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, data.board?.supplyRail))
   const hqs = Object.entries(state.units).filter(([, unit]) => unit.side === side && unit.headquarters && !unit.headquarters.kessel)
     .map(([id, unit]) => ({ id, hex: unit.hex }))
-  // The marker lands next to a Soviet combat unit inside its own sector, within an Army HQ's throw
-  // range; those hexes are the only centers worth listing.
-  const friendly = Object.values(state.units).filter((unit) => unit.side === side && unit.combat).map((unit) => unit.hex)
-  const centers = [...new Set(friendly.flatMap((hex) => [hex, ...map.neighbors(hex)])).values()]
-    .filter((hex) => map.hexes.has(hex) && scorpionBarrageFrontAt(hex) === front)
-  const at = center && map.hexes.has(center) && scorpionBarrageFrontAt(center) === front &&
-    centers.includes(center) ? center : undefined
-  if (!at) return { front, available: false, reason: centers.length ? '选择中心格' : '没有可放置标记的中心格', centers, hqs, rows: [] }
-  const supports = hqs.filter(({ id }) => network.inThrowRange(id, at))
-  if (!supports.length) return { front, available: false, reason: '中心格不在任何 Army HQ 的投送范围', centers, hqs, rows: [] }
   const fired = scorpionPhaseBarrages(state).flatMap((event) => event.batteries)
   const struck = scorpionRegularBarrageTargets(state)
-  const targets = [at, ...map.neighbors(at)].filter((hex) => map.hexes.has(hex) && targetUnits(state, enemyOf(side), hex).length &&
-    !struck.has(hex))
+  const hasTarget = (hex) => !struck.has(hex) && targetUnits(state, enemyOf(side), hex).length > 0
+  const friendly = Object.values(state.units).filter((unit) => unit.side === side && unit.combat).map((unit) => unit.hex)
+  const centers = [...new Set(friendly.flatMap((hex) => map.neighbors(hex)))]
+    .filter((hex) => scorpionBarrageFrontAt(hex) === front && hasTarget(hex) &&
+      hqs.some(({ id }) => network.inThrowRange(id, hex)))
+  const at = centers.includes(center) ? center : undefined
+  if (!at) return { front, available: false, reason: centers.length ? '选择中心格' : '没有可放置标记的中心格', centers, hqs, rows: [] }
+  const supports = hqs.filter(({ id }) => network.inThrowRange(id, at))
+  const targets = [at, ...map.neighbors(at).filter(hasTarget)]
   const fired_ids = Object.keys(state.units).map((unitId) => ({ unitId, ...batteryEntry(state, side, unitId, at, fired) }))
     .filter((entry) => entry.ok)
   if (!fired_ids.length) return { front, available: false, reason: '没有可参射的炮兵', centers, hqs: supports, rows: [] }
@@ -186,17 +183,19 @@ export function frontBarrageDraft(state, side, data, front, center) {
   const rows = []
   // One RE from every battery in the cluster on each volley, so each volley is its whole group firing
   // together and the RE accounting never overlaps between volleys.
-  const volleyFor = (ids, left, target) => ids.filter((id) => (left.get(id) ?? 0) >= 1)
+  const volleyFor = (ids, left, target) => ids.filter((id) => (left.get(id) ?? 0) >= 1 &&
+      batteryEntry(state, side, id, target, fired).ok)
     .map((id) => { left.set(id, left.get(id) - 1); return { unitId: id, re: 1 } })
   for (const ids of clusters) {
     for (const { id: hqId } of supports) {
       const left = new Map(ids.map((id) => [id, fired_ids.find((entry) => entry.unitId === id).remaining]))
       const volleys = []
       // The marker's own hex is struck first, then the adjacent stacks, up to the two-hex limit.
-      for (const target of targets.slice(0, 3)) {
+      for (const target of targets) {
         const volley = volleyFor(ids, left, target)
-        if (!volley.length) break
+        if (!volley.length) continue
         volleys.push({ target, batteries: volley })
+        if (volleys.length === 3) break
       }
       if (volleys.length) rows.push({
         label: `方面军炮击 · 中心 ${at} + ${volleys.length - 1} 个相邻目标 · ${state.units[hqId].hex} 司令部支持 · 免补给`,

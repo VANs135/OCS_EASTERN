@@ -10,6 +10,7 @@ import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } fr
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
 import { refitBaseAt, refitBaseOf, refitDraft, toggleRefitSelection } from './refit.mjs'
 import { localCombatReview } from './combat-review.mjs'
+import { localAidSelection } from './aid-selection.mjs'
 import { localScorpionEnvelope, lockLocalSave, readLocalJson, replaceLocalJson, restoreLocalScorpion } from './store.mjs'
 
 export async function openLocalScorpion(data, savePath, seed = randomBytes(4).readUInt32LE()) {
@@ -100,11 +101,25 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
           (entry.mapHex && entry.mapHex === hit.hex))
         if (choice) selection.combatReview = choice.reviewDraft
         else return shown
+      } else if (request.kind === 'aid-left') {
+        if (shown.combatPrompt || !shown.frame.aidCounters.some(({ id }) => id === request.counterId)) return shown
+        const next = { aidCounterId: request.counterId }
+        const view = render(record, next, data)
+        if (!view.aidPrompt) return shown
+        selection = next
+        shown = view
+        return shown
       } else if (request.kind === 'select-unit') {
         pickUnit(request.unitId, request.toggle, request.base)
       } else if (request.kind === 'board-left') {
         const hit = hitAt(request)
         if (!hit) return shown
+        if (shown.aidPrompt) {
+          if (shown.aidTargets.includes(hit.hex)) selection = { ...selection, hex: hit.hex }
+          else return shown
+          shown = render(record, selection, data)
+          return shown
+        }
         const own = hit.unitId && hit.ownIds.includes(hit.unitId)
         // In the refit phase the base itself is the entry point: clicking an airfield hex opens its
         // draft, then each click on an aircraft of that base toggles it into the batch.
@@ -223,9 +238,11 @@ function render(record, selection, data) {
   const stamp = state.kind === 'setup' ? '' : `第 ${state.turn.number} 回合 · `
   const headline = result ? `${stamp}${result.outcome === 'draw' ? '平局' : `${sideName(result.outcome)}${result.level === 'major' ? '大胜' : '小胜'}`}`
     : `${stamp}${sideName(actor)} · ${phase}`
-  const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, (action) =>
-    submitScorpionSession(record, actor, { id: `preview-result:${revision}`, expectedRevision: revision, action }, data.assets, data.board))
-  const actions = (review?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data))
+  const validate = (action) => submitScorpionSession(record, actor,
+    { id: `preview-choice:${revision}`, expectedRevision: revision, action }, data.assets, data.board)
+  const review = state.kind === 'playing' && localCombatReview(state, actor, selection.combatReview, data.assets, validate)
+  const aid = selection.aidCounterId && localAidSelection(state, actor, selection, aidCounters, data, validate)
+  const actions = (review?.choices ?? aid?.choices ?? localChoices(state, actor, { ...picked, unitIds }, data))
     .filter((entry) => unitIds.length < 2 || entry.actions[0]?.type !== 'ground-move')
     .map((entry, index) => ({ ...entry, key: String(index) }))
   const stack = selection.stackHex ? countersAt(mapStacks, selection.stackHex).filter(({ id }) => roster.some((item) => item.id === id)) : []
@@ -235,17 +252,20 @@ function render(record, selection, data) {
     ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
   return { revision, actor, headline, phase, roster, stack, captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, combatPrompt: review?.prompt, ended: Boolean(result),
+    aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [],
     refit: refit && { base: refit.base, baseLabel: refit.baseLabel, level: refit.level, limit: refit.limit, active: refit.active,
       notes: refit.notes, total: refit.total, ready: refit.ready, fenced: refit.fenced, selected: refit.selected,
       payments: refit.payments.map(({ dumpId, tokens }) => ({ dumpId, tokens, label: dumpId.split(':').at(-1) })),
       aircraft: refit.inactive.map((piece) => ({ id: piece.id, label: catalog.definitions.get(piece.definition)?.source.name ?? piece.id })) },
     frame: { ...frame, aidCounters, mapStacks, selectedUnits: review ? actions.flatMap(({ mapUnit }) => mapUnit ? [mapUnit] : []) : unitIds,
-      selectedHex: !review && picked.hex && scorpionHexLayout(picked.hex), targets: (review?.targets ?? []).map(scorpionHexLayout),
+      selectedAidCounter: aid?.counterId, selectedHex: !review && picked.hex && scorpionHexLayout(picked.hex),
+      targets: (review?.targets ?? aid?.targets ?? []).map(scorpionHexLayout),
       route: route.map(scorpionHexLayout), retreatPaths: review?.paths?.map((path) => path.map(scorpionHexLayout)) } }
 }
 
 export function projectLocalScorpion(view) {
-  const actions = view.actions.filter((entry) => entry.reviewDraft || sidebarChoice(entry)).map(({ key, label }) => ({ key, label }))
+  const actions = view.actions.filter((entry) => entry.reviewDraft || entry.aidChoice || sidebarChoice(entry))
+    .map(({ key, label }) => ({ key, label }))
   const menu = view.menu?.map(({ key, label, group }) => ({ key, label, group }))
   return { ...view, actions, menu }
 }

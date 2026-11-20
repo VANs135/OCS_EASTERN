@@ -99,19 +99,24 @@ function Show-LocalContext($target, $request) {
 
 function Register-LocalMapClicks($element) {
     $element.Add_MouseLeftButtonDown({
-        param($sender, $args)
-        $args.Handled = $true
-        $point = $args.GetPosition($script:canvas)
+        param($sender, $eventArgs)
+        $eventArgs.Handled = $true
+        if ($sender.Tag.AidCounterId) {
+            Invoke-LocalRequest @{ kind = 'aid-left'; counterId = $sender.Tag.AidCounterId }
+            return
+        }
+        $point = $eventArgs.GetPosition($script:canvas)
         $toggle = [bool]([Windows.Input.Keyboard]::Modifiers -band [Windows.Input.ModifierKeys]::Control)
-        $request = @{ kind = 'board-left'; x = $point.X; y = $point.Y; toggle = $toggle; confirm = $args.ClickCount -eq 2 }
+        $request = @{ kind = 'board-left'; x = $point.X; y = $point.Y; toggle = $toggle; confirm = $eventArgs.ClickCount -eq 2 }
         if ($sender.Tag.UnitId) { $request.unitId = $sender.Tag.UnitId }
         if ($null -ne $sender.Tag.Cell) { $request.cell = $sender.Tag.Cell }
         Invoke-LocalRequest $request
     })
     $element.Add_MouseRightButtonUp({
-        param($sender, $args)
-        $args.Handled = $true
-        $point = $args.GetPosition($script:canvas)
+        param($sender, $eventArgs)
+        $eventArgs.Handled = $true
+        if ($sender.Tag.AidCounterId) { return }
+        $point = $eventArgs.GetPosition($script:canvas)
         $request = @{ kind = 'board-menu'; x = $point.X; y = $point.Y }
         if ($sender.Tag.UnitId) { $request.unitId = $sender.Tag.UnitId }
         if ($null -ne $sender.Tag.Cell) { $request.cell = $sender.Tag.Cell }
@@ -144,6 +149,16 @@ function Test-LocalWindow($dock) {
         $next.RaiseEvent((New-Object Windows.RoutedEventArgs([Windows.Controls.Button]::ClickEvent)))
         if ($script:localView.revision -le $before) { throw $script:localStatus.Text }
     }
+    $markerId = 'artillery:first-ukrainian'
+    $marker = $script:aidCanvas.Children | Where-Object { $_.Tag.AidCounterId -eq $markerId } | Select-Object -First 1
+    if (!$marker) { throw '苏军辅助卡缺少实体炮击标记。' }
+    $before = $script:localView.revision
+    $click = New-Object Windows.Input.MouseButtonEventArgs([Windows.Input.Mouse]::PrimaryDevice, 0, [Windows.Input.MouseButton]::Left)
+    $click.RoutedEvent = [Windows.UIElement]::MouseLeftButtonDownEvent
+    $marker.RaiseEvent($click)
+    if ($script:localView.frame.selectedAidCounter -ne $markerId -or !$script:localView.aidPrompt -or
+        !$script:localView.frame.targets.Count -or $script:localView.revision -ne $before) { throw '辅助卡点击未打开中心格选择。' }
+    Invoke-LocalRequest @{ kind = 'clear-selection' }
     $unit = $script:localView.roster | Where-Object { $_.label -like '*Sov 58 Rifle Div*' } | Select-Object -First 1
     $position = $script:localView.frame.mapStacks | Where-Object { $_.hex -eq $unit.hex }
     Invoke-LocalRequest @{ kind = 'board-left'; unitId = $unit.id; x = $position.x; y = $position.y }
@@ -172,7 +187,7 @@ function Update-LocalView($view) {
         $script:localSelected.Text = if ($view.route.Count) { '路线  ' + ($view.route -join ' → ') } elseif ($view.unitIds.Count -gt 1) {
             "已选 $($view.unitIds.Count) 枚算子"
         } elseif ($view.hex) { "选中格  $($view.hex)" } else { '左键选算子或点目的地，右键打开动作菜单' }
-        $script:localClear.IsEnabled = [bool]($view.hex -or $view.unitId)
+        $script:localClear.IsEnabled = [bool]($view.hex -or $view.unitId -or $view.aidPrompt)
         $script:localUnitBox.Items.Clear()
         foreach ($unit in $view.roster) {
             $script:localRoster[[string]$unit.id] = $unit
@@ -193,8 +208,8 @@ function Update-LocalView($view) {
             $chip.IsChecked = $view.unitIds -contains $counter.id
             $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag; toggle = $true } })
             $chip.Add_MouseRightButtonUp({
-                param($sender, $args)
-                $args.Handled = $true
+                param($sender, $eventArgs)
+                $eventArgs.Handled = $true
                 Show-LocalContext $sender @{ kind = 'counter-menu'; unitId = $sender.Tag }
             })
             [void]$script:localStack.Children.Add($chip)
@@ -224,9 +239,9 @@ function Update-LocalView($view) {
             $script:localRefitPay.Text = $lines -join ([Environment]::NewLine)
         } else { $script:localRefitFrame.Visibility = 'Collapsed' }
         $script:localButtons.Children.Clear()
-        if ($view.combatPrompt) {
+        if ($view.combatPrompt -or $view.aidPrompt) {
             $prompt = New-LocalText 15
-            $prompt.Text = $view.combatPrompt
+            $prompt.Text = if ($view.combatPrompt) { $view.combatPrompt } else { $view.aidPrompt }
             $prompt.Margin = '0,2,0,10'
             [void]$script:localButtons.Children.Add($prompt)
         }
@@ -421,10 +436,10 @@ function Show-LocalScorpion {
     $window.Content = $dock
     Register-LocalMapClicks $script:canvas
     $window.Add_PreviewKeyDown({
-        param($sender, $args)
-        if ($args.Key -eq 'Escape' -and !$script:localCommand.IsKeyboardFocusWithin) {
+        param($sender, $eventArgs)
+        if ($eventArgs.Key -eq 'Escape' -and !$script:localCommand.IsKeyboardFocusWithin) {
             Invoke-LocalRequest @{ kind = 'clear-selection' }
-            $args.Handled = $true
+            $eventArgs.Handled = $true
         }
     })
     $script:localZoom.Add_ValueChanged({ Set-LocalZoom $script:localZoom.Value })

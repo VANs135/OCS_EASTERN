@@ -6,9 +6,10 @@ import { fileURLToPath } from 'node:url'
 import { scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { openLocalScorpion, projectLocalScorpion } from './controller.mjs'
 import { loadLocalScorpion } from './data.mjs'
-import { readLocalJson } from './store.mjs'
+import { localScorpionEnvelope, readLocalJson, replaceLocalJson } from './store.mjs'
 import { testLocalCapture } from './capture-smoke.mjs'
 import { testLocalCombatReview } from './combat-review-smoke.mjs'
+import { sampleScorpionFrontBarrage } from '../../scripts/scorpion-front-barrage-example.mjs'
 
 const args = process.argv.slice(2)
 const [root, unitRoot] = args.filter((value) => !value.startsWith('--'))
@@ -138,6 +139,7 @@ try {
   }
   console.log(`Local match passed map deployment, exact counter/context selection, double-click movement, combat and a saved reroll at revision ${client.view().revision}.`)
   await testLocalCapture(data, folder, captureOpening)
+  await checkAidCard(captureOpening)
   const nativeArgs = args.includes('--native-review') ?
     [root, unitRoot, args.find((value) => value.startsWith('--smoke-image='))].filter(Boolean) : undefined
   await testLocalCombatReview(data, folder, captureOpening, nativeArgs)
@@ -145,4 +147,35 @@ try {
   await client.close()
   await unlink(file)
   await rmdir(folder)
+}
+
+async function checkAidCard(opening) {
+  const example = sampleScorpionFrontBarrage(opening, data.assets, data.board)
+  const file = join(folder, 'aid-card.json')
+  const saved = localScorpionEnvelope(opening, data.fingerprint)
+  await replaceLocalJson(file, saved)
+  let game
+  try {
+    game = await openLocalScorpion(data, file)
+    const dispatch = (kind, fields) => game.dispatch({ kind, revision: game.view().revision, ...fields })
+    const counterId = `artillery:${example.front}`
+    const selected = await dispatch('aid-left', { counterId })
+    assert.equal(selected.frame.selectedAidCounter, counterId)
+    assert.ok(selected.aidTargets.includes(example.center))
+    const draft = await dispatch('board-left', scorpionHexLayout(example.center))
+    const action = draft.actions.find(({ actions }) => actions[0]?.type === 'declare-front-barrage')
+    assert.ok(action, draft.aidPrompt)
+    assert.ok(projectLocalScorpion(draft).actions.some(({ key }) => key === action.key))
+    assert.deepEqual(await readLocalJson(file), saved)
+    const placed = await dispatch('apply', { key: action.key })
+    assert.equal(placed.revision, opening.revision + 1)
+    assert.equal(placed.actor, 'axis')
+    assert.ok(placed.frame.mapStacks.find(({ hex }) => hex === example.center).pages.flat().some(({ id }) => id === counterId))
+    assert.ok(!placed.frame.aidCounters.some(({ id }) => id === counterId))
+    assert.equal((await readLocalJson(file)).record.state.frontBarrage.front, example.front)
+    console.log('Aid card passed marker selection, map placement and saved handoff to the defender.')
+  } finally {
+    await game?.close()
+    await unlink(file)
+  }
 }
