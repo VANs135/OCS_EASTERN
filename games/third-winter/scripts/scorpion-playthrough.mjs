@@ -18,7 +18,7 @@ import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 const opponent = (side) => side === 'axis' ? 'soviet' : 'axis'
 
 /** Play the printed schedule from deployment. The choices are deterministic, and the engine supplies all dice. */
-export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sovietOptional = false }) {
+export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sovietOptional = false, onComplete }) {
   const { map, catalog } = assets
   const board = { reinforcements: (state) => scorpionReinforcementBoard(state, assets, arrivals) }
   let record = sampleScorpionOpening(setup, assets, seed).started
@@ -171,6 +171,7 @@ export function playScorpionToEnd(setup, assets, arrivals, { seed, withdraw, sov
   }
   const end = currentScorpionTurn(current().turn, current().turn.step.kind === 'player-turn' ? current() : undefined)
   assert.equal(end.step.kind, 'ended')
+  onComplete?.(record)
   return { seed, endTurn: end.number, groundAtEnd: end.weather.ground, vp: end.vp, result: end.step.result, turns,
     attrition, reloads, relocations, blockedEntries, arrivals: current().arrival.placed.length,
     alertsPlaced: current().placedAlerts.length, commands: record.revision }

@@ -53,6 +53,7 @@ async function showNativeWindow(bootstrap, controller, smoke) {
   const args = ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', script, '-ModelPath', bootstrap, '-Local']
   if (smoke) args.push('-LocalSmoke')
   if (smoke && option('smoke-image')) args.push('-LocalSmokeImage', resolve(option('smoke-image')))
+  if (smoke && option('smoke-replay')) args.push('-LocalSmokeReplay', resolve(option('smoke-replay')))
   const window = spawn('powershell.exe', args, { windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'] })
   window.stdin.on('error', (error) => { if (error.code !== 'EPIPE') console.error(error.message) })
   const closed = new Promise((done, fail) => {

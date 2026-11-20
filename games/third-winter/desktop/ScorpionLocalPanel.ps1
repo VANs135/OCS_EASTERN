@@ -457,7 +457,10 @@ function Show-LocalScorpion {
     Set-LocalZoom $script:localZoom.Value
     Update-LocalView $model.local
     if ($LocalSmoke) {
-        Test-LocalWindow $dock
+        if ($LocalSmokeReplay) {
+            . (Join-Path $PSScriptRoot 'ScorpionLocalReplay.ps1')
+            Test-LocalWindowReplay $dock $LocalSmokeReplay
+        } else { Test-LocalWindow $dock }
         return
     }
     $window.Add_ContentRendered({

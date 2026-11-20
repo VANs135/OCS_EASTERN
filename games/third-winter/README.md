@@ -112,6 +112,12 @@ npm run play:local --workspace=@ocs-eastern/third-winter -- 'D:\war game\OCS各�
 
 用同一资料目录执行 `npm run test:local --workspace=@ocs-eastern/third-winter -- <资料目录>` 可核对地图落位、单枚与堆叠选择、右键菜单、双击移动、战斗应答、重掷读档、特殊夺取接续和辅助卡标记落位。正式 Windows 安装包、其余桌面操作和联网双人验收仍是后续交付项。
 
+在仓库根目录运行下列命令，可自动验收八回合桌面流程。每次提交来自地图操作、侧栏按钮或右键菜单。每个玩家整理结束后重开临时存档，比较盘面和行动方。带 `--native` 时会再用 Windows 窗口回放同一流程，验证实际控件和堆叠翻页。
+
+```powershell
+node --experimental-strip-types .\games\third-winter\desktop\local\playthrough-smoke.mjs 'D:\war game\OCS各作数据库\OCS第三个冬天' --native
+```
+
 ## 当前覆盖
 
 - OCS 2.2 玩家阶段顺序及反应行动方，CRT 算法与固定种子测试。

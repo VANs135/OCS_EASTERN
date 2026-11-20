@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
+import { aircraftProfile } from '../../src/match/scorpion-air-bases.ts'
 import { openLocalScorpion, projectLocalScorpion } from './controller.mjs'
 import { loadLocalScorpion } from './data.mjs'
 import { localScorpionEnvelope, readLocalJson, replaceLocalJson } from './store.mjs'
@@ -145,6 +146,7 @@ try {
   console.log(`Local match passed map deployment, exact counter/context selection, double-click movement, combat and a saved reroll at revision ${client.view().revision}.`)
   await testLocalCapture(data, folder, captureOpening)
   await checkAidCard(captureOpening)
+  await checkAirBox(captureOpening)
   const nativeArgs = args.includes('--native-review') ?
     [root, unitRoot, args.find((value) => value.startsWith('--smoke-image='))].filter(Boolean) : undefined
   await testLocalCombatReview(data, folder, captureOpening, nativeArgs)
@@ -178,9 +180,56 @@ async function checkAidCard(opening) {
     assert.ok(placed.frame.mapStacks.find(({ hex }) => hex === example.center).pages.flat().some(({ id }) => id === counterId))
     assert.ok(!placed.frame.aidCounters.some(({ id }) => id === counterId))
     assert.equal((await readLocalJson(file)).record.state.frontBarrage.front, example.front)
-    console.log('Aid card passed marker selection, map placement and saved handoff to the defender.')
+    const settled = await finishDeskReplies(game, dispatch, ['choose-barrage-terrain', 'assign-barrage-loss', 'resolve-reroll'])
+    assert.match(settled.frame.aidCounters.find(({ id }) => id === counterId).label, /恢复格 1/)
+    assert.ok(!settled.frame.mapStacks.some(({ pages }) => pages.flat().some(({ id }) => id === counterId)))
+    console.log('Aid card passed marker selection, map placement, defender replies and return to the recovery track.')
   } finally {
     await game?.close()
     await unlink(file)
   }
+}
+
+async function checkAirBox(opening) {
+  const file = join(folder, 'air-transfer.json')
+  const target = 's18.07'
+  const aircraft = opening.state.pieces.find((piece) => piece.side === 'soviet' && piece.kind === 'aircraft' &&
+    piece.active && piece.location.kind === 'off-map-air' && aircraftProfile(piece, data.assets).fighter)
+  assert.ok(aircraft)
+  await replaceLocalJson(file, localScorpionEnvelope(opening, data.fingerprint))
+  let game
+  try {
+    game = await openLocalScorpion(data, file)
+    const dispatch = (kind, fields) => game.dispatch({ kind, revision: game.view().revision, ...fields })
+    const box = game.view().frame.inventories.find(({ counters }) => counters.some(({ id }) => id === aircraft.id))
+    assert.ok(box)
+    const selected = await dispatch('board-left', { unitId: aircraft.id, cell: box.cell })
+    assert.equal(selected.unitId, aircraft.id)
+    const menu = await dispatch('board-menu', scorpionHexLayout(target))
+    const transfer = menu.menu.find(({ actions }) => actions[0].type === 'launch-air-mission' &&
+      actions[0].mission === 'base-transfer' && actions[0].unitIds[0] === aircraft.id && actions[0].target.hex === target)
+    assert.ok(transfer, 'The friendly airfield should offer a transfer from the air box')
+    await dispatch('apply', { key: transfer.key })
+    const placed = await finishDeskReplies(game, dispatch, ['respond-interception', 'settle-airfield-capacity', 'resolve-reroll'])
+    assert.ok(placed.frame.mapStacks.find(({ hex }) => target === hex).pages.flat().some(({ id }) => id === aircraft.id))
+    assert.ok(!placed.frame.inventories.find(({ cell }) => cell === box.cell).counters.some(({ id }) => id === aircraft.id))
+    assert.equal((await readLocalJson(file)).record.state.pieces.find(({ id }) => id === aircraft.id).active, true)
+    console.log('Air box passed counter selection, airfield context menu, transfer and saved map placement.')
+  } finally {
+    await game?.close()
+    await unlink(file)
+  }
+}
+
+async function finishDeskReplies(game, dispatch, kinds) {
+  for (let i = 0; i < 30; i++) {
+    const view = game.view()
+    const visible = new Set(projectLocalScorpion(view).actions.map(({ key }) => key))
+    const row = view.actions.find(({ key, actions: [action] }) => visible.has(key) && kinds.includes(action?.type) &&
+      (action.type !== 'resolve-reroll' || action.decision === 'keep') &&
+      (action.type !== 'respond-interception' || action.unitId === null))
+    if (!row) return view
+    await dispatch('apply', { key: row.key })
+  }
+  throw new Error('Desktop reply loop did not settle')
 }

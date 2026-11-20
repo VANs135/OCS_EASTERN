@@ -5,7 +5,8 @@ param(
     [switch]$RenderAid,
     [switch]$Local,
     [switch]$LocalSmoke,
-    [string]$LocalSmokeImage
+    [string]$LocalSmokeImage,
+    [string]$LocalSmokeReplay
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +15,7 @@ $model = Get-Content -LiteralPath $ModelPath -Raw -Encoding UTF8 | ConvertFrom-J
 $boxes = @{}
 foreach ($box in $model.boxes) { $boxes[[int]$box.id] = $box }
 $images = @{}
+$script:mapPages = @{}
 
 function Get-Art([string]$path) {
     if (!$images.ContainsKey($path)) {
@@ -125,6 +127,7 @@ function Show-MapStack($layer) {
             param($sender, $eventArgs)
             $stackLayer = $sender.Tag
             $stackLayer.Tag.Page = ($stackLayer.Tag.Page + 1) % $stackLayer.Tag.Stack.pages.Count
+            $script:mapPages[$stackLayer.Tag.Stack.hex] = $stackLayer.Tag.Page
             Show-MapStack $stackLayer
         })
         if ($stack.scale -lt 1) {
@@ -193,7 +196,8 @@ function Show-Frame([int]$index) {
         $layer = New-Object Windows.Controls.Canvas
         $layer.Width = 124
         $layer.Height = 108
-        $layer.Tag = @{ Stack = $stack; Page = 0 }
+        $page = [Math]::Min([int]$script:mapPages[$stack.hex], $stack.pages.Count - 1)
+        $layer.Tag = @{ Stack = $stack; Page = $page }
         Show-MapStack $layer
         Add-At $layer ($stack.x - 62) ($stack.y - 54)
     }
