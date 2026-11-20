@@ -9,6 +9,8 @@ import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
+import { scorpionKesselMovePath } from './scorpion-kessel-move.ts'
+import type { ScorpionKesselMove } from './scorpion-kessel-move.ts'
 import { applyScorpionGroundMove, scorpionGroundMpAvailable, scorpionMovementAllowance } from './scorpion-movement.ts'
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
@@ -22,6 +24,7 @@ type MovingCounter = { unitId: string; fuelDumpId?: string; fuelHeadquartersId?:
 export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
   | { type: 'set-ground-mode'; unitId: string; face: GroundFace }
+  | ScorpionKesselMove
 
 export interface GroundPolicies extends ScorpionCapturePolicy {
   movement?: (state: Readonly<ScorpionInPlay>) => Omit<MovementBoard, 'map' | 'weather' | 'trainbustingAt'>
@@ -32,6 +35,14 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
   assets: ScorpionSetupAssets, board: GroundPolicies): ScorpionInPlay {
   const { map } = assets
   if (action.type === 'set-ground-mode') return orient(state, side, action.unitId, action.face, assets)
+  if (action.type === 'kessel-move') {
+    const { unitId } = action
+    const { rules } = scorpionMovementRules(state, side, map, board)
+    const path = scorpionKesselMovePath(state, side, action, rules)
+    const moved = { ...state, groundCaptureMove: null, moved: [...state.moved, unitId],
+      units: { ...state.units, [unitId]: { ...state.units[unitId]!, hex: path.at(-1)! } } }
+    return resolveScorpionMoveEntries(moved, side, path, [unitId], assets, board)
+  }
   const stack = action.type === 'reserve-stack-move'
   const counters = stack ? action.counters : [action]
   const origin = state.units[counters[0]?.unitId ?? '']?.hex

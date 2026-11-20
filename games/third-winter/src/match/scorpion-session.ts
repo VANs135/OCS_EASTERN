@@ -280,6 +280,7 @@ export function submitScorpionSession(
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Overrun movement is unavailable')
         return continueScorpionOverrunMove(state, actor, action, assets, board)
       case 'ground-move':
+      case 'kessel-move':
       case 'set-ground-mode':
       case 'reserve-stack-move':
         if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
