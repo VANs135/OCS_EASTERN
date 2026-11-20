@@ -106,8 +106,7 @@ function Register-LocalMapClicks($element) {
             return
         }
         $point = $eventArgs.GetPosition($script:canvas)
-        $toggle = [bool]([Windows.Input.Keyboard]::Modifiers -band [Windows.Input.ModifierKeys]::Control)
-        $request = @{ kind = 'board-left'; x = $point.X; y = $point.Y; toggle = $toggle; confirm = $eventArgs.ClickCount -eq 2 }
+        $request = @{ kind = 'board-left'; x = $point.X; y = $point.Y; confirm = $eventArgs.ClickCount -eq 2 }
         if ($sender.Tag.UnitId) { $request.unitId = $sender.Tag.UnitId }
         if ($null -ne $sender.Tag.Cell) { $request.cell = $sender.Tag.Cell }
         Invoke-LocalRequest $request
@@ -206,7 +205,7 @@ function Update-LocalView($view) {
             $chip.Margin = '4,3,4,3'
             $chip.Tag = $counter.id
             $chip.IsChecked = $view.unitIds -contains $counter.id
-            $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag; toggle = $true } })
+            $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{ kind = 'select-unit'; unitId = $sender.Tag } })
             $chip.Add_MouseRightButtonUp({
                 param($sender, $eventArgs)
                 $eventArgs.Handled = $true
@@ -228,7 +227,7 @@ function Update-LocalView($view) {
                 $chip.Tag = $plane.id
                 $chip.IsChecked = @($refit.selected) -contains $plane.id
                 $chip.Add_Click({ param($sender, $args) Invoke-LocalRequest @{
-                    kind = 'select-unit'; unitId = $sender.Tag; toggle = $true; base = $script:localRefitBase } })
+                    kind = 'select-unit'; unitId = $sender.Tag; base = $script:localRefitBase } })
                 [void]$script:localRefit.Children.Add($chip)
             }
             $lines = @()

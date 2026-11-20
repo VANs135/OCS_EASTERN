@@ -100,10 +100,9 @@ export function refitChoiceLabels(draft) {
   }))
 }
 
-/** Click semantics inside the draft: a plain click replaces the batch, Ctrl / checkbox toggles one plane. */
-export function toggleRefitSelection(state, side, base, unitIds, unitId, toggle) {
+export function toggleRefitSelection(state, side, base, unitIds, unitId) {
   const allowed = refitInactiveAt(state, side, base).map((piece) => piece.id)
   if (!allowed.includes(unitId)) throw new Error('请选择该基地本方非激活飞机')
   const current = (unitIds ?? []).filter((id) => allowed.includes(id))
-  return toggle ? current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId] : [unitId]
+  return current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId]
 }

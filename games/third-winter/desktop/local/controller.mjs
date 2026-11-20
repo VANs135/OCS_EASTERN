@@ -50,21 +50,25 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       return shown
     }
 
-    function pickUnit(unitId, toggle, base) {
+    function pickUnit(unitId, base) {
       const unit = shown.roster.find(({ id }) => id === unitId)
       if (!unit) throw new Error('请选择当前一方的算子')
-      if (record.state.kind === 'playing' && record.state.cursor.phase === 'aircraft-refit') {
-        const piece = record.state.pieces.find((candidate) => candidate.id === unitId)
-        const at = base ?? refitBaseOf(record.state, shown.actor, piece)
+      const state = record.state
+      if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit') {
+        const piece = state.pieces.find((candidate) => candidate.id === unitId)
+        const at = base ?? refitBaseOf(state, shown.actor, piece)
         if (!at) throw new Error('这架飞机不在可整备的机场或地图外空军盒')
-        const unitIds = toggleRefitSelection(record.state, shown.actor, at, shown.unitIds, unitId, toggle)
+        const unitIds = toggleRefitSelection(state, shown.actor, at, shown.unitIds, unitId)
         const primary = shown.roster.find(({ id }) => id === unitIds.at(-1))
         selection = { ...selection, refitBase: at, unitId: primary?.id, unitIds, hex: primary?.hex ?? selection.hex, stackHex: undefined }
         return
       }
-      const multi = toggle && record.state.units?.[unitId]
-      const current = shown.unitIds.filter((id) => record.state.units?.[id])
-      const unitIds = multi ? current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId] : [unitId]
+      const group = (id) => state.kind === 'playing' && (state.units[id] ? 'ground' :
+        state.pieces.some((piece) => piece.id === id && piece.kind === 'aircraft') ? 'air' : null)
+      const kind = group(unitId)
+      const sameGroup = kind ? shown.unitIds.filter((id) => group(id) === kind) : []
+      const unitIds = shown.unitIds.includes(unitId)
+        ? shown.unitIds.filter((id) => id !== unitId) : [...sameGroup, unitId]
       const primary = shown.roster.find(({ id }) => id === unitIds.at(-1))
       selection = { unitId: primary?.id, unitIds, hex: primary?.hex, stackHex: selection.stackHex === unit.hex ? unit.hex : undefined }
     }
@@ -111,7 +115,7 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         shown = view
         return shown
       } else if (request.kind === 'select-unit') {
-        pickUnit(request.unitId, request.toggle, request.base)
+        pickUnit(request.unitId, request.base)
       } else if (request.kind === 'board-left') {
         const hit = hitAt(request)
         if (!hit) return shown
@@ -132,8 +136,8 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
             return shown
           }
         }
-        if (state.kind === 'playing' && state.cursor.phase === 'aircraft-refit' && own) {
-          pickUnit(hit.unitId, request.toggle, selection.refitBase)
+        if (own) {
+          pickUnit(hit.unitId)
           shown = render(record, selection, data)
           return shown
         }
@@ -141,11 +145,8 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         const direct = choicesAt(picked).filter((entry) => entry.actions.length === 1 &&
           pointActions.has(entry.actions[0].type) && actionTarget(entry.actions[0], hit) &&
           (entry.actions[0].type !== 'base-aircraft' || !hit.ownIds.includes(current.unitId)) && available(entry))
-        if (!request.confirm && direct.length === 1 && (!hit.box || !own)) return commit(direct[0].actions)
-        if (own && (!request.confirm || !current.route?.length)) {
-          pickUnit(hit.unitId, request.toggle)
-          selection.stackHex = undefined
-        } else if (hit.hex) {
+        if (!request.confirm && direct.length === 1) return commit(direct[0].actions)
+        if (hit.hex) {
           const route = routeTo(state, current, hit.hex, data.assets.map)
           selection = { ...current, hex: hit.hex, route, stackHex: !route.length && hit.ownIds.length > 0 ? hit.hex : undefined }
           if (request.confirm && route.length) {
@@ -158,7 +159,7 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
           }
         }
       } else if (request.kind === 'clear-selection') {
-        selection = {}
+        selection = { unitIds: [] }
       } else if (request.kind === 'apply' || request.kind === 'command') {
         const chosen = request.kind === 'apply' ? [...shown.actions, ...priorMenu].find(({ key }) => key === request.key) : null
         const action = request.action
@@ -226,8 +227,8 @@ function render(record, selection, data) {
   const { state, revision } = record
   const actor = localDecisionSide(state) ?? (state.kind === 'playing' ? state.cursor.phasing : state.opening.seat)
   const roster = localRoster(state, actor, data, selection.refitBase)
-  const selected = roster.find(({ id }) => id === selection.unitId) ?? (state.kind === 'setup' ? roster[0] :
-    state.cursor.phase === 'reinforcement' && state.window?.stage === 'scheduled' ? roster[0] : undefined)
+  const placement = state.kind === 'setup' || state.cursor.phase === 'reinforcement' && state.window?.stage === 'scheduled'
+  const selected = roster.find(({ id }) => id === selection.unitId) ?? (placement && !selection.unitIds ? roster[0] : undefined)
   const picked = { ...selection, unitId: selected?.id, hex: selection.hex ?? selected?.hex }
   const unitIds = selection.unitIds?.filter((id) => roster.some((item) => item.id === id)) ?? (selected ? [selected.id] : [])
   const { catalog } = data.assets

@@ -9,11 +9,13 @@ import { internalRecoveryPerLevel } from '@ocs-eastern/series/internal-stocks'
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
 import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 import { airGroupChoices } from './air-group.mjs'
+import { transportMenuChoices } from './transport-menu.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
 const categories = new Map([
   ['set-ground-mode', '模式'], ['mark-reserve', '预备队'], ['leave-reserve', '预备队'], ['release-reserve', '预备队'],
   ['load-transport', '运输'], ['unload-transport', '运输'], ['form-extender', '运输'], ['dismantle-extender', '运输'],
+  ['repack-transport', '运输'], ['rebuild-remnant', '重建'],
   ['fuel-formation', '加油'], ['fuel-headquarters', '加油'], ['fuel-from-paused-transport', '加油'],
   ['work-hedgehog', '工事'], ['feed-units', '补给'], ['recover-internal-stocks', '补给'], ['refit-aircraft', '飞机整备'],
   ['declare-artillery-barrage', '射击'], ['declare-front-barrage', '射击'], ['declare-combat', '地面战斗'],
@@ -88,11 +90,17 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
       // The batch draft already covers every plane of this base, so the per-aircraft fallback would
       // only repeat the same charge under a second name.
       if (draftOffered && action.type === 'refit-aircraft') continue
-      if (keepSelection.has(menuGroup(action))) append(choice, label)
+      if (keepSelection.has(menuGroup(action)) || action.type === 'rebuild-remnant') append(choice, label)
     }
     if (unit && (movingWindow(state) || state.supply)) {
       counterCapabilities(state, side, id, hit.hex, data, (name, type, fields) => add(label ? `${label} · ${name}` : name, type, fields))
     }
+  }
+  const selectedHere = hit.hex && selected.length > 1 && (!hit.unitId || selected.includes(hit.unitId)) &&
+    selected.every((id) => state.units?.[id]?.hex === hit.hex)
+  const repackGroups = selectedHere ? [selected] : targets.map((id) => [id])
+  for (const ids of repackGroups) for (const { label, order } of transportMenuChoices(state, side, ids, data.assets)) {
+    add(label, 'repack-transport', order)
   }
   if (movingWindow(state) && !hit.unitId && hit.hex && selected.length > 1 &&
       selected.every((id) => state.units[id]?.hex === hit.hex)) {

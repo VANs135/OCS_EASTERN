@@ -3,6 +3,7 @@ import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
 import { scorpionGroundMpAvailable, canMoveInPhase, walkScorpionGroundRoute } from '../../src/match/scorpion-movement.ts'
 import { scorpionScheduledArrivals } from '../../src/match/scorpion-reinforcement.ts'
+import { rebuildScorpionRemnant } from '../../src/match/scorpion-remnants.ts'
 import { scorpionMovementRules } from '../../src/match/scorpion-ground-actions.ts'
 import { hasScorpionBulkFuel } from '../../src/match/scorpion-fuel.ts'
 import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpion-sp-payment.ts'
@@ -162,14 +163,14 @@ export function localChoices(state, side, selection, data) {
   return choices
 }
 
-function reinforcementChoices(state, side, { unitId, hex }, data, add, batch) {
+function reinforcementChoices(state, side, { unitId, unitIds, hex }, data, add, batch) {
   const window = state.window
   const rules = data.board.reinforcements(state)
   if (window.stage === 'scheduled') {
     const candidates = localArrivals(state, side, data)
     // Entry-hex availability decides what can be placed now, never whether an obligation exists.
     const { placeable: outstanding, blocked } = scorpionScheduledArrivals(state, side, rules)
-    const picked = candidates.find(({ id }) => id === unitId) ?? outstanding[0]
+    const picked = candidates.find(({ id }) => id === unitId) ?? (unitIds?.length === 0 ? undefined : outstanding[0])
     if (picked) for (const at of rules.arrivalDestinations(picked)) {
       add(`入场到 ${at}${picked.optionalForce && !state.arrival.mobilized.includes(picked.optionalForce) ? ' · 首次调入扣 5 VP' : ''}`,
         'place-arrival', { arrivalId: picked.id, hex: at })
@@ -199,6 +200,17 @@ function reinforcementChoices(state, side, { unitId, hex }, data, add, batch) {
   if (window.pendingAlert) {
     for (const hex of rules.alertDestinations(window.pendingAlert)) add(`警戒营入场 · ${hex}`, 'place-alert', { hex })
     add('放弃本次警戒营', 'pass-alert')
+  }
+  const remnant = state.units[unitId]
+  if (side === 'axis' && remnant?.remnantOf && state.pax.axis > 0) {
+    const parent = state.pieces.find(({ id }) => id === remnant.remnantOf)
+    const name = data.assets.catalog.definitions.get(parent?.definition)?.source.name ?? '原步兵师'
+    for (const face of ['combat', 'move']) {
+      const action = { type: 'rebuild-remnant', remnantId: unitId, face }
+      try { rebuildScorpionRemnant(state, side, action, data.assets, data.board.supplyRail) } catch { continue }
+      add(`重建 ${name} · ${face === 'combat' ? '战斗面' : '移动面'} · 1 人员补充点`, action.type,
+        { remnantId: unitId, face })
+    }
   }
   if (!window.variableTokens && !window.pendingAlert) add('结束增援', 'complete-reinforcement')
 }

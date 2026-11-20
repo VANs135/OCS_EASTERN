@@ -10,6 +10,7 @@ import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
 import { localChoices } from '../desktop/local/actions.mjs'
 import { supplyDraft } from '../desktop/local/supply-draft.mjs'
+import { localMenu } from '../desktop/local/interaction.mjs'
 
 const hexes = ['s1.03', 's1.04', 's10.01', 's10.02', 's15.08', 's15.09']
 const map = scorpionMap(hexes.map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -251,6 +252,26 @@ test('transport repacking conserves points and cargo and preserves only the sele
   assert.equal(split.state.units.first.transportCargoTokens, 4)
   assert.throws(() => submit(split, { type: 'ground-move', unitId: 'first', path: [a] }), /unavailable/)
   assert.equal(submit(split, { type: 'ground-move', unitId: continuation, path: [a] }).state.units[continuation].hex, a)
+})
+
+test('transport menu combines selected counters and splits their cargo with a choice of which keeps moving', () => {
+  const a = 's1.03', b = 's1.04'
+  transportDefinition(3)
+  const start = fixture({ first: ordinaryTruck(a, 2, 3), second: ordinaryTruck(a, 1, 1) })
+  const at = (record, hex, unitIds) => localMenu(record.state, 'axis', { unitId: unitIds[0], unitIds },
+    { hex, unitId: unitIds[0], ownIds: Object.keys(record.state.units), labels: {} }, { assets, board }, () => [])
+    .filter(({ actions }) => actions[0].type === 'repack-transport')
+  const [merge] = at(start, a, ['first', 'second'])
+  assert.match(merge.label, /合并.*3 点载 4T/)
+  const merged = submit(start, merge.actions[0])
+  const moved = submit(merged, { type: 'ground-move', unitId: 'first', path: [b] })
+  const split = at(moved, b, ['first']).find(({ actions }) =>
+    actions[0].divisions[0].tokens === 1 && actions[0].continueWith === 1)
+  assert.match(split.label, /拆分.*1 点载 1T.*2 点载 3T.*第 2 枚继续/)
+  const result = submit(moved, split.actions[0])
+  const continuing = result.state.groundActivity.transport.unitId
+  assert.equal(result.state.units[continuing].transportCargoTokens, 3)
+  assert.equal(result.state.units.first.transportCargoTokens, 1)
 })
 
 function extenderFixture() {

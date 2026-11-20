@@ -40,7 +40,7 @@ try {
   for (const side of ['axis', 'soviet']) {
     assert.equal(client.view().actor, side)
     const air = client.view().roster.find(({ label }) => label.includes('待部署'))
-    await send('select-unit', { unitId: air.id })
+    if (client.view().unitId !== air.id) await send('select-unit', { unitId: air.id })
     const base = client.view().actions.flatMap(({ actions }) => actions).find((action) => action.type === 'base-aircraft' && action.base.kind === 'hex').base.hex
     const before = client.view().revision
     await left(base)
@@ -69,8 +69,13 @@ try {
   await left(rifle.hex, { unitId: rifle.id })
   assert.deepEqual(client.view().unitIds, [rifle.id])
   const second = client.view().roster.find(({ id, hex, label }) => id !== rifle.id && hex && label.includes('Rifle Div'))
-  assert.deepEqual((await left(second.hex, { unitId: second.id, toggle: true })).unitIds, [rifle.id, second.id])
-  assert.deepEqual((await left(second.hex, { unitId: second.id, toggle: true })).unitIds, [rifle.id])
+  assert.deepEqual((await left(second.hex, { unitId: second.id })).unitIds, [rifle.id, second.id])
+  assert.deepEqual((await left(second.hex, { unitId: second.id })).unitIds, [rifle.id])
+  const cleared = await left(rifle.hex, { unitId: rifle.id })
+  assert.deepEqual(cleared.frame.selectedUnits, [])
+  assert.equal(cleared.unitId, null)
+  assert.equal(cleared.revision, captureOpening.revision)
+  await left(rifle.hex, { unitId: rifle.id })
   const beforeMenu = await readLocalJson(file)
   const context = await right(rifle.hex, { unitId: rifle.id })
   assert.ok(context.menu.some(({ group, actions }) => group === '模式' && actions[0].unitId === rifle.id))

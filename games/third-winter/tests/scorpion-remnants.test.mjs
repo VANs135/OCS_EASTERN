@@ -8,6 +8,8 @@ import { applyScorpionCombatLosses } from '../src/match/scorpion-combat-losses.t
 import { scorpionRemnantDestinations } from '../src/match/scorpion-remnants.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { localChoices } from '../desktop/local/actions.mjs'
+import { localMenu } from '../desktop/local/interaction.mjs'
 
 const origin = 's5.04', middle = 's4.04', west = 's3.04', alternate = 's3.05', attack = 's6.04', flank = 's4.03'
 const pairs = [[origin, middle], [middle, west], [middle, alternate], [origin, attack], [middle, flank], [flank, west],
@@ -77,7 +79,15 @@ test('a surviving exit requires an Axis choice and creates one VP even when the 
   const rebuild = { type: 'rebuild-remnant', remnantId }
   const withKessel = { ...restored, state: { ...restored.state, units: { ...restored.state.units, hq: small(Kessel, west) } } }
   assert.throws(() => submit(withKessel, rebuild), /eligible supplied Axis/)
-  const rebuilt = submit(restored, rebuild)
+  const data = { assets, board: { ...board, reinforcements: () => ({}) } }
+  const menu = (state) => localMenu(state, 'axis', { unitId: remnantId }, { hex: west, unitId: remnantId, ownIds: [remnantId] },
+    data, (selection) => localChoices(state, 'axis', selection, data)).filter(({ group }) => group === '重建')
+  assert.equal(menu(withKessel.state).length, 0)
+  const choices = menu(restored.state)
+  assert.equal(choices.length, 2)
+  const combat = choices.find(({ actions }) => actions[0].face === 'combat')
+  assert.match(combat.label, /Ge 57 Inf Div.*战斗面.*1 人员补充点/)
+  const rebuilt = submit(restored, combat.actions[0])
   assert.equal(rebuilt.state.pax.axis, 0)
   assert.equal(rebuilt.state.units[remnantId], undefined)
   assert.equal(rebuilt.state.units.d.hex, west)

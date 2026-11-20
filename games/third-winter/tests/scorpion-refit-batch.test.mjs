@@ -225,11 +225,11 @@ test('checkbox clicks toggle one plane while a plain click replaces the batch', 
   const record = refitState({ pieces: [plane('a', 's10.02', false, { index: 0 }), plane('b', 's10.02', false, { index: 1 }),
     plane('far', 's10.01', false, { index: 2 })] })
   const base = { kind: 'hex', hex: 's10.02' }
-  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, [], 'a', true), ['a'], 'a checkbox adds one plane')
-  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a'], 'b', true), ['a', 'b'])
-  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a', 'b'], 'a', true), ['b'], 'a second checkbox removes it')
-  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a', 'b'], 'b', false), ['b'], 'a plain map click replaces the batch')
-  assert.throws(() => toggleRefitSelection(record.state, 'soviet', base, [], 'far', true), /该基地本方非激活飞机/,
+  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, [], 'a'), ['a'], 'one plain click adds a plane')
+  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a'], 'b'), ['a', 'b'])
+  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a', 'b'], 'a'), ['b'], 'a second click removes it')
+  assert.deepEqual(toggleRefitSelection(record.state, 'soviet', base, ['a', 'b'], 'b'), ['a'])
+  assert.throws(() => toggleRefitSelection(record.state, 'soviet', base, [], 'far'), /该基地本方非激活飞机/,
     'a plane parked at another base cannot be drafted into this batch')
 })
 
