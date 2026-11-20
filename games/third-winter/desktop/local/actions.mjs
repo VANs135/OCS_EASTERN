@@ -7,12 +7,12 @@ import { scorpionMovementRules } from '../../src/match/scorpion-ground-actions.t
 import { hasScorpionBulkFuel } from '../../src/match/scorpion-fuel.ts'
 import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpion-sp-payment.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
-import { hasTrace } from '../../src/match/scorpion-supply-phase.ts'
 import { scorpionOpeningAirBases } from '../../src/ttw/scorpion/setup-stores.ts'
 import { scorpionBarrageFrontAt } from '../../src/ttw/scorpion/barrage-markers.ts'
 import { artilleryChoices, artilleryDraft, frontBarrageDraft, frontChoices } from './barrage-draft.mjs'
 import { refitBaseOf, refitChoiceLabels, refitDraft, sameBase } from './refit.mjs'
 import { repliesFor } from './replies.mjs'
+import { supplyDraft } from './supply-draft.mjs'
 
 export const opponent = (side) => side === 'axis' ? 'soviet' : 'axis'
 export const sideName = (side) => side === 'axis' ? '轴心' : '苏军'
@@ -140,7 +140,7 @@ export function localChoices(state, side, selection, data) {
   } else if (phase === 'reinforcement') {
     reinforcementChoices(state, side, selection, data, add, batch)
   } else if (phase === 'supply') {
-    supplyChoices(state, side, unitId, data, add)
+    supplyChoices(state, side, selection, data, add)
   } else {
     if (['movement', 'reaction', 'exploitation'].includes(phase)) {
       const ids = selection.unitIds ?? []
@@ -203,8 +203,8 @@ function reinforcementChoices(state, side, { unitId, hex }, data, add, batch) {
   if (!window.variableTokens && !window.pendingAlert) add('结束增援', 'complete-reinforcement')
 }
 
-function supplyChoices(state, side, unitId, data, add) {
-  const { splits, attrition, fed } = state.supply
+function supplyChoices(state, side, selection, data, add) {
+  const { splits, attrition } = state.supply
   const pending = splits.find((split) => !split.selected)
   if (pending) {
     for (const anchor of pending.anchors) {
@@ -213,13 +213,9 @@ function supplyChoices(state, side, unitId, data, add) {
       add(`${pending.formation} 追溯 · ${display}`, 'choose-formation-trace', { formation: pending.formation, anchor })
     }
   } else if (!attrition) {
-    const unit = state.units[unitId]
-    if (unit?.combat && unit.side === side && !hasTrace(state.supply, unitId) && !fed.includes(unitId)) {
-      const re = unit.printedRe - unit.stepsLost
-      for (const { dumpId, tokens } of scorpionSpPayment(state, side, data.assets.map).available([unit])) {
-        if (tokens >= Math.ceil(re / 2)) add(`用 ${dumpId.split(':').at(-1)} 的具象补给维持选中单位`, 'feed-units',
-          { payments: [{ dumpId, portions: [{ unitId, re }] }] })
-      }
+    const ids = selection.unitIds ?? (selection.unitId ? [selection.unitId] : [])
+    for (const { label, action } of supplyDraft(state, side, ids, data)?.choices ?? []) {
+      add(label, action.type, { payments: action.payments })
     }
     add('确认追溯补给并检查断补损耗', 'check-attrition')
   } else {

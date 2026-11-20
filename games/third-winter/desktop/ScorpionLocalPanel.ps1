@@ -245,6 +245,12 @@ function Update-LocalView($view) {
             $prompt.Margin = '0,2,0,10'
             [void]$script:localButtons.Children.Add($prompt)
         }
+        if ($view.supplyLines.Count) {
+            $supply = New-LocalText 13
+            $supply.Text = $view.supplyLines -join [Environment]::NewLine
+            $supply.Margin = '0,2,0,10'
+            [void]$script:localButtons.Children.Add($supply)
+        }
         foreach ($item in $view.actions) {
             $button = New-LocalButton $item.label
             $button.Margin = '0,0,0,6'

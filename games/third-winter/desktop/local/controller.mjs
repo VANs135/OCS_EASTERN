@@ -11,6 +11,7 @@ import { actionTarget, localMenu, moveActions, pointActions, retainCounter, rout
 import { refitBaseAt, refitBaseOf, refitDraft, toggleRefitSelection } from './refit.mjs'
 import { localCombatReview } from './combat-review.mjs'
 import { localAidSelection } from './aid-selection.mjs'
+import { supplyDraft } from './supply-draft.mjs'
 import { localScorpionEnvelope, lockLocalSave, readLocalJson, replaceLocalJson, restoreLocalScorpion } from './store.mjs'
 
 export async function openLocalScorpion(data, savePath, seed = randomBytes(4).readUInt32LE()) {
@@ -172,6 +173,8 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
         // A refit batches several aircraft at once and closes its draft; keeping one counter selected
         // would reopen a draft for a base that has already refitted this phase.
         if (step.type === 'refit-aircraft') return commit(chosen?.actions ?? [action], {})
+        if (step.type === 'feed-units') return commit(chosen?.actions ?? [action],
+          { unitId: shown.unitId, unitIds: shown.unitIds, stackHex: selection.stackHex })
         const keep = retainCounter(step) && id ? { unitId: id, unitIds: [id], stackHex: selection.stackHex } : {}
         return commit(chosen?.actions ?? [action], keep)
       } else throw new Error('无法识别此操作')
@@ -250,9 +253,10 @@ function render(record, selection, data) {
   const route = selectedUnit && picked.route?.length ? [selectedUnit.hex, ...picked.route] : []
   const refit = state.kind === 'playing' && state.cursor.phase === 'aircraft-refit'
     ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
+  const supply = state.kind === 'playing' && phase === '补给' ? supplyDraft(state, actor, unitIds, data) : null
   return { revision, actor, headline, phase, roster, stack, captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, combatPrompt: review?.prompt, ended: Boolean(result),
-    aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [],
+    aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [], supplyLines: supply?.lines ?? [],
     refit: refit && { base: refit.base, baseLabel: refit.baseLabel, level: refit.level, limit: refit.limit, active: refit.active,
       notes: refit.notes, total: refit.total, ready: refit.ready, fenced: refit.fenced, selected: refit.selected,
       payments: refit.payments.map(({ dumpId, tokens }) => ({ dumpId, tokens, label: dumpId.split(':').at(-1) })),
@@ -264,7 +268,8 @@ function render(record, selection, data) {
 }
 
 export function projectLocalScorpion(view) {
-  const actions = view.actions.filter((entry) => entry.reviewDraft || entry.aidChoice || sidebarChoice(entry))
+  const actions = view.actions.filter((entry) => entry.reviewDraft || entry.aidChoice ||
+    entry.actions[0]?.type === 'feed-units' || sidebarChoice(entry))
     .map(({ key, label }) => ({ key, label }))
   const menu = view.menu?.map(({ key, label, group }) => ({ key, label, group }))
   return { ...view, actions, menu }

@@ -8,6 +8,8 @@ import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { localChoices } from '../desktop/local/actions.mjs'
+import { supplyDraft } from '../desktop/local/supply-draft.mjs'
 
 const hexes = ['s1.03', 's1.04', 's10.01', 's10.02', 's15.08', 's15.09']
 const map = scorpionMap(hexes.map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -84,6 +86,26 @@ test('the OCS attrition table uses unsupplied steps and its large-stack modifier
   assert.equal(attritionLoss(5, 5, [4, 4]), 2)
   assert.equal(attritionLoss(5, 5, [5, 5]), 5)
   assert.equal(attritionLoss(1, 0, [6, 6]), 1)
+})
+
+test('desktop supply groups selected units, shows the source and spends only on confirmation', () => {
+  const dumpId = 'axis:hex:s10.01'
+  const record = submit(fixture({
+    first: counter('s10.01'), second: counter('s10.02'), traced: counter('s1.04'),
+  }, { [dumpId]: dump(1) }), { type: 'complete-movement' })
+  const unitIds = ['first', 'second', 'traced']
+  const data = { assets, board }
+  const selected = supplyDraft(record.state, 'axis', unitIds, data)
+  assert.equal(selected.lines.filter((line) => line.includes('无法追溯')).length, 2)
+  assert.ok(selected.lines.some((line) => line.includes('抽象补给 · s1.03')))
+  const choices = localChoices(record.state, 'axis', { unitId: 'traced', unitIds }, data)
+  const pay = choices.find(({ actions }) => actions[0].type === 'feed-units')
+  assert.match(pay.label, /s10.01.*支付 1T 供养 2 枚.*余 0T/)
+  assert.equal(record.state.dumps[dumpId].tokens, 1)
+  const settled = submit(record, pay.actions[0])
+  assert.deepEqual(settled.state.supply.fed, ['first', 'second'])
+  assert.equal(settled.state.dumps[dumpId].tokens, 0)
+  assert.equal(supplyDraft(settled.state, 'axis', unitIds, data).choices.length, 0)
 })
 
 test('mandatory internal recovery allows a partial upgrade and spends an unusable token before attrition', () => {
