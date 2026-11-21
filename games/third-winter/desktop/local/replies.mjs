@@ -1,5 +1,6 @@
 import { scorpionAirReturnOptions } from '../../src/match/scorpion-air-operations.ts'
 import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
+import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
 import { advanceChoices, advanceDraft, defenseSupplyChoices, defenseSupplyDraft, terrainChoices, terrainDraft } from './combat-draft.mjs'
@@ -60,7 +61,8 @@ export function repliesFor(state, side, selection, data, add) {
     return true
   }
   if (state.combat) {
-    combatReplies(state, side, data, add)
+    const decision = scorpionPendingCombatDecision(state)
+    if (decision?.actor === side) combatReplies(state, side, decision.actionType, data, add)
     return true
   }
   const step = state.turn.step
@@ -112,16 +114,16 @@ function airReplies(state, side, unitId, data, add) {
   }
 }
 
-function combatReplies(state, side, data, add) {
+function combatReplies(state, side, actionType, data, add) {
   const battle = state.combat
   const ids = side === battle.attacker ? battle.attackers : battle.defenders
   const counterNameOf = (id) => counterName(state, data, id)
-  if (battle.step === 'defender-supply') {
+  if (actionType === 'defend-combat') {
     const draft = defenseSupplyDraft(state, side, data, ids)
     for (const row of defenseSupplyChoices(draft)) add(row.label, row.type, { payments: row.payments, internalUnitIds: row.internalUnitIds })
-  } else if (battle.step.endsWith('-rating')) {
+  } else if (actionType === 'select-combat-rating') {
     for (const unitId of ids) add(`用 ${counterName(state, data, unitId)} 的行动值`, 'select-combat-rating', { unitId })
-  } else if (battle.step === 'defender-terrain') {
+  } else if (actionType === 'choose-combat-terrain') {
     // Each attacking origin names its own terrain or the river it crosses on the way in.
     const draft = terrainDraft(state, side, data)
     if (draft) for (const row of terrainChoices(draft)) add(row.label, row.type, { terrain: row.terrain, attackingTerrain: row.attackingTerrain })
@@ -129,7 +131,7 @@ function combatReplies(state, side, data, add) {
       const attackingTerrain = Object.fromEntries(battle.attackers.map((id) => [state.units[id].hex, terrain]))
       add(`选择${terrainName[terrain]}，结算奇袭与战斗`, 'choose-combat-terrain', { terrain, attackingTerrain })
     }
-  } else if (battle.step === 'advance') {
+  } else if (actionType === 'advance-after-combat') {
     const draft = advanceDraft(state, side)
     for (const row of advanceChoices(draft, counterNameOf)) add(row.label, row.type, { unitIds: row.unitIds })
   }

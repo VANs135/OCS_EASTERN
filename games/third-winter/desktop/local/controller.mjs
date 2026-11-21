@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
 import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
+import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
 import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
 import { scorpionStackingChoices, scorpionThawEntryHexes } from '../../src/match/scorpion-stacking.ts'
 import { scorpionTransportStock } from '../../src/match/scorpion-transport-points.ts'
@@ -286,7 +287,8 @@ function render(record, selection, data) {
   const supply = state.kind === 'playing' && phase === '补给' ? supplyDraft(state, actor, unitIds, data) : null
   const transportStock = scorpionTransportStock(state.kind === 'playing' ? state.units : state.opening.units, actor, data.assets)
   const airDecision = state.kind === 'playing' ? scorpionPendingAirDecision(state) : null
-  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, airDecision,
+  const combatDecision = state.kind === 'playing' ? scorpionPendingCombatDecision(state) : null
+  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, airDecision, combatDecision,
     phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
     turnNumber: state.kind === 'playing' ? state.turn.number : null,
     phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,

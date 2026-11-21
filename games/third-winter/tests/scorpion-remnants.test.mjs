@@ -71,7 +71,9 @@ test('a surviving exit requires an Axis choice and creates one VP even when the 
   assert.equal(marker.asset, `${remnants[0].key}-back.png`)
   const restored = JSON.parse(JSON.stringify(placed))
   assert.equal(submitScorpionSession(restored, 'axis', command(start, plan), assets, board).duplicate, true)
-  assert.throws(() => submit(restored, { type: 'rebuild-remnant', remnantId }), /Axis reinforcement Pax/)
+  assert.throws(() => submit(restored, { type: 'rebuild-remnant', remnantId }), /pending combat/)
+  const afterBattle = { ...restored, state: { ...restored.state, combat: null } }
+  assert.throws(() => submit(afterBattle, { type: 'rebuild-remnant', remnantId }), /Axis reinforcement Pax/)
 
   restored.state.cursor = { ...restored.state.cursor, phase: 'reinforcement', phasing: 'axis' }
   restored.state.window = { stage: 'variable' }

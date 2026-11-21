@@ -5,6 +5,8 @@ import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
 import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionPendingCombatDecision } from '../src/match/scorpion-combat-actions.ts'
+import { localDecisionSide } from '../desktop/local/actions.mjs'
 import { scorpionBarrageFrontAt } from '../src/ttw/scorpion/barrage-markers.ts'
 import { scorpionBarrageMarkerFrame } from '../src/view/scorpion-barrage-markers.ts'
 import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
@@ -140,23 +142,39 @@ test('enemy ZOC blocks on-map aircraft refit and the off-map box refits freely',
 
 test('regular combat discloses each decision in order, updates the dead pile and permits advancement', () => {
   let record = fixture('combat', { infantry: unit('soviet', 's10.01'), defense: unit('axis', 's10.02') })
+  const expectWindow = (step, actor, actionType) => {
+    assert.deepEqual(scorpionPendingCombatDecision(record.state), { kind: 'regular', target: 's10.02', step, actor, actionType })
+    assert.equal(localDecisionSide(record.state), actor)
+  }
   record = submit(record, 'soviet', { type: 'declare-combat', target: 's10.02', attackers: ['infantry'],
     payments: [{ unitId: 'infantry', dumpId: 'soviet:hex:s10.01', tokens: 1 }] })
+  expectWindow('defender-supply', 'axis', 'defend-combat')
   assert.equal(record.state.dumps['soviet:hex:s10.01'].tokens, 9)
   assert.throws(() => submit(record, 'soviet', { type: 'complete-combat' }), /pending combat/)
   assert.throws(() => submit(record, 'soviet', { type: 'select-combat-rating', unitId: 'infantry' }), /correct order/)
   record = submit(record, 'axis', { type: 'defend-combat', payments: [] })
+  expectWindow('attacker-rating', 'soviet', 'select-combat-rating')
+  assert.throws(() => submit(record, 'axis', { type: 'select-combat-rating', unitId: 'defense' }), /responding side/)
   record = submit(record, 'soviet', { type: 'select-combat-rating', unitId: 'infantry' })
+  expectWindow('defender-rating', 'axis', 'select-combat-rating')
+  assert.throws(() => submit(record, 'axis', { type: 'choose-combat-terrain', terrain: 'Open' }), /correct order/)
   record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'defense' })
+  expectWindow('defender-terrain', 'axis', 'choose-combat-terrain')
+  assert.equal(record.state.rng.drawCount, 0)
   const terrain = { type: 'choose-combat-terrain', terrain: 'Open', attackingTerrain: { 's10.01': 'Open' } }
   const id = command(record, terrain)
   record = submit(record, 'axis', terrain)
+  expectWindow('attacker-result', 'soviet', 'resolve-combat')
   assert.equal(record.state.combat.roll.code, 'Ae4 DL1o1')
+  assert.throws(() => submit(record, 'axis', { type: 'resolve-combat', lossOrder: ['defense'], optionLosses: 0, retreats: [] }),
+    /responding side/)
   const restored = JSON.parse(JSON.stringify(record))
   assert.equal(submitScorpionSession(restored, 'axis', id, assets, board()).duplicate, true)
   record = submit(restored, 'soviet', { type: 'resolve-combat', lossOrder: [], optionLosses: 0, retreats: [] })
+  expectWindow('defender-result', 'axis', 'resolve-combat')
   assert.equal(record.state.units.infantry.exploit, true)
   record = submit(record, 'axis', { type: 'resolve-combat', lossOrder: ['defense'], optionLosses: 0, retreats: [] })
+  expectWindow('advance', 'soviet', 'advance-after-combat')
   assert.equal(record.state.arrival.sovietVp, 1)
   assert.equal(record.state.pieces[0].id, 'defense')
   record = submit(record, 'soviet', { type: 'advance-after-combat', unitIds: ['infantry'] })
@@ -420,7 +438,7 @@ test('an overrun stack can repeat its attack and automatically enters a cleared 
     record = submit(record, 'soviet', attack, option)
     assert.equal(record.state.overrunMarch.remaining[unitId], remaining)
     assert.equal(record.state.units.attack.hex, 's10.01')
-    assert.throws(() => submit(record, 'soviet', { type: 'complete-movement' }, option), /supply is unavailable/)
+    assert.throws(() => submit(record, 'soviet', { type: 'complete-movement' }, option), /pending combat/)
     record = submit(record, 'axis', { type: 'defend-combat', payments: [] }, option)
     record = submit(record, 'soviet', { type: 'select-combat-rating', unitId }, option)
     record = submit(record, 'axis', { type: 'select-combat-rating', unitId: 'defense' }, option)

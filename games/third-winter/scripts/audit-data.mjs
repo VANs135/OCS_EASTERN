@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import { basename, dirname, join, resolve } from 'node:path'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
-import { campaignHexKey, scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { submitScorpionDemo } from './scorpion-demo-commands.mjs'
@@ -45,24 +46,7 @@ const [{ catalog: { definitions, aliases, rawIds }, setup, arrivals: reinforceme
   loadScorpionFiles(root, unitRoot, (file) => readAt(file)),
   scorpionOnly ? null : Promise.all([read('地图数据库', 'map_hexes.json'), read('地图数据库', 'map_edges.json')]),
 ])
-const [hexes, edges] = campaign ?? [null, null]
-const byHex = hexes ? new Map(hexes.items.map((hex) => [campaignHexKey(hex.hex_id), hex])) : new Map()
-if (hexes && byHex.size !== hexes.items.length) throw new Error('Campaign source hex ID collision')
-const seamIssues = hexes ? hexes.items.filter((hex) => {
-  if (!hex.seam_twin) return false
-  const peer = byHex.get(campaignHexKey(hex.seam_twin))
-  return peer?.seam_twin !== hex.hex_id || peer.seam_primary === hex.seam_primary
-}) : []
-const danglingEdges = edges ? edges.items.filter((edge) =>
-  [edge.hex_a, edge.hex_b].some((id) => id !== null && !byHex.has(campaignHexKey(id))),
-) : []
-const edgeGroups = new Map()
-for (const edge of edges?.items ?? []) {
-  if (!edge.seam_dup_group) continue
-  const keys = edgeGroups.get(edge.seam_dup_group) ?? new Set()
-  keys.add(JSON.stringify([edge.road_present, edge.road_subclass, edge.rail_present, edge.rail_class]))
-  edgeGroups.set(edge.seam_dup_group, keys)
-}
+const campaignMap = campaign && indexTtwCampaignMap(...campaign).diagnostics
 function references(value) {
   if (Array.isArray(value)) return value.flatMap(references)
   if (value === null || typeof value !== 'object') return []
@@ -478,16 +462,10 @@ const report = {
     unusableSovietSources,
     opening,
   },
-  campaign: hexes ? {
-    sourceHexes: hexes.items.length,
-    sourceEdges: edges.items.length,
-    openEndedEdges: edges.items.filter((edge) => edge.hex_a === null || edge.hex_b === null).length,
-    danglingEdges: danglingEdges.map(({ edge_key }) => edge_key),
-    mismatchedHexTwins: seamIssues.map(({ hex_id }) => hex_id),
-    seamTransportDisagreements: [...edgeGroups].filter(([, values]) => values.size > 1).map(([id]) => id),
-  } : { skipped: true, reason: '--scorpion-only: campaign 地图数据库/map_hexes.json and map_edges.json not read' },
+  campaign: campaignMap ?? { skipped: true, reason: '--scorpion-only: campaign 地图数据库/map_hexes.json and map_edges.json not read' },
 }
 console.log(JSON.stringify(report, null, 2))
-if (unresolved.length || danglingEdges.length || seamIssues.length || unusableAxisSources.length || unusableSovietSources.length ||
+if (unresolved.length || campaignMap?.danglingEdges.length || campaignMap?.mismatchedHexTwins.length ||
+    unusableAxisSources.length || unusableSovietSources.length ||
     unknownSetupMovement.length || unknownArrivalMovement.length ||
     missingSetupHexes.length || missingArrivalHexes.length) process.exitCode = 1

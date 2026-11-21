@@ -1,5 +1,6 @@
 import { scorpionHexDistance } from '../../src/import/hex-id.ts'
 import { validateCombatLossOrder } from '../../src/match/scorpion-combat-losses.ts'
+import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { ScorpionRemnantChoice } from '../../src/match/scorpion-remnants.ts'
 import { canScorpionRetreat, ScorpionRetreatLossChoice, ScorpionRetreatRemnantChoice, scorpionRetreatPathOptions } from '../../src/match/scorpion-retreat.ts'
@@ -10,10 +11,9 @@ import { canScorpionRetreat, ScorpionRetreatLossChoice, ScorpionRetreatRemnantCh
 
 export function localCombatReview(state, side, draft, assets, validate) {
   const battle = state.combat
-  if (state.reroll || state.capture || state.airMission || state.barrage || !battle?.roll || battle.retreat ||
-      !['attacker-result', 'defender-result'].includes(battle.step)) return null
-  const attacking = battle.step === 'attacker-result'
-  if (attacking !== (side === battle.attacker)) return null
+  const decision = scorpionPendingCombatDecision(state)
+  if (!battle?.roll || decision?.actionType !== 'resolve-combat' || decision.actor !== side) return null
+  const attacking = decision.step === 'attacker-result'
 
   const result = attacking ? battle.roll.attacker : battle.roll.defender
   const ids = attacking ? battle.attackers : battle.defenders

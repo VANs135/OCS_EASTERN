@@ -23,7 +23,7 @@ import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import { settleScorpionCapture } from './scorpion-capture.ts'
 import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCapture } from './scorpion-capture.ts'
 import type { ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
-import { applyScorpionCombatAction } from './scorpion-combat-actions.ts'
+import { applyScorpionCombatAction, scorpionCombatDecision } from './scorpion-combat-actions.ts'
 import type { ScorpionCombatAction } from './scorpion-combat-actions.ts'
 import type { ScorpionDropPlan } from './scorpion-drop-plan.ts'
 import { applyScorpionFireAction } from './scorpion-fire-actions.ts'
@@ -168,6 +168,16 @@ export function submitScorpionSession(
     }
     if (state.kind === 'playing' && state.airfieldCapacityChoice && action.type !== 'settle-airfield-capacity') {
       throw new Error('Resolve the air base’s active aircraft capacity first')
+    }
+    if (state.kind === 'playing' && state.combat && action.type !== 'settle-capture') {
+      const decision = scorpionCombatDecision(state.combat)
+      if (action.type !== decision.actionType) {
+        throw new Error(`Resolve the pending combat in the correct order: ${decision.actionType} is next`)
+      }
+      if (actor !== decision.actor) {
+        if (decision.step === 'retreat') throw new Error('Only the retreating side may continue its pending route')
+        throw new Error(`Resolve the pending combat with the current responding side: ${decision.actor}`)
+      }
     }
     switch (action.type) {
       case 'plan-air-drop':
