@@ -22,6 +22,12 @@ export function repliesFor(state, side, selection, data, add) {
     add('重掷并把算子交给对手', 'resolve-reroll', { decision: 'reroll' })
     return true
   }
+  if (state.phaseClose) {
+    if (state.phaseClose.actor === side) for (const pair of state.phaseClose.options) {
+      add(`${counterName(state, data, pair.parentId)} 吸收 ${counterName(state, data, pair.breakdownId)}`, 'absorb-breakdown', pair)
+    }
+    return true
+  }
   if (state.capture) return true
   if (state.combat?.retreat) {
     add('继续撤退余程', 'continue-combat-retreat')

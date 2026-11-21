@@ -16,6 +16,7 @@ import { applyScorpionAirAction } from './scorpion-air-actions.ts'
 import type { ScorpionAirAction } from './scorpion-air-actions.ts'
 import type { ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
 import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
+import type { AbsorbScorpionBreakdown } from './scorpion-breakdown-absorption.ts'
 import type { ScorpionAirfield } from './scorpion-airfield-work.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
@@ -37,6 +38,8 @@ import { applyScorpionLogisticsAction } from './scorpion-logistics-actions.ts'
 import type { ScorpionLogisticsAction } from './scorpion-logistics-actions.ts'
 import type { ScorpionOverrunMarch } from './scorpion-overrun.ts'
 import { startScorpionPlayerTurns } from './scorpion-player-turn.ts'
+import { withScorpionPhaseClose } from './scorpion-phase-close.ts'
+import type { ScorpionPhaseClose } from './scorpion-phase-close.ts'
 import { applyScorpionPhaseFlow } from './scorpion-phase-flow.ts'
 import type { ScorpionPhaseAction } from './scorpion-phase-flow.ts'
 import { withScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
@@ -76,6 +79,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   airHistory?: readonly ScorpionAirReport[]
   dropPlan?: ScorpionDropPlan | null
   phaseOccupancy?: ScorpionPhaseOccupancy
+  phaseClose?: ScorpionPhaseClose
   dropTrace?: { unitId: string; turn: number }
   kesselReturns?: Readonly<Record<string, number>>
   trainbusting?: readonly TrainbustingMarker[]
@@ -111,7 +115,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | ScorpionLogisticsAction
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | ScorpionCombatAction
   | RebuildScorpionRemnant | ResolveScorpionReroll
-  | ScorpionKesselAction | SettleScorpionStacking
+  | ScorpionKesselAction | SettleScorpionStacking | AbsorbScorpionBreakdown
   | SettleScorpionCapture | ScorpionAirAction
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies extends GroundPolicies {
@@ -129,7 +133,8 @@ export function submitScorpionSession(
   record: Readonly<ScorpionSessionRecord>, seat: Side, command: Readonly<Command<ScorpionAction>>,
   assets: ScorpionSetupAssets, board: BoardPolicies = {},
 ) {
-  function applyAction(state: ScorpionSession, actor: Side, action: ScorpionPlayAction, offer?: ScorpionRoll): ScorpionSession {
+  function applyAction(state: ScorpionSession, actor: Side, action: Exclude<ScorpionPlayAction, AbsorbScorpionBreakdown>,
+    offer?: ScorpionRoll): ScorpionSession {
     const airBoard = { barrage: board.barrage, facilityBarrage: board.facilityBarrage,
       hedgehogAt: board.combat?.hedgehogAt, supplyRail: board.supplyRail, captureResolution: board.captureResolution, offerRoll: offer }
     const stackingExempt = state.kind === 'playing' && state.turn.weather.ground === 'thaw'
@@ -296,10 +301,12 @@ export function submitScorpionSession(
   return acceptCommand(record, seat, command, (state, actor, action) => {
     if (state.kind === 'setup') {
       if (action.type === 'resolve-reroll') throw new Error('No roll is pending during setup')
+      if (action.type === 'absorb-breakdown') throw new Error('Breakdown absorption requires an active phase')
       return withScorpionPhaseOccupancy(state, applyAction(state, actor, action))
     }
     const current = assets.map ? pruneScorpionGroundControl(state, assets.map) : state
-    const next = applyScorpionReroll(current, actor, action, applyAction)
+    const next = applyScorpionReroll(current, actor, action, (base, player, command, offer) =>
+      withScorpionPhaseClose(base, player, command, assets.breakdowns, (position, owner, resolved) => applyAction(position, owner, resolved, offer)))
     if (next.kind === 'playing' && next.reroll) return next
     // OCS 6.1g, 13.2a. Only handling and fueling can interrupt this same transport's move.
     const type = current.reroll?.action.type ?? action.type

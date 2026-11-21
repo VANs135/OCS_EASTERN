@@ -25,6 +25,7 @@ export const phaseNames = { 'aircraft-refit': '飞机整备', reinforcement: '�
 export function localDecisionSide(state) {
   if (state.kind === 'setup') return state.opening.seat
   if (state.reroll) return state.rerollHolder
+  if (state.phaseClose) return state.phaseClose.actor
   if (state.capture) return state.capture.owner
   if (state.combat?.retreat) return state.combat.retreat.side
   const air = scorpionPendingAirDecision(state)

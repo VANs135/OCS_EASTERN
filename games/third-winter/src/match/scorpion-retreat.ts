@@ -4,6 +4,8 @@ import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
+import { detachScorpionBreakdowns } from './scorpion-breakdowns.ts'
+import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { disorganizeScorpionHex } from './scorpion-disorganization.ts'
 import { ScorpionRemnantChoice } from './scorpion-remnants.ts'
@@ -23,6 +25,7 @@ export interface RetreatPlan {
   group?: string
   units: readonly string[]
   path: readonly string[]
+  breakdowns?: readonly ScorpionBreakdownOrder[]
   /** Unit selected for any loss required on entry to a particular step (zero based). */
   zocLosses?: Readonly<Record<number, string>>
   remnantHexes?: Readonly<Record<number, string>>
@@ -116,6 +119,9 @@ export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
   })
   const groups = new Set(routes.map(({ group }) => group))
   if (groups.size !== routes.length) throw new Error('Give each retreat stack its own group id')
+  // A capture can suspend the first stack. Validate the entire allocation before any route is committed.
+  let checked = state
+  for (const route of routes) if (route.breakdowns?.length) checked = prepareRoute(checked, side, route, assets).state
   return followRetreat(state, { side, distance, routes, nextRoute: 0, nextStep: 0 }, combat, assets, policy)
 }
 
@@ -181,10 +187,11 @@ function validateRoute(route: RetreatRoute, side: Side, distance: number, combat
   }
 }
 
-function prepareRoute(state: Readonly<ScorpionInPlay>, side: Side, route: RetreatRoute, { catalog }: ScorpionSetupAssets) {
+function prepareRoute(state: Readonly<ScorpionInPlay>, side: Side, route: RetreatRoute, assets: ScorpionSetupAssets) {
   const setup = { ...state.units }
-  for (const id of route.units) setup[id] = retreatMode(setup[id], side, route.origin, catalog)
-  return { ...state, units: setup }
+  for (const id of route.units) setup[id] = retreatMode(setup[id], side, route.origin, assets.catalog)
+  const split = detachScorpionBreakdowns({ ...state, units: setup }, side, route.breakdowns ?? [], route.units, assets)
+  return { state: split.state, route: { ...route, breakdowns: undefined, units: [...route.units, ...split.detachedIds] } }
 }
 
 function retreatMode(unit: DeployedCounter | undefined, side: Side, origin: string, catalog: ScorpionSetupAssets['catalog']) {
@@ -199,17 +206,22 @@ function retreatMode(unit: DeployedCounter | undefined, side: Side, origin: stri
 
 function followRetreat(state: Readonly<ScorpionInPlay>, progress: ScorpionCombatRetreat, combat: ScorpionCombat,
   assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy): { state: ScorpionInPlay; pending: ScorpionCombatRetreat | null } {
-  const { side, routes, nextRoute, nextStep } = progress
+  const { side, nextRoute, nextStep } = progress
+  const routes = [...progress.routes]
   const rawZoc = scorpionEnemyZoc(state, assets.map, side)
   let settled = state
   for (let i = nextRoute; i < routes.length; i++) {
-    const route = routes[i]!
+    let route = routes[i]!
     const firstStep = i === nextRoute ? nextStep : 0
-    if (firstStep === 0) settled = prepareRoute(settled, side, route, assets)
+    if (firstStep === 0) {
+      const prepared = prepareRoute(settled, side, route, assets)
+      settled = prepared.state
+      routes[i] = route = prepared.route
+    }
     for (let step = firstStep; step < route.path.length; step++) {
       settled = retreatStep(settled, side, route, step, rawZoc, assets, policy)
       if (settled.victory) return { state: settled, pending: null }
-      if (settled.capture) return { state: settled, pending: { ...progress, nextRoute: i, nextStep: step + 1 } }
+      if (settled.capture) return { state: settled, pending: { ...progress, routes, nextRoute: i, nextStep: step + 1 } }
     }
   }
   for (const hex of new Set(routes.flatMap(({ units }) => units.map((id) => settled.units[id]?.hex)))) {

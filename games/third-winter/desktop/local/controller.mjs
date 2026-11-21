@@ -255,7 +255,7 @@ function render(record, selection, data) {
   const mapStacks = scorpionMapStacks(state, catalog, mapCounters)
   const result = state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended' && state.turn.step.result)
   const phase = state.kind === 'setup' ? '开局部署' : result ? '对局结束' : state.turn.step.kind !== 'player-turn' ? '先手判定'
-    : state.reroll ? '重掷应答' : state.capture ? '夺取应答' : state.barrage ? '射击应答' : state.airMission ? '空军任务'
+    : state.reroll ? '重掷应答' : state.phaseClose ? '阶段末吸收' : state.capture ? '夺取应答' : state.barrage ? '射击应答' : state.airMission ? '空军任务'
       : state.combat ? '战斗应答' : phaseNames[state.cursor.phase]
   const stamp = state.kind === 'setup' ? '' : `第 ${state.turn.number} 回合 · `
   const headline = result ? `${stamp}${result.outcome === 'draw' ? '平局' : `${sideName(result.outcome)}${result.level === 'major' ? '大胜' : '小胜'}`}`
@@ -288,7 +288,9 @@ function render(record, selection, data) {
   const transportStock = scorpionTransportStock(state.kind === 'playing' ? state.units : state.opening.units, actor, data.assets)
   const airDecision = state.kind === 'playing' ? scorpionPendingAirDecision(state) : null
   const combatDecision = state.kind === 'playing' ? scorpionPendingCombatDecision(state) : null
-  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, airDecision, combatDecision,
+  const absorptionDecision = state.kind === 'playing' && state.phaseClose ?
+    { actor: state.phaseClose.actor, options: state.phaseClose.options } : null
+  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, airDecision, combatDecision, absorptionDecision,
     phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
     turnNumber: state.kind === 'playing' ? state.turn.number : null,
     phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,

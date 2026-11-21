@@ -1,6 +1,8 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
+import { detachScorpionBreakdowns } from './scorpion-breakdowns.ts'
+import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
 import { resolveScorpionEntry } from './scorpion-capture.ts'
 import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
@@ -92,18 +94,19 @@ function finishDefenderResult(settled: Readonly<ScorpionInPlay>, actor: Side, co
 }
 
 export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly string[],
-  assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy): ScorpionInPlay {
+  assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy, orders: readonly ScorpionBreakdownOrder[] = []): ScorpionInPlay {
   const combat = state.combat
   if (combat?.step !== 'advance' || combat.attacker !== side || new Set(ids).size !== ids.length) {
     throw new Error('Choose eligible surviving attackers for advancement')
   }
-  const units = { ...state.units }
-  for (const id of ids) {
-    const unit = units[id]
-    if (!unit || !combat.attackers.includes(id)) throw new Error('Only surviving attackers may advance')
-    units[id] = { ...unit, hex: combat.target }
+  if (ids.some((id) => !Object.hasOwn(state.units, id) || !combat.attackers.includes(id))) {
+    throw new Error('Only surviving attackers may advance')
   }
-  const advanced = { ...state, units, combat: null }
+  const split = detachScorpionBreakdowns(state, side, orders, ids, assets)
+  const entrants = [...ids, ...split.detachedIds]
+  const units = { ...split.state.units }
+  for (const id of entrants) units[id] = { ...units[id]!, hex: combat.target }
+  const advanced = { ...split.state, units, combat: null }
   assertScorpionStacking(advanced, combat.target)
-  return ids.length ? resolveScorpionEntry(advanced, side, combat.target, ids, assets, true, policy) : advanced
+  return entrants.length ? resolveScorpionEntry(advanced, side, combat.target, entrants, assets, true, policy) : advanced
 }

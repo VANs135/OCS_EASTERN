@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
 import { chooseScorpionCombatTerrain, declareScorpionCombat, defendScorpionCombat, selectScorpionCombatRating } from './scorpion-combat.ts'
 import type { ChooseCombatTerrain, DeclareCombat, DefendCombat, ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { advanceScorpionCombat, continueScorpionRetreatResult, resolveScorpionCombat } from './scorpion-combat-result.ts'
@@ -14,7 +15,7 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 export type ScorpionCombatAction = DeclareCombat | DeclareOverrun | DefendCombat | ChooseCombatTerrain
   | ResolveCombat | ContinueCombatRetreat | FinishOverrunMove
   | { type: 'select-combat-rating'; unitId: string }
-  | { type: 'advance-after-combat'; unitIds: readonly string[] }
+  | { type: 'advance-after-combat'; unitIds: readonly string[]; breakdowns?: readonly ScorpionBreakdownOrder[] }
 
 // OCS 9.2. The attacker pays at declaration. The terrain command runs steps 4–7
 // in order, with any reroll resolved by the session before opening the result window.
@@ -77,6 +78,6 @@ export function applyScorpionCombatAction(state: Readonly<ScorpionSession>, acto
     case 'resolve-combat':
       return resolveScorpionCombat(state, actor, action, assets, board)
     case 'advance-after-combat':
-      return advanceScorpionCombat(state, actor, action.unitIds, assets, board)
+      return advanceScorpionCombat(state, actor, action.unitIds, assets, board, action.breakdowns)
   }
 }
