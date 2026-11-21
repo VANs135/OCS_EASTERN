@@ -17,7 +17,7 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { assertScorpionPhaseStacking } from './scorpion-stacking.ts'
 import { recoverScorpionStocks, settleScorpionStockRecovery } from './scorpion-stock-recovery.ts'
 import type { RecoverInternalStocks } from './scorpion-stock-recovery.ts'
-import { feedScorpionUnits, openScorpionSupply, selectTraceAnchor } from './scorpion-supply-phase.ts'
+import { feedScorpionUnits, openScorpionSupply, scorpionSupplyDecision, selectTraceAnchor } from './scorpion-supply-phase.ts'
 import type { FeedUnits } from './scorpion-supply-phase.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { advanceScorpionThaw } from './scorpion-thaw.ts'
@@ -89,6 +89,9 @@ function applySupplyAction(state: Readonly<ScorpionSession>, actor: Side, action
   const window = state.supply
   switch (action.type) {
     case 'choose-formation-trace':
+      if (scorpionSupplyDecision(state, actor, assets.map, supplyRail)?.segment === 'stock-recovery') {
+        throw new Error('Recover affordable internal stocks before confirming formation trace')
+      }
       return selectTraceAnchor(state, window, action.formation, action.anchor)
     case 'recover-internal-stocks':
       return recoverScorpionStocks(state, action, assets.map, supplyRail)
@@ -101,7 +104,9 @@ function applySupplyAction(state: Readonly<ScorpionSession>, actor: Side, action
     case 'assign-attrition':
       return assignScorpionAttrition(state, window, action, assets)
     case 'complete-supply': {
-      if (!window.attrition || window.attrition.some((item) => !item.assigned)) throw new Error('Resolve attrition before leaving supply')
+      if (scorpionSupplyDecision(state, actor, assets.map, supplyRail)?.step !== 'complete-supply') {
+        throw new Error('Resolve attrition before leaving supply')
+      }
       assertScorpionPhaseStacking(state, actor, stackingExempt)
       if (state.cursor.simulcast) return advanceScorpionThaw(state, actor, assets.map, supplyRail)
       const cursor = advanceScorpionPhase(state.cursor, actor)

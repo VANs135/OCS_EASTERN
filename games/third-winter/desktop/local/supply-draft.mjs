@@ -1,6 +1,7 @@
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
 import { hasTrace } from '../../src/match/scorpion-supply-phase.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
+import { planScorpionStockRecovery } from '../../src/match/scorpion-stock-recovery.ts'
 
 export function supplyDraft(state, side, ids, { assets, board }) {
   const window = state.supply
@@ -12,10 +13,12 @@ export function supplyDraft(state, side, ids, { assets, board }) {
   const lines = selected.map((id) => `${name(id)} · ${traceStatus(window, id, name)}`)
   const choices = []
   if (!unresolved.length || window.attrition || window.splits.some(({ selected }) => !selected)) return { lines, choices }
+  const recovery = planScorpionStockRecovery(state, assets.map, board?.supplyRail)
+  if (recovery.kind === 'required') return { lines, choices }
   const portions = unresolved.map((unitId) => ({ unitId, re: remainingSteps(state.units[unitId]) }))
   const total = portions.reduce((sum, { re }) => sum + re, 0)
   const cost = Math.ceil(total / 2)
-  const ledger = scorpionSpPayment(state, side, assets.map, board?.supplyRail)
+  const ledger = scorpionSpPayment(recovery.state, side, assets.map, board?.supplyRail)
   for (const { dumpId, tokens } of ledger.available(unresolved.map((id) => state.units[id]))) {
     if (tokens < cost) continue
     const { hex, truck } = ledger.source(dumpId)

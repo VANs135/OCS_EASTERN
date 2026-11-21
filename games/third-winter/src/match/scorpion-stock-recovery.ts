@@ -28,18 +28,29 @@ export function recoverScorpionStocks(state: Readonly<ScorpionInPlay>, action: R
   return { ...state, ...ledger.settle({ ...state.units, [action.unitId]: { ...unit, internalStocks } }) }
 }
 
-export function settleScorpionStockRecovery(state: Readonly<ScorpionInPlay>, map: ScorpionMap,
-  railroad?: SupplyRailBoard): ScorpionInPlay {
+/** Preview mandatory recovery without changing the board or choosing which unit the player supplies. */
+export function planScorpionStockRecovery(state: Readonly<ScorpionInPlay>, map: ScorpionMap, railroad?: SupplyRailBoard):
+  { kind: 'required'; unitIds: string[] } | { kind: 'settled'; state: ScorpionInPlay } {
   const side = state.cursor.phasing
-  const needy = Object.values(state.units).filter((unit) => unit.side === side && unit.internalStocks)
-  if (!needy.length) return state
+  const needy = Object.entries(state.units).filter(([, unit]) => unit.side === side && unit.internalStocks)
+  if (!needy.length) return { kind: 'settled', state }
   const ledger = scorpionSpPayment(state, side, map, railroad)
   const remainder = new Map<string, SupplyPayment>()
-  for (const unit of needy) {
+  const unitIds: string[] = []
+  for (const [id, unit] of needy) {
     const available = ledger.available([unit], false)
-    if (totalTokens(available) >= recoveryCost(unit)) throw new Error('Recover affordable internal stocks before using supply elsewhere')
+    if (totalTokens(available) >= recoveryCost(unit)) unitIds.push(id)
     for (const payment of available) remainder.set(payment.dumpId, payment)
   }
+  if (unitIds.length) return { kind: 'required', unitIds }
+  if (!remainder.size) return { kind: 'settled', state }
   ledger.spend([...remainder.values()], () => true)
-  return { ...state, ...ledger.settle() }
+  return { kind: 'settled', state: { ...state, ...ledger.settle() } }
+}
+
+export function settleScorpionStockRecovery(state: Readonly<ScorpionInPlay>, map: ScorpionMap,
+  railroad?: SupplyRailBoard): ScorpionInPlay {
+  const plan = planScorpionStockRecovery(state, map, railroad)
+  if (plan.kind === 'required') throw new Error('Recover affordable internal stocks before using supply elsewhere')
+  return plan.state
 }

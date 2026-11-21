@@ -6,6 +6,7 @@ import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.
 import { scorpionStackingChoices, scorpionThawEntryHexes } from '../../src/match/scorpion-stacking.ts'
 import { scorpionBreakdownStock } from '../../src/match/scorpion-breakdowns.ts'
 import { scorpionTransportStock } from '../../src/match/scorpion-transport-points.ts'
+import { scorpionSupplyDecision } from '../../src/match/scorpion-supply-phase.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
@@ -307,19 +308,23 @@ function render(record, selection, data) {
   const refit = state.kind === 'playing' && state.cursor.phase === 'aircraft-refit'
     ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
   const supply = state.kind === 'playing' && phase === '补给' ? supplyDraft(state, actor, unitIds, data) : null
+  const supplyDecision = state.kind === 'playing' && phase === '补给'
+    ? scorpionSupplyDecision(state, actor, data.assets.map, data.board?.supplyRail) : null
+  const recovery = supplyDecision?.step === 'recover-internal-stocks'
+    ? ['先恢复部队储备。右键点击有可用补给的单位，选择恢复方式。'] : []
   const transportStock = scorpionTransportStock(state.kind === 'playing' ? state.units : state.opening.units, actor, data.assets)
   const airDecision = state.kind === 'playing' ? scorpionPendingAirDecision(state) : null
   const combatDecision = state.kind === 'playing' ? scorpionPendingCombatDecision(state) : null
   const absorptionDecision = state.kind === 'playing' && state.phaseClose ?
     { actor: state.phaseClose.actor, options: state.phaseClose.options } : null
   return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, breakdownStock,
-    airDecision, combatDecision, absorptionDecision,
+    airDecision, combatDecision, absorptionDecision, supplyDecision,
     phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
     turnNumber: state.kind === 'playing' ? state.turn.number : null,
     phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,
     captureNotice: selection.captureNotice, unitId: picked.unitId ?? null, unitIds, hex: picked.hex ?? null,
     route: picked.route ?? [], actions, combatPrompt: review?.prompt, breakdownPrompt: breakdown?.prompt, ended: Boolean(result),
-    aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [], supplyLines: supply?.lines ?? [],
+    aidPrompt: aid?.prompt, aidTargets: aid?.targets ?? [], supplyLines: [...recovery, ...(supply?.lines ?? [])],
     refit: refit && { base: refit.base, baseLabel: refit.baseLabel, level: refit.level, limit: refit.limit, active: refit.active,
       notes: refit.notes, total: refit.total, ready: refit.ready, fenced: refit.fenced, selected: refit.selected,
       payments: refit.payments.map(({ dumpId, tokens }) => ({ dumpId, tokens, label: dumpId.split(':').at(-1) })),

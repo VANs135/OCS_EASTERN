@@ -1,14 +1,11 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import { actingSide, nextPlayerPhase } from '@ocs-eastern/series/turn'
-import type { Phase } from '@ocs-eastern/series/turn'
+import { advancePlayerTurn } from '@ocs-eastern/series/turn'
+import type { PlayerTurnCursor } from '@ocs-eastern/series/turn'
 import type { Retention } from '../ttw/scorpion/initiative.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 
-export interface PlayerTurn {
+export interface PlayerTurn extends PlayerTurnCursor {
   turn: number
-  first: Side
-  phasing: Side
-  phase: Phase
   retention: Retention
   simulcast?: true
 }
@@ -24,11 +21,6 @@ export function startScorpionPlayerTurns(turn: Readonly<ScorpionTurn>): PlayerTu
 export function advanceScorpionPhase(
   current: Readonly<PlayerTurn>, actor: Side,
 ): PlayerTurn | null {
-  if (actingSide(current.phasing, current.phase) !== actor) {
-    throw new Error('This side cannot complete the current phase')
-  }
-  const next = nextPlayerPhase(current.phase)
-  if (next) return { ...current, phase: next }
-  if (current.phasing !== current.first) return null
-  return { ...current, phasing: current.first === 'axis' ? 'soviet' : 'axis', phase: 'aircraft-refit' }
+  const next = advancePlayerTurn(current, actor)
+  return next && { ...current, ...next }
 }

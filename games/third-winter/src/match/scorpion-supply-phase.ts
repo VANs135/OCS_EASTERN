@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import { nextSupplyPhaseObligation } from '@ocs-eastern/series/supply-progress'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
 import type { TraceOption } from '../ttw/scorpion/supply-trace.ts'
@@ -8,6 +9,7 @@ import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
 import { scorpionSpPayment } from './scorpion-sp-payment.ts'
+import { planScorpionStockRecovery } from './scorpion-stock-recovery.ts'
 
 interface SplitFormation {
   formation: string
@@ -27,6 +29,42 @@ export interface ScorpionSupplyWindow {
 export type FeedUnits = { type: 'feed-units'; payments: readonly {
   dumpId: string; portions: readonly { unitId: string; re: number }[]
 }[] }
+
+export type ScorpionSupplyDecision = { actor: Side } & (
+  | { segment: 'stock-recovery'; step: 'recover-internal-stocks'; unitIds: readonly string[] }
+  | { segment: 'supply-check'; step: 'choose-formation-trace'; formation: string }
+  | { segment: 'supply-check'; step: 'settle-trace-and-feeding' }
+  | { segment: 'supply-check'; step: 'assign-attrition'; hex: string }
+  | { segment: 'supply-check'; step: 'complete-supply' }
+)
+
+/** Order the current side's supply obligations using only its own window. */
+export function scorpionSupplyDecision(state: Readonly<ScorpionInPlay>, actor: Side,
+  map: ScorpionMap, railroad?: SupplyRailBoard): ScorpionSupplyDecision | null {
+  const window = state.supply
+  if (actor !== state.cursor.phasing || state.cursor.phase !== 'supply' || !window ||
+    state.victory || state.turn.step.kind !== 'player-turn') return null
+
+  const recovery = !window.fed.length && window.attrition === null
+    ? planScorpionStockRecovery(state, map, railroad) : null
+  const unitIds = recovery?.kind === 'required' ? recovery.unitIds : []
+  const obligation = nextSupplyPhaseObligation({
+    recoverySettled: unitIds.length === 0,
+    feedingSettled: window.attrition !== null,
+    pendingAttrition: window.attrition?.filter(({ assigned }) => !assigned).map(({ hex }) => hex) ?? [],
+  })
+  const check = { actor, segment: 'supply-check' as const }
+  switch (obligation.kind) {
+    case 'recovery': return { actor, segment: 'stock-recovery', step: 'recover-internal-stocks', unitIds }
+    case 'feeding': {
+      const pending = window.splits.find(({ selected }) => !selected)
+      return pending ? { ...check, step: 'choose-formation-trace', formation: pending.formation }
+        : { ...check, step: 'settle-trace-and-feeding' }
+    }
+    case 'attrition': return { ...check, step: 'assign-attrition', hex: obligation.hex }
+    case 'complete': return { ...check, step: 'complete-supply' }
+  }
+}
 
 export function openScorpionSupply(
   state: Readonly<ScorpionInPlay>, side: Side, map: ScorpionMap, railroad?: SupplyRailBoard,

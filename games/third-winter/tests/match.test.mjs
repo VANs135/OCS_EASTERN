@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import { applyVolgaAction } from '../src/match/volga-session.ts'
-import { actingSide, nextPlayerPhase, playerPhases } from '@ocs-eastern/series/turn'
+import { actingSide, advancePlayerTurn, nextPlayerPhase, playerPhases } from '@ocs-eastern/series/turn'
 import { scorpionFinalVictory, scorpionSuddenDeath } from '../src/ttw/scorpion/victory.ts'
 
 test('OCS 2.2 has eight player phases and the opposing side takes Reaction', () => {
@@ -11,6 +11,16 @@ test('OCS 2.2 has eight player phases and the opposing side takes Reaction', () 
   assert.equal(nextPlayerPhase('cleanup'), null)
   assert.equal(actingSide('axis', 'reaction'), 'soviet')
   assert.equal(actingSide('axis', 'combat'), 'axis')
+})
+
+test('the common cursor handles Reaction ownership and both Cleanup transitions', () => {
+  const axis = { first: 'axis', phasing: 'axis' }
+  const reacting = { ...axis, phase: 'reaction' }
+  assert.throws(() => advancePlayerTurn(reacting, 'axis'), /cannot complete/)
+  assert.deepEqual(advancePlayerTurn(reacting, 'soviet'), { ...axis, phase: 'combat' })
+  assert.deepEqual(advancePlayerTurn({ ...axis, phase: 'cleanup' }, 'axis'),
+    { first: 'axis', phasing: 'soviet', phase: 'aircraft-refit' })
+  assert.equal(advancePlayerTurn({ first: 'axis', phasing: 'soviet', phase: 'cleanup' }, 'soviet'), null)
 })
 
 test('Scorpion uses strictly outside sudden-death bounds and scores the reroll counter at the end', () => {

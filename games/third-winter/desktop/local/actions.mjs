@@ -10,6 +10,7 @@ import { scorpionMovementRules } from '../../src/match/scorpion-ground-actions.t
 import { hasScorpionBulkFuel } from '../../src/match/scorpion-fuel.ts'
 import { scorpionSpPayment, carriedScorpionTokens } from '../../src/match/scorpion-sp-payment.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
+import { scorpionSupplyDecision } from '../../src/match/scorpion-supply-phase.ts'
 import { scorpionOpeningAirBases } from '../../src/ttw/scorpion/setup-stores.ts'
 import { scorpionBarrageFrontAt } from '../../src/ttw/scorpion/barrage-markers.ts'
 import { artilleryChoices, artilleryDraft, frontBarrageDraft, frontChoices } from './barrage-draft.mjs'
@@ -213,37 +214,38 @@ function reinforcementChoices(state, side, { unitId, unitIds, hex }, data, add, 
 }
 
 function supplyChoices(state, side, selection, data, add) {
+  const decision = scorpionSupplyDecision(state, side, data.assets.map, data.board?.supplyRail)
+  if (!decision || decision.step === 'recover-internal-stocks') return
   const { splits, attrition } = state.supply
-  const pending = splits.find((split) => !split.selected)
-  if (pending) {
+  if (decision.step === 'choose-formation-trace') {
+    const pending = splits.find(({ formation }) => formation === decision.formation)
     for (const anchor of pending.anchors) {
       const id = anchor.slice(anchor.indexOf(':') + 1)
       const display = state.units[id] ? `${state.units[id].hex} ${data.assets.catalog.definitions.get(state.units[id].definition)?.source.name ?? 'HQ'}` : id
       add(`${pending.formation} 追溯 · ${display}`, 'choose-formation-trace', { formation: pending.formation, anchor })
     }
-  } else if (!attrition) {
+  } else if (decision.step === 'settle-trace-and-feeding') {
     const ids = selection.unitIds ?? (selection.unitId ? [selection.unitId] : [])
     for (const { label, action } of supplyDraft(state, side, ids, data)?.choices ?? []) {
       add(label, action.type, { payments: action.payments })
     }
     add('确认追溯补给并检查断补损耗', 'check-attrition')
-  } else {
-    const stack = attrition.find((entry) => !entry.assigned)
-    if (!stack) add('结束补给', 'complete-supply')
-    else {
-      for (const id of stack.units) {
-        const order = [id, ...stack.units.filter((other) => other !== id)]
-        let left = stack.losses
-        const allocation = []
-        for (const unitId of order) {
-          const steps = Math.min(left, remainingSteps(state.units[unitId]))
-          if (!steps) break
-          allocation.push({ unitId, steps })
-          left -= steps
-        }
-        add(`${stack.hex} 分配 ${stack.losses} 步损失 · 优先 ${data.assets.catalog.definitions.get(state.units[id].definition).source.name}`,
-          'assign-attrition', { hex: stack.hex, allocation })
+  } else if (decision.step === 'complete-supply') {
+    add('结束补给', 'complete-supply')
+  } else if (decision.step === 'assign-attrition') {
+    const stack = attrition.find(({ hex }) => hex === decision.hex)
+    for (const id of stack.units) {
+      const order = [id, ...stack.units.filter((other) => other !== id)]
+      let left = stack.losses
+      const allocation = []
+      for (const unitId of order) {
+        const steps = Math.min(left, remainingSteps(state.units[unitId]))
+        if (!steps) break
+        allocation.push({ unitId, steps })
+        left -= steps
       }
+      add(`${stack.hex} 分配 ${stack.losses} 步损失 · 优先 ${data.assets.catalog.definitions.get(state.units[id].definition).source.name}`,
+        'assign-attrition', { hex: stack.hex, allocation })
     }
   }
 }

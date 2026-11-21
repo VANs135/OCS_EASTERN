@@ -8,6 +8,7 @@ import { scorpionSessionBoxFrame } from '../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
 import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
 import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionSupplyDecision } from '../src/match/scorpion-supply-phase.ts'
 import { localChoices } from '../desktop/local/actions.mjs'
 import { supplyDraft } from '../desktop/local/supply-draft.mjs'
 import { localMenu } from '../desktop/local/interaction.mjs'
@@ -124,11 +125,45 @@ test('mandatory internal recovery allows a partial upgrade and spends an unusabl
   record = submit(record, { type: 'recover-internal-stocks', unitId: 'division', payments: [{ dumpId, tokens: 4 }] })
   assert.equal(record.state.units.division.internalStocks, 'low')
   assert.equal(record.state.dumps[dumpId].tokens, 1)
+  assert.equal(supplyDraft(record.state, 'axis', ['division'], { assets, board }).choices.length, 0,
+    'the remaining token is already committed to compulsory recovery')
+  assert.equal(record.state.dumps[dumpId].tokens, 1, 'preview does not spend the token')
   record = submit(record, { type: 'check-attrition' })
   assert.equal(record.state.dumps[dumpId].tokens, 0)
   assert.equal(record.state.dumps[offRange].tokens, 2)
   assert.equal(record.state.units.division.internalStocks, 'low')
   assert.equal(record.state.units.detached.internalStocks, 'low')
+})
+
+test('supply exposes only the phasing side’s next obligation and confirms recovery before trace', () => {
+  const dumpId = 'axis:hex:s10.01'
+  const data = { assets, board }
+  const start = fixture({
+    left: counter('s1.04', { formation: 'panzers' }),
+    right: counter('s10.01', { formation: 'panzers', internalStocks: 'low' }),
+    opponent: counter('s15.09', { internalStocks: 'low', side: 'soviet' }),
+  }, { [dumpId]: dump(2) })
+  const record = submit(start, { type: 'complete-movement' })
+  const decide = (value, side = 'axis') => scorpionSupplyDecision(value.state, side, map, board.supplyRail)
+  const trace = { type: 'choose-formation-trace', formation: 'panzers', anchor: 'direct:s1.03' }
+  assert.deepEqual(decide(record), { actor: 'axis', segment: 'stock-recovery', step: 'recover-internal-stocks', unitIds: ['right'] })
+  assert.equal(decide(record, 'soviet'), null)
+  assert.deepEqual(localChoices(record.state, 'axis', { unitId: 'right' }, data), [])
+  const menu = localMenu(record.state, 'axis', { unitId: 'right' }, { hex: 's10.01', unitId: 'right', ownIds: ['right'] }, data,
+    (selection) => localChoices(record.state, 'axis', selection, data))
+  assert.ok(menu.some(({ actions }) => actions[0].type === 'recover-internal-stocks'))
+  assert.throws(() => submit(record, trace), /Recover affordable internal stocks/)
+  assert.throws(() => submitScorpionSession(record, 'soviet', command(record, trace), assets, board), /unavailable/)
+  assert.equal(record.state.rng.drawCount, 0)
+  assert.equal(record.state.dumps[dumpId].tokens, 2)
+
+  const recovered = submit(record, { type: 'recover-internal-stocks', unitId: 'right', payments: [{ dumpId, tokens: 2 }] })
+  assert.deepEqual(decide(recovered), { actor: 'axis', segment: 'supply-check', step: 'choose-formation-trace', formation: 'panzers' })
+  const traced = submit(recovered, trace)
+  assert.equal(decide(traced).step, 'settle-trace-and-feeding')
+  const checked = submit(traced, { type: 'check-attrition' })
+  assert.equal(checked.state.rng.drawCount, 2)
+  assert.equal(decide(checked).step, checked.state.supply.attrition[0].assigned ? 'complete-supply' : 'assign-attrition')
 })
 
 test('formation fuel covers only recipients of the chosen source and lasts until friendly Cleanup', () => {
