@@ -17,7 +17,8 @@ export type ExtenderDisplacement = { id: string; destinations: readonly string[]
 
 /** OCS 12.7d–f and TTW 3.6. Use only the ordinary backs supplied in this counter mix. */
 export function changeScorpionExtender(state: Readonly<ScorpionInPlay>, side: Side, action: ScorpionExtenderCommand,
-  { map, catalog }: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
+  assets: ScorpionSetupAssets, railroad?: SupplyRailBoard): ScorpionInPlay {
+  const { map, catalog } = assets
   assertScorpionTransportWindow(state, side)
   const activity = scorpionGroundActivity(state)
   if (action.type === 'form-extender') {
@@ -41,7 +42,7 @@ export function changeScorpionExtender(state: Readonly<ScorpionInPlay>, side: Si
     }
     const spent = Math.max(...selected.map(({ id }) => activity.spent[id] ?? 0)) + unit.allowance / 2
     const extender = { ...deployScorpionGroundCounter(definition, unit.hex, 0), extender: { range, asset } }
-    return replaceScorpionTransport(state, action.unitIds, [extender], spent, { ended: true })
+    return replaceScorpionTransport(state, action.unitIds, [extender], spent, { ended: true }, assets)
   }
   const unit = Object.hasOwn(state.units, action.unitId) ? state.units[action.unitId] : undefined
   if (!unit?.extender || unit.side !== side || state.moved.includes(action.unitId)) {
@@ -60,7 +61,7 @@ export function changeScorpionExtender(state: Readonly<ScorpionInPlay>, side: Si
     if (!definition) throw new Error('Use denominations available in the counter mix')
     return { ...deployScorpionGroundCounter(definition, unit.hex, 0), transportCargoTokens: 0 }
   })
-  return replaceScorpionTransport(state, [action.unitId], points, unit.allowance / 2, { ended: false })
+  return replaceScorpionTransport(state, [action.unitId], points, unit.allowance / 2, { ended: false }, assets)
 }
 
 /** OCS 9.14d. The displacement itself ignores intervening terrain and enemy forces. */

@@ -11,6 +11,7 @@ import { placeScorpionOffMapAircraft, scorpionSetupBoxPieces } from './scorpion-
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { ScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { AlertCounter, SupplyDump } from './scorpion-reinforcement-state.ts'
+import type { TransportCounterLimit } from './scorpion-transport-points.ts'
 
 type UnitDefinition = Definition<BackupUnit>
 export interface ScorpionSetupData {
@@ -22,6 +23,8 @@ export interface ScorpionSetupData {
 
 export interface ScorpionSetupAssets {
   map: ScorpionMap
+  /** Verified physical stock for voluntary transport reorganization, if supplied by the scenario. */
+  transportCounterLimits?: readonly TransportCounterLimit[]
   catalog: {
     definitions: ReadonlyMap<string, UnitDefinition>
     aliases: ReadonlyMap<string, readonly UnitDefinition[]>

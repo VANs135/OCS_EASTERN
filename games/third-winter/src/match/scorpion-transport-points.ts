@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import { scorpionGroundProfile } from '../import/ground-profile.ts'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
@@ -11,6 +12,63 @@ import { carriedScorpionTokens } from './scorpion-sp-payment.ts'
 
 type Catalog = ScorpionSetupAssets['catalog']
 type TransportType = Pick<DeployedCounter, 'side' | 'mobility' | 'allowance'>
+
+type TransportDenomination = TransportType & { points: number }
+export type TransportCounterLimit = TransportDenomination & { copies: number }
+type TransportStock = TransportDenomination & { inUse: number; limit: number | null }
+
+const stockKey = ({ side, mobility, allowance, points }: TransportDenomination) => `${side}:${mobility}:${allowance}:${points}`
+
+function printedDenomination(definition: Definition<BackupUnit>): TransportDenomination | undefined {
+  if (definition.kind !== 'transport' || definition.source.abilities?.includes('organic_truck')) return
+  const profile = scorpionGroundProfile(definition, 'combat')
+  const points = transportPoints(definition)
+  if (!profile || !points || profile.mobility === 'track') return
+  const { side, mobility, allowance } = profile
+  return { side, mobility, allowance, points }
+}
+
+export function scorpionTransportStock(units: ScorpionInPlay['units'], side: Side,
+  { catalog, transportCounterLimits = [] }: ScorpionSetupAssets): TransportStock[] {
+  const limits = new Map<string, number>()
+  for (const row of transportCounterLimits) {
+    const key = stockKey(row)
+    if (limits.has(key) || !Number.isSafeInteger(row.copies) || row.copies < 0) {
+      throw new Error(`Invalid transport counter limit: ${key}`)
+    }
+    limits.set(key, row.copies)
+  }
+  const rows = new Map<string, TransportStock>()
+  for (const definition of catalog.definitions.values()) {
+    const denomination = printedDenomination(definition)
+    if (denomination?.side !== side) continue
+    const key = stockKey(denomination)
+    rows.set(key, { ...denomination, inUse: 0, limit: limits.get(key) ?? null })
+  }
+  for (const key of limits.keys()) {
+    if (key.startsWith(`${side}:`) && !rows.has(key)) throw new Error(`Unknown transport counter denomination: ${key}`)
+  }
+  for (const unit of Object.values(units)) {
+    if (unit.side !== side || unit.combat || unit.organicTruck) continue
+    const definition = catalog.definitions.get(unit.definition)
+    const denomination = definition && printedDenomination(definition)
+    const row = denomination && rows.get(stockKey(denomination))
+    if (row) row.inUse++
+  }
+  return [...rows.values()].sort((a, b) => a.mobility.localeCompare(b.mobility) || a.allowance - b.allowance || a.points - b.points)
+}
+
+/** Check only increases so an older position above a now configured limit can still reduce that count. */
+function assertTransportStock(before: ScorpionInPlay['units'], after: ScorpionInPlay['units'], side: Side, assets: ScorpionSetupAssets) {
+  if (!assets.transportCounterLimits?.length) return
+  const used = new Map(scorpionTransportStock(before, side, assets).map((row) => [stockKey(row), row.inUse]))
+  for (const row of scorpionTransportStock(after, side, assets)) {
+    const key = stockKey(row)
+    if (row.limit !== null && row.inUse > row.limit && row.inUse > (used.get(key) ?? 0)) {
+      throw new Error(`Transport counter stock exceeded: ${key} (${row.inUse}/${row.limit})`)
+    }
+  }
+}
 
 export type RepackTransport = { type: 'repack-transport'; unitIds: readonly string[];
   divisions: readonly { points: number; tokens: number }[]; continueWith?: number }
@@ -28,12 +86,11 @@ export function transportPoints(definition: Definition<BackupUnit> | undefined) 
 }
 
 export function regularTransportDefinition(catalog: Catalog, unit: TransportType, points: number) {
-  return [...catalog.definitions.values()].find((item) => {
-    if (item.kind !== 'transport' || item.source.side !== unit.side || item.source.abilities?.includes('organic_truck')) return false
-    const face = item.source.faces.combat
-    return transportPoints(item) === points && face?.stats.move === unit.allowance &&
-      face.maColor === (unit.mobility === 'truck' ? 'black' : 'white')
-  })
+  const key = stockKey({ ...unit, points })
+  for (const item of catalog.definitions.values()) {
+    const denomination = printedDenomination(item)
+    if (denomination && stockKey(denomination) === key) return item
+  }
 }
 
 export function collectTransportPoints(state: Readonly<ScorpionInPlay>, side: Side, ids: readonly string[], catalog: Catalog) {
@@ -52,7 +109,8 @@ export function collectTransportPoints(state: Readonly<ScorpionInPlay>, side: Si
 }
 
 export function replaceScorpionTransport(state: Readonly<ScorpionInPlay>, ids: readonly string[],
-  replacements: readonly DeployedCounter[], spentMp: number, move: { ended: boolean; continuation?: number }) {
+  replacements: readonly DeployedCounter[], spentMp: number, move: { ended: boolean; continuation?: number },
+  assets?: ScorpionSetupAssets) {
   const activity = scorpionGroundActivity(state)
   const units = { ...state.units }
   const spent = { ...activity.spent }
@@ -68,6 +126,7 @@ export function replaceScorpionTransport(state: Readonly<ScorpionInPlay>, ids: r
     return id
   })
   const open = move.continuation === undefined ? undefined : newIds[move.continuation]
+  if (assets && replacements[0]) assertTransportStock(state.units, units, replacements[0].side, assets)
   const enteredHex = activity.transport?.enteredHex ?? false
   return { ...state, units, nextTransportSerial: serial,
     moved: [...state.moved.filter((id) => !ids.includes(id)), ...(move.ended || open ? newIds : [])],
@@ -77,7 +136,8 @@ export function replaceScorpionTransport(state: Readonly<ScorpionInPlay>, ids: r
 
 /** OCS 13.2c and 6.1f. Cargo stays on the boxes the player chooses. */
 export function repackScorpionTransport(state: Readonly<ScorpionInPlay>, side: Side, action: RepackTransport,
-  { catalog }: ScorpionSetupAssets): ScorpionInPlay {
+  assets: ScorpionSetupAssets): ScorpionInPlay {
+  const { catalog } = assets
   assertScorpionTransportWindow(state, side)
   const selected = collectTransportPoints(state, side, action.unitIds, catalog)
   const base = selected[0]!.unit
@@ -100,5 +160,5 @@ export function repackScorpionTransport(state: Readonly<ScorpionInPlay>, side: S
   if (continuation !== undefined && (ended || !action.unitIds.includes(active ?? '') || !Number.isSafeInteger(continuation) ||
     continuation < 0 || continuation >= replacements.length)) throw new Error('Only the active transport may retain movement after repacking')
   const spent = Math.max(...action.unitIds.map((id) => activity.spent[id] ?? 0))
-  return replaceScorpionTransport(state, action.unitIds, replacements, spent, { ended: hasStarted, continuation })
+  return replaceScorpionTransport(state, action.unitIds, replacements, spent, { ended: hasStarted, continuation }, assets)
 }

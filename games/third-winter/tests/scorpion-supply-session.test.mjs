@@ -11,6 +11,8 @@ import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts
 import { localChoices } from '../desktop/local/actions.mjs'
 import { supplyDraft } from '../desktop/local/supply-draft.mjs'
 import { localMenu } from '../desktop/local/interaction.mjs'
+import { scorpionTransportStock } from '../src/match/scorpion-transport-points.ts'
+import { projectLocalScorpion } from '../desktop/local/controller.mjs'
 
 const hexes = ['s1.03', 's1.04', 's10.01', 's10.02', 's15.08', 's15.09']
 const map = scorpionMap(hexes.map((hex_id) => ({ hex_id, on_map: true, terrains_present: ['Open'] })),
@@ -272,6 +274,30 @@ test('transport menu combines selected counters and splits their cargo with a ch
   const continuing = result.state.groundActivity.transport.unitId
   assert.equal(result.state.units[continuing].transportCargoTokens, 3)
   assert.equal(result.state.units.first.transportCargoTokens, 1)
+})
+
+test('the command enforces configured stock and releases counters for reuse after a merge', () => {
+  const hex = 's1.03'
+  const start = fixture({ double: ordinaryTruck(hex, 2), single: ordinaryTruck(hex, 1), other: ordinaryTruck(hex, 1, 0, 'soviet') })
+  const ruleAssets = { ...assets,
+    transportCounterLimits: [{ side: 'axis', mobility: 'truck', allowance: 45, points: 1, copies: 2 }] }
+  const stock = (state) => scorpionTransportStock(state.units, 'axis', ruleAssets).find(({ points }) => points === 1)
+  const issue = (record, action) => submitScorpionSession(record, 'axis', command(record, action), ruleAssets, board).record
+  const divisions = [{ points: 1, tokens: 0 }, { points: 1, tokens: 0 }]
+  const split = { type: 'repack-transport', unitIds: ['double'], divisions }
+  assert.equal(stock(start.state).inUse, 1)
+  assert.equal(stock(start.state).limit, 2)
+  assert.throws(() => issue(start, split), /stock exceeded/)
+  assert.equal(start.revision, 0)
+  transportDefinition(3)
+  const merged = issue(start, { ...split, unitIds: ['double', 'single'], divisions: [{ points: 3, tokens: 0 }] })
+  assert.equal(stock(merged.state).inUse, 0)
+  const order = { ...split, divisions: [...divisions, { points: 1, tokens: 0 }] }
+  assert.throws(() => issue(merged, order), /stock exceeded/)
+  const legal = { ...order, divisions: [{ points: 2, tokens: 0 }, divisions[0]] }
+  assert.equal(stock(issue(merged, legal).state).inUse, 1)
+  const projected = projectLocalScorpion({ actions: [], menu: [{ key: 'menu:0', actions: [legal] }] }).menu[0]
+  assert.deepEqual(projected.transportOrder, { unitIds: ['double'], divisions: legal.divisions, continueWith: null })
 })
 
 function extenderFixture() {

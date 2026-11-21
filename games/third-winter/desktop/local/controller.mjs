@@ -2,6 +2,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
 import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
 import { scorpionStackingChoices, scorpionThawEntryHexes } from '../../src/match/scorpion-stacking.ts'
+import { scorpionTransportStock } from '../../src/match/scorpion-transport-points.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
@@ -282,7 +283,8 @@ function render(record, selection, data) {
   const refit = state.kind === 'playing' && state.cursor.phase === 'aircraft-refit'
     ? refitDraft(state, actor, selection.refitBase, unitIds, data) : null
   const supply = state.kind === 'playing' && phase === '补给' ? supplyDraft(state, actor, unitIds, data) : null
-  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking,
+  const transportStock = scorpionTransportStock(state.kind === 'playing' ? state.units : state.opening.units, actor, data.assets)
+  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock,
     phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
     turnNumber: state.kind === 'playing' ? state.turn.number : null,
     phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,
@@ -303,6 +305,9 @@ export function projectLocalScorpion(view) {
   const control = ({ key, label, group, mapHex, mapUnit, actions, reviewDraft }) => ({
     key, label, group, mapHex, mapUnit, kind: reviewDraft ? 'draft' : 'command',
     actionTypes: actions.map(({ type }) => type),
+    ...(actions[0]?.type === 'repack-transport' ? {
+      transportOrder: { unitIds: actions[0].unitIds, divisions: actions[0].divisions, continueWith: actions[0].continueWith ?? null },
+    } : {}),
   })
   const actions = view.actions.filter((entry) => entry.reviewDraft || entry.aidChoice ||
     entry.actions[0]?.type === 'feed-units' || sidebarChoice(entry)).map(control)
