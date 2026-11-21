@@ -1,8 +1,8 @@
 import type { GroundMap, StepCost } from './ground-map.ts'
 
 /** OCS 12.3d. The caller supplies eligible hexes and terrain costs for the trace mobility. */
-export function traceReach<Edge>(
-  map: GroundMap<Edge>,
+export function traceReach(
+  map: Pick<GroundMap<unknown>, 'neighbors'>,
   origin: string,
   range: number,
   allows: (hex: string) => boolean,

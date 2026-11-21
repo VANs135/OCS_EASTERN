@@ -13,6 +13,7 @@ export type CampaignBreakoutRoll = ReturnType<typeof resolveBreakout> & {
 export interface CampaignBreakoutPosition extends BreakoutPathBoard {
   /** The supply module supplies live trace and whether this is the first qualifying break in trace. */
   unitFacts(counterId: string): (BreakoutUnitFacts & { mobility: Mobility }) | undefined
+  resolveHex?(printed: string): string | undefined
   distance(from: string, to: string): number
 }
 
@@ -22,9 +23,10 @@ function inspectBreakout(state: Readonly<CampaignTurnState>, actor: Side, board:
   const own = new Map(Object.entries(state.counters).flatMap(([id, unit]) => {
     if (unit.side !== actor || unit.location.kind !== 'map' || unit.kind === 'aircraft') return []
     const facts = board.unitFacts(id)
-    if (!facts) return []
+    const hex = board.resolveHex ? board.resolveHex(unit.location.hex) : unit.location.hex
+    if (!facts || !hex) return []
     const singleTransportPoint = unit.kind === 'transport' && facts.singleTransportPoint
-    return [[id, { hex: unit.location.hex, facts: { ...facts, singleTransportPoint } }] as const]
+    return [[id, { hex, facts: { ...facts, singleTransportPoint } }] as const]
   }))
   const traced = [...own.values()].filter(({ facts }) => facts.hasTrace)
   const tracedHexes = new Set(traced.map(({ hex }) => hex))

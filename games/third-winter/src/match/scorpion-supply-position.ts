@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import { projectsZoc } from '@ocs-eastern/series/zoc'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionInitialRailGauge, scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import type { TracePosition } from '../ttw/scorpion/supply-trace.ts'
@@ -11,8 +12,10 @@ export interface SupplyRailBoard {
 }
 
 export function scorpionEnemyZoc(state: Readonly<ScorpionInPlay>, map: ScorpionMap, side: Side): ReadonlySet<string> {
-  return new Set(Object.values(state.units).filter((unit) => unit.side !== side && unit.combat && unit.attackCapable && !unit.outOfSupply &&
-    !unit.reserve && !unit.disorganized && !unit.moveMode).flatMap((unit) => map.neighbors(unit.hex)))
+  return new Set(Object.values(state.units).filter((unit) => unit.side !== side && unit.combat && projectsZoc({
+    attackCapable: unit.attackCapable === true, outOfSupply: unit.outOfSupply === true,
+    inCombatMode: !unit.reserve && !unit.disorganized && !unit.moveMode,
+  })).flatMap((unit) => map.neighbors(unit.hex)))
 }
 
 /** Current combat units and HQs supply the facts for 4.5, 12.3 and 13.3c. */
