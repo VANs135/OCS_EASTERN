@@ -4,12 +4,14 @@ import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions
 import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
 import { automaticScorpionCaptureOrder } from '../../src/match/scorpion-capture.ts'
 import { scorpionStackingChoices, scorpionThawEntryHexes } from '../../src/match/scorpion-stacking.ts'
+import { scorpionBreakdownStock } from '../../src/match/scorpion-breakdowns.ts'
 import { scorpionTransportStock } from '../../src/match/scorpion-transport-points.ts'
 import { verifyRngState } from '@ocs-eastern/series/rng'
 import { scorpionSessionBoxFrame } from '../../src/view/scorpion-boxes.ts'
 import { scorpionMapStacks } from '../../src/view/scorpion-map-counters.ts'
 import { scorpionBarrageMarkerFrame } from '../../src/view/scorpion-barrage-markers.ts'
 import { scorpionAuxiliaryCardViews } from '../../src/view/scorpion-auxiliary-cards.ts'
+import { scorpionBreakdownCardViews } from '../../src/view/scorpion-breakdown-boxes.ts'
 import { scorpionHexAt, scorpionHexLayout } from '../../src/view/scorpion-grid-layout.ts'
 import { localChoices, localDecisionSide, localRoster, phaseNames, sideName } from './actions.mjs'
 import { actionTarget, localMenu, moveActions, pointActions, retainCounter, routeTo, sidebarChoice } from './interaction.mjs'
@@ -251,7 +253,9 @@ function render(record, selection, data) {
   const unitIds = selection.unitIds?.filter((id) => roster.some((item) => item.id === id)) ?? (selected ? [selected.id] : [])
   const frame = scorpionSessionBoxFrame(state, catalog, actor)
   const { mapCounters, aidCounters } = scorpionBarrageMarkerFrame(state, catalog)
-  const auxiliaryCards = scorpionAuxiliaryCardViews(state, catalog, frame.inventories)
+  const breakdownStock = scorpionBreakdownStock(state.kind === 'playing' ? state : state.opening, data.assets)
+  const auxiliaryCards = { ...scorpionAuxiliaryCardViews(state, catalog, frame.inventories),
+    ...scorpionBreakdownCardViews(breakdownStock, catalog, data.breakdownBoxes) }
   const mapStacks = scorpionMapStacks(state, catalog, mapCounters)
   const result = state.kind === 'playing' && (state.victory || state.turn.step.kind === 'ended' && state.turn.step.result)
   const phase = state.kind === 'setup' ? '开局部署' : result ? '对局结束' : state.turn.step.kind !== 'player-turn' ? '先手判定'
@@ -290,7 +294,8 @@ function render(record, selection, data) {
   const combatDecision = state.kind === 'playing' ? scorpionPendingCombatDecision(state) : null
   const absorptionDecision = state.kind === 'playing' && state.phaseClose ?
     { actor: state.phaseClose.actor, options: state.phaseClose.options } : null
-  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, airDecision, combatDecision, absorptionDecision,
+  return { protocolVersion: 1, revision, actor, headline, phase, roster, stack, stacking, transportStock, breakdownStock,
+    airDecision, combatDecision, absorptionDecision,
     phaseId: state.kind === 'setup' ? 'setup' : result ? 'ended' : state.turn.step.kind !== 'player-turn' ? 'initiative' : state.cursor.phase,
     turnNumber: state.kind === 'playing' ? state.turn.number : null,
     phasingSide: state.kind === 'playing' && state.turn.step.kind === 'player-turn' && !result ? state.cursor.phasing : null,

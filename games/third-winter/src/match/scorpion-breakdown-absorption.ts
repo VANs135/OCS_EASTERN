@@ -36,7 +36,10 @@ export function scorpionBreakdownAbsorptions(state: Readonly<ScorpionInPlay>, ru
 export function absorbScorpionBreakdown(state: Readonly<ScorpionInPlay>, { parentId, breakdownId }: BreakdownPair): ScorpionInPlay {
   const units = { ...state.units }
   const parent = units[parentId]!
+  const { definition } = units[breakdownId]!
+  const returned = state.breakdownReturns?.[definition] ?? []
   units[parentId] = { ...parent, stepsLost: parent.stepsLost - 1 }
   delete units[breakdownId]
-  return { ...state, units, moved: state.moved.filter((id) => id !== breakdownId) }
+  return { ...state, units, moved: state.moved.filter((id) => id !== breakdownId),
+    breakdownReturns: { ...state.breakdownReturns, [definition]: [...new Set([...returned, breakdownId])] } }
 }

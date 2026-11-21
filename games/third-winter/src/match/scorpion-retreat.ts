@@ -4,7 +4,7 @@ import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
-import { detachScorpionBreakdowns } from './scorpion-breakdowns.ts'
+import { detachScorpionBreakdowns, scorpionBreakdownChoices } from './scorpion-breakdowns.ts'
 import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
 import { applyScorpionCombatLosses } from './scorpion-combat-losses.ts'
 import { disorganizeScorpionHex } from './scorpion-disorganization.ts'
@@ -97,6 +97,15 @@ export function canScorpionRetreat(unit: DeployedCounter, side: Side, origin: st
   } catch {
     return false
   }
+}
+
+/** Draft options use the same starting faces as the retreat reducer. */
+export function* scorpionRetreatBreakdownChoices(state: Readonly<ScorpionInPlay>, side: Side, route: RetreatRoute,
+  assets: ScorpionSetupAssets) {
+  if (!assets.breakdowns) return
+  let ready
+  try { ready = prepareRoute(state, side, { ...route, breakdowns: undefined }, assets).state } catch { return }
+  yield* scorpionBreakdownChoices(ready, side, route.units, assets)
 }
 
 export function retreatScorpionCombat(state: Readonly<ScorpionInPlay>, side: Side, involved: readonly string[],

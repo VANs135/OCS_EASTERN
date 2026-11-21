@@ -87,6 +87,7 @@ export interface ScorpionInPlay extends ReinforcementState {
   hedgehogBuiltAt?: Readonly<Record<string, number>>
   hedgehogReducedAt?: Readonly<Record<string, number>>
   units: Readonly<Record<string, DeployedCounter>>
+  breakdownReturns?: Readonly<Record<string, readonly string[]>>
   pieces: readonly ScorpionBoxPiece[]
   moved: readonly string[]
   groundActivity?: ScorpionGroundActivity

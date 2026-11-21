@@ -11,6 +11,7 @@ import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 import { airGroupChoices } from './air-group.mjs'
 import { transportMenuChoices } from './transport-menu.mjs'
 import { scorpionKesselWindow } from '../../src/match/scorpion-kessel.ts'
+import { scorpionBreakdownChoices } from '../../src/match/scorpion-breakdowns.ts'
 import { airfieldMenuChoices } from './engineering-menu.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
@@ -34,6 +35,7 @@ export function menuGroup(action) {
     if (['barrage', 'hip-shoot'].includes(action.mission)) return '射击'
     return '空军'
   }
+  if (action.type === 'ground-move' && action.breakdownDefinitions?.length) return '拆分'
   if (action.type === 'ground-move' && (action.fuelDumpId || action.fuelHeadquartersId)) return '加油并移动'
   return categories.get(action.type)
 }
@@ -139,7 +141,14 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
       const action = choice.actions[0]
       if (action.type === 'launch-air-mission') {
         if (actionTarget(action, hit)) append(choice)
-      } else if (action.type === 'declare-artillery-barrage' || action.type === 'ground-move' && selected.length === 1) append(choice)
+      } else if (action.type === 'declare-artillery-barrage') append(choice)
+      else if (action.type === 'ground-move' && selected.length === 1) {
+        append(choice)
+        for (const { definitions } of scorpionBreakdownChoices(state, side, [subject], data.assets)) {
+          const name = data.assets.catalog.definitions.get(definitions[0]).source.name
+          append({ label: `拆出 ${name} · ${choice.label}`, actions: [{ ...action, breakdownDefinitions: definitions }] })
+        }
+      }
     }
     if (state.kind === 'playing' && !state.combat && !state.reroll && hit.hex) {
       // 第一批第 5 项：按出发基地成组的任务行先出，单机的老入口保留作后备。

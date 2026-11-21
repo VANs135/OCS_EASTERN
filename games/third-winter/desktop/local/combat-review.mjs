@@ -4,6 +4,7 @@ import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-a
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { ScorpionRemnantChoice } from '../../src/match/scorpion-remnants.ts'
 import { canScorpionRetreat, ScorpionRetreatLossChoice, ScorpionRetreatRemnantChoice, scorpionRetreatPathOptions } from '../../src/match/scorpion-retreat.ts'
+import { editRetreatBreakdowns, retreatBreakdownOrders } from './retreat-breakdown-draft.mjs'
 
 // Draft keys are retreat-stack keys, not origin hexes: several stacks may leave one hex. The first
 // stack of an origin keeps the plain hex as its key, so a single-stack retreat behaves exactly as
@@ -110,10 +111,15 @@ export function localCombatReview(state, side, draft, assets, validate) {
     return { ...diagram, prompt: `${key} · 左键逐格选路，终点须距起点 ${distance} 格` }
   }
 
-  const retreats = stacks.map(({ key, combat, tagalongs, trucks, path }) => ({ group: key,
-    units: [...combat, ...tagalongs, ...trucks], path, zocLosses: draft?.zoc?.[key], remnantHexes: draft?.retreatRemnants?.[key] }))
+  const retreats = stacks.map(({ key, combat, tagalongs, trucks, path }) => {
+    const units = [...combat, ...tagalongs, ...trucks]
+    const breakdowns = retreatBreakdownOrders(units, draft?.breakdowns)
+    return { group: key, units, path, zocLosses: draft?.zoc?.[key], remnantHexes: draft?.retreatRemnants?.[key],
+      ...(breakdowns ? { breakdowns } : {}) }
+  })
   const remnants = Object.entries(draft?.remnants ?? {}).map(([divisionId, hex]) => ({ divisionId, hex }))
   const action = { type: 'resolve-combat', ...mode, lossOrder, retreats, remnants }
+  editRetreatBreakdowns(state, side, assets, steps, remaining, action, change, validate, add)
   try {
     validate(action)
   } catch (error) {

@@ -2,9 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { localChoices, localDecisionSide } from '../desktop/local/actions.mjs'
+import { localCombatReview } from '../desktop/local/combat-review.mjs'
+import { localMenu, sidebarChoice } from '../desktop/local/interaction.mjs'
+import { readScorpionBreakdowns } from '../src/import/scorpion-breakdown-config.ts'
 import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
+import { scorpionBreakdownStock } from '../src/match/scorpion-breakdowns.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionBreakdownCardViews } from '../src/view/scorpion-breakdown-boxes.ts'
 
 const origin = 's10.01'
 const destination = 's10.02'
@@ -103,6 +108,82 @@ test('selected surviving attackers can split at the start of a regular combat ad
   assert.equal(state.units.parent.hex, destination)
   assert.equal(state.units['breakdown:split:1'].hex, destination)
   assert.equal(state.combat, null)
+})
+
+test('the selected route keeps its ordinary move, with breakdowns offered in the right-click menu', () => {
+  const record = fixture()
+  const data = { assets, board }
+  const picked = { unitId: 'parent', unitIds: ['parent'], hex: destination, route: [destination] }
+  const choices = localChoices(record.state, 'soviet', picked, data)
+  const ordinary = choices.find((row) => row.actions[0].type === 'ground-move')
+  assert.ok(sidebarChoice(ordinary))
+  assert.equal(ordinary.actions[0].breakdownDefinitions, undefined)
+  const rows = localMenu(record.state, 'soviet', picked, { hex: destination, ownIds: [], labels: {} }, data,
+    (next) => localChoices(record.state, 'soviet', next, data))
+  const split = rows.find(({ group }) => group === '拆分')
+  assert.deepEqual(split.actions, [action()])
+  assert.equal(sidebarChoice(split), false)
+  assert.equal(submit(record, split.actions[0]).state.units['breakdown:split:1'].hex, origin)
+})
+
+test('regular advance and a completed retreat draft offer breakdown commands through their existing windows', () => {
+  const advance = atCombat({ attacker: 'soviet', attackers: ['parent'], step: 'advance', target: destination })
+  const rows = localChoices(advance.state, 'soviet', {}, { assets })
+  assert.ok(rows.some(({ actions }) => actions[0].type === 'advance-after-combat' && !actions[0].unitIds.length))
+  const advanceSplit = rows.find(({ actions }) => actions[0].breakdowns).actions[0]
+  assert.deepEqual(advanceSplit.breakdowns, [order])
+  assert.equal(submit(advance, advanceSplit).state.units.parent.hex, destination)
+
+  const retreat = atCombat({ attacker: 'axis', attackers: [], defenders: ['parent'], defenderLeader: 'parent', target: origin,
+    step: 'defender-result', heldAtStart: { axis: [], soviet: [] }, roll: { defender: { loss: 1, option: 1 } } })
+  const review = (draft) => localCombatReview(retreat.state, 'soviet', draft, assets, (command) => submit(retreat, command))
+  const draft = { mode: { optionLosses: 0, ignoreDefenderOption: false }, lossOrder: ['parent'], paths: { [origin]: [destination] } }
+  const option = review(draft).choices.find(({ label }) => label.includes('撤退前拆出'))
+  const revised = review(option.reviewDraft)
+  assert.equal(revised.choices.filter(({ label }) => label.includes('撤退前拆出')).length, 0) // Only one step remains above the last step.
+  assert.ok(revised.choices.some(({ label }) => label.includes('撤销 parent 的拆分')))
+  const command = revised.choices.find(({ label }) => label === '确认战果').actions[0]
+  assert.deepEqual(command.retreats[0].breakdowns, [order])
+  assert.equal(submit(retreat, command).state.units['breakdown:split:1'].hex, destination)
+})
+
+test('configured auxiliary stock shows the same physical identity before deployment and after absorption', () => {
+  const split = unit('split', 3, 1)
+  split.source.faces.combat.asset = 'synthetic.png'
+  const catalog = { definitions: new Map([...assets.catalog.definitions, ['split', split]]) }
+  const input = { parents: [{ definition: 'parent', pool: 'first' }],
+    counters: [{ definition: 'split', pool: 'first', copies: 1, box: { x: 12, y: 18, w: 48, h: 40 } }] }
+  const parsed = readScorpionBreakdowns(input, catalog.definitions)
+  const local = { ...assets, catalog, breakdowns: parsed.rules }
+  const stock = (state) => scorpionBreakdownStock(state, local)
+  const card = (state) => scorpionBreakdownCardViews(stock(state), catalog, parsed.boxes)['soviet-breakdowns']
+  const start = fixture()
+  const id = 'breakdown:split:1'
+  assert.deepEqual(card(start.state).counters.map(({ id, x, y }) => ({ id, x, y })), [{ id, x: 36, y: 38 }])
+  const detached = submit(start, action(), 'soviet', local)
+  assert.equal(detached.state.units[id].hex, origin)
+  assert.equal(stock(detached.state)[0].inUse, 1)
+  assert.deepEqual(card(detached.state).counters, [])
+  assert.equal(card(detached.state).captions[0].text, '0/1')
+  const invited = submit(detached, { type: 'ground-move', unitId: id, path: [destination] }, 'soviet', local)
+  const combat = { ...invited, state: { ...invited.state, cursor: { ...invited.state.cursor, phase: 'combat' } } }
+  const pending = submit(combat, { type: 'complete-combat' }, 'soviet', local)
+  const absorbed = submit(pending, { type: 'absorb-breakdown', parentId: 'parent', breakdownId: id }, 'soviet', local)
+  assert.equal(absorbed.state.units[id], undefined)
+  assert.equal(card(absorbed.state).counters[0].id, id)
+
+  const original = atCombat(null, { stepsLost: 1 })
+  const setupId = 'setup:split:existing'
+  const preplaced = { ...original, state: { ...original.state,
+    units: { ...original.state.units, [setupId]: deployScorpionGroundCounter(split, origin, 0) } } }
+  assert.deepEqual(card(preplaced.state).counters, [])
+  const ready = submit(preplaced, { type: 'complete-combat' }, 'soviet', local)
+  const returned = submit(ready, { type: 'absorb-breakdown', parentId: 'parent', breakdownId: setupId }, 'soviet', local)
+  assert.equal(card(returned.state).counters[0].id, setupId)
+  const nextMove = { ...returned, state: { ...returned.state, cursor: { ...returned.state.cursor, phase: 'movement' } } }
+  assert.equal(submit(nextMove, action(), 'soviet', local).state.units[setupId].hex, origin)
+  assert.throws(() => readScorpionBreakdowns({ ...input, counters: [...input.counters, ...input.counters] }, catalog.definitions), /counter 2/)
+  assert.throws(() => readScorpionBreakdowns({ ...input, parents: [{ definition: 'parent', pool: 'other' }] }, catalog.definitions), /parent 1/)
 })
 
 function overrunBeforeDefenderResult(defenderSteps = 1) {

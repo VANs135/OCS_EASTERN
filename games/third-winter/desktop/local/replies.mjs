@@ -140,11 +140,14 @@ function combatReplies(state, side, actionType, data, add) {
     }
   } else if (actionType === 'advance-after-combat') {
     const draft = advanceDraft(state, side)
-    for (const row of advanceChoices(draft, counterNameOf)) add(row.label, row.type, { unitIds: row.unitIds })
-    if (draft && battle.kind === 'overrun') for (const order of scorpionBreakdownChoices(state, side, draft.survivors, data.assets)) {
-      const definition = data.assets.catalog.definitions.get(order.definitions[0])
-      add(`突袭推进前拆分 · ${counterNameOf(order.parentId)} · ${definition.source.name}`, actionType,
-        { unitIds: draft.survivors, breakdowns: [order] })
+    for (const row of advanceChoices(draft, counterNameOf)) {
+      add(row.label, row.type, { unitIds: row.unitIds })
+      if (row.unitIds.reduce((total, id) => total + remainingSteps(state.units[id]), 0) > draft.room) continue
+      for (const order of scorpionBreakdownChoices(state, side, row.unitIds, data.assets)) {
+        const definition = data.assets.catalog.definitions.get(order.definitions[0])
+        add(`${row.label}前拆分 · ${counterNameOf(order.parentId)} · ${definition.source.name}`, actionType,
+          { unitIds: row.unitIds, breakdowns: [order] })
+      }
     }
   }
 }
