@@ -4,7 +4,7 @@ import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
-import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMatch } from '../src/view/campaign-match-view.ts'
+import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMarchResume, projectCampaignMatch } from '../src/view/campaign-match-view.ts'
 
 const hexes = ['A1.01', 'A2.01', 'A3.01', 'C3.34', 'A4.01', 'A5.01', 'B2.01', 'B3.01']
 const index = indexTtwCampaignMap({ items: hexes.map((hex_id) => ({ hex_id,
@@ -145,6 +145,14 @@ function volga(bridge, additionalBank = false) {
   } })
 }
 
+function sovietMovement(counters, config) {
+  const opening = atBreakout(counters)
+  const record = { ...opening, state: { ...opening.state, cursor: { ...opening.state.cursor, phasing: 'soviet' } } }
+  return submit(record, { type: 'complete-campaign-breakout' }, config, 'soviet')
+}
+
+const bridgeDecision = (blow = []) => ({ type: 'resolve-campaign-bridge-demolition', blow })
+
 test('Volga bridge capacity uses reduced RE, canonical sides of the seam and both directions', () => {
   const config = volga('intact')
   const record = normal({ march: unit('A2.01', 'axis', { currentRe: 2 }), fractional: unit('A2.01', 'axis', { currentRe: 1.5 }),
@@ -208,4 +216,120 @@ test('one friendly ferry marker covers its adjacent river hexsides and fixes its
   const inactive = { ...record, state: { ...record.state, counters: { ...record.state.counters, pontoon: unit('A1.01') } } }
   assert.throws(() => submit(inactive, move(['A3.01']), config), /impassable/)
   assert.deepEqual(projectCampaignMatch(inactive, 'soviet', config).ferries, [])
+})
+
+test('first Soviet combat entry stops at the bridge end and only Axis sees and answers the options', () => {
+  const config = volga('intact')
+  const record = sovietMovement({ march: unit('A1.01', 'soviet', { currentRe: 1 }), later: unit('B2.01', 'soviet', { currentRe: 1 }) }, config)
+  const route = move(['A2.01', 'C3.34', 'A4.01'])
+  const reachable = projectCampaignGroundDestinations(record, 'soviet', { id: 'march' }, config)
+  assert.deepEqual(reachable.destinations.map(({ hex, pause }) => [hex, pause]), [['A2.1', 'volga-bridge-demolition']])
+  const preview = projectCampaignGroundRoute(record, 'soviet', route, config)
+  assert.deepEqual(preview.pause, { kind: 'volga-bridge-demolition', hex: 'A2.1' })
+  assert.deepEqual(preview.placements, [{ id: 'march', hex: 'A2.1', spent: 1, stop: null }])
+  assert.equal(record.state.counters.march.location.hex, 'A1.01')
+  const waiting = submit(record, route, config, 'soviet')
+  assert.equal(waiting.state.counters.march.location.hex, 'A2.1')
+  assert.equal(waiting.state.groundMovement.moved.length, 0)
+  const axis = projectCampaignMatch(waiting, 'axis', config)
+  assert.deepEqual(axis.marchResponse.bridges, [{ id: 'A2.1|A3.1', hexside: ['A2.1', 'A3.1'] }])
+  assert.equal(axis.actor, 'axis')
+  assert.equal(axis.phasing, 'soviet')
+  assert.equal(axis.aircraftConsolidation, undefined)
+  assert.deepEqual(projectCampaignMatch(waiting, 'soviet', config).marchResponse, { kind: 'volga-bridge-demolition', hex: 'A2.1' })
+  assert.throws(() => submit(waiting, { type: 'complete-campaign-ground-movement' }, config, 'soviet'), /awaits a response/)
+  assert.throws(() => submit(waiting, bridgeDecision(), config, 'soviet'), /Only Axis/)
+  assert.throws(() => submit(waiting, bridgeDecision(['not-offered']), config), /offered Volga bridges/)
+
+  const answer = command(waiting, bridgeDecision())
+  const resumed = submitCampaignMatch(waiting, 'axis', answer, config).record
+  assert.equal(resumed.state.counters.march.location.hex, 'A4.1')
+  assert.deepEqual(resumed.state.volgaBridgeDecisions, { 'A2.1|A3.1': 'kept' })
+  assert.deepEqual(resumed.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 1 })
+  assert.equal(resumed.state.rng.drawCount, record.state.rng.drawCount)
+  assert.equal(submitCampaignMatch(resumed, 'axis', answer, config).duplicate, true)
+  assert.throws(() => submit(resumed, bridgeDecision(['A2.1|A3.1']), config), /response is unavailable/)
+  const later = submit(resumed, move(['A2.01', 'A3.01'], [{ id: 'later' }]), config, 'soviet')
+  assert.equal(later.state.groundMovement.interruption, undefined)
+  assert.equal(later.state.counters.later.location.hex, 'A3.1')
+})
+
+test('a blown bridge commits the answer and lets Soviet replan using only remaining MP', () => {
+  const config = volga('intact')
+  const record = sovietMovement({ march: unit('A1.01', 'soviet', { definition: 'truck', currentRe: 2 }) }, config)
+  const waiting = submit(record, move(['A2.01', 'A3.01', 'A4.01']), config, 'soviet')
+  const blocked = submit(waiting, bridgeDecision(['A2.1|A3.1']), config)
+  assert.equal(blocked.state.counters.march.location.hex, 'A2.1')
+  assert.deepEqual(blocked.state.groundMovement.crossedReByHexside, {})
+  assert.deepEqual(blocked.state.volgaBridgeDecisions, { 'A2.1|A3.1': 'blown' })
+  const own = projectCampaignMatch(blocked, 'soviet', config)
+  assert.equal(own.actor, 'soviet')
+  assert.deepEqual(own.marchResponse.movers, [{ id: 'march', remainingMp: 4, stop: null }])
+  assert.deepEqual(own.marchResponse.refusal, { reason: 'impassable', hex: 'A3.1' })
+  assert.deepEqual(projectCampaignMatch(blocked, 'axis', config).marchResponse, { kind: 'resume-march', hex: 'A2.1' })
+  assert.deepEqual(own.blownBridges, [{ id: 'A2.1|A3.1', hexside: ['A2.1', 'A3.1'] }])
+  const reroute = { type: 'resume-campaign-ground-march', path: ['B2.01'] }
+  assert.throws(() => submit(blocked, reroute, config), /Only Soviet/)
+  assert.throws(() => submit(blocked, { ...reroute, path: ['A3.01'] }, config, 'soviet'), /impassable/)
+  assert.throws(() => submit(blocked, move(['B2.01']), config, 'soviet'), /awaits a response/)
+  assert.equal(projectCampaignMarchResume(blocked, 'axis', reroute, config).ok, false)
+  assert.deepEqual(projectCampaignMarchResume(blocked, 'soviet', reroute, config).placements,
+    [{ id: 'march', hex: 'B2.1', spent: 2, stop: null }])
+  const finished = submit(blocked, reroute, config, 'soviet')
+  assert.equal(finished.state.counters.march.location.hex, 'B2.1')
+  assert.deepEqual(finished.state.groundMovement.moved, ['march'])
+  assert.equal(finished.state.rng.drawCount, record.state.rng.drawCount)
+})
+
+test('crossing before first contact stays paid and both bridges incident to one entry can be answered together', () => {
+  const config = volga('intact', true)
+  const record = sovietMovement({ march: unit('A2.01', 'soviet', { currentRe: 2 }) }, config)
+  const waiting = submit(record, move(['C3.34', 'B3.01']), config, 'soviet')
+  assert.deepEqual(waiting.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 2 })
+  assert.deepEqual(projectCampaignMatch(waiting, 'axis', config).marchResponse.bridges.map(({ id }) => id), ['A2.1|A3.1', 'A3.1|B3.1'])
+  const answered = submit(waiting, bridgeDecision(['A2.1|A3.1']), config)
+  assert.equal(answered.state.counters.march.location.hex, 'B3.1')
+  assert.deepEqual(answered.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 2, 'A3.1|B3.1': 2 })
+  assert.deepEqual(answered.state.volgaBridgeDecisions, { 'A2.1|A3.1': 'blown', 'A3.1|B3.1': 'kept' })
+})
+
+test('automatic resume stops again at a second newly reached bridge', () => {
+  const config = volga('intact', true)
+  const record = sovietMovement({ march: unit('A1.01', 'soviet', { currentRe: 1 }) }, config)
+  const waiting = submit(record, move(['A2.01', 'C3.34', 'B3.01']), config, 'soviet')
+  const next = submit(waiting, bridgeDecision(), config)
+  assert.equal(next.state.counters.march.location.hex, 'A3.1')
+  assert.deepEqual(projectCampaignMatch(next, 'axis', config).marchResponse.bridges.map(({ id }) => id), ['A3.1|B3.1'])
+  const finished = submit(next, bridgeDecision(), config)
+  assert.equal(finished.state.counters.march.location.hex, 'B3.1')
+  assert.equal(finished.state.groundMovement.interruption, undefined)
+  assert.deepEqual(finished.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 1, 'A3.1|B3.1': 1 })
+})
+
+test('bridge demolition is resolved before checking a strategic endpoint for trace supply', () => {
+  const bridge = volga('intact')
+  const config = { ...bridge, groundMovement: { ...bridge.groundMovement,
+    inTrace: (state, _id, hex) => hex === 'B2.1' || hex === 'A2.1' && state.volgaBridgeDecisions?.['A2.1|A3.1'] !== 'blown' } }
+  const record = sovietMovement({ march: unit('A1.01', 'soviet', { currentRe: 1 }) }, config)
+  const waiting = submit(record, move(['A2.01'], [{ id: 'march', mode: 'strat' }]), config, 'soviet')
+  const blown = submit(waiting, bridgeDecision(['A2.1|A3.1']), config)
+  assert.equal(projectCampaignMatch(blown, 'soviet', config).marchResponse.refusal.reason, 'strategic-end-needs-trace')
+  assert.throws(() => submit(blown, { type: 'resume-campaign-ground-march', path: [] }, config, 'soviet'), /strategic-end-needs-trace/)
+  const resolved = submit(blown, { type: 'resume-campaign-ground-march', path: ['B2.01'] }, config, 'soviet')
+  assert.equal(resolved.state.counters.march.location.hex, 'B2.1')
+  assert.equal(resolved.state.counters.march.mode, 'strat')
+})
+
+test('transport entry leaves the bridge undecided and a repaired bridge offers no demolition', () => {
+  const intact = volga('intact')
+  const counters = { truck: unit('A1.01', 'soviet', { kind: 'transport', mode: 'move', definition: 'truck', currentRe: 1 }),
+    march: unit('A1.01', 'soviet', { disorganized: true, currentRe: 1 }) }
+  const record = sovietMovement(counters, intact)
+  const truck = submit(record, move(['A2.01'], [{ id: 'truck' }]), intact, 'soviet')
+  assert.equal(truck.state.volgaBridgeDecisions, undefined)
+  assert.equal(truck.state.groundMovement.interruption, undefined)
+  const combat = submit(truck, move(['A2.01']), intact, 'soviet')
+  assert.equal(combat.state.groundMovement.interruption.kind, 'volga-bridge-demolition')
+  const repaired = volga('repaired')
+  assert.equal(submit(sovietMovement(counters, repaired), move(['A2.01']), repaired, 'soviet').state.groundMovement.interruption, undefined)
 })

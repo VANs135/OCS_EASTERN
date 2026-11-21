@@ -20,14 +20,14 @@ type Stop = 'all-mp' | 'minimum-move' | 'enemy-zoc' | 'allowance-used'
 type CrossingRefusal = 'crossing-capacity' | 'crossing-strength-unavailable'
 type Refusal = 'not-adjacent' | 'enemy-combat' | 'entry-unresolved' | 'impassable' | 'strategic-zoc' | 'insufficient-mp' | 'must-stop'
   | CrossingRefusal
-interface GroundStep {
+export interface GroundStep {
   hex: string
   spent: number
   stop: Stop | null
 }
 
 // OCS 4.5, 5.8a and 6.1–6.3. Adapted from Smolensk 5603e52, move.ts (evaluateStepFrom).
-function evaluateStep(board: GroundMoveBoard, unit: GroundMoveUnit, from: GroundStep, to: string, first: boolean):
+export function evaluateGroundStep(board: GroundMoveBoard, unit: GroundMoveUnit, from: GroundStep, to: string, first: boolean):
   { ok: true; step: GroundStep } | { ok: false; reason: Refusal } {
   if (from.stop) return { ok: false, reason: 'must-stop' }
   if (to === from.hex || !board.neighbors(from.hex).includes(to)) return { ok: false, reason: 'not-adjacent' }
@@ -52,28 +52,19 @@ function evaluateStep(board: GroundMoveBoard, unit: GroundMoveUnit, from: Ground
   return { ok: true, step: { hex: to, spent, stop } }
 }
 
-export function walkGroundRoute(board: GroundMoveBoard, unit: GroundMoveUnit, origin: string, path: readonly string[]) {
-  let step: GroundStep = { hex: origin, spent: 0, stop: null }
-  for (const [index, to] of path.entries()) {
-    const result = evaluateStep(board, unit, step, to, index === 0)
-    if (!result.ok) return { ...result, hex: to }
-    step = result.step
-  }
-  return { ok: true as const, step }
-}
-
 interface ReachNode extends GroundStep { parent: ReachNode | null }
 
 /** Adapted from computeReachableHexes. The least costly passable route wins for each hex. */
-export function reachableGroundHexes(board: GroundMoveBoard, unit: GroundMoveUnit, origin: string) {
+export function reachableGroundHexes(board: GroundMoveBoard, unit: GroundMoveUnit, origin: string,
+  pauseAt?: (hex: string) => boolean) {
   const start: ReachNode = { hex: origin, spent: 0, stop: null, parent: null }
   const best = new Map([[origin, start]])
   const queue = [start]
   for (let head = 0; head < queue.length; head++) {
     const current = queue[head]!
-    if (current.stop || best.get(current.hex) !== current) continue
+    if (current.stop || best.get(current.hex) !== current || current !== start && pauseAt?.(current.hex)) continue
     for (const to of board.neighbors(current.hex)) {
-      const result = evaluateStep(board, unit, current, to, current === start)
+      const result = evaluateGroundStep(board, unit, current, to, current === start)
       if (!result.ok) continue
       const previous = best.get(to)
       const { step } = result

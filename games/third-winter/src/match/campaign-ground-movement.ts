@@ -1,17 +1,21 @@
-import { reachableGroundHexes, walkGroundRoute } from '@ocs-eastern/series/ground-movement'
+import { reachableGroundHexes } from '@ocs-eastern/series/ground-movement'
 import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
+import { campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch } from './campaign-ground-march.ts'
+import type { CampaignMarchInterruption, CampaignMarchMover } from './campaign-ground-march.ts'
 import { campaignCounterGroundMode } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
+import { campaignDemolishableBridges } from './campaign-volga-bridges.ts'
 
 export interface CampaignGroundMovementProgress {
   moved: readonly string[]
   zocLocks: readonly string[]
   crossedReByHexside?: Readonly<Record<string, number>>
+  interruption?: CampaignMarchInterruption
 }
 
 export interface CampaignGroundMover {
@@ -31,7 +35,6 @@ export type CampaignGroundMovementAction = MoveCampaignGround | { type: 'hold-ca
   | { type: 'complete-campaign-ground-movement' }
 
 type Position = NonNullable<ReturnType<typeof campaignMovementPosition>>
-type Settlement = { id: string; hex: string; spent: number; stop: string | null }
 
 function movementOpen(state: Readonly<CampaignTurnState>, side: Side) {
   return state.cursor.phase === 'movement' && state.cursor.phasing === side && state.movementSegment === 'movement'
@@ -41,6 +44,7 @@ const refuse = <Reason extends string>(reason: Reason) => ({ ok: false as const,
 
 function inspect(state: Readonly<CampaignTurnState>, side: Side, board?: CampaignGroundMovementBoard) {
   if (!movementOpen(state, side)) return refuse('window-closed')
+  if (state.groundMovement?.interruption) return refuse('movement-awaits-response')
   const position = board && campaignMovementPosition(state, side, board)
   return position && board ? { ok: true as const, position, board } : refuse('board-unavailable')
 }
@@ -69,21 +73,6 @@ function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<Cam
     allowance: profile.ma * groundModeMovementFactor(mode, 'movement'), strategic: mode.marker === 'strat' } }
 }
 
-function settlePositions(state: Readonly<CampaignTurnState>, placements: readonly Settlement[],
-  crossedReByHexside = state.groundMovement?.crossedReByHexside): CampaignTurnState {
-  const counters = { ...state.counters }
-  for (const { id, hex } of placements) counters[id] = { ...counters[id]!, location: { kind: 'map', hex } }
-  return { ...state, counters, groundMovement: { crossedReByHexside, zocLocks: state.groundMovement?.zocLocks ?? [],
-    moved: [...(state.groundMovement?.moved ?? []), ...placements.map(({ id }) => id)] } }
-}
-
-function strategicEndpoints(state: Readonly<CampaignTurnState>, placements: readonly Settlement[], board: CampaignGroundMovementBoard) {
-  return placements.every(({ id, hex }) => {
-    const counter = state.counters[id]!
-    return counter.mode !== 'strat' || counter.disorganized || board.inTrace(state, id, hex) === true
-  })
-}
-
 function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCampaignGround, config?: CampaignGroundMovementBoard) {
   const inspected = inspect(state, side, config)
   if (!inspected.ok) return inspected
@@ -92,12 +81,8 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   if (!path.length || !movers.length || new Set(movers.map(({ id }) => id)).size !== movers.length ||
     movers.some(({ stopAfter }) => stopAfter !== undefined && (!Number.isSafeInteger(stopAfter) || stopAfter < 1 || stopAfter > path.length)) ||
     !movers.some(({ stopAfter }) => stopAfter === undefined || stopAfter === path.length)) return refuse('invalid-route')
-  const route: string[] = []
-  for (const printed of path) {
-    const hex = board.map.resolveHex(printed)
-    if (!hex) return refuse('outside-play-area')
-    route.push(hex)
-  }
+  const route = normalizeCampaignMarchPath(board, path)
+  if (!route) return refuse('outside-play-area')
   const proposed = { ...state, counters: { ...state.counters } }
   let origin: string | undefined
   for (const mover of movers) {
@@ -107,26 +92,19 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
     origin = choice.hex
     proposed.counters[mover.id] = choice.counter
   }
-  const placements: Settlement[] = []
-  const crossingUsage = campaignCrossingUsage(proposed, board)
+  const members: CampaignMarchMover[] = []
   for (const { id, stopAfter } of movers) {
-    const prepared = movementUnit(board, proposed, id, position.friendly.get(id)!.profile.inCombatMode)
+    const { combat, inCombatMode } = position.friendly.get(id)!.profile
+    const prepared = movementUnit(board, proposed, id, inCombatMode)
     if (!prepared.ok) return prepared
-    const unitRoute = route.slice(0, stopAfter ?? route.length)
-    const stepBoard = position.stepBoard(id, prepared.unit.mobility, proposed, crossingUsage.stepRefusal(id))
-    const result = walkGroundRoute(stepBoard, prepared.unit, origin!, unitRoute)
-    if (!result.ok) return result
-    const crossingRefusal = crossingUsage.reserveRoute(id, origin!, unitRoute)
-    if (crossingRefusal) return { ok: false as const, ...crossingRefusal }
-    placements.push({ id, ...result.step })
+    members.push({ id, combat, unit: prepared.unit, progress: { hex: origin!, spent: 0, stop: null },
+      stepsLeft: stopAfter ?? route.length })
   }
-  const settled = settlePositions(proposed, placements, crossingUsage.settled())
-  if (!strategicEndpoints(settled, placements, board)) return refuse('strategic-end-needs-trace')
-  return { ok: true as const, placements, settled }
+  return planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
 }
 
 export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>, side: Side, config?: CampaignGroundMovementBoard) {
-  if (!movementOpen(state, side)) return null
+  if (!movementOpen(state, side) || state.groundMovement?.interruption) return null
   const inspected = inspect(state, side, config)
   if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], endBlockers: null, crossedReByHexside: {} }
   const { position } = inspected
@@ -139,8 +117,7 @@ export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>
 
 export function previewCampaignGroundMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCampaignGround,
   config?: CampaignGroundMovementBoard) {
-  const result = planMove(state, side, action, config)
-  return result.ok ? { ok: true as const, placements: result.placements } : result
+  return campaignMarchPreview(planMove(state, side, action, config))
 }
 
 export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, side: Side, mover: CampaignGroundMover,
@@ -157,10 +134,12 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const { unit } = prepared
   const crossingUsage = campaignCrossingUsage(proposed, board)
   const stepBoard = position.stepBoard(id, unit.mobility, proposed, crossingUsage.stepRefusal(id))
-  const destinations = reachableGroundHexes(stepBoard, unit, choice.hex).filter((step) => {
-    if (!unit.strategic) return true
-    const placements = [{ id, ...step }]
-    return strategicEndpoints(settlePositions(proposed, placements), placements, board)
+  const pauseAt = (hex: string) => side === 'soviet' && choice.profile.combat && campaignDemolishableBridges(proposed, board, id, hex).length > 0
+  const destinations = reachableGroundHexes(stepBoard, unit, choice.hex, pauseAt).flatMap((step) => {
+    if (pauseAt(step.hex)) return [{ ...step, pause: 'volga-bridge-demolition' as const }]
+    const candidate = { ...proposed, counters: { ...proposed.counters,
+      [id]: { ...choice.counter, location: { kind: 'map' as const, hex: step.hex } } } }
+    return !unit.strategic || board.inTrace(candidate, id, step.hex) === true ? [step] : []
   })
   return { ok: true as const, destinations }
 }

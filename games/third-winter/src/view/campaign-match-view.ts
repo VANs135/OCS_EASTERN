@@ -5,6 +5,10 @@ import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-p
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
 import { campaignGroundDestinations, campaignGroundMovementOptions, previewCampaignGroundMove } from '../match/campaign-ground-movement.ts'
 import type { CampaignGroundMover, MoveCampaignGround } from '../match/campaign-ground-movement.ts'
+import { campaignGroundMovementActor } from '../match/campaign-ground-march.ts'
+import type { CampaignMarchInterruption } from '../match/campaign-ground-march.ts'
+import { previewCampaignMarchResume } from '../match/campaign-march-response.ts'
+import type { CampaignMarchResponse } from '../match/campaign-march-response.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
@@ -20,6 +24,15 @@ function preTurnStep(cursor: Extract<CampaignCursor, { phase: 'pre-turn' }>) {
   }
 }
 
+function projectMarchInterruption(pending: CampaignMarchInterruption, viewer: Side) {
+  const publicStep = { kind: pending.kind, hex: pending.hex }
+  if (pending.kind === 'volga-bridge-demolition') {
+    return viewer === 'axis' ? { ...publicStep, bridges: pending.bridges.map(({ id, hexside }) => ({ id, hexside: [...hexside] })) } : publicStep
+  }
+  return viewer === 'soviet' ? { ...publicStep, refusal: { ...pending.refusal },
+    movers: pending.march.movers.map(({ id, unit, progress }) => ({ id, remainingMp: unit.allowance - progress.spent, stop: progress.stop })) } : publicStep
+}
+
 export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Side, context: CampaignTurnContext) {
   const { state, revision } = record
   const { cursor, reinforcement, when, turn, weather, weatherHistory } = state
@@ -30,8 +43,10 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     const hex = map ? activeCampaignFerryHex(state, marker, map) : weatherHistory.ice ? undefined : marker.hex
     return hex ? [{ id: marker.id, side: marker.side, hex }] : []
   })
+  const blownBridges = Object.entries(state.volgaBridgeDecisions ?? {}).flatMap(([id, decision]) =>
+    decision === 'blown' ? [{ id, hexside: id.split('|') }] : [])
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
-    ferries, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    ferries, blownBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null
@@ -39,6 +54,10 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     return { ...base, segment: cursor.segment, step: preTurnStep(cursor), event, phasing: null, actor: chooser }
   }
 
+  const pending = state.groundMovement?.interruption
+  if (pending && cursor.phase === 'movement') return { ...base, first: cursor.first, phasing: cursor.phasing,
+    actor: campaignGroundMovementActor(pending), segment: state.movementSegment, movement: null,
+    marchResponse: projectMarchInterruption(pending, viewer) }
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
@@ -67,4 +86,9 @@ export function projectCampaignGroundDestinations(record: Readonly<CampaignMatch
 export function projectCampaignGroundRoute(record: Readonly<CampaignMatch>, viewer: Side, action: MoveCampaignGround,
   context: CampaignTurnContext) {
   return { revision: record.revision, ...previewCampaignGroundMove(record.state, viewer, action, context.groundMovement) }
+}
+
+export function projectCampaignMarchResume(record: Readonly<CampaignMatch>, viewer: Side,
+  action: Extract<CampaignMarchResponse, { type: 'resume-campaign-ground-march' }>, context: CampaignTurnContext) {
+  return { revision: record.revision, ...previewCampaignMarchResume(record.state, viewer, action, context.groundMovement) }
 }

@@ -9,6 +9,7 @@ import type { TtwOrdinaryCrossing } from '../ttw/ground-terrain.ts'
 import { campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
+import { campaignVolgaBridgeCostState } from './campaign-volga-bridges.ts'
 
 export interface CampaignGroundMovementBoard {
   map: CampaignGroundMap
@@ -18,6 +19,7 @@ export interface CampaignGroundMovementBoard {
   /** Receives canonical endpoints. TTW owns weather, crossings and route availability. */
   cost(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): StepCost
   crossingLimit?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): number | undefined
+  intactVolgaBridgeAt?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): boolean
   /** True when the step needs capture, a protected site check, or another work-specific resolver. */
   entryRequiresResolution(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   /** Supply facts for the proposed board at the end of the move. */
@@ -37,6 +39,10 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
   return { map: inputs.map, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers,
     crossingLimit: (state, id, from, to) => inputs.crossingAt(state, id, from, to)?.barrier === 'volga' ? volgaHexsidePhaseLimitRe : undefined,
+    intactVolgaBridgeAt(state, id, from, to) {
+      const crossing = inputs.crossingAt(state, id, from, to)
+      return crossing?.barrier === 'volga' && crossing.bridge === 'intact' && crossing.routes.length > 0
+    },
     cost(state, id, from, to, mobility) {
       const ground = state.weather?.ground
       const crossing = inputs.crossingAt(state, id, from, to)
@@ -50,7 +56,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
           const hex = activeCampaignFerryHex(state, marker, inputs.map)
           return hex === from || hex === to
         })
-        return ttwVolgaMovementCost(terrain, crossing, mobility, ground, ice, ferry)
+        return ttwVolgaMovementCost(terrain, campaignVolgaBridgeCostState(state, crossing, from, to), mobility, ground, ice, ferry)
       }
       return ttwOrdinaryTerrainCost(terrain, crossing, mobility, ground)
     },

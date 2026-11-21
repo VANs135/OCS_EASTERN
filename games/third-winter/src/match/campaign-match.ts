@@ -7,6 +7,7 @@ import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
+import { applyCampaignMarchResponse } from './campaign-march-response.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
@@ -37,6 +38,10 @@ export function submitCampaignMatch(record: Readonly<CampaignMatch>, actor: Side
 
 function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
   action: CampaignTurnAction, context: CampaignTurnContext): CampaignTurnState {
+  if (action.type === 'resolve-campaign-bridge-demolition' || action.type === 'resume-campaign-ground-march') {
+    return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
+  }
+  if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   switch (action.type) {
     case 'determine-campaign-weather':
     case 'roll-campaign-event':

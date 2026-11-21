@@ -25,14 +25,10 @@ export function campaignCrossingUsage(state: Readonly<CampaignTurnState>, board:
         return result && 'reason' in result ? result.reason : null
       }
     },
-    reserveRoute(id: string, origin: string, route: readonly string[]) {
-      let from = origin
-      for (const to of route) {
-        const result = charge(id, from, to)
-        if (result && 'reason' in result) return { reason: result.reason, hex: to }
-        if (result) usage.set(result.key, result.totalRe)
-        from = to
-      }
+    reserveStep(id: string, from: string, to: string) {
+      const result = charge(id, from, to)
+      if (result && 'reason' in result) return result.reason
+      if (result) usage.set(result.key, result.totalRe)
       return null
     },
     settled() { return Object.fromEntries(usage) },

@@ -9,6 +9,8 @@ import type { CampaignBreakoutReturnBoard, ReturnCampaignBreakout } from './camp
 import type { CampaignAircraftConsolidationBoard, ConsolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import type { CampaignGroundMovementAction, CampaignGroundMovementProgress } from './campaign-ground-movement.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
+import type { CampaignMarchResponse } from './campaign-march-response.ts'
+import type { CampaignBridgeDecision } from './campaign-volga-bridges.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -51,6 +53,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   weather: CampaignWeather | { ground: 'mud'; flight: null } | null
   weatherHistory: WeatherHistory
   ferries: readonly CampaignFerry[]
+  /** Canonical hexside keys. A kept bridge is permanently past its demolition window. */
+  volgaBridgeDecisions?: Readonly<Record<string, CampaignBridgeDecision>>
   preTurnRolls: readonly CampaignPreTurnRoll[]
   movementSegment?: 'breakout' | 'movement' | 'barrage'
   groundMovement?: CampaignGroundMovementProgress
@@ -73,7 +77,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
   | { type: 'complete-campaign-reinforcement' }
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
-  | CampaignGroundMovementAction | { type: 'complete-campaign-refit' }
+  | CampaignGroundMovementAction | CampaignMarchResponse | { type: 'complete-campaign-refit' }
 
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext
