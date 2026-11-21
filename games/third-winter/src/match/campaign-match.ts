@@ -6,6 +6,7 @@ import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
+import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
@@ -45,6 +46,10 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     case 'attempt-campaign-breakout':
     case 'complete-campaign-breakout':
       return applyCampaignBreakout(state, actor, action, context.breakoutBoard)
+    case 'move-campaign-ground':
+    case 'hold-campaign-ground-zoc':
+    case 'complete-campaign-ground-movement':
+      return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)
     case 'complete-campaign-refit': {

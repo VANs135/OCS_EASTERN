@@ -7,6 +7,8 @@ import type { CampaignBoardState, CampaignReinforcementAction, CampaignReinforce
 import type { CampaignBreakoutAction, CampaignBreakoutBoard, CampaignBreakoutRoll } from './campaign-breakout.ts'
 import type { CampaignBreakoutReturnBoard, ReturnCampaignBreakout } from './campaign-breakout-returns.ts'
 import type { CampaignAircraftConsolidationBoard, ConsolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
+import type { CampaignGroundMovementAction, CampaignGroundMovementProgress } from './campaign-ground-movement.ts'
+import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -49,7 +51,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   weatherHistory: WeatherHistory
   ferries: readonly CampaignFerry[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
-  movementSegment?: 'breakout' | 'movement'
+  movementSegment?: 'breakout' | 'movement' | 'barrage'
+  groundMovement?: CampaignGroundMovementProgress
   breakoutRolls: readonly CampaignBreakoutRoll[]
   reinforcement?: { stage: 'opening' } | {
     stage: 'ordinary' | 'closing'
@@ -69,11 +72,12 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
   | { type: 'complete-campaign-reinforcement' }
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
-  | { type: 'complete-campaign-refit' }
+  | CampaignGroundMovementAction | { type: 'complete-campaign-refit' }
 
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext
   breakoutBoard?: CampaignBreakoutBoard
+  groundMovement?: CampaignGroundMovementBoard
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
   thawTiming?: CampaignThawTiming

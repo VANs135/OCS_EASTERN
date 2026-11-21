@@ -56,7 +56,7 @@ export function campaignBreakoutOptions(state: Readonly<CampaignTurnState>, acto
 export function applyCampaignBreakout(state: Readonly<CampaignTurnState>, actor: Side,
   action: CampaignBreakoutAction, board?: CampaignBreakoutBoard): CampaignTurnState {
   if (!breakoutOpen(state, actor)) throw new Error('Campaign breakout window is not open for this side')
-  if (action.type === 'complete-campaign-breakout') return { ...state, movementSegment: 'movement' }
+  if (action.type === 'complete-campaign-breakout') return { ...state, movementSegment: 'movement', groundMovement: { moved: [], zocLocks: [] } }
   const position = board?.(state, actor)
   if (!position) throw new Error('Campaign breakout board facts are not configured')
   const { own, verdict } = inspectBreakout(state, actor, position)

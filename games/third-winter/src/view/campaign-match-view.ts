@@ -3,6 +3,8 @@ import { actingSide } from '@ocs-eastern/series/turn'
 import { campaignAircraftConsolidationOptions } from '../match/campaign-aircraft-consolidation.ts'
 import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-phase.ts'
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
+import { campaignGroundDestinations, campaignGroundMovementOptions, previewCampaignGroundMove } from '../match/campaign-ground-movement.ts'
+import type { CampaignGroundMover, MoveCampaignGround } from '../match/campaign-ground-movement.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
 import { projectCampaignReinforcementActive, projectCampaignSeat } from './campaign-reinforcement-view.ts'
@@ -34,7 +36,8 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
-    breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard) }
+    breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard),
+    movement: campaignGroundMovementOptions(state, viewer, context.groundMovement) }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player
   const { stage } = reinforcement
   if (stage === 'ordinary') {
@@ -48,4 +51,14 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   const blockers = context.reinforcementBlockers?.(state, stage)
   const step = blockers?.length ? 'resolve-reinforcement-obligations' : blockers ? `complete-${stage}` : 'await-reinforcement-rules'
   return { ...player, segment: stage, active: { step, blockers: blockers?.slice() ?? null } }
+}
+
+export function projectCampaignGroundDestinations(record: Readonly<CampaignMatch>, viewer: Side, mover: CampaignGroundMover,
+  context: CampaignTurnContext) {
+  return { revision: record.revision, ...campaignGroundDestinations(record.state, viewer, mover, context.groundMovement) }
+}
+
+export function projectCampaignGroundRoute(record: Readonly<CampaignMatch>, viewer: Side, action: MoveCampaignGround,
+  context: CampaignTurnContext) {
+  return { revision: record.revision, ...previewCampaignGroundMove(record.state, viewer, action, context.groundMovement) }
 }
