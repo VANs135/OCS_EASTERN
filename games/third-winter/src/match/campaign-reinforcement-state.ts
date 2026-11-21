@@ -1,5 +1,5 @@
 import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
-import type { ReinforcementStep } from '@ocs-eastern/series/reinforcement'
+import type { ReinforcementSegment } from '@ocs-eastern/series/reinforcement'
 import type { DiceRoll, RngState, Side } from '@ocs-eastern/series/state-types'
 import type { Phase } from '@ocs-eastern/series/turn'
 import type { CampaignArrivalSite } from '../ttw/campaign/arrival-sites.ts'
@@ -15,6 +15,34 @@ export type CampaignSupplyAward = { dice: DiceRoll; pools: readonly CampaignSupp
   | { status: 'awaiting-placement'; withheldTokens: number; tokensToPlace: number }
   | { status: 'deduction-pending'; requiredTokens: number }
 )
+
+export interface CampaignSupplyPlacementPlan {
+  pool: CampaignSupplyPool['kind']
+  tokens: number
+  sites: readonly { hex: string; side: Side; minTokens?: number; maxTokens: number }[]
+}
+
+export interface CampaignReplacementAward {
+  pax: number
+  air: number
+  eq: readonly number[]
+  ally: number
+  special: boolean
+}
+
+export type CampaignSpecialReplacement = 'artillery' | 'assault' | 'flak' | 'aa' | 'hedgehog' | 'hq' | 'pontoon' | 'alert' | 'tiger'
+export type CampaignReinforcementCheck = 'supply' | 'replacements' | 'special-replacement'
+export interface CampaignReinforcementRoll {
+  check: CampaignReinforcementCheck
+  side: Side
+  turn: number
+  phase: Phase
+  segment: ReinforcementSegment
+  step: 'roll-supply' | 'roll-replacements' | 'roll-special-replacement'
+  dice: DiceRoll
+  before: number
+  after: number
+}
 
 export interface CampaignCounter {
   definition: string
@@ -32,8 +60,12 @@ export interface CampaignReinforcementState {
   rng: RngState
   counters: Readonly<Record<string, CampaignCounter>>
   settledOrders: readonly string[]
-  step: ReinforcementStep
+  segment: ReinforcementSegment
   supplyAward?: CampaignSupplyAward
+  supplyDumps: Readonly<Record<Side, Readonly<Record<string, number>>>>
+  replacementAward?: CampaignReplacementAward
+  specialReplacements?: readonly CampaignSpecialReplacement[]
+  rolls: readonly CampaignReinforcementRoll[]
   /** TTW 1.7c. Debit these tokens from the next supply award for each side. */
   withdrawalSupplyDebt: Readonly<Record<Side, number>>
 }
@@ -46,9 +78,16 @@ export interface CampaignReinforcementContext {
   arrivalSites(state: Readonly<CampaignReinforcementState>): readonly CampaignArrivalSite[]
   /** Returns the approved Supply Table result in T, with date and table modifiers applied. */
   supplyTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): readonly CampaignSupplyPool[] | undefined
+  /** Game-specific quotas and legal locations, including an approved distribution of any withheld tokens. */
+  supplyPlacementPlan?(state: Readonly<CampaignReinforcementState>): readonly CampaignSupplyPlacementPlan[] | undefined
+  replacementTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): CampaignReplacementAward | undefined
+  specialReplacementTable?(state: Readonly<CampaignReinforcementState>, face: number): readonly CampaignSpecialReplacement[] | undefined
 }
 
 export type CampaignReinforcementAction =
   | { type: 'execute-scheduled-reinforcement'; orderId: string; placements?: readonly { counterId: string; hex: string }[] }
   | { type: 'complete-scheduled-reinforcements' }
   | { type: 'roll-campaign-supply' }
+  | { type: 'place-campaign-supply'; placements: readonly { pool: CampaignSupplyPool['kind']; hex: string; tokens: number }[] }
+  | { type: 'roll-campaign-replacements' }
+  | { type: 'roll-campaign-special-replacement' }

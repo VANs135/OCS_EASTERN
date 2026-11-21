@@ -12,6 +12,7 @@ interface CampaignReinforcementOpening {
   when?: CampaignReinforcementDate
   rng?: RngState
   withdrawalSupplyDebt?: Readonly<Record<Side, number>>
+  supplyDumps?: CampaignReinforcementState['supplyDumps']
 }
 
 /** Open the ordinary scheduled portion after any game-specific start-of-phase actions. */
@@ -19,8 +20,9 @@ export function openCampaignReinforcementSession(turn: number, phasing: Side,
   counters: Readonly<Record<string, CampaignCounter>>, opening: CampaignReinforcementOpening = {}): CampaignSession {
   if (!Number.isSafeInteger(turn) || turn < 1) throw new Error('Invalid campaign turn')
   return { revision: 0, receipts: [], state: { cursor: { turn, phasing, phase: 'reinforcement' },
-    when: opening.when, rng: opening.rng ?? createRngState(0), counters, settledOrders: [], step: 'scheduled',
-    withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } } }
+    when: opening.when, rng: opening.rng ?? createRngState(0), counters, settledOrders: [], segment: 'scheduled', rolls: [],
+    withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 },
+    supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} } } }
 }
 
 export function submitCampaignSession(record: Readonly<CampaignSession>, actor: Side,

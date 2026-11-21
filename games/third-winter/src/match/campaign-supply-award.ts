@@ -1,14 +1,15 @@
-import { rollDice } from '@ocs-eastern/series/rng'
+import { campaignReinforcementStep } from './campaign-reinforcement-flow.ts'
+import { drawCampaignReinforcementCheck } from './campaign-reinforcement-rolls.ts'
 import type { CampaignReinforcementContext, CampaignReinforcementState, CampaignSupplyAward } from './campaign-reinforcement-state.ts'
 
 /** OCS 2.3 and TTW 1.7c. Record the award before its separate placement procedure. */
 export function rollCampaignSupply(state: Readonly<CampaignReinforcementState>, context: CampaignReinforcementContext): CampaignReinforcementState {
-  if (state.step !== 'supply' || state.supplyAward) throw new Error('The supply roll is not available')
+  if (campaignReinforcementStep(state) !== 'roll-supply') throw new Error('The supply roll is not available')
   const side = state.cursor.phasing
-  const { value: dice, rng } = rollDice(state.rng, 2)
+  const { dice, rng, rolls } = drawCampaignReinforcementCheck(state, 'supply')
   const row = context.supplyTable?.(state, dice.total)
   if (!row) throw new Error('The campaign Supply Table is not configured for this result')
-  const pools = row.map((pool) => ({ ...pool }))
+  const pools = row.map(({ kind, tokens }) => ({ kind, tokens }))
   const expected = side === 'axis' ? ['axis-cities', 'axis-hq'] : ['soviet-supply']
   const grossTokens = pools.reduce((sum, pool) => sum + pool.tokens, 0)
   if (pools.length !== expected.length || expected.some((kind) => !pools.some((pool) => pool.kind === kind)) ||
@@ -21,6 +22,6 @@ export function rollCampaignSupply(state: Readonly<CampaignReinforcementState>, 
   const supplyAward: CampaignSupplyAward = { dice, pools, grossTokens, ...(requiredTokens > grossTokens
     ? { status: 'deduction-pending', requiredTokens }
     : { status: 'awaiting-placement', withheldTokens: requiredTokens, tokensToPlace: grossTokens - requiredTokens }) }
-  return { ...state, rng, supplyAward, withdrawalSupplyDebt: supplyAward.status === 'awaiting-placement'
+  return { ...state, rng, rolls, supplyAward, withdrawalSupplyDebt: supplyAward.status === 'awaiting-placement'
     ? { ...state.withdrawalSupplyDebt, [side]: 0 } : state.withdrawalSupplyDebt }
 }

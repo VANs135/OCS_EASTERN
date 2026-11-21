@@ -1,8 +1,8 @@
 /** OCS v4.3 2.3. Game-specific openings, exceptions and destinations belong to the game. */
-export const reinforcementSteps = ['scheduled', 'supply', 'variable-replacements', 'rebuild-consolidate'] as const
+export const reinforcementSegments = ['scheduled', 'supply', 'variable-replacements', 'rebuild-consolidate'] as const
 
-export type ReinforcementStep = (typeof reinforcementSteps)[number]
+export type ReinforcementSegment = (typeof reinforcementSegments)[number]
 
-export function nextReinforcementStep(step: ReinforcementStep): ReinforcementStep | undefined {
-  return reinforcementSteps[reinforcementSteps.indexOf(step) + 1]
+export function nextReinforcementSegment(segment: ReinforcementSegment): ReinforcementSegment | undefined {
+  return reinforcementSegments[reinforcementSegments.indexOf(segment) + 1]
 }

@@ -1,5 +1,5 @@
 import { internalRecoveryPerLevel } from '@ocs-eastern/series/internal-stocks'
-import { nextReinforcementStep } from '@ocs-eastern/series/reinforcement'
+import { nextReinforcementSegment } from '@ocs-eastern/series/reinforcement'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { campaignArrivalCandidates, supportsCampaignArrival } from '../ttw/campaign/arrival-sites.ts'
 import { campaignReinforcementWindow } from '../ttw/campaign/reinforcement.ts'
@@ -7,6 +7,8 @@ import { skipsCampaignReinforcementTables } from '../ttw/campaign/reinforcement-
 import type { CampaignReinforcement } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignCounter, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 import { rollCampaignSupply } from './campaign-supply-award.ts'
+import { placeCampaignSupply } from './campaign-supply-placement.ts'
+import { rollCampaignReplacements, rollCampaignSpecialReplacement } from './campaign-replacement-rolls.ts'
 
 type Classified = Extract<CampaignReinforcement, { status: 'classified' }>
 type Blocked = 'settled' | 'data-pending' | 'unsupported' | 'unbound' | 'counter-unavailable' | 'no-destination'
@@ -19,7 +21,7 @@ type OrderProgress = { order: CampaignReinforcement; status: Blocked } | {
 }
 
 export function scheduledCampaignReinforcements(state: Readonly<CampaignReinforcementState>, context: CampaignReinforcementContext): OrderProgress[] {
-  if (state.step !== 'scheduled') return []
+  if (state.segment !== 'scheduled') return []
   return campaignReinforcementWindow(context.schedule, state.cursor).map((order) => prepareOrder(state, order, context))
 }
 
@@ -84,12 +86,15 @@ export function applyCampaignReinforcement(state: Readonly<CampaignReinforcement
     throw new Error('The active side must be in its reinforcement phase')
   }
   if (action.type === 'roll-campaign-supply') return rollCampaignSupply(state, context)
-  if (state.step !== 'scheduled') throw new Error('The scheduled reinforcement window must be open')
+  if (action.type === 'place-campaign-supply') return placeCampaignSupply(state, action, context)
+  if (action.type === 'roll-campaign-replacements') return rollCampaignReplacements(state, context)
+  if (action.type === 'roll-campaign-special-replacement') return rollCampaignSpecialReplacement(state, context)
+  if (state.segment !== 'scheduled') throw new Error('The scheduled reinforcement window must be open')
   const window = campaignReinforcementWindow(context.schedule, state.cursor)
   if (action.type === 'complete-scheduled-reinforcements') {
     if (window.some(({ id }) => !state.settledOrders.includes(id))) throw new Error('Scheduled reinforcements are still outstanding')
-    const step = skipsCampaignReinforcementTables(state.when) ? 'rebuild-consolidate' : nextReinforcementStep('scheduled')!
-    return { ...state, step }
+    const segment = skipsCampaignReinforcementTables(state.when) ? 'rebuild-consolidate' : nextReinforcementSegment('scheduled')!
+    return { ...state, segment }
   }
   if (action.type !== 'execute-scheduled-reinforcement') throw new Error('Unknown campaign reinforcement command')
   const order = window.find(({ id }) => id === action.orderId)
