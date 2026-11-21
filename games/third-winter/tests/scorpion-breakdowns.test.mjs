@@ -1,15 +1,21 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rmdir, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { localChoices, localDecisionSide } from '../desktop/local/actions.mjs'
 import { localCombatReview } from '../desktop/local/combat-review.mjs'
+import { openLocalScorpion, projectLocalScorpion } from '../desktop/local/controller.mjs'
 import { localMenu, sidebarChoice } from '../desktop/local/interaction.mjs'
+import { localScorpionEnvelope, readLocalJson, replaceLocalJson } from '../desktop/local/store.mjs'
 import { readScorpionBreakdowns } from '../src/import/scorpion-breakdown-config.ts'
 import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { scorpionBreakdownStock } from '../src/match/scorpion-breakdowns.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { scorpionBreakdownCardViews } from '../src/view/scorpion-breakdown-boxes.ts'
+import { scorpionHexLayout } from '../src/view/scorpion-grid-layout.ts'
 
 const origin = 's10.01'
 const destination = 's10.02'
@@ -98,6 +104,95 @@ const atCombat = (combat, patch) => {
   return { ...record, state: { ...record.state, cursor: { ...record.state.cursor, phase: 'combat' } } }
 }
 
+async function syntheticDesktop(t, record) {
+  const folder = await mkdtemp(join(tmpdir(), 'ocs-breakdowns-'))
+  const file = join(folder, 'match.json')
+  const definitions = new Map([...assets.catalog.definitions].map(([id, definition]) => [id, { ...definition,
+    source: { ...definition.source, faces: Object.fromEntries(Object.entries(definition.source.faces)
+      .map(([mode, face]) => [mode, { ...face, asset: 'synthetic.png' }])) } }]))
+  const aliases = new Map(['Turn', 'Ground', 'Flight', 'Soviet VPs Tracker', '1st Ukr Arty Ready', '2nd Ukr Arty Ready']
+    .map((name) => [name, [{ kind: 'marker', source: { name,
+      faces: { combat: { asset: 'synthetic.png' }, move: { asset: 'synthetic.png' } } } }]]))
+  const local = { ...assets, catalog: { definitions, aliases } }
+  const fingerprint = 'synthetic-breakdowns'
+  let client
+  t.after(async () => {
+    await client?.close()
+    await unlink(file).catch((error) => { if (error.code !== 'ENOENT') throw error })
+    await rmdir(folder)
+  })
+  await replaceLocalJson(file, localScorpionEnvelope(record, fingerprint))
+  client = await openLocalScorpion({ assets: local, board, fingerprint,
+    breakdownBoxes: new Map([['split', { x: 12, y: 18, w: 48, h: 40 }]]) }, file)
+  const dispatch = (request) => client.dispatch({ revision: client.view().revision, ...request })
+  const choose = (predicate, rows = client.view().actions) => {
+    const choice = rows.find(predicate)
+    assert.ok(choice, 'expected a desktop action')
+    return dispatch({ kind: 'apply', key: choice.key })
+  }
+  return { view: client.view, dispatch, choose, saved: async () => (await readLocalJson(file)).record }
+}
+
+test('desktop movement adds and removes several breakdown counters before a single confirmed move', async (t) => {
+  const client = await syntheticDesktop(t, fixture())
+  const point = scorpionHexLayout(destination)
+  const stock = () => client.view().breakdownStock.find(({ definition }) => definition === 'split').availableIds
+  const add = (row) => row.label.startsWith('加一枚')
+  await client.dispatch({ kind: 'select-unit', unitId: 'parent' })
+  await client.dispatch({ kind: 'board-left', ...point })
+  const context = await client.dispatch({ kind: 'board-menu', ...point })
+  await client.choose(({ group }) => group === '拆分', context.menu)
+  const opened = client.view()
+  assert.match(opened.breakdownPrompt, /已选 0/)
+  await client.choose(add)
+  await client.choose(add)
+  assert.match(client.view().breakdownPrompt, /已选 2/)
+  assert.equal(client.view().actions.some(add), false)
+  assert.equal(stock().length, 2)
+  await client.dispatch({ kind: 'board-left', ...point, confirm: true })
+  assert.equal((await client.saved()).revision, 0)
+  await client.choose(({ label }) => label.startsWith('减一枚'))
+  assert.match(client.view().breakdownPrompt, /已选 1/)
+  await client.choose(({ label }) => label === '取消拆分选择')
+  assert.equal(client.view().breakdownPrompt, undefined)
+  assert.deepEqual(client.view().route, [destination])
+  assert.equal((await client.saved()).revision, 0)
+
+  const again = await client.dispatch({ kind: 'board-menu', ...point })
+  await client.choose(({ group }) => group === '拆分', again.menu)
+  await client.choose(add)
+  await client.choose(add)
+  const pending = projectLocalScorpion(client.view()).actions
+  assert.ok(pending.some(({ actionTypes }) => actionTypes.includes('ground-move')))
+  await client.choose(({ label }) => label.startsWith('确认 2 枚拆分'))
+  const after = await client.saved()
+  assert.equal(after.revision, 1)
+  assert.deepEqual(after.receipts[0].action.breakdownDefinitions, ['split', 'split'])
+  assert.equal(after.state.units.parent.stepsLost, 2)
+  assert.equal(after.state.units.parent.hex, destination)
+  assert.equal(after.state.units['breakdown:split:1'].hex, origin)
+  assert.equal(after.state.units['breakdown:split:2'].hex, origin)
+  assert.deepEqual(stock(), [])
+})
+
+test('desktop advance can allocate one shared pool to several advancing parents in the same command', async (t) => {
+  const original = atCombat({ kind: 'regular', attacker: 'soviet', attackers: ['parent', 'second'], step: 'advance', target: destination })
+  const record = { ...original, state: { ...original.state, units: { ...original.state.units, second: original.state.units.parent } } }
+  const client = await syntheticDesktop(t, record)
+  await client.choose(({ breakdownDraft }) => breakdownDraft?.action.unitIds.length === 2)
+  await client.choose(({ label }) => label.startsWith('加一枚 · parent #1'))
+  await client.choose(({ label }) => label.startsWith('加一枚 · parent #2'))
+  assert.equal(client.view().actions.some(({ label }) => label.startsWith('加一枚')), false)
+  assert.equal((await client.saved()).revision, 0)
+  await client.choose(({ label }) => label.startsWith('确认 2 枚拆分'))
+  const after = await client.saved()
+  assert.equal(after.revision, 1)
+  assert.deepEqual(after.receipts[0].action.breakdowns, [order, { parentId: 'second', definitions: ['split'] }])
+  assert.ok(Object.values(after.state.units).every(({ hex }) => hex === destination))
+  assert.equal(after.state.units.parent.stepsLost, 1)
+  assert.equal(after.state.units.second.stepsLost, 1)
+})
+
 test('selected surviving attackers can split at the start of a regular combat advance', () => {
   const record = atCombat({ attacker: 'soviet', attackers: ['parent'], step: 'advance', target: destination })
   const advance = { type: 'advance-after-combat', unitIds: ['parent'], breakdowns: [order] }
@@ -121,16 +216,16 @@ test('the selected route keeps its ordinary move, with breakdowns offered in the
   const rows = localMenu(record.state, 'soviet', picked, { hex: destination, ownIds: [], labels: {} }, data,
     (next) => localChoices(record.state, 'soviet', next, data))
   const split = rows.find(({ group }) => group === '拆分')
-  assert.deepEqual(split.actions, [action()])
+  assert.deepEqual(split.actions, [])
+  assert.deepEqual(split.probeActions, [action()])
   assert.equal(sidebarChoice(split), false)
-  assert.equal(submit(record, split.actions[0]).state.units['breakdown:split:1'].hex, origin)
 })
 
 test('regular advance and a completed retreat draft offer breakdown commands through their existing windows', () => {
   const advance = atCombat({ attacker: 'soviet', attackers: ['parent'], step: 'advance', target: destination })
   const rows = localChoices(advance.state, 'soviet', {}, { assets })
-  assert.ok(rows.some(({ actions }) => actions[0].type === 'advance-after-combat' && !actions[0].unitIds.length))
-  const advanceSplit = rows.find(({ actions }) => actions[0].breakdowns).actions[0]
+  assert.ok(rows.some(({ actions }) => actions[0]?.type === 'advance-after-combat' && !actions[0].unitIds.length))
+  const advanceSplit = rows.find(({ breakdownDraft }) => breakdownDraft).probeActions[0]
   assert.deepEqual(advanceSplit.breakdowns, [order])
   assert.equal(submit(advance, advanceSplit).state.units.parent.hex, destination)
 
@@ -205,7 +300,9 @@ test('a cleared overrun hex opens the attacker’s breakdown choice while all su
   assert.equal(pending.state.overrunMarch.enteredHex, false)
   const complete = { type: 'advance-after-combat', unitIds: ['parent', 'escort'] }
   const split = { ...complete, breakdowns: [order] }
-  assert.deepEqual(localChoices(pending.state, 'soviet', {}, { assets }).map(({ actions }) => actions[0]), [complete, split])
+  const [automatic, draft] = localChoices(pending.state, 'soviet', {}, { assets })
+  assert.deepEqual(automatic.actions, [complete])
+  assert.deepEqual(draft.probeActions, [split])
   assert.throws(() => submit(pending, { ...complete, unitIds: ['parent'] }), /must advance/)
   assert.throws(() => submit(pending, split, 'axis'), /responding side/)
   assert.throws(() => submit(pending, { ...split, breakdowns: [{ ...order, definitions: ['high-ar'] }] }), /action rating/)

@@ -11,7 +11,7 @@ import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 import { airGroupChoices } from './air-group.mjs'
 import { transportMenuChoices } from './transport-menu.mjs'
 import { scorpionKesselWindow } from '../../src/match/scorpion-kessel.ts'
-import { scorpionBreakdownChoices } from '../../src/match/scorpion-breakdowns.ts'
+import { breakdownDraftEntry } from './breakdown-draft.mjs'
 import { airfieldMenuChoices } from './engineering-menu.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
@@ -40,7 +40,7 @@ export function menuGroup(action) {
   return categories.get(action.type)
 }
 
-export const sidebarChoice = ({ actions }) => !menuGroup(actions[0])
+export const sidebarChoice = ({ actions, group }) => !group && (!actions.length || !menuGroup(actions[0]))
 export const retainCounter = (action) => keepSelection.has(menuGroup(action))
 
 export function routeTo(state, source, target, map) {
@@ -68,8 +68,8 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
   const seen = new Set()
   const append = (choice, heading) => {
     const action = choice.actions[0]
-    const group = menuGroup(action)
-    const key = JSON.stringify(choice.actions)
+    const group = choice.group ?? menuGroup(action)
+    const key = JSON.stringify(choice.breakdownDraft?.action ?? choice.actions)
     if (!group || seen.has(key)) return
     seen.add(key)
     rows.push({ ...choice, group, label: heading ? `${heading} · ${choice.label}` : choice.label })
@@ -100,6 +100,7 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
     const label = targets.length > 1 ? hit.labels[id] : ''
     for (const choice of choicesAt({ unitId: id, hex: hit.hex })) {
       const action = choice.actions[0]
+      if (!action) continue
       // The batch draft already covers every plane of this base, so the per-aircraft fallback would
       // only repeat the same charge under a second name.
       if (draftOffered && action.type === 'refit-aircraft') continue
@@ -139,15 +140,14 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
     }
     for (const choice of choicesAt({ unitId: subject, hex: hit.hex, route })) {
       const action = choice.actions[0]
+      if (!action) continue
       if (action.type === 'launch-air-mission') {
         if (actionTarget(action, hit)) append(choice)
       } else if (action.type === 'declare-artillery-barrage') append(choice)
       else if (action.type === 'ground-move' && selected.length === 1) {
         append(choice)
-        for (const { definitions } of scorpionBreakdownChoices(state, side, [subject], data.assets)) {
-          const name = data.assets.catalog.definitions.get(definitions[0]).source.name
-          append({ label: `拆出 ${name} · ${choice.label}`, actions: [{ ...action, breakdownDefinitions: definitions }] })
-        }
+        const draft = breakdownDraftEntry(state, side, action, choice.label, data.assets)
+        if (draft) append({ ...draft, group: '拆分' })
       }
     }
     if (state.kind === 'playing' && !state.combat && !state.reroll && hit.hex) {

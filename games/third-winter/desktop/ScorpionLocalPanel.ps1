@@ -258,9 +258,9 @@ function Update-LocalView($view) {
             $script:localRefitPay.Text = $lines -join ([Environment]::NewLine)
         } else { $script:localRefitFrame.Visibility = 'Collapsed' }
         $script:localButtons.Children.Clear()
-        if ($view.combatPrompt -or $view.aidPrompt) {
+        if ($view.breakdownPrompt -or $view.combatPrompt -or $view.aidPrompt) {
             $prompt = New-LocalText 15
-            $prompt.Text = if ($view.combatPrompt) { $view.combatPrompt } else { $view.aidPrompt }
+            $prompt.Text = if ($view.breakdownPrompt) { $view.breakdownPrompt } elseif ($view.combatPrompt) { $view.combatPrompt } else { $view.aidPrompt }
             $prompt.Margin = '0,2,0,10'
             [void]$script:localButtons.Children.Add($prompt)
         }

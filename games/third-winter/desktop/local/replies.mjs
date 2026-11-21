@@ -1,7 +1,7 @@
 import { scorpionAirReturnOptions } from '../../src/match/scorpion-air-operations.ts'
 import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
 import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
-import { scorpionBreakdownChoices } from '../../src/match/scorpion-breakdowns.ts'
+import { breakdownDraftEntry } from './breakdown-draft.mjs'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
 import { advanceChoices, advanceDraft, defenseSupplyChoices, defenseSupplyDraft, terrainChoices, terrainDraft } from './combat-draft.mjs'
@@ -16,7 +16,7 @@ function counterName(state, data, id) {
   return data.assets.catalog.definitions.get(counter?.definition)?.source.name ?? id
 }
 
-export function repliesFor(state, side, selection, data, add) {
+export function repliesFor(state, side, selection, data, add, addDraft) {
   const { unitId } = selection
   if (state.reroll) {
     add('保留当前骰点', 'resolve-reroll', { decision: 'keep' })
@@ -69,7 +69,7 @@ export function repliesFor(state, side, selection, data, add) {
   }
   if (state.combat) {
     const decision = scorpionPendingCombatDecision(state)
-    if (decision?.actor === side) combatReplies(state, side, decision.actionType, data, add)
+    if (decision?.actor === side) combatReplies(state, side, decision.actionType, data, add, addDraft)
     return true
   }
   const step = state.turn.step
@@ -121,7 +121,7 @@ function airReplies(state, side, unitId, data, add) {
   }
 }
 
-function combatReplies(state, side, actionType, data, add) {
+function combatReplies(state, side, actionType, data, add, addDraft) {
   const battle = state.combat
   const ids = side === battle.attacker ? battle.attackers : battle.defenders
   const counterNameOf = (id) => counterName(state, data, id)
@@ -143,11 +143,8 @@ function combatReplies(state, side, actionType, data, add) {
     for (const row of advanceChoices(draft, counterNameOf)) {
       add(row.label, row.type, { unitIds: row.unitIds })
       if (row.unitIds.reduce((total, id) => total + remainingSteps(state.units[id]), 0) > draft.room) continue
-      for (const order of scorpionBreakdownChoices(state, side, row.unitIds, data.assets)) {
-        const definition = data.assets.catalog.definitions.get(order.definitions[0])
-        add(`${row.label}前拆分 · ${counterNameOf(order.parentId)} · ${definition.source.name}`, actionType,
-          { unitIds: row.unitIds, breakdowns: [order] })
-      }
+      const entry = breakdownDraftEntry(state, side, { type: actionType, unitIds: row.unitIds }, row.label, data.assets)
+      if (entry) addDraft(entry)
     }
   }
 }

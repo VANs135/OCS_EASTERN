@@ -111,7 +111,7 @@ export function localChoices(state, side, selection, data) {
     return choices
   }
   if (state.victory || state.turn.step.kind === 'ended') return choices
-  if (repliesFor(state, side, selection, data, add)) return choices
+  if (repliesFor(state, side, selection, data, add, (draft) => choices.push(draft))) return choices
   const { phase } = state.cursor
   const unit = state.units[unitId]
   if (phase === 'aircraft-refit') {
