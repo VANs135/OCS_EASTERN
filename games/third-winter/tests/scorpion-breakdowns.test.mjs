@@ -105,6 +105,57 @@ test('selected surviving attackers can split at the start of a regular combat ad
   assert.equal(state.combat, null)
 })
 
+function overrunBeforeDefenderResult(defenderSteps = 1) {
+  const defense = deployScorpionGroundCounter(unit('defense', 2, defenderSteps, 'axis'), destination, 0)
+  const escort = deployScorpionGroundCounter(assets.catalog.definitions.get('split'), origin, 0)
+  const record = fixture({ combat: { kind: 'overrun', attacker: 'soviet', attackers: ['parent', 'escort'], defenders: ['defense'],
+    defenderLeader: 'defense', target: destination, step: 'defender-result', roll: { defender: { loss: 1, option: 0 } } },
+  overrunMarch: { remaining: { parent: 2, escort: 1 }, enteredHex: false }, moved: ['parent', 'escort'] })
+  return { ...record, state: { ...record.state, units: { ...record.state.units, escort, defense } } }
+}
+
+const defendOverrunLoss = { type: 'resolve-combat', lossOrder: ['defense'], optionLosses: 0, retreats: [] }
+
+test('a cleared overrun hex opens the attacker’s breakdown choice while all survivors must enter', () => {
+  const pending = submit(overrunBeforeDefenderResult(), defendOverrunLoss, 'axis')
+  assert.equal(pending.state.combat.step, 'advance')
+  assert.equal(localDecisionSide(pending.state), 'soviet')
+  assert.equal(pending.state.units.parent.hex, origin)
+  assert.equal(pending.state.overrunMarch.enteredHex, false)
+  const complete = { type: 'advance-after-combat', unitIds: ['parent', 'escort'] }
+  const split = { ...complete, breakdowns: [order] }
+  assert.deepEqual(localChoices(pending.state, 'soviet', {}, { assets }).map(({ actions }) => actions[0]), [complete, split])
+  assert.throws(() => submit(pending, { ...complete, unitIds: ['parent'] }), /must advance/)
+  assert.throws(() => submit(pending, split, 'axis'), /responding side/)
+  assert.throws(() => submit(pending, { ...split, breakdowns: [{ ...order, definitions: ['high-ar'] }] }), /action rating/)
+
+  const { state } = submit(pending, split)
+  assert.equal(state.units.parent.stepsLost, 1)
+  assert.equal(state.units.parent.hex, destination)
+  assert.equal(state.units.escort.hex, destination)
+  assert.equal(state.units['breakdown:split:1'].hex, origin)
+  assert.deepEqual(state.moved, ['parent', 'escort'])
+  assert.deepEqual(state.overrunMarch, { remaining: { parent: 2, escort: 1 }, enteredHex: true })
+  assert.equal(state.combat, null)
+  assert.deepEqual(submit(pending, complete).state.overrunMarch, state.overrunMarch)
+})
+
+test('an uncleared target and stock exhaustion do not open an overrun breakdown reply', () => {
+  const held = submit(overrunBeforeDefenderResult(2), defendOverrunLoss, 'axis').state
+  assert.equal(held.combat, null)
+  assert.equal(held.units.parent.hex, origin)
+  assert.equal(held.overrunMarch.enteredHex, false)
+
+  const counters = new Map(assets.breakdowns.counters)
+  counters.set('split', { pool: 'first', copies: 1 }) // The on-map escort uses the only copy.
+  const exhausted = { ...assets, breakdowns: { ...assets.breakdowns, counters } }
+  const automatic = submit(overrunBeforeDefenderResult(), defendOverrunLoss, 'axis', exhausted).state
+  assert.equal(automatic.combat, null)
+  assert.equal(automatic.units.parent.hex, destination)
+  assert.equal(automatic.units.escort.hex, destination)
+  assert.equal(automatic.units['breakdown:split:1'], undefined)
+})
+
 test('retreat splitting uses surviving steps and the detached counter follows the validated stack', () => {
   const record = atCombat({ attacker: 'axis', attackers: [], defenders: ['parent'], defenderLeader: 'parent', target: origin,
     step: 'defender-result', heldAtStart: { axis: [], soviet: [] }, roll: { defender: { loss: 1, option: 1 } } })

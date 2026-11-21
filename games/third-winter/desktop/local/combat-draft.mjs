@@ -138,6 +138,8 @@ export function advanceDraft(state, side) {
     unit.side === side).reduce((total, unit) => total + unit.printedRe - unit.stepsLost, 0)
   const weight = (ids) => ids.reduce((total, id) => total + state.units[id].printedRe - state.units[id].stepsLost, 0)
   const fits = (ids) => held + weight(ids) <= 10
+  if (battle.kind === 'overrun') return { target: battle.target, survivors, room: 10 - held,
+    rows: [{ label: '突袭部队全部推进', unitIds: survivors }] }
   const rows = [{ label: '放弃战后推进', unitIds: [] }]
   for (let count = survivors.length; count >= 2; count--) {
     const batch = survivors.slice(0, count)

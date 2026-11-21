@@ -2,6 +2,8 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
+import { detachScorpionBreakdowns, scorpionBreakdownChoices } from './scorpion-breakdowns.ts'
+import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
 import { resolveScorpionEntry, resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { startScorpionCombat } from './scorpion-combat.ts'
@@ -86,14 +88,37 @@ export function continueScorpionOverrunMove(state: Readonly<ScorpionInPlay>, sid
 
 export function finishScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: ScorpionCombat, vacant: boolean,
   assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy): ScorpionInPlay {
-  const { attackers, target, attacker, attackerRetreated } = combat
+  const { attackers, attacker, attackerRetreated } = combat
   if (!state.overrunMarch || attackerRetreated) return { ...state, combat: null, overrunMarch: null }
   const survivors = attackers.filter((id) => Object.hasOwn(state.units, id))
   if (!survivors.length) return { ...state, combat: null, overrunMarch: null }
-  const march = { enteredHex: state.overrunMarch.enteredHex || vacant,
+  const march = { enteredHex: state.overrunMarch.enteredHex,
     remaining: Object.fromEntries(survivors.map((id) => [id, state.overrunMarch!.remaining[id]!])) }
   if (!vacant) return { ...state, combat: null, overrunMarch: march }
-  const advanced = { ...state, combat: null, overrunMarch: march,
+  const settled = { ...state, overrunMarch: march }
+  if (!scorpionBreakdownChoices(settled, attacker, survivors, assets).next().done) {
+    return { ...settled, combat: { ...combat, step: 'advance' } }
+  }
+  return enterScorpionOverrunTarget(settled, combat, survivors, march, assets, policy)
+}
+
+export function advanceScorpionOverrun(state: Readonly<ScorpionInPlay>, combat: ScorpionCombat,
+  selected: readonly string[], orders: readonly ScorpionBreakdownOrder[], assets: ScorpionSetupAssets,
+  policy: ScorpionCapturePolicy): ScorpionInPlay {
+  const march = state.overrunMarch
+  const survivors = combat.attackers.filter((id) => Object.hasOwn(state.units, id))
+  if (!march || !survivors.length || selected.length !== survivors.length || survivors.some((id) => !selected.includes(id))) {
+    throw new Error('All surviving overrun participants must advance')
+  }
+  // OCS 8.1g and 20.0a/e. The new independent counter starts at the departure hex.
+  // The original participants enter and retain their existing MP ledger.
+  const split = detachScorpionBreakdowns(state, combat.attacker, orders, survivors, assets)
+  return enterScorpionOverrunTarget(split.state, combat, survivors, march, assets, policy)
+}
+
+function enterScorpionOverrunTarget(state: Readonly<ScorpionInPlay>, { target, attacker }: ScorpionCombat,
+  survivors: readonly string[], march: ScorpionOverrunMarch, assets: ScorpionSetupAssets, policy: ScorpionCapturePolicy) {
+  const advanced = { ...state, combat: null, overrunMarch: { ...march, enteredHex: true },
     units: { ...state.units, ...Object.fromEntries(survivors.map((id) => [id, { ...state.units[id]!, hex: target }])) } }
   assertScorpionStacking(advanced, target)
   return resolveScorpionEntry(advanced, attacker, target, survivors, assets, true, policy)

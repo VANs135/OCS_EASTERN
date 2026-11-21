@@ -8,7 +8,7 @@ import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import type { ScorpionCombat } from './scorpion-combat.ts'
 import { applyScorpionCombatLosses, validateCombatLossOrder } from './scorpion-combat-losses.ts'
 import { remainingSteps } from './scorpion-losses.ts'
-import { finishScorpionOverrun } from './scorpion-overrun.ts'
+import { advanceScorpionOverrun, finishScorpionOverrun } from './scorpion-overrun.ts'
 import type { ScorpionRemnantPlacement } from './scorpion-remnants.ts'
 import { resumeScorpionCombatRetreat, retreatScorpionCombat } from './scorpion-retreat.ts'
 import { assertScorpionStacking } from './scorpion-stacking.ts'
@@ -102,6 +102,7 @@ export function advanceScorpionCombat(state: Readonly<ScorpionInPlay>, side: Sid
   if (ids.some((id) => !Object.hasOwn(state.units, id) || !combat.attackers.includes(id))) {
     throw new Error('Only surviving attackers may advance')
   }
+  if (combat.kind === 'overrun') return advanceScorpionOverrun(state, combat, ids, orders, assets, policy)
   const split = detachScorpionBreakdowns(state, side, orders, ids, assets)
   const entrants = [...ids, ...split.detachedIds]
   const units = { ...split.state.units }

@@ -1,3 +1,4 @@
+import { canDetachBreakdownSteps, isBreakdownCounter } from '@ocs-eastern/series/breakdown'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { deployScorpionGroundCounter } from '../import/scorpion-deployment.ts'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
@@ -15,6 +16,24 @@ export interface ScorpionBreakdownRules {
 export interface ScorpionBreakdownOrder {
   parentId: string
   definitions: readonly string[]
+}
+
+/** Single-counter options for a validated departure window, using the same stock and eligibility checks as submission. */
+export function* scorpionBreakdownChoices(state: Readonly<ScorpionInPlay>, side: Side, departing: readonly string[],
+  assets: ScorpionSetupAssets): Generator<ScorpionBreakdownOrder> {
+  if (!assets.breakdowns) return
+  for (const parentId of departing) {
+    const parent = state.units[parentId]
+    if (!parent || parent.side !== side || !canDetachBreakdownSteps(parent, 1)) continue
+    const pool = assets.breakdowns.parentPools.get(parent.definition)
+    if (!pool) continue
+    for (const [definition, counter] of assets.breakdowns.counters) {
+      if (counter.pool !== pool) continue
+      const order = { parentId, definitions: [definition] }
+      try { detachScorpionBreakdowns(state, side, [order], departing, assets) } catch { continue }
+      yield order
+    }
+  }
 }
 
 /** OCS 20.0a. The ordinary move must not have started. */
@@ -46,9 +65,8 @@ export function detachScorpionBreakdowns(state: Readonly<ScorpionInPlay>, side: 
   for (const { parentId, definitions } of orders) {
     const parent = Object.hasOwn(units, parentId) ? units[parentId] : undefined
     const pool = parent && breakdowns.parentPools.get(parent.definition)
-    if (parents.has(parentId) || !departing.includes(parentId) || !parent?.combat || parent.side !== side ||
-      parent.combatClass !== 'other' || !pool || !Array.isArray(definitions) || !definitions.length ||
-      parent.printedRe - parent.stepsLost <= definitions.length) {
+    if (parents.has(parentId) || !departing.includes(parentId) || !parent || parent.side !== side || !pool ||
+      !Array.isArray(definitions) || !canDetachBreakdownSteps(parent, definitions.length)) {
       throw new Error('Choose a distinct eligible multi-step unit before it starts moving, leaving its last step intact')
     }
     parents.add(parentId)
@@ -64,7 +82,7 @@ export function detachScorpionBreakdowns(state: Readonly<ScorpionInPlay>, side: 
       if (used >= entry.copies) throw new Error('No copy of this breakdown counter remains in the pool')
       const deployed = deployScorpionGroundCounter(definition, parent.hex, 0)
       const counter = parent.moveMode ? scorpionModeFace(deployed, definition, 'move') : deployed
-      if (!counter.combat || counter.combatClass !== 'other') throw new Error('Choose an eligible breakdown counter')
+      if (!isBreakdownCounter(counter)) throw new Error('Choose an eligible breakdown counter')
       if (counter.actionRating > parent.actionRating) throw new Error('Breakdown action rating exceeds the parent unit’s rating')
       let copy = 1
       let id = `breakdown:${key}:${copy}`
