@@ -248,10 +248,7 @@ export function submitScorpionSession(
       case 'kessel-move':
       case 'set-ground-mode':
       case 'reserve-stack-move':
-        if (state.kind !== 'playing' || state.combat || state.turn.step.kind !== 'player-turn' ||
-          state.cursor.phase === 'exploitation' && state.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
-        if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
-        return applyScorpionGroundAction({ ...state, overrunMarch: null }, actor, action, assets, board)
+        return applyScorpionGroundAction(state, actor, action, assets, board)
       case 'work-hedgehog':
       case 'work-airfield':
       case 'fuel-formation':

@@ -9,6 +9,7 @@ import type { Definition } from '../import/unit-catalog.ts'
 import { scorpionOpeningAirBases, scorpionOpeningDumps } from '../ttw/scorpion/setup-stores.ts'
 import { placeScorpionOffMapAircraft, scorpionSetupBoxPieces } from './scorpion-box-pieces.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
+import type { ScorpionBreakdownRules } from './scorpion-breakdowns.ts'
 import type { ScorpionDropPlan } from './scorpion-drop-plan.ts'
 import type { AlertCounter, SupplyDump } from './scorpion-reinforcement-state.ts'
 import type { TransportCounterLimit } from './scorpion-transport-points.ts'
@@ -23,6 +24,7 @@ export interface ScorpionSetupData {
 
 export interface ScorpionSetupAssets {
   map: ScorpionMap
+  breakdowns?: ScorpionBreakdownRules
   /** Verified physical stock for voluntary transport reorganization, if supplied by the scenario. */
   transportCounterLimits?: readonly TransportCounterLimit[]
   catalog: {

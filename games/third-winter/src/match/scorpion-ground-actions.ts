@@ -5,6 +5,8 @@ import { scorpionHexId } from '../import/hex-id.ts'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionSupplySources } from '../ttw/scorpion/initial-map.ts'
+import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
+import { splitScorpionAtStartOfMove } from './scorpion-breakdowns.ts'
 import { resolveScorpionMoveEntries } from './scorpion-capture.ts'
 import type { ScorpionCapturePolicy } from './scorpion-capture.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
@@ -15,13 +17,14 @@ import { applyScorpionGroundMove, scorpionGroundMpAvailable, scorpionMovementAll
 import type { MovementBoard } from './scorpion-movement.ts'
 import { assertScorpionReserveCapacity, prepareScorpionReserve } from './scorpion-reserves.ts'
 import type { ScorpionReserveFace } from './scorpion-reserves.ts'
-import type { ScorpionInPlay } from './scorpion-session.ts'
+import type { ScorpionInPlay, ScorpionSession } from './scorpion-session.ts'
 import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 import { fuelScorpionMovement } from './scorpion-fuel.ts'
 
 type MovingCounter = { unitId: string; fuelDumpId?: string; fuelHeadquartersId?: string; reserveFace?: ScorpionReserveFace }
-export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace } & MovingCounter)
+export type ScorpionGroundAction = ({ type: 'ground-move'; path: readonly string[]; face?: GroundFace;
+  breakdownDefinitions?: readonly string[] } & MovingCounter)
   | { type: 'reserve-stack-move'; path: readonly string[]; counters: readonly MovingCounter[] }
   | { type: 'set-ground-mode'; unitId: string; face: GroundFace }
   | ScorpionKesselMove
@@ -31,8 +34,12 @@ export interface GroundPolicies extends ScorpionCapturePolicy {
   combat?: { hedgehogAt?: (hex: string) => number }
 }
 
-export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side: Side, action: ScorpionGroundAction,
+export function applyScorpionGroundAction(current: Readonly<ScorpionSession>, side: Side, action: ScorpionGroundAction,
   assets: ScorpionSetupAssets, board: GroundPolicies): ScorpionInPlay {
+  if (current.kind !== 'playing' || current.combat || current.turn.step.kind !== 'player-turn' ||
+    current.cursor.phase === 'exploitation' && current.combatTargets?.length) throw new Error('Scorpion movement is unavailable')
+  if (scorpionRegularBarrageTargets(current).size) throw new Error('The Movement Segment has ended')
+  const state: ScorpionInPlay = { ...current, overrunMarch: null }
   const { map } = assets
   if (action.type === 'set-ground-mode') return orient(state, side, action.unitId, action.face, assets)
   if (action.type === 'kessel-move') {
@@ -60,6 +67,9 @@ export function applyScorpionGroundAction(state: Readonly<ScorpionInPlay>, side:
     if (reserveFace !== undefined || (stack && !moved.units[unitId]?.reserve)) {
       moved = prepareScorpionReserve(moved, side, unitId, reserveFace ?? 'current', assets)
     }
+  }
+  if (action.type === 'ground-move' && action.breakdownDefinitions !== undefined) {
+    moved = splitScorpionAtStartOfMove(moved, side, action.unitId, action.breakdownDefinitions, assets)
   }
   const entrants = counters.map(({ unitId }) => unitId)
   const prior = state.groundCaptureMove
