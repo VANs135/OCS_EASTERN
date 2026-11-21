@@ -1,5 +1,6 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
+import { campaignAircraftConsolidationOptions } from '../match/campaign-aircraft-consolidation.ts'
 import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-phase.ts'
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
@@ -30,7 +31,8 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     return { ...base, segment: cursor.segment, step: preTurnStep(cursor), event, phasing: null, actor: chooser }
   }
 
-  const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase) }
+  const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
+    aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
     breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard) }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player

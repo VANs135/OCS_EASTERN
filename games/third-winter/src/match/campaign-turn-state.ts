@@ -6,6 +6,7 @@ import type { CampaignThawTiming, CampaignWeather, CampaignWeatherCheck, Weather
 import type { CampaignBoardState, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
 import type { CampaignBreakoutAction, CampaignBreakoutBoard, CampaignBreakoutRoll } from './campaign-breakout.ts'
 import type { CampaignBreakoutReturnBoard, ReturnCampaignBreakout } from './campaign-breakout-returns.ts'
+import type { CampaignAircraftConsolidationBoard, ConsolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -67,13 +68,14 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
 
-export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction
+export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | { type: 'complete-campaign-refit' }
 
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext
   breakoutBoard?: CampaignBreakoutBoard
   breakoutReturns?: CampaignBreakoutReturnBoard
+  aircraftConsolidation?: CampaignAircraftConsolidationBoard
   thawTiming?: CampaignThawTiming
   /** The work-specific stage rules certify resolution of applicable opening and closing obligations. */
   reinforcementBlockers?: (state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing') => readonly string[]

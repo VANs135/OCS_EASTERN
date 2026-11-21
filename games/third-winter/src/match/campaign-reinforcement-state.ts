@@ -6,6 +6,7 @@ import type { CampaignArrivalSite } from '../ttw/campaign/arrival-sites.ts'
 import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-timing.ts'
 import type { CampaignConsolidationBoard, CampaignConsolidationResult, ConsolidateCampaignUnits } from './campaign-consolidation.ts'
+import type { ExchangeCampaignFormationUnit } from './campaign-formation-exchange.ts'
 
 export interface CampaignSupplyPool {
   kind: 'axis-cities' | 'axis-hq' | 'soviet-supply'
@@ -55,6 +56,9 @@ export interface CampaignCounter {
   currentRe?: number
   stepsLost?: number
   disorganized?: boolean
+  mode?: 'combat' | 'move' | 'reserve' | 'strat'
+  outOfSupply?: boolean
+  transportCargoTokens?: number
   internalStocks?: InternalStocks
 }
 
@@ -73,6 +77,7 @@ export interface CampaignReinforcementWindow {
   replacementAward?: CampaignReplacementAward
   specialReplacements?: readonly CampaignSpecialReplacement[]
   lastConsolidation?: CampaignConsolidationResult
+  lastFormationExchange?: Pick<ExchangeCampaignFormationUnit, 'fieldId' | 'replacementId'>
   rolls: readonly CampaignReinforcementRoll[]
 }
 
@@ -104,3 +109,4 @@ export type CampaignReinforcementAction =
   | { type: 'roll-campaign-replacements' }
   | { type: 'roll-campaign-special-replacement' }
   | ConsolidateCampaignUnits
+  | ExchangeCampaignFormationUnit

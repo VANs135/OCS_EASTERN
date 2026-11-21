@@ -1,10 +1,15 @@
 import { campaignReinforcementWindow } from '../ttw/campaign/reinforcement.ts'
+import type { Side } from '@ocs-eastern/series/state-types'
 import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcement.ts'
 import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
 import type { CampaignReinforcementState, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
 
 export function newCampaignReinforcementWindow(): CampaignReinforcementWindow {
   return { settledOrders: [], segment: 'scheduled', rolls: [] }
+}
+
+export function isCampaignRebuildWindow(state: Readonly<CampaignReinforcementState>, actor: Side) {
+  return state.cursor.phase === 'reinforcement' && state.cursor.phasing === actor && state.segment === 'rebuild-consolidate'
 }
 
 /** The phase and segment own timing. The step is derived from the pending work within that segment. */

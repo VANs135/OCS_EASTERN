@@ -1,8 +1,10 @@
 import { consolidationGroupKey, consolidationUnitRejection, planMultiStepConsolidation } from '@ocs-eastern/series/consolidation'
 import type { MultiStepConsolidationUnit } from '@ocs-eastern/series/consolidation'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { campaignConsolidationBoxRejection } from '../ttw/campaign/consolidation.ts'
 import type { CampaignConsolidationBox } from '../ttw/campaign/consolidation.ts'
+import { campaignConsolidationLocation } from './campaign-consolidation-location.ts'
+import type { CampaignFormationProfile } from './campaign-formation-exchange.ts'
+import { isCampaignRebuildWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignReinforcementContext, CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 
 export type ConsolidateCampaignUnits = { type: 'consolidate-campaign-units'; keepId: string; removeId: string }
@@ -13,31 +15,15 @@ export interface CampaignConsolidationBoard {
   profileOf(state: Readonly<CampaignReinforcementState>, id: string):
     Pick<MultiStepConsolidationUnit, 'combatFaceKey' | 'moveFaceKey' | 'printedSteps'> | undefined
   boxOf?(id: string): CampaignConsolidationBox | undefined
-}
-
-function windowIsOpen(state: Readonly<CampaignReinforcementState>, actor: Side) {
-  return state.cursor.phase === 'reinforcement' && state.cursor.phasing === actor && state.segment === 'rebuild-consolidate'
+  formationOf?(state: Readonly<CampaignReinforcementState>, id: string): CampaignFormationProfile | undefined
 }
 
 function inspectCounter(state: Readonly<CampaignReinforcementState>, actor: Side, id: string, context: CampaignReinforcementContext):
   { unit: MultiStepConsolidationUnit } | { reason: string } {
   const counter = Object.hasOwn(state.counters, id) ? state.counters[id] : undefined
   if (counter?.side !== actor || counter.kind !== 'land') return { reason: 'choose-a-friendly-ground-unit' }
-  const { location } = counter
-  let locationKey: string
-  if (location.kind === 'map') {
-    const hex = context.resolveHex(location.hex)
-    if (!hex) return { reason: 'unknown-map-location' }
-    locationKey = `map:${hex}`
-  } else if (location.kind === 'box') {
-    const box = context.consolidation?.boxOf?.(location.box)
-    if (!box) return { reason: 'unknown-box' }
-    const rejection = campaignConsolidationBoxRejection(box)
-    if (rejection) return { reason: rejection }
-    locationKey = `box:${box.id}`
-  } else {
-    return { reason: 'unit-is-not-present' }
-  }
+  const location = campaignConsolidationLocation(counter.location, context.resolveHex, context.consolidation?.boxOf)
+  if ('reason' in location) return location
 
   const profile = context.consolidation?.profileOf(state, id)
   if (!profile) return { reason: 'missing-printed-profile' }
@@ -46,14 +32,14 @@ function inspectCounter(state: Readonly<CampaignReinforcementState>, actor: Side
   const steps = profile.printedSteps - stepsLost
   // OCS 4.6 and 9.11. Each surviving step of a multi-step unit represents one RE.
   if (currentRe !== undefined && currentRe !== steps) return { reason: 'step-losses-and-re-disagree' }
-  const unit = { ...profile, id, locationKey, steps, disorganized: counter.disorganized === true, internalStocks: counter.internalStocks }
+  const unit = { ...profile, id, locationKey: location.key, steps, disorganized: counter.disorganized === true, internalStocks: counter.internalStocks }
   const rejection = consolidationUnitRejection(unit)
   return rejection ? { reason: rejection } : { unit }
 }
 
 /** Members of the same group are interchangeable as keep/remove choices. */
 export function campaignConsolidationOptions(state: Readonly<CampaignReinforcementState>, actor: Side, context: CampaignReinforcementContext) {
-  if (!windowIsOpen(state, actor)) return null
+  if (!isCampaignRebuildWindow(state, actor)) return null
   const lastResult = state.lastConsolidation ? { ...state.lastConsolidation } : null
   if (!context.consolidation) return { configured: false, groups: [], rejected: [], lastResult }
   const matches = new Map<string, { counterId: string; steps: number; printedSteps: number }[]>()
@@ -81,7 +67,7 @@ export function campaignConsolidationOptions(state: Readonly<CampaignReinforceme
 
 export function consolidateCampaignUnits(state: Readonly<CampaignReinforcementState>, actor: Side,
   action: ConsolidateCampaignUnits, context: CampaignReinforcementContext): CampaignReinforcementState {
-  if (!windowIsOpen(state, actor)) throw new Error('Campaign consolidation window is not open for this side')
+  if (!isCampaignRebuildWindow(state, actor)) throw new Error('Campaign consolidation window is not open for this side')
   if (!context.consolidation) throw new Error('Campaign consolidation profiles are not configured')
   const keep = inspectCounter(state, actor, action.keepId, context)
   const remove = inspectCounter(state, actor, action.removeId, context)

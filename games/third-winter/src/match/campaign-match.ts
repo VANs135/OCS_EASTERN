@@ -4,6 +4,7 @@ import { createRngState } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
+import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
@@ -44,6 +45,8 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     case 'attempt-campaign-breakout':
     case 'complete-campaign-breakout':
       return applyCampaignBreakout(state, actor, action, context.breakoutBoard)
+    case 'consolidate-campaign-aircraft':
+      return consolidateCampaignAircraft(state, actor, action, context)
     case 'complete-campaign-refit': {
       const { cursor } = state
       if (cursor.phase !== 'aircraft-refit') throw new Error('Campaign refit is not open in this campaign player turn')
