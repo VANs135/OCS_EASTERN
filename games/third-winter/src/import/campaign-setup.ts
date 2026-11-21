@@ -1,22 +1,14 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { campaignMapInPlayArea } from '../ttw/campaign/play-area.ts'
 import type { TtwCampaignMapIndex } from './campaign-map-index.ts'
+import { resolveCampaignReference } from './campaign-reference.ts'
+import type { CampaignAliases, CampaignReferenceIssue } from './campaign-reference.ts'
 import { campaignHexKey } from './hex-id.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 
-type Aliases = ReadonlyMap<string, readonly Definition<BackupUnit>[]>
 type PlayableMap = ReturnType<typeof campaignMapInPlayArea>
-type ReferenceIssue = 'ambiguous' | 'wrong-side' | 'missing'
 type HexIssue = 'missing-hex' | 'outside-scenario'
-
-export function resolveCampaignReference(aliases: Aliases, ref: string, side: Side):
-  { definition: Definition<BackupUnit> } | { issue: ReferenceIssue } {
-  const definitions = aliases.get(ref) ?? []
-  const friendly = definitions.filter(({ kind, source }) => source.side === side || (kind === 'marker' && source.side === null))
-  if (friendly.length === 1) return { definition: friendly[0]! }
-  return { issue: friendly.length > 1 ? 'ambiguous' : definitions.length ? 'wrong-side' : 'missing' }
-}
 
 function resolveLocation(printed: string | null, map: TtwCampaignMapIndex, area?: PlayableMap):
   { hex: string } | { issue: HexIssue } {
@@ -58,13 +50,13 @@ function lossFromSource(source: unknown) {
 }
 
 /** Prepare known placements and retain pending setup actions. A prepared list alone cannot open a match. */
-export function prepareCampaignSetup(raw: unknown, aliases: Aliases, map: TtwCampaignMapIndex, area?: PlayableMap) {
+export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map: TtwCampaignMapIndex, area?: PlayableMap) {
   if (!isRecord(raw) || !Array.isArray(raw.units) || (raw.random_draws !== undefined && !Array.isArray(raw.random_draws))) {
     throw new Error('Invalid campaign setup rows')
   }
   const counters: SetupCounter[] = []
   const pendingMarkerRows: { row: number; side: Side; ref: string; printedHex: string | null; lossHint?: number }[] = []
-  const unresolvedSetup: { row: number; side: Side; ref: string; issue: ReferenceIssue }[] = []
+  const unresolvedSetup: { row: number; side: Side; ref: string; issue: CampaignReferenceIssue }[] = []
   const missingSetupHexes: { row: number; ref: string; hex: string | null }[] = []
   const outsideSetupArea: typeof missingSetupHexes = []
   const unresolvedLosses: { row: number; ref: string; issue: string }[] = []
