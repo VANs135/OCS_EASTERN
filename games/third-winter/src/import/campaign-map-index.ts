@@ -2,6 +2,7 @@ import { campaignHexKey } from './hex-id.ts'
 
 interface SourceHex {
   hex_id: string
+  on_map?: boolean
   seam_twin: string | null
   seam_primary: boolean | null
 }
@@ -68,6 +69,9 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
       canonicalByHex.set(key, peerKey)
     }
   }
+  const onMapHexes: ReadonlySet<string> = new Set([...byHex]
+    .filter(([, hex]) => hex.on_map !== false)
+    .map(([key]) => canonicalByHex.get(key)!))
   const danglingEdges: string[] = []
   const edgeGroups = new Map<string, Set<string>>()
   const sourceByPair = new Map<string, { endpoints: [string, string]; sourceEdges: SourceEdge[] }>()
@@ -117,6 +121,7 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   }
   return {
     canonicalByHex,
+    onMapHexes,
     // Geometric neighbors can include rivers, blocked edges and disputes. Movement owns passability.
     neighbors(hex: string): readonly string[] {
       const id = canonicalByHex.get(campaignHexKey(hex))
@@ -145,3 +150,5 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
     },
   }
 }
+
+export type TtwCampaignMapIndex = ReturnType<typeof indexTtwCampaignMap>

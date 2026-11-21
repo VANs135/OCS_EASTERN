@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { campaignHexKey } from '../src/import/hex-id.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
+import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 
 const [root, scenario = '01-dnepr-battles'] = process.argv.slice(2)
 if (!root || !/^0[1-9]-[a-z0-9-]+$/.test(scenario)) {
@@ -18,8 +19,22 @@ const [hexes, edges, catalog, setup, arrivals, objectives] = await Promise.all([
   scenarioFile('reinforcements.json'),
   scenarioFile('objectives.json'),
 ])
-const { canonicalByHex, diagnostics: map } = indexTtwCampaignMap(hexes, edges)
+const geometry = indexTtwCampaignMap(hexes, edges)
+const map = geometry.diagnostics
+const area = ttwCampaignPlayArea(scenario)
+const playable = area && campaignMapInPlayArea(geometry, area)
+const playArea = playable
+  ? { status: 'configured', kind: area.kind, availableHexes: playable.availableHexes.size }
+  : { status: 'unconfigured' }
 if (!Array.isArray(setup.units) || !Array.isArray(arrivals)) throw new Error('Invalid campaign setup or reinforcement rows')
+
+function classifyHex(printed) {
+  if (typeof printed !== 'string' || !/^[A-D]\d+\.\d+$/.test(printed)) return 'missing-hex'
+  const hex = geometry.canonicalByHex.get(campaignHexKey(printed))
+  if (!hex || !geometry.onMapHexes.has(hex)) return 'missing-hex'
+  if (playable && !playable.resolveHex(printed)) return 'outside-scenario'
+  return null
+}
 
 function checkReference(ref, side) {
   const definitions = catalog.aliases.get(ref) ?? []
@@ -33,18 +48,21 @@ function checkReference(ref, side) {
 const unresolvedSetup = []
 const setupMarkers = []
 const missingSetupHexes = []
+const outsideSetupArea = []
 for (const [index, { ref, side, at }] of setup.units.entries()) {
   const row = index + 1
   const issue = checkReference(ref, side)
   if (issue === 'marker') setupMarkers.push({ row, ref, side })
   else if (issue) unresolvedSetup.push({ row, ref, side, issue })
   const printed = at ? `${at.map}${at.col}.${at.row}` : null
-  if (!printed || !/^[A-D]\d+\.\d+$/.test(printed) || !canonicalByHex.has(campaignHexKey(printed))) {
-    missingSetupHexes.push({ row, ref, hex: printed })
-  }
+  const hexIssue = classifyHex(printed)
+  if (hexIssue === 'missing-hex') missingSetupHexes.push({ row, ref, hex: printed })
+  if (hexIssue === 'outside-scenario') outsideSetupArea.push({ row, ref, hex: printed })
 }
-const unresolvedDraws = (setup.random_draws ?? []).flatMap(({ hex, pool }, index) =>
-  /^[A-D]\d+\.\d+$/.test(hex) && canonicalByHex.has(campaignHexKey(hex)) ? [] : [{ row: index + 1, hex, pool }])
+const unresolvedDraws = (setup.random_draws ?? []).flatMap(({ hex, pool }, index) => {
+  const issue = classifyHex(hex)
+  return issue ? [{ row: index + 1, hex, pool, issue }] : []
+})
 
 const channels = new Map()
 const unresolvedArrivals = []
@@ -73,15 +91,17 @@ const victory = {
   sourceRows: objectives.vp_sources?.length ?? 0,
   resultBands: objectives.bands?.length ?? 0,
 }
-const report = { scenario, map,
+const report = { scenario, map, playArea,
   setup: { total: setup.units.length, resolvedNonMarkers: setup.units.length - unresolvedSetup.length - setupMarkers.length,
-    randomDraws: setup.random_draws?.length ?? 0, pendingMarkerRows: setupMarkers, unresolvedSetup, missingSetupHexes, unresolvedDraws },
+    randomDraws: setup.random_draws?.length ?? 0, pendingMarkerRows: setupMarkers, unresolvedSetup,
+    missingSetupHexes, outsideSetupArea, unresolvedDraws },
   reinforcement: { groups: arrivals.length, referencedEntries, resolvedNonMarkers: referencedEntries - unresolvedArrivals.length - arrivalMarkers.length,
     channels: Object.fromEntries(channels), narrativeRows, pendingMarkerRows: arrivalMarkers, unresolvedArrivals },
   victory,
 }
 console.log(JSON.stringify(report, null, 2))
-if (unresolvedSetup.length || unresolvedArrivals.length || missingSetupHexes.length || unresolvedDraws.length ||
+if (!playable || unresolvedSetup.length || unresolvedArrivals.length || missingSetupHexes.length ||
+  outsideSetupArea.length || unresolvedDraws.length ||
   map.danglingEdges.length || map.selfEdges.length || map.mismatchedHexTwins.length || map.seamTransportDisagreements.length ||
   map.disputedConnections.length || map.seamGroupsWithDifferentEndpoints.length ||
   map.riverState === 'pending' || setupMarkers.length || arrivalMarkers.length || narrativeRows.length ||
