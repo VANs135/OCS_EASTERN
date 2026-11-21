@@ -1,5 +1,5 @@
 import { matchRowIndex } from '@ocs-eastern/series/tables/lookup'
-import type { RollDie } from '@ocs-eastern/series/dice'
+import type { Die } from '@ocs-eastern/series/dice'
 
 export type Ground = 'dry' | 'mud' | 'freeze' | 'thaw'
 export type Flight = 'normal' | 'limited' | 'none'
@@ -8,6 +8,9 @@ export interface CampaignWeather {
   ground: Ground
   flight: Flight
 }
+
+export type CampaignWeatherCheck = 'ground-weather' | 'flight-weather'
+export type CampaignThawTiming = 'during-third-turn' | 'start-of-next-turn'
 
 export interface WeatherHistory {
   freezeRun: number
@@ -44,9 +47,9 @@ const flights = ['normal', 'limited', 'none'] as const
 export function campaignWeather(
   date: { month: number; day: number },
   previous: Readonly<WeatherHistory>,
-  roll: RollDie,
+  roll: (check: CampaignWeatherCheck) => Die,
   prescribed?: CampaignWeather,
-  thawTiming?: 'during-third-turn' | 'start-of-next-turn',
+  thawTiming?: CampaignThawTiming,
 ): {
   state: WeatherHistory
   weather: CampaignWeather | { ground: 'mud'; flight: null }
@@ -59,7 +62,7 @@ export function campaignWeather(
     throw new Error('TTW weather requires a scenario value for this date')
   }
 
-  const ground = prescribed?.ground ?? (row ? rollGround(row, roll()) : 'dry')
+  const ground = prescribed?.ground ?? (row ? rollGround(row, roll('ground-weather')) : 'dry')
   const aprilMudRun = date.month === 4 && ground === 'mud' ? previous.aprilMudRun + 1 : 0
   const endGame = aprilMudRun >= 3 && prescribed === undefined
   const freezeRun = ground === 'freeze' ? previous.freezeRun + 1 : 0
@@ -76,7 +79,7 @@ export function campaignWeather(
   if (endGame) return { state, weather: { ground: 'mud', flight: null }, endGame, removeFerries }
 
   if (prescribed) return { state, weather: prescribed, endGame, removeFerries }
-  const flightRoll = roll() + roll()
+  const flightRoll = roll('flight-weather') + roll('flight-weather')
   const flight = ground === 'thaw' ? 'none'
     : flights[matchRowIndex(flightRows[ground], flightRoll, 'ttw:1.8')]!
   return { state, weather: { ground, flight }, endGame, removeFerries }

@@ -1,5 +1,6 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { RollDie } from '@ocs-eastern/series/dice'
+import { rollInitiativeContest } from '@ocs-eastern/series/initiative'
 import { mayRetainInitiative, retentionAfterRoll } from './initiative.ts'
 import type { ScorpionTurn } from './pre-turn.ts'
 
@@ -38,10 +39,8 @@ export function answerRetention(
 export function rollInitiative(turn: Readonly<ScorpionTurn>, roll: RollDie): ScorpionTurn {
   const step = turn.step
   if (step.kind !== 'roll') throw new Error('Initiative dice are not due')
-  const axis = roll() + roll()
-  const soviet = roll() + roll()
-  if (axis === soviet) return turn
-  const responder: Side = axis > soviet ? 'axis' : 'soviet'
+  const responder = rollInitiativeContest(roll)
+  if (!responder) return turn
   return {
     ...turn,
     step: { kind: 'choose-order', responder, retention: retentionAfterRoll(step.retention, responder) },

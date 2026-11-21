@@ -54,20 +54,26 @@ export interface CampaignCounter {
   internalStocks?: InternalStocks
 }
 
-export interface CampaignReinforcementState {
-  cursor: { turn: number; phasing: Side; phase: Phase }
-  when?: CampaignReinforcementDate
+export interface CampaignBoardState {
   rng: RngState
   counters: Readonly<Record<string, CampaignCounter>>
+  supplyDumps: Readonly<Record<Side, Readonly<Record<string, number>>>>
+  /** TTW 1.7c. Debit these tokens from the next supply award for each side. */
+  withdrawalSupplyDebt: Readonly<Record<Side, number>>
+}
+
+export interface CampaignReinforcementWindow {
   settledOrders: readonly string[]
   segment: ReinforcementSegment
   supplyAward?: CampaignSupplyAward
-  supplyDumps: Readonly<Record<Side, Readonly<Record<string, number>>>>
   replacementAward?: CampaignReplacementAward
   specialReplacements?: readonly CampaignSpecialReplacement[]
   rolls: readonly CampaignReinforcementRoll[]
-  /** TTW 1.7c. Debit these tokens from the next supply award for each side. */
-  withdrawalSupplyDebt: Readonly<Record<Side, number>>
+}
+
+export interface CampaignReinforcementState extends CampaignBoardState, CampaignReinforcementWindow {
+  cursor: { turn: number; phasing: Side; phase: Phase }
+  when?: CampaignReinforcementDate
 }
 
 export interface CampaignReinforcementContext {

@@ -1,6 +1,10 @@
 import { campaignReinforcementWindow } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcement.ts'
-import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
+import type { CampaignReinforcementState, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
+
+export function newCampaignReinforcementWindow(): CampaignReinforcementWindow {
+  return { settledOrders: [], segment: 'scheduled', rolls: [] }
+}
 
 /** The phase and segment own timing. The step is derived from the pending work within that segment. */
 export function campaignReinforcementStep(state: Readonly<CampaignReinforcementState>, schedule?: CampaignReinforcementSchedule) {
