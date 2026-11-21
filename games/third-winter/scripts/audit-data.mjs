@@ -465,7 +465,7 @@ const report = {
   campaign: campaignMap ?? { skipped: true, reason: '--scorpion-only: campaign 地图数据库/map_hexes.json and map_edges.json not read' },
 }
 console.log(JSON.stringify(report, null, 2))
-if (unresolved.length || campaignMap?.danglingEdges.length || campaignMap?.mismatchedHexTwins.length ||
+if (unresolved.length || campaignMap?.danglingEdges.length || campaignMap?.selfEdges.length || campaignMap?.mismatchedHexTwins.length ||
     unusableAxisSources.length || unusableSovietSources.length ||
     unknownSetupMovement.length || unknownArrivalMovement.length ||
     missingSetupHexes.length || missingArrivalHexes.length) process.exitCode = 1

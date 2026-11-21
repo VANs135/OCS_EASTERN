@@ -82,6 +82,7 @@ const report = { scenario, map,
 }
 console.log(JSON.stringify(report, null, 2))
 if (unresolvedSetup.length || unresolvedArrivals.length || missingSetupHexes.length || unresolvedDraws.length ||
-  map.danglingEdges.length || map.mismatchedHexTwins.length || map.seamTransportDisagreements.length ||
+  map.danglingEdges.length || map.selfEdges.length || map.mismatchedHexTwins.length || map.seamTransportDisagreements.length ||
+  map.disputedConnections.length || map.seamGroupsWithDifferentEndpoints.length ||
   map.riverState === 'pending' || setupMarkers.length || arrivalMarkers.length || narrativeRows.length ||
   !victory.sourceRows || !victory.resultBands) process.exitCode = 1

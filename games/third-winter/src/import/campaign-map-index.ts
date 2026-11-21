@@ -15,7 +15,25 @@ interface SourceEdge {
   road_subclass: string | null
   rail_present: boolean
   rail_class: string | null
+  edge_terrain?: string | null
+  river_class?: string | null
+  river_pending?: boolean | null
+  lake_edge?: string | boolean | null
+  bridge?: string | boolean | null
+  blocked_kind?: string | null
 }
+
+const connectionFields = ['road_present', 'road_subclass', 'rail_present', 'rail_class',
+  'edge_terrain', 'river_class', 'river_pending', 'lake_edge', 'bridge', 'blocked_kind'] as const
+type ConnectionField = (typeof connectionFields)[number]
+
+interface CampaignConnection {
+  endpoints: readonly [string, string]
+  sourceEdges: readonly Readonly<SourceEdge>[]
+  disputedFields: readonly ConnectionField[]
+}
+
+const orderedPair = (a: string, b: string): [string, string] => a < b ? [a, b] : [b, a]
 
 interface CampaignTable<T> {
   items: readonly T[]
@@ -52,26 +70,77 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   }
   const danglingEdges: string[] = []
   const edgeGroups = new Map<string, Set<string>>()
+  const sourceByPair = new Map<string, { endpoints: [string, string]; sourceEdges: SourceEdge[] }>()
+  const pairsBySeamGroup = new Map<string, Set<string>>()
+  const selfEdges: string[] = []
   let openEndedEdges = 0
   for (const edge of edges.items) {
-    const endpoints = [edge.hex_a, edge.hex_b]
+    const endpoints = [edge.hex_a, edge.hex_b].map((id) => id === null ? null : canonicalByHex.get(campaignHexKey(id)))
     if (endpoints.includes(null)) openEndedEdges++
-    if (endpoints.some((id) => id !== null && !byHex.has(campaignHexKey(id)))) danglingEdges.push(edge.edge_key)
+    if (endpoints.includes(undefined)) danglingEdges.push(edge.edge_key)
+    const [a, b] = endpoints
+    if (a && b) {
+      if (a === b) selfEdges.push(edge.edge_key)
+      else {
+        const pair = orderedPair(a, b)
+        const key = pair.join('|')
+        const connection = sourceByPair.get(key) ?? { endpoints: pair, sourceEdges: [] }
+        connection.sourceEdges.push(edge)
+        sourceByPair.set(key, connection)
+        if (edge.seam_dup_group) {
+          const pairs = pairsBySeamGroup.get(edge.seam_dup_group) ?? new Set<string>()
+          pairs.add(key)
+          pairsBySeamGroup.set(edge.seam_dup_group, pairs)
+        }
+      }
+    }
     if (!edge.seam_dup_group) continue
     const keys = edgeGroups.get(edge.seam_dup_group) ?? new Set<string>()
     keys.add(JSON.stringify([edge.road_present, edge.road_subclass, edge.rail_present, edge.rail_class]))
     edgeGroups.set(edge.seam_dup_group, keys)
   }
+  const neighborsByHex = new Map([...new Set(canonicalByHex.values())].map((id) => [id, [] as string[]]))
+  const connections = new Map<string, CampaignConnection>()
+  const disputedConnections = []
+  let duplicateConnections = 0
+  for (const [key, { endpoints, sourceEdges }] of sourceByPair) {
+    const [a, b] = endpoints
+    neighborsByHex.get(a)!.push(b)
+    neighborsByHex.get(b)!.push(a)
+    const disputedFields = connectionFields.filter((field) =>
+      sourceEdges.some((row) => (row[field] ?? null) !== (sourceEdges[0]![field] ?? null)))
+    if (sourceEdges.length > 1) duplicateConnections++
+    if (disputedFields.length) disputedConnections.push({
+      endpoints, sourceEdges: sourceEdges.map(({ edge_key }) => edge_key), fields: disputedFields,
+    })
+    connections.set(key, { endpoints, sourceEdges, disputedFields })
+  }
   return {
     canonicalByHex,
+    // Geometric neighbors can include rivers, blocked edges and disputes. Movement owns passability.
+    neighbors(hex: string): readonly string[] {
+      const id = canonicalByHex.get(campaignHexKey(hex))
+      return id ? neighborsByHex.get(id) ?? [] : []
+    },
+    connection(from: string, to: string): CampaignConnection | undefined {
+      const a = canonicalByHex.get(campaignHexKey(from))
+      const b = canonicalByHex.get(campaignHexKey(to))
+      return a && b ? connections.get(orderedPair(a, b).join('|')) : undefined
+    },
     diagnostics: {
       sourceHexes: hexes.items.length,
       sourceEdges: edges.items.length,
       indexedHexes: new Set(canonicalByHex.values()).size,
       openEndedEdges,
       danglingEdges,
+      selfEdges,
+      connections: connections.size,
+      duplicateConnections,
+      disputedConnections,
       mismatchedHexTwins,
       seamTransportDisagreements: [...edgeGroups].filter(([, values]) => values.size > 1).map(([id]) => id),
+      seamGroupsWithDifferentEndpoints: [...pairsBySeamGroup].filter(([, pairs]) => pairs.size > 1)
+        .map(([id, pairs]) => ({ id, pairs: [...pairs].map((key) => connections.get(key)!.endpoints) })),
       riverState: edges.meta?.river_state ?? null,
     },
   }
