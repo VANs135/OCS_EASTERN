@@ -59,7 +59,10 @@ export function replaceScorpionTransport(state: Readonly<ScorpionInPlay>, ids: r
   for (const id of ids) { delete units[id]; delete spent[id] }
   let serial = state.nextTransportSerial ?? 1
   const newIds = replacements.map((unit, index) => {
-    const id = ids[index] ?? `transport:${unit.side}:${serial++}`
+    let id = ids[index]
+    if (id === undefined) {
+      do { id = `transport:${unit.side}:${serial++}` } while (Object.hasOwn(units, id))
+    }
     units[id] = unit
     spent[id] = spentMp
     return id
