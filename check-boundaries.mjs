@@ -8,6 +8,20 @@ const layout = await Promise.all(['games', 'packages'].map(async (area) => ({
   entries: await readdir(join(root, area), { withFileTypes: true }),
 })))
 const violations = []
+const ttwLayerRestrictions = new Map([
+  ['ttw', new Set(['match', 'view'])],
+  ['import', new Set(['match', 'view'])],
+  ['match', new Set(['view'])],
+])
+
+function allowedLocalImport(unit, path, specifier) {
+  const target = resolve(dirname(path), specifier)
+  if (!target.startsWith(unit + sep)) return false
+  if (unit !== join(root, 'games', 'third-winter')) return true
+  const [, sourceLayer] = relative(unit, path).split(sep)
+  const [targetArea, targetLayer] = relative(unit, target).split(sep)
+  return targetArea === 'src' && !ttwLayerRestrictions.get(sourceLayer)?.has(targetLayer)
+}
 
 async function inspect(directory, unit, allowedImports) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -23,7 +37,7 @@ async function inspect(directory, unit, allowedImports) {
       const isLocal = specifier.startsWith('./') || specifier.startsWith('../')
       const dependency = specifier.split('/').slice(0, 2).join('/')
       const allowed = isLocal
-        ? resolve(dirname(path), specifier).startsWith(unit + sep)
+        ? allowedLocalImport(unit, path, specifier)
         : allowedImports.has(dependency)
       if (!allowed) {
         violations.push(`${relative(root, path)} → ${specifier}`)
