@@ -8,6 +8,8 @@ import { scorpionRegularBarrageTargets } from '../src/match/scorpion-barrage-tim
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
 import { hasTrace } from '../src/match/scorpion-supply-phase.ts'
 import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { localChoices, localDecisionSide } from '../desktop/local/actions.mjs'
+import { scorpionPendingAirDecision } from '../src/match/scorpion-air-actions.ts'
 
 const hex = (hex) => ({ kind: 'hex', hex })
 const box = { kind: 'off-map-air' }
@@ -218,6 +220,32 @@ test('airfield barrage resolves aircraft stationed on the target before offering
   assert.equal(result.state.airBases.find(({ hex }) => hex === axisBase.hex).level, 1)
   result = submit(result, 'soviet', flyHome('bomber', box))
   assert.equal(result.state.airHistory[0].rounds.length, 1)
+})
+
+test('airfield bombing offers attacker return before the defender capacity decision', () => {
+  const seed = seedWhere((rng) => roll2d6(rng).value.total < 9)
+  const residents = Array.from({ length: 6 }, (_, i) => plane(`resident ${i}`, 'axis', axisBase, { fighter: false }))
+  const board = { facilityBarrage: table('1 (6)', true) }
+  const { record, assets, submit } = match([plane('bomber', 'soviet', box, { fighter: false }), ...residents],
+    { seed, map, board })
+  record.state.airBases[1].level = 2
+  const launched = submit(record, 'soviet', { ...launch('barrage', axisBase, 'bomber'), targetKind: 'air-base' })
+  assert.equal(launched.state.airfieldCapacityChoice.excess, 1)
+  assert.deepEqual(scorpionPendingAirDecision(launched.state), { kind: 'air-mission', step: 'return', actor: 'soviet' })
+  assert.throws(() => submit(launched, 'axis', { type: 'settle-airfield-capacity', unitIds: ['resident 0'] }), /pending air mission/)
+  const issueOffered = (rec, side, type) => {
+    assert.equal(localDecisionSide(rec.state), side)
+    const actions = localChoices(rec.state, side, {}, { assets, board }).flatMap(({ actions }) => actions)
+    assert.ok(actions.length > 0)
+    assert.ok(actions.every((action) => action.type === type))
+    return submit(rec, side, actions[0])
+  }
+  const returned = issueOffered(launched, 'soviet', 'return-aircraft')
+  assert.equal(returned.state.airMission, null)
+  assert.deepEqual(scorpionPendingAirDecision(returned.state), { kind: 'airfield-capacity', actor: 'axis' })
+  const settled = issueOffered(returned, 'axis', 'settle-airfield-capacity')
+  assert.equal(scorpionPendingAirDecision(settled.state), null)
+  assert.equal(settled.state.pieces.filter((piece) => piece.side === 'axis' && piece.active).length, 5)
 })
 
 test('Hip Shoots require normal flight and a spotter and can repeat without using the ordinary barrage slot', () => {

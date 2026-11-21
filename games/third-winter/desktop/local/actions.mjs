@@ -1,6 +1,7 @@
 import { actingSide } from '@ocs-eastern/series/turn'
 import { airbaseActiveCapacity } from '@ocs-eastern/series/airbase'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
+import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
 import { scorpionGroundMpAvailable, canMoveInPhase, walkScorpionGroundRoute } from '../../src/match/scorpion-movement.ts'
 import { scorpionScheduledArrivals } from '../../src/match/scorpion-reinforcement.ts'
 import { rebuildScorpionRemnant } from '../../src/match/scorpion-remnants.ts'
@@ -25,12 +26,8 @@ export function localDecisionSide(state) {
   if (state.reroll) return state.rerollHolder
   if (state.capture) return state.capture.owner
   if (state.combat?.retreat) return state.combat.retreat.side
-  if (state.airfieldCapacityChoice) return state.airfieldCapacityChoice.side
-  if (state.barrage) return state.barrage.defender
-  if (state.airMission) {
-    const step = state.airMission.step
-    return step.kind === 'return' ? state.pieces.find(({ id }) => state.airMission.returning.includes(id))?.side ?? state.airMission.side : step.actor
-  }
+  const air = scorpionPendingAirDecision(state)
+  if (air) return air.actor
   if (state.combat) {
     const { attacker, step } = state.combat
     return ['attacker-rating', 'attacker-result', 'advance'].includes(step) ? attacker : opponent(attacker)

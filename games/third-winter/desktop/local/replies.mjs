@@ -1,4 +1,5 @@
 import { scorpionAirReturnOptions } from '../../src/match/scorpion-air-operations.ts'
+import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
 import { remainingSteps } from '../../src/match/scorpion-losses.ts'
 import { scorpionSpPayment } from '../../src/match/scorpion-sp-payment.ts'
 import { advanceChoices, advanceDraft, defenseSupplyChoices, defenseSupplyDraft, terrainChoices, terrainDraft } from './combat-draft.mjs'
@@ -25,7 +26,8 @@ export function repliesFor(state, side, selection, data, add) {
     add('继续撤退余程', 'continue-combat-retreat')
     return true
   }
-  if (state.airfieldCapacityChoice) {
+  const air = scorpionPendingAirDecision(state)
+  if (air?.kind === 'airfield-capacity') {
     const { hex, excess } = state.airfieldCapacityChoice
     const eligible = state.pieces.filter((piece) => piece.kind === 'aircraft' && piece.side === side && piece.active && piece.location.hex === hex)
     const preferred = eligible.find((piece) => piece.id === unitId)
@@ -33,7 +35,7 @@ export function repliesFor(state, side, selection, data, add) {
     add(`设为非激活 · ${ids.map((id) => counterName(state, data, id)).join('、')}`, 'settle-airfield-capacity', { unitIds: ids })
     return true
   }
-  if (state.barrage) {
+  if (air?.kind === 'barrage') {
     const event = state.barrage
     if (!event.roll) for (const terrain of data.assets.map.hexes.get(event.target).terrains) {
       add(`以${terrainName[terrain]}结算射击`, 'choose-barrage-terrain', { terrain })
@@ -53,7 +55,7 @@ export function repliesFor(state, side, selection, data, add) {
     }
     return true
   }
-  if (state.airMission) {
+  if (air?.kind === 'air-mission') {
     airReplies(state, side, unitId, data, add)
     return true
   }

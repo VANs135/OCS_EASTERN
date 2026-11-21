@@ -12,12 +12,11 @@ import { openScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import type { ScorpionTurn } from '../ttw/scorpion/pre-turn.ts'
 import { scorpionOpeningAirBases } from '../ttw/scorpion/setup-stores.ts'
 import { scorpionWeather } from '../ttw/scorpion/weather.ts'
-import { finishScorpionAirBarrage, launchScorpionAirMission, respondScorpionAirMission } from './scorpion-air-operations.ts'
-import type { LaunchAirMission, RespondAirMission, ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
-import { settleScorpionAirfieldCapacity } from './scorpion-airfield-barrage.ts'
+import { applyScorpionAirAction } from './scorpion-air-actions.ts'
+import type { ScorpionAirAction } from './scorpion-air-actions.ts'
+import type { ScorpionAirMission, ScorpionAirReport } from './scorpion-air-operations.ts'
 import type { AirfieldCapacityChoice } from './scorpion-airfield-barrage.ts'
 import type { ScorpionAirfield } from './scorpion-airfield-work.ts'
-import { applyScorpionBarrage } from './scorpion-barrage.ts'
 import type { BarrageAction, ScorpionBarrage, ScorpionBarrageRecord, ScorpionFrontBarrage } from './scorpion-barrage.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
@@ -26,8 +25,8 @@ import type { ScorpionCaptureReport, ScorpionCaptureWindow, SettleScorpionCaptur
 import type { ScorpionCombat, ScorpionCombatBoard } from './scorpion-combat.ts'
 import { applyScorpionCombatAction } from './scorpion-combat-actions.ts'
 import type { ScorpionCombatAction } from './scorpion-combat-actions.ts'
-import { applyScorpionDropPlan } from './scorpion-drop-plan.ts'
-import type { ScorpionDropPlan, ScorpionDropPlanAction } from './scorpion-drop-plan.ts'
+import type { ScorpionDropPlan } from './scorpion-drop-plan.ts'
+import { applyScorpionFireAction } from './scorpion-fire-actions.ts'
 import { pruneScorpionGroundControl, recordScorpionGroundControl, scorpionControlLookup } from './scorpion-hex-control.ts'
 import { scorpionControlSites, scorpionOpeningFrontControl } from '../ttw/scorpion/initial-map.ts'
 import { applyScorpionGroundAction } from './scorpion-ground-actions.ts'
@@ -44,8 +43,6 @@ import { withScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
 import type { ScorpionPhaseOccupancy } from './scorpion-phase-occupancy.ts'
 import type { FormationFuel, HeadquartersFuel } from './scorpion-fuel.ts'
 import { applyScorpionReinforcement } from './scorpion-reinforcement.ts'
-import { refitScorpionAircraft } from './scorpion-refit.ts'
-import type { RefitScorpionAircraft } from './scorpion-refit.ts'
 import type { ReinforcementCommand } from './scorpion-reinforcement.ts'
 import type { ReinforcementBoard, ReinforcementState } from './scorpion-reinforcement-state.ts'
 import { applyScorpionReserve, assertScorpionMovementEnd } from './scorpion-reserves.ts'
@@ -115,9 +112,7 @@ export type ScorpionAction = ScorpionSetupAction | ReinforcementCommand | Scorpi
   | ScorpionPhaseAction | ScorpionReserveAction | BarrageAction | ScorpionCombatAction
   | RebuildScorpionRemnant | ResolveScorpionReroll
   | ScorpionKesselAction | SettleScorpionStacking
-  | SettleScorpionCapture | RefitScorpionAircraft | LaunchAirMission | RespondAirMission
-  | ScorpionDropPlanAction
-  | { type: 'settle-airfield-capacity'; unitIds: readonly string[] }
+  | SettleScorpionCapture | ScorpionAirAction
 export type ScorpionSessionRecord = MatchRecord<ScorpionSession, ScorpionAction, Side>
 interface BoardPolicies extends GroundPolicies {
   reinforcements?: (state: Readonly<ScorpionInPlay>) => ReinforcementBoard
@@ -162,8 +157,7 @@ export function submitScorpionSession(
       case 'choose-airdrop-cargo':
       case 'choose-airlift-landing':
       case 'return-aircraft':
-        if (state.kind !== 'playing') throw new Error('There is no pending air mission')
-        return respondScorpionAirMission(state, actor, action, assets, airBoard)
+        return applyScorpionAirAction(state, actor, action, assets, airBoard)
     }
     if (state.kind === 'playing' && state.airMission && action.type !== 'settle-capture' &&
       !(state.airMission.step.kind === 'barrage' && (action.type === 'choose-barrage-terrain' || action.type === 'assign-barrage-loss'))) {
@@ -179,7 +173,10 @@ export function submitScorpionSession(
       case 'plan-air-drop':
       case 'delay-air-drop':
       case 'cancel-air-drop':
-        return applyScorpionDropPlan(state, actor, action, assets)
+      case 'settle-airfield-capacity':
+      case 'refit-aircraft':
+      case 'launch-air-mission':
+        return applyScorpionAirAction(state, actor, action, assets, airBoard)
       case 'base-aircraft':
       case 'place-setup-alert':
       case 'choose-setup-loss':
@@ -212,15 +209,9 @@ export function submitScorpionSession(
         }
         if (scorpionRegularBarrageTargets(state).size) throw new Error('The Movement Segment has ended')
         return applyScorpionReserve({ ...state, overrunMarch: null, groundCaptureMove: null }, actor, action, assets)
-      case 'settle-airfield-capacity':
-        if (state.kind !== 'playing') throw new Error('There is no active air base capacity decision')
-        return settleScorpionAirfieldCapacity(state, actor, action.unitIds)
       case 'settle-capture':
         if (state.kind !== 'playing') throw new Error('There is no special capture to settle')
         return settleScorpionCapture(state, actor, action, assets)
-      case 'refit-aircraft':
-        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
-        return refitScorpionAircraft(state, actor, action, assets.map, board.supplyRail)
       case 'rebuild-remnant':
         if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn') throw new Error('Remnant rebuilding is unavailable')
         return rebuildScorpionRemnant(state, actor, action, assets, board.supplyRail)
@@ -228,21 +219,11 @@ export function submitScorpionSession(
       case 'remove-kessel-hq':
         if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
         return applyScorpionKessel(state, actor, action, assets)
-      case 'launch-air-mission':
-        if (state.kind !== 'playing') throw new Error('Start the Scorpion match first')
-        return launchScorpionAirMission(state, actor, action, assets, airBoard)
       case 'declare-artillery-barrage':
       case 'declare-front-barrage':
       case 'choose-barrage-terrain':
-      case 'assign-barrage-loss': {
-        const table = action.type === 'declare-artillery-barrage' && action.targetKind === 'air-base'
-          ? board.facilityBarrage : board.barrage
-        if (state.kind !== 'playing' || state.turn.step.kind !== 'player-turn' || !table) {
-          throw new Error('Barrage requires an active player turn and the appropriate OCS v4.3 barrage table')
-        }
-        return finishScorpionAirBarrage(applyScorpionBarrage(state, actor, action, assets, table,
-          board.combat?.hedgehogAt, board.supplyRail, offer))
-      }
+      case 'assign-barrage-loss':
+        return applyScorpionFireAction(state, actor, action, assets, airBoard)
       case 'declare-combat':
       case 'declare-overrun':
       case 'defend-combat':
