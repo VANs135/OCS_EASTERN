@@ -1,4 +1,6 @@
 import { airTransportModes } from '@ocs-eastern/series/air-transport'
+import { airMissionSegments, allowsBarrageSource } from '@ocs-eastern/series/fire-timing'
+import type { AirMissionKind } from '@ocs-eastern/series/fire-timing'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { airCombatResult, flakLossCandidates } from '@ocs-eastern/series/tables/air'
 import { actingSide } from '@ocs-eastern/series/turn'
@@ -22,7 +24,7 @@ import { scorpionRolls } from './scorpion-reroll.ts'
 
 type ScorpionAirBoard = ScorpionAirBarrageBoard & ScorpionCapturePolicy
 
-type MissionKind = 'base-transfer' | 'fighter-sweep' | 'barrage' | 'hip-shoot' | 'trainbusting' | 'transport' | 'air-drop'
+type MissionKind = Exclude<AirMissionKind, 'interception'>
 type HexBase = Extract<ScorpionAirBase, { kind: 'hex' }>
 type Flight = { id: string; origin: ScorpionAirBase; normalRange: boolean }
 type AirRound = ReturnType<typeof airCombatResult> & { attackerId: string; defenderId: string }
@@ -100,10 +102,10 @@ export function launchScorpionAirMission(state: Readonly<ScorpionInPlay>, actor:
   const { phasing, phase } = state.cursor
   const weather = state.turn.weather.flight
   const { mission: kind, unitIds } = action
-  const barrageSegment = kind === 'barrage' || kind === 'trainbusting'
+  const barrageSegment = airMissionSegments[kind] === 'barrage'
   const firedAt = scorpionRegularBarrageTargets(state)
   if (state.turn.step.kind !== 'player-turn' || state.combat || actor !== actingSide(phasing, phase) ||
-    !['movement', 'reaction', 'exploitation'].includes(phase) || (!barrageSegment && firedAt.size) ||
+    !allowsBarrageSource(phase, 'air') || (!barrageSegment && firedAt.size) ||
     (phase === 'exploitation' && state.combatTargets.length)) throw new Error('Air mission is unavailable in the current segment')
   if (weather === 'none' || (weather === 'limited' && (phase !== 'movement' || kind === 'hip-shoot'))) {
     throw new Error('Flight conditions prohibit this mission')

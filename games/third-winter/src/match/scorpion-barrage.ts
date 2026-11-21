@@ -1,3 +1,4 @@
+import { allowsBarrageSource } from '@ocs-eastern/series/fire-timing'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { scorpionRolls } from './scorpion-reroll.ts'
@@ -110,7 +111,7 @@ function declare(state: Readonly<ScorpionInPlay>, actor: Side,
   const targetExists = facility ? state.airBases.some((base) => base.side === defender && base.hex === target)
     : targetUnits(state, defender, target).length > 0
   if (state.barrage || state.combat || state.combatTargets?.length || actingSide(phasing, phase) !== actor ||
-    (phase !== 'reaction' && phase !== 'combat' && phase !== 'exploitation') ||
+    !allowsBarrageSource(phase, 'artillery') ||
     !map.hexes.has(target) || !targetExists || scorpionRegularBarrageTargets(state).has(target)) {
     throw new Error('Artillery may barrage an enemy target once per phase before regular combat')
   }
