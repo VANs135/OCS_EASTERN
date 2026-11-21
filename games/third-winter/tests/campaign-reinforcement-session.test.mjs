@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { createRngState, rollDice } from '@ocs-eastern/series/rng'
+import { reinforcementSteps } from '@ocs-eastern/series/reinforcement'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignReinforcements } from '../src/import/campaign-reinforcements.ts'
 import { scheduledCampaignReinforcements } from '../src/match/campaign-reinforcement-actions.ts'
@@ -22,8 +24,8 @@ const counter = (def, fields = {}) => ({ definition: definitions[def].key, kind:
   side: definitions[def].source.side, location: { kind: 'available' }, ...fields })
 const group = (channel, ref, more = {}) => ({ turn: 1, date: '1943-10-01', phase: 'reinforce', side: 'axis', channel,
   entries: [{ ref, note: null }], ...more })
-const fixture = (groups, counters, bindings, sites = [], side = 'axis') => ({
-  record: openCampaignReinforcementSession(1, side, counters),
+const fixture = (groups, counters, bindings, sites = [], side = 'axis', opening = {}) => ({
+  record: openCampaignReinforcementSession(1, side, counters, opening),
   context: { schedule: prepareCampaignReinforcements(groups, aliases, map, playable).schedule,
     bindings: new Map(Object.entries(bindings).map(([index, ids]) => [`campaign-reinforcement:${index}:1`, ids])),
     resolveHex: playable.resolveHex, arrivalSites: () => sites },
@@ -32,6 +34,7 @@ const order = (row, placements) => ({ type: 'execute-scheduled-reinforcement', o
   ...(placements === undefined ? {} : { placements }) })
 const at = (counterId, hex) => ({ counterId, hex })
 const close = { type: 'complete-scheduled-reinforcements' }
+const supply = { type: 'roll-campaign-supply' }
 const command = (record, action) => ({ id: `campaign:${record.revision}`, expectedRevision: record.revision, action })
 const submit = (record, context, action, side = 'axis') => submitCampaignSession(record, side, command(record, action), context).record
 
@@ -58,7 +61,7 @@ test('fixed arrivals, exact withdrawals and direct dead-pile placement close onl
   assert.equal(dead.state.counters.reserve.location.kind, 'dead-pile')
   const closed = submit(dead, context, close)
   assert.equal(closed.state.cursor.phase, 'reinforcement')
-  assert.equal(closed.state.scheduledWindow, 'closed')
+  assert.equal(closed.state.step, 'supply')
   assert.throws(() => submit(closed, context, close), /must be open/)
 })
 
@@ -131,4 +134,65 @@ test('withdrawal applies even in the dead pile or an off-map box', () => {
   assert.equal(next.state.counters.dead.location.kind, 'withdrawn')
   assert.equal(next.state.counters.boxed.location.kind, 'withdrawn')
   assert.deepEqual(next.state.withdrawalSupplyDebt, { axis: 4, soviet: 0 })
+})
+
+test('the standard reinforcement sequence feeds one supply roll and withholds only the active side’s debt', () => {
+  assert.deepEqual(reinforcementSteps, ['scheduled', 'supply', 'variable-replacements', 'rebuild-consolidate'])
+  const rng = createRngState(19)
+  const scenario = { scenarioId: '01-dnepr-battles', date: '1943-09-26' }
+  const { record, context } = fixture([group('withdraw', 'infantry')], {
+    departing: counter('infantry', { location: { kind: 'dead-pile' }, currentRe: 1, internalStocks: 'low' }),
+  }, { 1: ['departing'] }, [], 'axis', { when: scenario, rng, withdrawalSupplyDebt: { axis: 2, soviet: 6 } })
+  const expected = rollDice(rng, 2)
+  const pools = [{ kind: 'axis-cities', tokens: 20 }, { kind: 'axis-hq', tokens: 16 }]
+  const configured = { ...context, supplyTable: (state, value) => {
+    assert.equal(state.when, scenario)
+    assert.equal(value, expected.value.total)
+    return pools
+  } }
+  assert.throws(() => submit(record, configured, supply), /not available/)
+  const settled = submit(record, configured, order(1))
+  const ready = submit(settled, configured, close)
+  assert.equal(ready.state.step, 'supply')
+  assert.throws(() => submit(ready, configured, supply, 'soviet'), /active side/)
+  assert.throws(() => submit(ready, context, supply), /not configured/)
+  assert.throws(() => submit(ready, { ...context, supplyTable: () => [pools[1]] }, supply), /Invalid campaign supply pools/)
+  assert.deepEqual(ready.state.rng, rng)
+  const result = submit(ready, configured, supply)
+  assert.deepEqual(result.state.rng, expected.rng)
+  assert.deepEqual(result.state.supplyAward, { status: 'awaiting-placement', dice: expected.value,
+    pools, grossTokens: 36, withheldTokens: 4, tokensToPlace: 32 })
+  assert.deepEqual(result.state.withdrawalSupplyDebt, { axis: 0, soviet: 6 })
+  assert.equal(result.state.step, 'supply')
+  assert.equal(submitCampaignSession(result, 'axis', command(ready, supply), configured).duplicate, true)
+  assert.throws(() => submit(result, configured, supply), /not available/)
+})
+
+test('an insufficient award keeps the dice and debit pending for an explicit resolution', () => {
+  const { record, context } = fixture([], {}, {}, [], 'soviet', { withdrawalSupplyDebt: { axis: 0, soviet: 12 } })
+  const configured = { ...context, supplyTable: () => [{ kind: 'soviet-supply', tokens: 8 }] }
+  const ready = submit(record, configured, close, 'soviet')
+  const after = submit(ready, configured, supply, 'soviet')
+  assert.equal(after.state.supplyAward.status, 'deduction-pending')
+  assert.equal(after.state.supplyAward.requiredTokens, 12)
+  assert.equal(after.state.withdrawalSupplyDebt.soviet, 12)
+  assert.equal(after.state.supplyAward.grossTokens, 8)
+  assert.equal(after.state.step, 'supply')
+  assert.throws(() => submit(after, configured, supply, 'soviet'), /not available/)
+})
+
+test('scenario 02 skips only the normal tables on January 26 for both sides', () => {
+  for (const side of ['axis', 'soviet']) {
+    const { record, context } = fixture([], {}, {}, [], side, { when: { scenarioId: '02-gotterdammerung', date: '1944-01-26' },
+      withdrawalSupplyDebt: { axis: 4, soviet: 2 } })
+    const after = submit(record, context, close, side).state
+    assert.equal(after.step, 'rebuild-consolidate')
+    assert.equal(after.supplyAward, undefined)
+    assert.deepEqual(after.rng, record.state.rng)
+    assert.deepEqual(after.withdrawalSupplyDebt, record.state.withdrawalSupplyDebt)
+  }
+  for (const when of [{ scenarioId: '02-gotterdammerung', date: '1944-02-01' }, { scenarioId: '01-dnepr-battles', date: '1944-01-26' }]) {
+    const { record, context } = fixture([], {}, {}, [], 'axis', { when })
+    assert.equal(submit(record, context, close).state.step, 'supply')
+  }
 })
