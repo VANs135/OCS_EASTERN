@@ -6,6 +6,9 @@ import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { activeAirfieldExcess } from '../src/match/scorpion-air-bases.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { scorpionAuxiliaryCardViews } from '../src/view/scorpion-auxiliary-cards.ts'
+import { scorpionMapStacks } from '../src/view/scorpion-map-counters.ts'
+import { localMenu } from '../desktop/local/interaction.mjs'
 
 const from = 's12.04'
 const field = 's12.06'
@@ -28,13 +31,35 @@ function fixture(changes = {}) {
   const assets = { map, catalog: { definitions: new Map([[strip.key, strip]]), aliases: new Map() } }
   const board = { supplyRail: { railGauge: () => 'axis' } }
   const state = { kind: 'playing', cursor: { phase: 'movement', turn: 2, phasing: 'axis', first: 'axis', retention: 'closed' },
-    turn: { number: 2, weather: { ground: 'freeze', flight: 'normal' }, step: { kind: 'player-turn' } },
+    turn: { number: 2, weather: { ground: 'freeze', flight: 'normal' }, step: { kind: 'player-turn', first: 'axis' } },
     units: { hq: regular, spare: { ...regular, hex: middle } }, pieces: [], airBases: [], moved: [], rng: createRngState(3),
     rerollHolder: null, dumps: { [dumpId]: { side: 'axis', tokens: 12, location: 'on-map' } }, railControl: {}, ...changes }
   const submit = (action, s = state, seat = 'axis') => submitScorpionSession({ state: s, revision: 0, receipts: [] },
     seat, { id: 'order', expectedRevision: 0, action }, assets, board).record.state
-  return { state, assets, submit }
+  return { state, assets, board, submit }
 }
+
+test('a remote engineer can build from the target menu and its strip moves from stock to map and back', () => {
+  const { state, assets, board, submit } = fixture()
+  const menuAt = (s, hex) => localMenu(s, 'axis', { unitId: 'hq', unitIds: ['hq'] },
+    { hex, ownIds: [], labels: {} }, { assets, board }, () => [])
+  const order = menuAt(state, field).find(({ actions }) => actions[0].operation === 'build-strip').actions[0]
+  const stripId = 'airstrip:as1'
+  const inStock = (s) => {
+    const cards = scorpionAuxiliaryCardViews({ ...s, availableAlerts: [], arrival: { sovietVp: 0 } }, assets.catalog, [])
+    return cards['axis-off-map'].counters.some(({ id }) => id === stripId)
+  }
+  assert.ok(inStock(state))
+  const built = submit(order)
+  assert.equal(inStock(built), false)
+  assert.ok(scorpionMapStacks({ ...built, units: {}, dumps: {} }, assets.catalog, [])
+    .find(({ hex }) => hex === field).pages.flat().some(({ id }) => id === stripId))
+  assert.ok(!menuAt(built, field).some(({ actions }) => actions[0].type === 'work-airfield'))
+  const ready = { ...built, moved: [] }
+  const upgrade = menuAt(ready, field).find(({ actions }) => actions[0].operation === 'build').actions[0]
+  assert.deepEqual(upgrade.payments, [{ dumpId, tokens: 3 }])
+  assert.ok(inStock(submit(upgrade, ready)))
+})
 
 test('15.3 builds through a leg-passable route, consumes 1 SP and locks the engineer for the phase', () => {
   const { state, submit } = fixture()

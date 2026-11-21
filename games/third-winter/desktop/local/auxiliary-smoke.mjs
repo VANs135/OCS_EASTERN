@@ -10,6 +10,7 @@ export async function testAuxiliaryCards(data, folder, opening) {
   await testReservePool(data, join(folder, 'reserves.json'), opening)
   await testKesselBox(data, join(folder, 'kessel.json'), opening)
   await testGroundStacking(data, join(folder, 'stacking.json'), opening)
+  await testEngineeringMenu(data, join(folder, 'engineering.json'), opening)
   console.log('Auxiliary cards passed reserve stock, Kessel placement, removal, return and ground stacking settlement.')
 }
 
@@ -179,4 +180,52 @@ async function testGroundStacking(data, file, opening) {
 
 function click(game, kind, fields) {
   return game.dispatch({ kind, revision: game.view().revision, ...fields })
+}
+
+async function testEngineeringMenu(data, file, opening) {
+  const { state } = opening
+  const hex = 's10.02'
+  const dumpId = `axis:hex:${hex}`
+  const axis = Object.values(state.units).filter((unit) => unit.side === 'axis')
+  const infantry = axis.find((unit) => unit.combat && unit.attackCapable && unit.mobility === 'leg' && unit.allowance > 0)
+  const engineer = axis.find((unit) => unit.headquarters && !unit.headquarters.kessel && !unit.moveMode)
+  const kessel = axis.find((unit) => unit.headquarters?.kessel)
+  assert.ok(infantry && engineer && kessel, 'The opening has an Axis infantry unit and both types of HQ')
+  const units = { infantry: { ...infantry, hex }, engineer: { ...engineer, hex }, kessel: { ...kessel, hex } }
+  const staged = { ...state, units, airBases: [], pieces: [], moved: [], groundActivity: undefined, phaseOccupancy: undefined,
+    cursor: { ...state.cursor, phase: 'movement', phasing: 'axis' },
+    dumps: { [dumpId]: { side: 'axis', location: 'on-map', tokens: 4 } } }
+  await replaceLocalJson(file, localScorpionEnvelope({ ...opening, state: staged }, data.fingerprint))
+  const game = await openLocalScorpion(data, file)
+  const menuAt = (at, unitId) => click(game, 'board-menu', { ...scorpionHexLayout(at), unitId })
+  const pick = (unitId) => click(game, 'board-left', { ...scorpionHexLayout(hex), unitId })
+  try {
+    await pick('infantry')
+    let move
+    for (const target of data.assets.map.neighbors(hex)) {
+      const { menu } = await menuAt(target)
+      move = menu.find(({ actions: [action] }) => action.type === 'kessel-move')
+      if (move) break
+    }
+    assert.ok(move, 'The destination menu offers a legal Kessel move')
+    const [target] = move.actions[0].path
+    const moved = await click(game, 'apply', { key: move.key })
+    assert.ok(moved.frame.mapStacks.find((stack) => stack.hex === target).pages.flat().some(({ id }) => id === 'infantry'))
+
+    const stock = (view) => view.frame.auxiliaryCards['axis-off-map'].counters.filter(({ id }) => id.startsWith('airstrip:'))
+    const before = stock(moved)
+    assert.equal(before.length, 6)
+    const { menu } = await menuAt(hex, 'engineer')
+    const build = menu.find(({ actions: [action] }) => action.type === 'work-airfield' && action.operation === 'build-strip')
+    assert.ok(build, 'The engineer menu offers construction')
+    const built = await click(game, 'apply', { key: build.key })
+    assert.equal(stock(built).length, before.length - 1)
+    const stripId = before.find(({ id }) => !stock(built).some((counter) => counter.id === id)).id
+    assert.ok(built.frame.mapStacks.find((stack) => stack.hex === hex).pages.flat().some(({ id }) => id === stripId))
+    assert.equal((await readLocalJson(file)).record.state.dumps[dumpId].tokens, 3)
+    console.log('Engineering menus passed Kessel movement, runway construction, payment and stock-to-map projection.')
+  } finally {
+    await game.close()
+    await rm(file, { force: true })
+  }
 }

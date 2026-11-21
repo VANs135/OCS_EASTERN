@@ -19,7 +19,7 @@ export interface ScorpionAirfield {
 export type ScorpionAirfieldWork = { type: 'work-airfield'; operation: 'build' | 'reduce' | 'build-strip';
   hex: string; unitIds: readonly string[]; payments?: readonly SupplyPayment[] }
 
-export function scorpionAirstripPool(state: Readonly<ScorpionInPlay>, catalog: ScorpionSetupAssets['catalog']) {
+export function scorpionAirstripPool(state: Pick<ScorpionInPlay, 'airBases'>, catalog: ScorpionSetupAssets['catalog']) {
   const inUse = new Set(state.airBases.map(({ strip }) => strip))
   return [...catalog.definitions.values()].filter(({ key, kind, source }) =>
     kind === 'marker' && /^Air Strip \d+$/.test(source.name) && !inUse.has(key))

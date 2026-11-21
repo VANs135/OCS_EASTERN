@@ -11,6 +11,7 @@ import { refitBaseAt, refitChoiceLabels, refitDraft } from './refit.mjs'
 import { airGroupChoices } from './air-group.mjs'
 import { transportMenuChoices } from './transport-menu.mjs'
 import { scorpionKesselWindow } from '../../src/match/scorpion-kessel.ts'
+import { airfieldMenuChoices } from './engineering-menu.mjs'
 
 const movementPhases = ['movement', 'reaction', 'exploitation']
 const categories = new Map([
@@ -18,6 +19,7 @@ const categories = new Map([
   ['load-transport', '运输'], ['unload-transport', '运输'], ['form-extender', '运输'], ['dismantle-extender', '运输'],
   ['repack-transport', '运输'], ['rebuild-remnant', '重建'],
   ['remove-kessel-hq', '离图盒'],
+  ['kessel-move', '移动'], ['work-airfield', '机场'],
   ['fuel-formation', '加油'], ['fuel-headquarters', '加油'], ['fuel-from-paused-transport', '加油'],
   ['work-hedgehog', '工事'], ['feed-units', '补给'], ['recover-internal-stocks', '补给'], ['refit-aircraft', '飞机整备'],
   ['declare-artillery-barrage', '射击'], ['declare-front-barrage', '射击'], ['declare-combat', '地面战斗'],
@@ -73,6 +75,9 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
   const add = (label, type, fields) => append({ label, actions: [{ type, ...fields }] })
   const selected = selection.unitIds?.length ? selection.unitIds : selection.unitId ? [selection.unitId] : []
   const targets = hit.unitId ? hit.ownIds.filter((id) => id === hit.unitId) : hit.ownIds
+  const workers = hit.unitId && targets.includes(hit.unitId) && !selected.includes(hit.unitId)
+    ? targets : [...new Set([...selected, ...targets])]
+  airfieldMenuChoices(state, side, hit.hex, workers, selected, data, add)
   if (hit.unitId && state.kind === 'playing' && scorpionKesselWindow(state, side) &&
     state.units[hit.unitId]?.headquarters?.kessel) {
     add('移除 Kessel HQ，三回合后可用', 'remove-kessel-hq', { unitId: hit.unitId })
@@ -118,6 +123,18 @@ export function localMenu(state, side, selection, hit, data, choicesAt) {
   const onSubject = hit.unitId === subject || unit?.hex === hit.hex && !hit.box
   if (!onSubject) {
     const route = hit.hex === selection.hex ? selection.route : undefined
+    if (state.kind === 'playing' && side === 'axis' && state.cursor.phase === 'movement' &&
+      unit?.side === side && unit.combat && unit.mobility === 'leg' && selected.length === 1 && hit.hex) {
+      const path = route?.length ? route : data.assets.map.neighbors(unit.hex).includes(hit.hex) ? [hit.hex] : []
+      if (path.length && path.length <= 4) {
+        for (const [headquartersId, hq] of Object.entries(state.units)) {
+          if (hq.side === side && hq.headquarters?.kessel) {
+            add(`Kessel HQ ${hq.hex} 支援 · 沿 ${path.join(' → ')} 免移动点移动`,
+              'kessel-move', { unitId: subject, headquartersId, path })
+          }
+        }
+      }
+    }
     for (const choice of choicesAt({ unitId: subject, hex: hit.hex, route })) {
       const action = choice.actions[0]
       if (action.type === 'launch-air-mission') {

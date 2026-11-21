@@ -78,7 +78,7 @@ export function scorpionMapStacks(state: Readonly<ScorpionSession>, catalog: Cat
   for (const { hex, side, level, strip } of airfields) {
     const asset = strip ? catalog.definitions.get(strip)?.source.faces.combat?.asset : markerFace(catalog, `Airbase Strength ${level}`)
     const label = `${side === 'axis' ? '轴心' : '苏军'} ${strip ? '简易跑道' : `${level} 级机场`}`
-    if (asset) push({ id: `airfield:${side}:${hex}`, hex, asset, label })
+    if (asset) push({ id: strip ? `airstrip:${strip}` : `airfield:${side}:${hex}`, hex, asset, label })
   }
   for (const [id, dump] of Object.entries(board.dumps)) {
     if (dump.location !== 'on-map' || !dump.tokens) continue

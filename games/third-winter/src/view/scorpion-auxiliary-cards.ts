@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import { scorpionAirstripPool } from '../match/scorpion-airfield-work.ts'
 import { scorpionKesselSlots } from '../match/scorpion-kessel.ts'
 import { scorpionReserveStock } from '../match/scorpion-reserves.ts'
 import { currentScorpionTurn } from '../match/scorpion-round.ts'
@@ -44,6 +45,14 @@ export function scorpionAuxiliaryCardViews(state: Readonly<ScorpionSession>, cat
   const soviet = reservePool('soviet', state, catalog)
   const playerTurn = active && turn.step.kind === 'player-turn' ? (state.cursor.phasing === state.cursor.first ? 1 : 2) : undefined
   const track = turnTrack(turn, catalog, playerTurn)
+
+  for (const { key, source } of scorpionAirstripPool({ airBases: active ? state.airBases : [] }, catalog)) {
+    const slot = Number(source.name.slice('Air Strip '.length)) - 1
+    const asset = source.faces.combat?.asset
+    if (asset && slot >= 0 && slot < 6) axis.counters.push({
+      id: `airstrip:${key}`, asset, label: `可用简易跑道 ${slot + 1}`, x: 183 + slot * 75, y: 438, size: 54,
+    })
+  }
 
   for (const { definition, index, asset, name, ready, id, dead, availableFromTurn } of scorpionKesselSlots(state, catalog)) {
     if (ready && asset) axis.counters.push({ id: `kessel-box:${definition}`, asset, label: `${name} · 可放置`, x: 219 + 74 * index, y: 729, size: 54 })

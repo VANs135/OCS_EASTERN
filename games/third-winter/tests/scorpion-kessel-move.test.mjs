@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
 import { submitScorpionSession } from '../src/match/scorpion-session.ts'
+import { localMenu, routeTo } from '../desktop/local/interaction.mjs'
 
 const plains = Array.from({ length: 6 }, (_, i) => `s${i + 8}.08`)
 const connections = plains.slice(1).map((hex, i) => [plains[i], hex])
@@ -27,8 +28,22 @@ function fixture({ mountain = false, units = {}, ...changes } = {}) {
   const board = { combat: { table: {} }, supplyRail: { railGauge: () => 'axis' } }
   const submit = (record, action, side = 'axis') =>
     submitScorpionSession(record, side, { id: `test:${record.revision}`, expectedRevision: record.revision, action }, assets, board).record
-  return { record, submit, issue: (action, side) => submit(record, action, side) }
+  return { record, assets, board, submit, issue: (action, side) => submit(record, action, side) }
 }
+
+test('a left-click route offers Kessel as an explicit right-click order beyond ordinary movement', () => {
+  const { record, assets, board, issue } = fixture()
+  const picked = { unitId: 'infantry', unitIds: ['infantry'], route: [] }
+  for (const hex of route) {
+    picked.route = routeTo(record.state, picked, hex, assets.map)
+    picked.hex = hex
+  }
+  const rows = localMenu(record.state, 'axis', picked, { hex: picked.hex, ownIds: [], labels: {} },
+    { assets, board }, () => [])
+  const order = rows.find(({ actions }) => actions[0].headquartersId === 'first').actions[0]
+  assert.deepEqual(order, command(route))
+  assert.equal(issue(order).state.units.infantry.hex, picked.hex)
+})
 
 test('2.3a B allows four free Leg entries under one HQ and consumes the unit’s movement', () => {
   const { record, issue, submit } = fixture()
