@@ -1,11 +1,12 @@
 import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
-import { reserveMovementFactor } from '@ocs-eastern/series/reserve'
+import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionHexId } from '../import/hex-id.ts'
+import { scorpionGroundMode } from '../import/scorpion-mode-face.ts'
 import { scorpionStepCost } from '../ttw/scorpion/terrain-cost.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
 import type { ScorpionGroundActivity } from './scorpion-ground-activity.ts'
@@ -94,8 +95,7 @@ export function canMoveInPhase(unit: Unit, phase: PlayerTurn['phase']) {
 }
 
 export function scorpionMovementAllowance(unit: Unit, phase: PlayerTurn['phase']) {
-  return unit.allowance * reserveMovementFactor(phase, Boolean(unit.reserve), Boolean(unit.released)) *
-    (unit.disorganized ? 0.5 : 1)
+  return unit.allowance * groundModeMovementFactor(scorpionGroundMode(unit), phase)
 }
 
 export function scorpionAirliftGroundLimit(unit: Unit, phase: PlayerTurn['phase']) {

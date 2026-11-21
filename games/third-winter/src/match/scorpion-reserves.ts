@@ -2,6 +2,7 @@ import { reserveHexesInUse } from '@ocs-eastern/series/reserve'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { actingSide } from '@ocs-eastern/series/turn'
+import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { GroundFace } from '../import/scorpion-mode-face.ts'
 import { scorpionGroundActivity } from './scorpion-ground-activity.ts'
@@ -51,7 +52,7 @@ export function prepareScorpionReserve(state: Readonly<ScorpionInPlay>, side: Si
     scorpionGroundActivity(state).airlifted.includes(unitId)) {
     throw new Error('Reserve requires an eligible friendly unit before it moves in its Movement phase')
   }
-  if (!unit.reserve && scorpionEnemyZoc(state, map, side).has(unit.hex)) {
+  if (!unit.reserve && zocAffectsAction('reserveMode', scorpionEnemyZoc(state, map, side).has(unit.hex), false)) {
     throw new Error('A unit cannot enter Reserve in enemy ZOC')
   }
   if (face !== 'current' && face !== 'combat' && face !== 'move') throw new Error('Invalid Reserve orientation')

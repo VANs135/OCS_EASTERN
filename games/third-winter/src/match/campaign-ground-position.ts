@@ -1,6 +1,7 @@
 import type { Mobility } from '@ocs-eastern/series/ground-map'
+import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { projectsZoc } from '@ocs-eastern/series/zoc'
+import { projectsZoc, zocAffectsAction } from '@ocs-eastern/series/zoc'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export interface CampaignGroundMap {
@@ -38,10 +39,17 @@ export function campaignGroundPosition(state: Readonly<CampaignTurnState>, side:
       if (profile.combat) friendlyCombat.add(hex)
     } else if (profile.combat) {
       enemyCombat.add(hex)
-      if (projectsZoc(profile)) for (const neighbor of map.neighbors(hex)) enemyZoc.add(neighbor)
+      const mode = groundModeEffect({
+        face: unit.mode === 'combat' || (!unit.mode && profile.inCombatMode) ? 'combat' : 'move',
+        marker: unit.disorganized ? 'dg' : unit.mode === 'reserve' || unit.mode === 'strat' ? unit.mode : undefined,
+      })
+      if (projectsZoc({ attackCapable: profile.attackCapable, inCombatMode: mode.keepsCombatZoc,
+        outOfSupply: unit.outOfSupply ?? profile.outOfSupply })) {
+        for (const neighbor of map.neighbors(hex)) enemyZoc.add(neighbor)
+      }
     }
   }
   // OCS 4.5a–b. A friendly combat unit can negate ZOC for trace and the breakout path.
-  const unnegatedEnemyZoc = new Set([...enemyZoc].filter((hex) => !friendlyCombat.has(hex)))
+  const unnegatedEnemyZoc = new Set([...enemyZoc].filter((hex) => zocAffectsAction('truckSupply', true, friendlyCombat.has(hex))))
   return { friendly, enemyCombat, unnegatedEnemyZoc }
 }

@@ -6,6 +6,7 @@ import type { ScorpionBoxPiece } from './scorpion-box-pieces.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSpPayment } from './scorpion-sp-payment.ts'
 import type { SupplyRailBoard } from './scorpion-supply-position.ts'
+import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
 
 export interface RefitScorpionAircraft {
   type: 'refit-aircraft'
@@ -39,8 +40,9 @@ export function refitScorpionAircraft(state: Readonly<ScorpionInPlay>, actor: Si
     based.length - inactive.size + selected.size > airbaseActiveCapacity(field.level)) {
     throw new Error('Selection exceeds the air base refit or active stacking capacity')
   }
-  const ledger = scorpionSpPayment(state, actor, map, rail)
-  if (ledger.position.unnegatedEnemyZoc.has(field.hex)) throw new Error('An air base in unnegated enemy ZOC cannot refit')
+  const position = scorpionSupplyPosition(state, map, actor, rail)
+  if (position.zocAffects('aircraftRefit', field.hex)) throw new Error('An air base in unnegated enemy ZOC cannot refit')
+  const ledger = scorpionSpPayment(state, actor, map, rail, position)
   ledger.spend([{ dumpId: base.dumpId, tokens: 1 }], ({ dumpId }) => {
     const { hex: from, truck } = ledger.source(dumpId)
     return !truck?.organicTruck && ledger.network.canUseDump(field.hex, from)

@@ -2,6 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import type { ScorpionMap } from '../import/scorpion-map.ts'
 import { scorpionSupplyNetwork } from '../ttw/scorpion/supply-trace.ts'
+import type { TracePosition } from '../ttw/scorpion/supply-trace.ts'
 import { spendScorpionDump } from './scorpion-dumps.ts'
 import type { ScorpionInPlay } from './scorpion-session.ts'
 import { scorpionSupplyPosition } from './scorpion-supply-position.ts'
@@ -23,7 +24,7 @@ export function usableDump(state: Readonly<ScorpionInPlay>, side: Side, id: stri
 }
 
 export function scorpionSpPayment(state: Readonly<ScorpionInPlay>, side: Side, map: ScorpionMap, railroad?: SupplyRailBoard,
-  position = scorpionSupplyPosition(state, map, side, railroad)) {
+  position: TracePosition = scorpionSupplyPosition(state, map, side, railroad)) {
   const network = scorpionSupplyNetwork(map, position)
   const dumps = { ...state.dumps }
   const cargo = new Map<string, number>()

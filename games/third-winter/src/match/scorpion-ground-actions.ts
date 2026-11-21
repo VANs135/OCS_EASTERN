@@ -122,7 +122,7 @@ export function scorpionMovementRules(state: Readonly<ScorpionInPlay>, side: Sid
   const movement = board.movement?.(state) ?? {
     enemyCombat: (hex: string) => facts.enemyCombat.has(hex),
     enemySupplySource: (hex: string) => scorpionSupplySources[side === 'axis' ? 'soviet' : 'axis'].some((source) => source === hex),
-    unnegatedEnemyZoc: (hex: string) => facts.unnegatedEnemyZoc.has(hex),
+    unnegatedEnemyZoc: (hex: string) => facts.zocAffects('truckMovement', hex),
   }
   const trainbusting = state.trainbusting ?? []
   const trainbustingAt = (hex: string, side: Side, mobility: Mobility) =>

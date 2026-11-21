@@ -1,6 +1,8 @@
+import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexId } from '../import/hex-id.ts'
+import { scorpionGroundMode } from '../import/scorpion-mode-face.ts'
 import { scorpionRegularBarrageTargets } from './scorpion-barrage-timing.ts'
 import { detachScorpionBreakdowns, scorpionBreakdownChoices } from './scorpion-breakdowns.ts'
 import type { ScorpionBreakdownOrder } from './scorpion-breakdowns.ts'
@@ -41,7 +43,7 @@ export function declareScorpionOverrun(state: Readonly<ScorpionInPlay>, side: Si
   if (!origin || new Set(ids).size !== ids.length || ids.some((id) => {
     const counter = Object.hasOwn(state.units, id) ? state.units[id] : undefined
     return !counter?.attackCapable || counter.side !== side || counter.hex !== origin ||
-      counter.reserve || counter.disorganized || !canMoveInPhase(counter, phase) ||
+      !groundModeEffect(scorpionGroundMode(counter)).canOverrun || !canMoveInPhase(counter, phase) ||
       (!resumed && state.moved.includes(id))
   })) throw new Error('Choose eligible attackers that started the phase stacked and are moving together')
   const target = scorpionHexId(action.target)

@@ -1,6 +1,8 @@
+import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { CrtTerrain } from '@ocs-eastern/series/tables/crt'
 import type { DeployedCounter } from '../../import/scorpion-deployment.ts'
 import type { Terrain } from '../../import/scorpion-map.ts'
+import { scorpionGroundMode } from '../../import/scorpion-mode-face.ts'
 
 export type AttackTerrain = Terrain | 'minor-river' | 'major-river'
 type Multipliers = readonly [armor: number, mech: number, other: number]
@@ -30,8 +32,8 @@ export function combatStrength(unit: DeployedCounter, attacking: boolean, terrai
   frozen: boolean, supplied: boolean, enemyAntiTank: number): number {
   const artilleryDivision = !attacking && unit.artillery?.independentRe
   const strength = artilleryDivision ? unit.printedRe - unit.stepsLost : unit.strength
-  const base = strength * (unit.disorganized ? 0.5 : 1) * (unit.outOfSupply ? 0.5 : 1) *
-    (!attacking && unit.reserve ? 0.5 : 1)
+  const mode = groundModeEffect(scorpionGroundMode(unit))
+  const base = strength * (attacking ? mode.attackFactor : mode.defenseFactor) * (unit.outOfSupply ? 0.5 : 1)
   const steps = !artilleryDivision && ((attacking && unit.stepsLost > 0) ||
     (!attacking && unit.stepsLost > 0 && unit.stepsLost >= unit.printedRe / 2))
   const index = classIndex[unit.combatClass]
@@ -45,5 +47,6 @@ export function combatStrength(unit: DeployedCounter, attacking: boolean, terrai
 }
 
 export function combatRating(unit: DeployedCounter) {
-  return unit.actionRating - (unit.disorganized ? 1 : 0)
+  const mode = groundModeEffect(scorpionGroundMode(unit))
+  return unit.actionRating * mode.actionRatingFactor + mode.actionRatingModifier
 }

@@ -1,4 +1,5 @@
 import type { Side } from '@ocs-eastern/series/state-types'
+import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
@@ -253,7 +254,7 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
     throw new Error('Retreat crosses an illegal hex or an enemy combat unit')
   }
   const units = { ...state.units }
-  const enteredZoc = rawZoc.has(to) && moving.some((id) => units[id]!.combat)
+  const enteredZoc = zocAffectsAction('retreat', rawZoc.has(to), false) && moving.some((id) => units[id]!.combat)
   const dg = enteredZoc ? moving.filter((id) => units[id]!.combat && units[id]!.disorganized) : []
   if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg, route.group)
   if (loss !== undefined && !dg.length) throw new Error('Retreat includes an unnecessary ZOC loss')

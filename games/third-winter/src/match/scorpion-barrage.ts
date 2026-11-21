@@ -1,4 +1,5 @@
 import { allowsBarrageSource } from '@ocs-eastern/series/fire-timing'
+import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { scorpionRolls } from './scorpion-reroll.ts'
@@ -7,7 +8,7 @@ import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/s
 import type { BarrageTable, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
-import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
+import { scorpionGroundMode, scorpionModeFace } from '../import/scorpion-mode-face.ts'
 import type { ScorpionMap, Terrain } from '../import/scorpion-map.ts'
 import { scorpionBarrageFrontAt, scorpionBarrageFronts } from '../ttw/scorpion/barrage-markers.ts'
 import type { ScorpionBarrageFront } from '../ttw/scorpion/barrage-markers.ts'
@@ -187,7 +188,8 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
   const batteries = volley.batteries.map(({ unitId, re }) => {
     const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
     const face = unit?.artillery
-    if (!unit || unit.side !== actor || unit.reserve || !face?.strength || !face.range || unit.hex === target ||
+    const mode = unit && groundModeEffect(scorpionGroundMode(unit))
+    if (!unit || unit.side !== actor || !mode?.canBarrage || !face?.strength || !face.range || unit.hex === target ||
       scorpionHexDistance(unit.hex, target) > face.range || (phase === 'reaction' && !unit.released) ||
       (phase === 'exploitation' && !unit.released && (!unit.exploit || airlifted.includes(unitId))) ||
       (phase === 'movement' && (unit.moveMode || unit.disorganized))) {
@@ -198,7 +200,7 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
     const remaining = (face.independentRe ? remainingSteps(unit) : 1) - used
     const firing = re ?? remaining
     if (!Number.isSafeInteger(firing) || firing < 1 || firing > remaining) throw new Error('Select eligible unused artillery RE')
-    strength += face.strength * firing / (face.independentRe ? unit.printedRe : 1) * (unit.disorganized ? 0.5 : 1)
+    strength += face.strength * firing / (face.independentRe ? unit.printedRe : 1) * mode.barrageFactor
     return { unitId, re: firing }
   })
   const { initialColumn, cost } = barrageColumn(table, strength)

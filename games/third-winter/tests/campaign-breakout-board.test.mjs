@@ -49,6 +49,18 @@ test('campaign breakout consumes the live canonical board and rechecks combat ZO
   assert.throws(() => attempt(record, incomplete), /board facts are not configured/)
 })
 
+test('campaign breakout uses the current face, DG and out-of-supply marker before cached profile facts', () => {
+  const enemy = counter('B3.01', 'soviet')
+  const units = { stranded: counter('A1.01'), friend: counter('C3.34') }
+  const configured = context()
+  assert.throws(() => attempt(movement({ ...units, enemy: { ...enemy, mode: 'combat' } }), configured), /no-passable-path/)
+  for (const status of [{ mode: 'reserve' }, { mode: 'move' }, { mode: 'strat' }, { mode: 'combat', disorganized: true },
+    { mode: 'combat', outOfSupply: true }]) {
+    const record = movement({ ...units, enemy: { ...enemy, ...status } })
+    assert.equal(attempt(record, configured).state.counters.stranded.location.kind, 'breakout-return')
+  }
+})
+
 test('a connected and controlled detraining site changes the live trace verdict', () => {
   const record = movement({ stranded: counter('A1.01'), friend: counter('C3.34') })
   const rail = (connected) => context({ supply: () => ({ sources: new Set(['A9.01']), controlled: new Set(['A6.01']), headquarters: [],

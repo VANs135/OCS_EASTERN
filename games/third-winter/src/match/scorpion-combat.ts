@@ -1,3 +1,4 @@
+import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { scorpionRolls } from './scorpion-reroll.ts'
@@ -5,6 +6,7 @@ import type { ScorpionRoll } from './scorpion-reroll.ts'
 import type { CrtLike } from '@ocs-eastern/series/tables/crt'
 import { rollRegularCombat } from '@ocs-eastern/series/tables/ground-combat'
 import { scorpionHexId } from '../import/hex-id.ts'
+import { scorpionGroundMode } from '../import/scorpion-mode-face.ts'
 import type { ScorpionMap, Terrain } from '../import/scorpion-map.ts'
 import { combatRating, combatStrength, combatTerrainCategory } from '../ttw/scorpion/combat-terrain.ts'
 import type { AttackTerrain } from '../ttw/scorpion/combat-terrain.ts'
@@ -67,7 +69,7 @@ export function declareScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   const { airlifted } = scorpionGroundActivity(state)
   for (const id of action.attackers) {
     const unit = Object.hasOwn(state.units, id) ? state.units[id] : undefined
-    if (!unit?.attackCapable || unit.side !== actor || unit.reserve || state.combatAttackers?.includes(id) ||
+    if (!unit?.attackCapable || unit.side !== actor || !groundModeEffect(scorpionGroundMode(unit)).canAttack || state.combatAttackers?.includes(id) ||
       (phase === 'exploitation' && !unit.released && (!unit.exploit || airlifted.includes(id))) ||
       scorpionStepCost(map, unit.hex, target, unit.mobility, weather) === null) {
       throw new Error('Each attacker must be eligible, unused and able to enter the target hex')

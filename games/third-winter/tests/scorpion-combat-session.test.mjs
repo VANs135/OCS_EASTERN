@@ -138,6 +138,10 @@ test('enemy ZOC blocks on-map aircraft refit and the off-map box refits freely',
   assert.equal(refitted.state.pieces[1].active, true)
   assert.equal(refitted.state.pieces[0].active, false)
   assert.equal(refitted.state.dumps['soviet:hex:s10.01'].tokens, 10)
+  record.state.units.cover = unit('soviet', 's10.02', { moveMode: true })
+  const covered = submit(record, 'soviet', field)
+  assert.equal(covered.state.pieces[0].active, true)
+  assert.equal(covered.state.dumps['soviet:hex:s10.01'].tokens, 9)
 })
 
 test('regular combat discloses each decision in order, updates the dead pile and permits advancement', () => {
