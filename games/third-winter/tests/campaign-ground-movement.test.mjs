@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
+import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMarchResume, projectCampaignMatch } from '../src/view/campaign-match-view.ts'
 
@@ -152,6 +153,25 @@ function sovietMovement(counters, config) {
 }
 
 const bridgeDecision = (blow = []) => ({ type: 'resolve-campaign-bridge-demolition', blow })
+
+const closeGround = { type: 'complete-campaign-ground-movement' }
+const closeMovement = { type: 'complete-campaign-movement-phase' }
+function engineering(config = volga('blown')) {
+  const board = config.groundMovement
+  return { ...config, reinforcementBlockers: () => [], movementBarrageBlockers: () => [], groundMovement: {
+    ...board, endBlockers: () => [], profileOf(state, id) {
+      return { ...board.profileOf(state, id), pontoon: state.counters[id].definition === 'pontoon' }
+    },
+  } }
+}
+function beginEngineering(record, config, side = 'axis', turn = record.state.turn) {
+  const closed = { ...record, state: { ...record.state, turn, cursor: { first: 'axis', phasing: side, phase: 'reinforcement' },
+    reinforcement: { stage: 'closing', window: newCampaignReinforcementWindow() } } }
+  return submit(closed, { type: 'complete-campaign-reinforcement' }, config, side)
+}
+const afterBreakout = (record, config, side = 'axis') => submit(record, { type: 'complete-campaign-breakout' }, config, side)
+const pontoon = (hex, extra = {}) => unit(hex, 'axis', { definition: 'pontoon', currentRe: 1, ...extra })
+const repairOrder = (pontoonId = 'pontoon') => ({ type: 'repair-campaign-volga-bridge', pontoonId, bridgeId: 'A2.1|A3.1' })
 
 test('Volga bridge capacity uses reduced RE, canonical sides of the seam and both directions', () => {
   const config = volga('intact')
@@ -332,4 +352,109 @@ test('transport entry leaves the bridge undecided and a repaired bridge offers n
   assert.equal(combat.state.groundMovement.interruption.kind, 'volga-bridge-demolition')
   const repaired = volga('repaired')
   assert.equal(submit(sovietMovement(counters, repaired), move(['A2.01']), repaired, 'soviet').state.groundMovement.interruption, undefined)
+})
+
+test('deploy a ferry immediately, record its use and reserve the pontoon through the withdrawal phase', () => {
+  const config = engineering(volga('none'))
+  const starting = atBreakout({ pontoon: pontoon('A2.01', { disorganized: true }),
+    march: unit('A2.01', 'axis', { currentRe: 1 }), later: unit('A2.01', 'axis', { currentRe: 1 }) })
+  const opened = beginEngineering(starting, config)
+  const deploy = { type: 'deploy-campaign-ferry', pontoonId: 'pontoon' }
+  const remove = { type: 'remove-campaign-ferry', pontoonId: 'pontoon' }
+  assert.throws(() => submit(opened, deploy, config), /engineering is unavailable/)
+  const play = afterBreakout(opened, config)
+  assert.equal(projectCampaignMatch(play, 'soviet', config).pontoon, null)
+  assert.equal(projectCampaignMatch(play, 'axis', config).pontoon[0].deploy, true)
+  const ice = { ...play, state: { ...play.state, weatherHistory: { ...play.state.weatherHistory, ice: true } } }
+  assert.throws(() => submit(ice, deploy, config), /Cannot deploy/)
+  assert.throws(() => submit(play, deploy, config, 'soviet'), /engineering is unavailable/)
+  const laid = submit(play, deploy, config)
+  assert.deepEqual(projectCampaignMatch(laid, 'soviet', config).ferries, [{ id: 'ferry:pontoon', side: 'axis', hex: 'A2.1' }])
+  assert.deepEqual(laid.state.supplyDumps, play.state.supplyDumps)
+  assert.throws(() => submit(laid, remove, config), /Cannot remove/)
+  const crossed = submit(laid, move(['A3.01']), config)
+  assert.deepEqual(crossed.state.groundMovement.usedFerryIds, ['ferry:pontoon'])
+  const night = submit(submit(crossed, closeGround, config), closeMovement, config)
+  const tomorrow = afterBreakout(beginEngineering(night, config, 'axis', 4), config)
+  const usedAgain = submit(tomorrow, move(['A3.01'], [{ id: 'later' }]), config)
+  assert.throws(() => submit(usedAgain, remove, config), /used this Movement Phase/)
+  const takenUp = submit(tomorrow, remove, config)
+  assert.deepEqual(projectCampaignMatch(takenUp, 'axis', config).ferries, [])
+  assert.throws(() => submit(takenUp, move(['A3.01'], [{ id: 'later' }]), config), /impassable/)
+  assert.throws(() => submit(takenUp, move(['A1.01'], [{ id: 'pontoon' }]), config), /committed-to-engineering/)
+  const finished = submit(submit(takenUp, closeGround, config), closeMovement, config)
+  const free = afterBreakout(beginEngineering(finished, config, 'axis', 5), config)
+  assert.equal(submit(free, move(['A1.01'], [{ id: 'pontoon' }]), config).state.counters.pontoon.location.hex, 'A1.1')
+})
+
+test('a bridge crossing leaves a nearby ferry unused when the blown bridge already admits leg movement', () => {
+  const config = engineering()
+  const opening = atBreakout({ pontoon: pontoon('A2.01'), march: unit('A2.01', 'axis', { currentRe: 1 }) })
+  const withFerry = { ...opening, state: { ...opening.state, ferries: [{ id: 'existing', side: 'axis', hex: 'A2.01', pontoonId: 'pontoon' }] } }
+  const play = afterBreakout(beginEngineering(withFerry, config), config)
+  const moved = submit(play, move(['A3.01']), config)
+  assert.deepEqual(moved.state.groundMovement.usedFerryIds, [])
+  assert.deepEqual(submit(moved, { type: 'remove-campaign-ferry', pontoonId: 'pontoon' }, config).state.ferries, [])
+})
+
+test('repair counts once per fully closed friendly movement phase and opens at the next phase start', () => {
+  const config = engineering(volga('intact'))
+  const opening = atBreakout({ pontoon: pontoon('A2.01'), spare: pontoon('A2.01'),
+    march: unit('A2.01', 'axis', { definition: 'truck', currentRe: 1 }) })
+  let record = { ...opening, state: { ...opening.state, volgaBridgeDecisions: { 'A2.1|A3.1': 'blown' } } }
+  for (let phase = 0; phase < 4; phase++) {
+    if (phase === 2) record = { ...record, state: { ...record.state, weatherHistory: { ...record.state.weatherHistory, ice: true } } }
+    const start = afterBreakout(beginEngineering(record, config, 'axis', 3 + phase), config)
+    const worked = phase === 0 ? submit(submit(start, repairOrder(), config), repairOrder('spare'), config) : start
+    assert.equal(projectCampaignMatch(worked, 'axis', config).pontoon[0].repair, 'A2.1|A3.1')
+    assert.equal(projectCampaignMatch(worked, 'soviet', config).repairingBridges[0].phases, phase)
+    assert.equal(projectCampaignMatch(worked, 'soviet', config).repairingBridges[0].pontoonIds, undefined)
+    assert.throws(() => submit(worked, closeMovement, config), /before the phasing side resolves barrage/)
+    const barrage = submit(worked, closeGround, config)
+    assert.deepEqual(projectCampaignMatch(barrage, 'axis', config).barrageEndBlockers, [])
+    assert.equal(projectCampaignMatch(barrage, 'soviet', config).barrageEndBlockers, null)
+    assert.equal(barrage.state.volgaBridgeRepairs['A2.1|A3.1'].phases, phase)
+    assert.throws(() => submit(barrage, closeMovement, { ...config, movementBarrageBlockers: () => ['pending'] }), /obligations/)
+    record = submit(barrage, closeMovement, config)
+    assert.equal(record.state.cursor.phase, 'supply')
+    assert.equal(record.state.volgaBridgeRepairs['A2.1|A3.1'].phases, phase + 1)
+    assert.equal(record.state.volgaBridgeDecisions['A2.1|A3.1'], 'blown')
+  }
+  assert.equal(beginEngineering(record, config, 'soviet', 7).state.volgaBridgeDecisions['A2.1|A3.1'], 'blown')
+  const fixed = beginEngineering(record, config, 'axis', 7)
+  assert.equal(fixed.state.movementSegment, 'breakout')
+  assert.deepEqual(projectCampaignMatch(fixed, 'axis', config).repairedBridges, [{ id: 'A2.1|A3.1', hexside: ['A2.1', 'A3.1'] }])
+  assert.deepEqual(projectCampaignMatch(fixed, 'axis', config).blownBridges, [])
+  assert.deepEqual(projectCampaignMatch(fixed, 'axis', config).repairingBridges, [])
+  assert.equal(submit(afterBreakout(fixed, config), move(['A3.01']), config).state.counters.march.location.hex, 'A3.1')
+})
+
+test('the Kherson rail ferry cannot be selected as a bridge repair', () => {
+  const bank = campaignMapInPlayArea(indexTtwCampaignMap({ items: ['D14.03', 'D15.03'].map((hex_id) => ({ hex_id })) },
+    { items: [{ edge_key: 'kherson', hex_a: 'D14.03', hex_b: 'D15.03' }] }), { kind: 'all-map' })
+  const config = engineering(context({ map: bank, crossingAt: () => ({ barrier: 'volga', bridge: 'blown', routes: ['rail'] }) }))
+  const play = afterBreakout(beginEngineering(atBreakout({ pontoon: pontoon('D14.03') }), config), config)
+  assert.deepEqual(projectCampaignMatch(play, 'axis', config).pontoon[0].repairIds, [])
+  assert.throws(() => submit(play, { ...repairOrder(), bridgeId: 'D14.3|D15.3' }, config), /eligible blown Volga bridge/)
+})
+
+test('interruption or adjacency pauses repair, and enemy attack-capable occupation erases it immediately', () => {
+  const config = engineering()
+  const opening = atBreakout({ pontoon: pontoon('A2.01'), enemy: unit('A4.01', 'soviet', { currentRe: 1 }) })
+  const withProgress = { ...opening, state: { ...opening.state, volgaBridgeRepairs: { 'A2.1|A3.1': { side: 'axis', phases: 2 } } } }
+  const own = afterBreakout(beginEngineering(withProgress, config), config)
+  const repairing = submit(own, repairOrder(), config)
+  const combined = submit(repairing, { type: 'deploy-campaign-ferry', pontoonId: 'pontoon' }, config)
+  assert.equal(combined.state.pontoonPhase.orders.pontoon.repair, 'A2.1|A3.1')
+  assert.equal(combined.state.pontoonPhase.orders.pontoon.ferry, 'deploy')
+  const cancelled = submit(repairing, { type: 'cancel-campaign-volga-repair', pontoonId: 'pontoon' }, config)
+  assert.equal(submit(submit(cancelled, closeGround, config), closeMovement, config).state.volgaBridgeRepairs['A2.1|A3.1'].phases, 2)
+  const enemyNear = { ...withProgress, state: { ...withProgress.state, counters: { ...opening.state.counters, enemy: unit('B2.01', 'soviet') } } }
+  const blocked = afterBreakout(beginEngineering(enemyNear, config), config)
+  assert.throws(() => submit(blocked, repairOrder(), config), /eligible blown Volga bridge/)
+  assert.equal(submit(submit(blocked, closeGround, config), closeMovement, config).state.volgaBridgeRepairs['A2.1|A3.1'].phases, 2)
+  const opposition = afterBreakout(beginEngineering(withProgress, config, 'soviet'), config, 'soviet')
+  const enteredAndLeft = submit(opposition, move(['A3.01', 'B3.01'], [{ id: 'enemy' }]), config, 'soviet')
+  assert.equal(enteredAndLeft.state.counters.enemy.location.hex, 'B3.1')
+  assert.equal(enteredAndLeft.state.volgaBridgeRepairs['A2.1|A3.1'], undefined)
 })

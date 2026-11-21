@@ -19,7 +19,8 @@ export interface CampaignGroundMovementBoard {
   /** Receives canonical endpoints. TTW owns weather, crossings and route availability. */
   cost(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): StepCost
   crossingLimit?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): number | undefined
-  intactVolgaBridgeAt?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): boolean
+  volgaCrossingAt?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwVolgaCrossing | undefined
+  ferryUsedForStep?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): string | undefined
   /** True when the step needs capture, a protected site check, or another work-specific resolver. */
   entryRequiresResolution(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   /** Supply facts for the proposed board at the end of the move. */
@@ -36,12 +37,17 @@ type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost'> & {
 
 /** Bind normalized terrain to the TTW ground movement table and Volga crossing rules. */
 export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs): CampaignGroundMovementBoard {
+  function volgaCrossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string) {
+    const crossing = inputs.crossingAt(state, id, from, to)
+    if (crossing?.barrier === 'volga') return campaignVolgaBridgeCostState(state, crossing, from, to)
+  }
   return { map: inputs.map, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
-    entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers,
-    crossingLimit: (state, id, from, to) => inputs.crossingAt(state, id, from, to)?.barrier === 'volga' ? volgaHexsidePhaseLimitRe : undefined,
-    intactVolgaBridgeAt(state, id, from, to) {
-      const crossing = inputs.crossingAt(state, id, from, to)
-      return crossing?.barrier === 'volga' && crossing.bridge === 'intact' && crossing.routes.length > 0
+    entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    crossingLimit: (state, id, from, to) => volgaCrossingAt(state, id, from, to) ? volgaHexsidePhaseLimitRe : undefined,
+    ferryUsedForStep(state, id, from, to, mobility) {
+      if (mobility === 'leg' && !state.weatherHistory.ice && volgaCrossingAt(state, id, from, to)?.bridge === 'none') {
+        return crossingFerry(state, inputs.map, state.counters[id]?.side, from, to)
+      }
     },
     cost(state, id, from, to, mobility) {
       const ground = state.weather?.ground
@@ -50,17 +56,22 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
       if (!ground || ground === 'thaw' || !crossing || !terrain?.length) return null
       if (crossing.barrier === 'volga') {
         const { ice } = state.weatherHistory
-        const side = state.counters[id]?.side
-        const ferry = !ice && state.ferries.some((marker) => {
-          if (marker.side !== side) return false
-          const hex = activeCampaignFerryHex(state, marker, inputs.map)
-          return hex === from || hex === to
-        })
+        const ferry = !ice && crossingFerry(state, inputs.map, state.counters[id]?.side, from, to) !== undefined
         return ttwVolgaMovementCost(terrain, campaignVolgaBridgeCostState(state, crossing, from, to), mobility, ground, ice, ferry)
       }
       return ttwOrdinaryTerrainCost(terrain, crossing, mobility, ground)
     },
   }
+}
+
+function crossingFerry(state: Readonly<CampaignTurnState>, map: CampaignGroundMap, side: Side | undefined, from: string, to: string) {
+  let ferry: string | undefined
+  for (const marker of state.ferries) {
+    if (marker.side !== side) continue
+    const hex = activeCampaignFerryHex(state, marker, map)
+    if ((hex === from || hex === to) && (ferry === undefined || marker.id < ferry)) ferry = marker.id
+  }
+  return ferry
 }
 
 export function activeCampaignFerryHex(state: Readonly<CampaignTurnState>, marker: CampaignTurnState['ferries'][number], map: CampaignGroundMap) {
@@ -79,9 +90,11 @@ export function campaignMovementPosition(state: Readonly<CampaignTurnState>, sid
   const locked = new Set(state.groundMovement?.zocLocks)
   const ferryPontoons = new Set(state.ferries.flatMap((marker) =>
     marker.side === side && activeCampaignFerryHex(state, marker, board.map) ? [marker.pontoonId] : []))
+  const work = state.pontoonPhase
+  const engineeringPontoons = new Set(work?.side === side && work.turn === state.turn ? Object.keys(work.orders) : [])
   const negated = new Set([...ground.friendly].flatMap(([id, { hex, profile }]) =>
     profile.combat && (stopped.has(id) || locked.has(id)) ? [hex] : []))
-  return { ...ground, stopped, locked, ferryPontoons,
+  return { ...ground, stopped, locked, ferryPontoons, engineeringPontoons,
     stepBoard(id: string, mobility: Mobility, proposed: Readonly<CampaignTurnState>,
       crossingRefusal?: GroundMoveBoard['crossingRefusal']): GroundMoveBoard {
       return {

@@ -15,6 +15,7 @@ export interface CampaignGroundMovementProgress {
   moved: readonly string[]
   zocLocks: readonly string[]
   crossedReByHexside?: Readonly<Record<string, number>>
+  usedFerryIds?: readonly string[]
   interruption?: CampaignMarchInterruption
 }
 
@@ -54,6 +55,7 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
   if (!current) return refuse('choose-friendly-counter')
   if (position.stopped.has(id) || position.locked.has(id)) return refuse('counter-cannot-spend-mp')
   if (position.ferryPontoons.has(id)) return refuse('pontoon-has-active-ferry')
+  if (position.engineeringPontoons.has(id)) return refuse('pontoon-committed-to-engineering')
   const counter = state.counters[id]!
   if (mode === undefined || mode === counter.mode) return { ok: true as const, counter, ...current }
   if (mode !== 'combat' && mode !== 'move' && mode !== 'strat') return refuse('invalid-mode')
@@ -109,7 +111,7 @@ export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>
   if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], endBlockers: null, crossedReByHexside: {} }
   const { position } = inspected
   const uncommitted = [...position.friendly].filter(([id]) => !position.stopped.has(id) && !position.locked.has(id))
-  const availableIds = uncommitted.flatMap(([id]) => position.ferryPontoons.has(id) ? [] : [id])
+  const availableIds = uncommitted.flatMap(([id]) => position.ferryPontoons.has(id) || position.engineeringPontoons.has(id) ? [] : [id])
   const zocHoldIds = uncommitted.flatMap(([id, { hex, profile }]) => profile.combat && position.enemyZoc.has(hex) ? [id] : [])
   return { configured: true, availableIds, zocHoldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null,
     crossedReByHexside: { ...state.groundMovement?.crossedReByHexside } }

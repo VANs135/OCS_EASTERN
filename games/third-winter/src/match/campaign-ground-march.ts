@@ -5,7 +5,7 @@ import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
-import { campaignDemolishableBridges } from './campaign-volga-bridges.ts'
+import { campaignDemolishableBridges, reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
 import type { CampaignVolgaBridge } from './campaign-volga-bridges.ts'
 
 export interface CampaignMarchMover {
@@ -68,6 +68,7 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
     const position = campaignMovementPosition(current, side, board)
     if (!position) return refused('board-unavailable')
     const usage = campaignCrossingUsage(current, board)
+    const usedFerries = new Set(current.groundMovement?.usedFerryIds)
     const counters = { ...current.counters }
     const entered: CampaignMarchMover[] = []
     for (const mover of movers) {
@@ -79,12 +80,16 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
       if (step.stop && stepsLeft > 1) return refused('must-stop', march.path[index + 1])
       const crossingRefusal = usage.reserveStep(id, progress.hex, to)
       if (crossingRefusal) return refused(crossingRefusal, to)
+      const ferry = board.ferryUsedForStep?.(current, id, progress.hex, to, unit.mobility)
+      if (ferry !== undefined) usedFerries.add(ferry)
       entered.push({ ...mover, progress: step, stepsLeft: stepsLeft - 1 })
       counters[id] = { ...counters[id]!, location: { kind: 'map', hex: to } }
       placements.set(id, { id, ...step })
     }
     current = { ...current, counters, groundMovement: { ...current.groundMovement,
-      moved: current.groundMovement?.moved ?? [], zocLocks: current.groundMovement?.zocLocks ?? [], crossedReByHexside: usage.settled() } }
+      moved: current.groundMovement?.moved ?? [], zocLocks: current.groundMovement?.zocLocks ?? [], crossedReByHexside: usage.settled(),
+      usedFerryIds: [...usedFerries] } }
+    current = reconcileCampaignBridgeRepairs(current, board)
     const firstCombat = side === 'soviet' && entered.find(({ combat }) => combat)
     const bridges = firstCombat ? campaignDemolishableBridges(current, board, firstCombat.id, to) : []
     if (bridges.length) {

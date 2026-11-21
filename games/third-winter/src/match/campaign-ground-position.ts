@@ -13,6 +13,8 @@ export interface CampaignGroundMap {
 
 export interface CampaignGroundProfile {
   combat: boolean
+  /** A TTW pontoon unit, from its normalized counter definition. */
+  pontoon?: boolean
   attackCapable: boolean
   inCombatMode: boolean
   outOfSupply: boolean

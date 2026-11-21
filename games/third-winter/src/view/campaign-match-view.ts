@@ -9,6 +9,7 @@ import { campaignGroundMovementActor } from '../match/campaign-ground-march.ts'
 import type { CampaignMarchInterruption } from '../match/campaign-ground-march.ts'
 import { previewCampaignMarchResume } from '../match/campaign-march-response.ts'
 import type { CampaignMarchResponse } from '../match/campaign-march-response.ts'
+import { campaignPontoonOptions } from '../match/campaign-pontoon-phase.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
@@ -45,8 +46,11 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   })
   const blownBridges = Object.entries(state.volgaBridgeDecisions ?? {}).flatMap(([id, decision]) =>
     decision === 'blown' ? [{ id, hexside: id.split('|') }] : [])
+  const repairedBridges = Object.entries(state.volgaBridgeDecisions ?? {}).flatMap(([id, decision]) =>
+    decision === 'repaired' ? [{ id, hexside: id.split('|') }] : [])
+  const repairingBridges = Object.entries(state.volgaBridgeRepairs ?? {}).map(([id, { side, phases }]) => ({ id, hexside: id.split('|'), side, phases }))
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
-    ferries, blownBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    ferries, blownBridges, repairingBridges, repairedBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null
@@ -62,7 +66,10 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
     breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard),
-    movement: campaignGroundMovementOptions(state, viewer, context.groundMovement) }
+    movement: campaignGroundMovementOptions(state, viewer, context.groundMovement),
+    pontoon: campaignPontoonOptions(state, viewer, context.groundMovement),
+    barrageEndBlockers: state.movementSegment === 'barrage' && viewer === cursor.phasing
+      ? context.movementBarrageBlockers?.(state, viewer)?.slice() ?? null : null }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player
   const { stage } = reinforcement
   if (stage === 'ordinary') {

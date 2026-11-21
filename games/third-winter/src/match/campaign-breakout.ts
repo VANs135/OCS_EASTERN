@@ -4,6 +4,7 @@ import type { Mobility } from '@ocs-eastern/series/ground-map'
 import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
+import { activeCampaignFerryHex } from './campaign-movement-board.ts'
 
 export type CampaignBreakoutAction = { type: 'attempt-campaign-breakout'; counterId: string } | { type: 'complete-campaign-breakout' }
 export type CampaignBreakoutRoll = ReturnType<typeof resolveBreakout> & {
@@ -20,11 +21,13 @@ export interface CampaignBreakoutPosition extends BreakoutPathBoard {
 export type CampaignBreakoutBoard = (state: Readonly<CampaignTurnState>, side: Side) => CampaignBreakoutPosition | undefined
 
 function inspectBreakout(state: Readonly<CampaignTurnState>, actor: Side, board: CampaignBreakoutPosition) {
+  const map = { neighbors: board.neighbors, resolveHex: board.resolveHex ?? ((id: string) => id) }
   const own = new Map(Object.entries(state.counters).flatMap(([id, unit]) => {
     if (unit.side !== actor || unit.location.kind !== 'map' || unit.kind === 'aircraft') return []
     const facts = board.unitFacts(id)
     const hex = board.resolveHex ? board.resolveHex(unit.location.hex) : unit.location.hex
     if (!facts || !hex) return []
+    if (state.ferries.some((marker) => marker.pontoonId === id && marker.side === actor && activeCampaignFerryHex(state, marker, map) === hex)) return []
     const singleTransportPoint = unit.kind === 'transport' && facts.singleTransportPoint
     return [[id, { hex, facts: { ...facts, singleTransportPoint } }] as const]
   }))

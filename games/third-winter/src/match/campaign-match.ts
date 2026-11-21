@@ -8,6 +8,7 @@ import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.t
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
+import { applyCampaignPontoonAction, closeCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
@@ -15,7 +16,7 @@ import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from 
 export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, Side>
 
 type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
-  Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'supplyDumps' | 'withdrawalSupplyDebt'>>
+  Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' | 'supplyDumps' | 'withdrawalSupplyDebt'>>
 
 /** Use a normalized board after scenario setup, or a small board for single-mechanism tests. */
 export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): CampaignMatch {
@@ -55,6 +56,22 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     case 'hold-campaign-ground-zoc':
     case 'complete-campaign-ground-movement':
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
+    case 'deploy-campaign-ferry':
+    case 'remove-campaign-ferry':
+    case 'repair-campaign-volga-bridge':
+    case 'cancel-campaign-volga-repair':
+      return applyCampaignPontoonAction(state, actor, action, context.groundMovement)
+    case 'complete-campaign-movement-phase': {
+      const { cursor } = state
+      if (cursor.phase !== 'movement' || cursor.phasing !== actor || state.movementSegment !== 'barrage') {
+        throw new Error('Campaign Movement Phase cannot end before the phasing side resolves barrage')
+      }
+      const blockers = context.movementBarrageBlockers?.(state, actor)
+      if (!blockers) throw new Error('Campaign movement barrage rules are not configured')
+      if (blockers.length) throw new Error('Campaign movement barrage obligations are outstanding')
+      const settled = closeCampaignPontoonPhase(state, actor, context.groundMovement)
+      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined }
+    }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)
     case 'complete-campaign-refit': {

@@ -5,6 +5,7 @@ import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
 import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 import type { CampaignReinforcementPhaseAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
+import { beginCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 
 /** Give the ordinary reinforcement kernel a view of the current board and its own window. */
 export function campaignReinforcementAtCursor(state: Readonly<CampaignTurnState>): CampaignReinforcementState | null {
@@ -38,7 +39,7 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
   if (action.type === 'complete-campaign-reinforcement') {
     if (reinforcement.stage !== 'closing') throw new Error('Campaign reinforcement closing is not active')
     requireClearBoundary(state, 'closing', context)
-    return { ...state, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: 'breakout' }
+    return beginCampaignPontoonPhase({ ...state, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: 'breakout' }, actor, context.groundMovement)
   }
 
   const active = campaignReinforcementAtCursor(state)
