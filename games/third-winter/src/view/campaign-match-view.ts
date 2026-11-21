@@ -1,9 +1,11 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
-import { campaignReinforcementAtCursor } from '../match/campaign-match.ts'
+import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-phase.ts'
+import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
 import { projectCampaignReinforcementActive, projectCampaignSeat } from './campaign-reinforcement-view.ts'
+import { projectCampaignBreakout } from './campaign-breakout-view.ts'
 
 function preTurnStep(cursor: Extract<CampaignCursor, { phase: 'pre-turn' }>) {
   switch (cursor.segment) {
@@ -29,12 +31,16 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   }
 
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase) }
-  if (cursor.phase === 'movement') return { ...player, segment: 'breakout' }
+  if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
+    breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard) }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player
   const { stage } = reinforcement
   if (stage === 'ordinary') {
-    const active = campaignReinforcementAtCursor(state)!
-    return { ...player, segment: active.segment, active: projectCampaignReinforcementActive(active, viewer, context.reinforcement) }
+    const window = campaignReinforcementAtCursor(state)!
+    const active = projectCampaignReinforcementActive(window, viewer, context.reinforcement)
+    if (!active) return { ...player, segment: window.segment, active: null }
+    const breakoutReturns = campaignBreakoutReturnOptions(window, context.breakoutReturns)
+    return { ...player, segment: window.segment, active: { ...active, breakoutReturns } }
   }
   if (cursor.phasing !== viewer) return { ...player, segment: stage, active: null }
   const blockers = context.reinforcementBlockers?.(state, stage)

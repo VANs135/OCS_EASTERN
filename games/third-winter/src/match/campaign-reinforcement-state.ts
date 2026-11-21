@@ -48,7 +48,8 @@ export interface CampaignCounter {
   definition: string
   kind: 'land' | 'hq' | 'transport' | 'aircraft'
   side: Side
-  location: { kind: 'map'; hex: string } | { kind: 'box'; box: string } | { kind: 'available' | 'dead-pile' | 'withdrawn' }
+  location: { kind: 'map'; hex: string } | { kind: 'box'; box: string } | { kind: 'breakout-return'; turn: number }
+    | { kind: 'available' | 'dead-pile' | 'withdrawn' }
   active?: boolean
   currentRe?: number
   internalStocks?: InternalStocks

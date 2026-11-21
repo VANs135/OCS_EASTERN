@@ -4,6 +4,8 @@ import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-ti
 import type { CampaignEventCheck, CampaignEventDraw } from '../ttw/campaign/random-events.ts'
 import type { CampaignThawTiming, CampaignWeather, CampaignWeatherCheck, WeatherHistory } from '../ttw/campaign/weather.ts'
 import type { CampaignBoardState, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
+import type { CampaignBreakoutAction, CampaignBreakoutBoard, CampaignBreakoutRoll } from './campaign-breakout.ts'
+import type { CampaignBreakoutReturnBoard, ReturnCampaignBreakout } from './campaign-breakout-returns.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -46,6 +48,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   weatherHistory: WeatherHistory
   ferries: readonly CampaignFerry[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
+  movementSegment?: 'breakout' | 'movement'
+  breakoutRolls: readonly CampaignBreakoutRoll[]
   reinforcement?: { stage: 'opening' } | {
     stage: 'ordinary' | 'closing'
     window: CampaignReinforcementWindow
@@ -58,14 +62,18 @@ export type CampaignPreTurnAction =
   | { type: 'roll-campaign-initiative' }
   | { type: 'choose-campaign-first'; first: Side }
 
-export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementAction
-  | { type: 'complete-campaign-refit' }
+export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout
   | { type: 'complete-campaign-reinforcement-opening' }
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
 
+export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction
+  | { type: 'complete-campaign-refit' }
+
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext
+  breakoutBoard?: CampaignBreakoutBoard
+  breakoutReturns?: CampaignBreakoutReturnBoard
   thawTiming?: CampaignThawTiming
   /** The work-specific stage rules certify resolution of applicable opening and closing obligations. */
   reinforcementBlockers?: (state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing') => readonly string[]

@@ -8,7 +8,8 @@ const copyDice = (dice: DiceRoll) => ({ ...dice, faces: [...dice.faces] })
 function ownCounter(id: string, { definition, kind, location, active, currentRe, internalStocks }: CampaignCounter) {
   return { id, definition, kind, active, currentRe, internalStocks, location: location.kind === 'map'
     ? { kind: location.kind, hex: location.hex }
-    : location.kind === 'box' ? { kind: location.kind, box: location.box } : { kind: location.kind } }
+    : location.kind === 'box' ? { kind: location.kind, box: location.box }
+      : location.kind === 'breakout-return' ? { kind: location.kind, turn: location.turn } : { kind: location.kind } }
 }
 
 export function projectCampaignSeat(state: Readonly<CampaignBoardState>, viewer: Side) {

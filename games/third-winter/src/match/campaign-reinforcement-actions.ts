@@ -6,6 +6,7 @@ import { campaignReinforcementWindow } from '../ttw/campaign/reinforcement.ts'
 import { skipsCampaignReinforcementTables } from '../ttw/campaign/reinforcement-timing.ts'
 import type { CampaignReinforcement } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignCounter, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementState } from './campaign-reinforcement-state.ts'
+import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
 import { rollCampaignSupply } from './campaign-supply-award.ts'
 import { placeCampaignSupply } from './campaign-supply-placement.ts'
 import { rollCampaignReplacements, rollCampaignSpecialReplacement } from './campaign-replacement-rolls.ts'
@@ -93,6 +94,7 @@ export function applyCampaignReinforcement(state: Readonly<CampaignReinforcement
   const window = campaignReinforcementWindow(context.schedule, state.cursor)
   if (action.type === 'complete-scheduled-reinforcements') {
     if (window.some(({ id }) => !state.settledOrders.includes(id))) throw new Error('Scheduled reinforcements are still outstanding')
+    if (dueCampaignBreakoutReturns(state).length) throw new Error('Due campaign breakout returns must be placed before closing scheduled reinforcements')
     const segment = skipsCampaignReinforcementTables(state.when) ? 'rebuild-consolidate' : nextReinforcementSegment('scheduled')!
     return { ...state, segment }
   }

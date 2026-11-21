@@ -4,10 +4,9 @@ import { createRngState } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
+import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
-import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
-import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
-import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
+import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, Side>
@@ -25,27 +24,13 @@ export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): 
   }
   return { revision: 0, receipts: [], state: { ...opening, cursor: { phase: 'pre-turn', segment: 'weather' },
     rng: createRngState(seed), weather: null, weatherHistory: { ...(opening.weatherHistory ?? initialWeatherHistory) },
-    preTurnRolls: [], ferries: opening.ferries ?? [], supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
+    preTurnRolls: [], breakoutRolls: [], ferries: opening.ferries ?? [], supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
     withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } } }
-}
-
-/** Give the existing reinforcement kernel a view of the current board and its own window. */
-export function campaignReinforcementAtCursor(state: Readonly<CampaignTurnState>): CampaignReinforcementState | null {
-  const { cursor, reinforcement, turn, when, rng, counters, supplyDumps, withdrawalSupplyDebt } = state
-  if (cursor.phase !== 'reinforcement' || reinforcement?.stage !== 'ordinary') return null
-  return { ...reinforcement.window, cursor: { turn, phasing: cursor.phasing, phase: cursor.phase },
-    when, rng, counters, supplyDumps, withdrawalSupplyDebt }
 }
 
 export function submitCampaignMatch(record: Readonly<CampaignMatch>, actor: Side,
   command: Readonly<Command<CampaignTurnAction>>, context: CampaignTurnContext) {
   return acceptCommand(record, actor, command, (state, side, action) => applyCampaignTurn(state, side, action, context))
-}
-
-function requireClearBoundary(state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing', context: CampaignTurnContext) {
-  const blockers = context.reinforcementBlockers?.(state, stage)
-  if (!blockers) throw new Error(`Campaign reinforcement ${stage} rules are not configured`)
-  if (blockers.length) throw new Error(`Campaign reinforcement ${stage} obligations are outstanding`)
 }
 
 function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
@@ -56,37 +41,16 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     case 'roll-campaign-initiative':
     case 'choose-campaign-first':
       return applyCampaignPreTurn(state, actor, action, context.thawTiming)
-  }
-
-  const { cursor, reinforcement } = state
-  if (cursor.phase === 'pre-turn' || cursor.phase === 'ended' || cursor.phasing !== actor) {
-    throw new Error('The active side must be in its campaign player turn')
-  }
-  if (action.type === 'complete-campaign-refit') {
-    if (cursor.phase !== 'aircraft-refit') throw new Error('Campaign refit is not open')
-    return { ...state, cursor: advancePlayerTurn(cursor, actor)!, reinforcement: { stage: 'opening' } }
-  }
-  if (cursor.phase !== 'reinforcement' || !reinforcement) throw new Error('Campaign reinforcement is not open')
-  if (action.type === 'complete-campaign-reinforcement-opening') {
-    if (reinforcement.stage !== 'opening') throw new Error('Campaign reinforcement opening is not active')
-    requireClearBoundary(state, 'opening', context)
-    return { ...state, reinforcement: { stage: 'ordinary', window: newCampaignReinforcementWindow() } }
-  }
-  if (action.type === 'complete-campaign-rebuilds') {
-    if (reinforcement.stage !== 'ordinary' || reinforcement.window.segment !== 'rebuild-consolidate') {
-      throw new Error('The rebuild and consolidation window is not active')
+    case 'attempt-campaign-breakout':
+    case 'complete-campaign-breakout':
+      return applyCampaignBreakout(state, actor, action, context.breakoutBoard)
+    case 'complete-campaign-refit': {
+      const { cursor } = state
+      if (cursor.phase !== 'aircraft-refit') throw new Error('Campaign refit is not open in this campaign player turn')
+      if (cursor.phasing !== actor) throw new Error('Only the active side can complete campaign refit')
+      return { ...state, cursor: advancePlayerTurn(cursor, actor)!, reinforcement: { stage: 'opening' } }
     }
-    return { ...state, reinforcement: { stage: 'closing', window: reinforcement.window } }
+    default:
+      return applyCampaignReinforcementPhase(state, actor, action, context)
   }
-  if (action.type === 'complete-campaign-reinforcement') {
-    if (reinforcement.stage !== 'closing') throw new Error('Campaign reinforcement closing is not active')
-    requireClearBoundary(state, 'closing', context)
-    return { ...state, cursor: advancePlayerTurn(cursor, actor)! }
-  }
-
-  const active = campaignReinforcementAtCursor(state)
-  if (!active) throw new Error('Ordinary campaign reinforcement is not open')
-  const { rng, counters, supplyDumps, withdrawalSupplyDebt, cursor: _cursor, when: _when, ...window } =
-    applyCampaignReinforcement(active, actor, action, context.reinforcement)
-  return { ...state, rng, counters, supplyDumps, withdrawalSupplyDebt, reinforcement: { stage: 'ordinary', window } }
 }

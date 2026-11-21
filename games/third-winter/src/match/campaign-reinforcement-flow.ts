@@ -1,5 +1,6 @@
 import { campaignReinforcementWindow } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcement.ts'
+import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
 import type { CampaignReinforcementState, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
 
 export function newCampaignReinforcementWindow(): CampaignReinforcementWindow {
@@ -10,8 +11,11 @@ export function newCampaignReinforcementWindow(): CampaignReinforcementWindow {
 export function campaignReinforcementStep(state: Readonly<CampaignReinforcementState>, schedule?: CampaignReinforcementSchedule) {
   if (state.cursor.phase !== 'reinforcement') return undefined
   switch (state.segment) {
-    case 'scheduled': return schedule && campaignReinforcementWindow(schedule, state.cursor)
-      .every(({ id }) => state.settledOrders.includes(id)) ? 'close-scheduled-orders' : 'settle-scheduled-orders'
+    case 'scheduled':
+      if (!schedule || campaignReinforcementWindow(schedule, state.cursor).some(({ id }) => !state.settledOrders.includes(id))) {
+        return 'settle-scheduled-orders'
+      }
+      return dueCampaignBreakoutReturns(state).length ? 'place-breakout-returns' : 'close-scheduled-orders'
     case 'supply':
       if (!state.supplyAward) return 'roll-supply'
       return state.supplyAward.status === 'deduction-pending' ? 'resolve-withdrawal-shortfall' : 'place-supply'
