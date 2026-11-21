@@ -7,6 +7,7 @@ import { skipsCampaignReinforcementTables } from '../ttw/campaign/reinforcement-
 import type { CampaignReinforcement } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignCounter, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
+import { consolidateCampaignUnits } from './campaign-consolidation.ts'
 import { rollCampaignSupply } from './campaign-supply-award.ts'
 import { placeCampaignSupply } from './campaign-supply-placement.ts'
 import { rollCampaignReplacements, rollCampaignSpecialReplacement } from './campaign-replacement-rolls.ts'
@@ -40,7 +41,8 @@ function prepareOrder(state: Readonly<CampaignReinforcementState>, order: Campai
     const unit = Object.hasOwn(state.counters, id) ? state.counters[id] : undefined
     const location = unit?.location.kind
     if (!unit || unit.side !== order.side || unit.definition !== order.definition || unit.kind !== order.counterKind ||
-      (operation.kind === 'withdraw' ? location === 'available' || location === 'withdrawn' : location !== 'available')) {
+      (operation.kind === 'withdraw' ? location === 'available' || location === 'withdrawn' || location === 'consolidated'
+        : location !== 'available')) {
       return { order, status: 'counter-unavailable' }
     }
     if (operation.kind === 'withdraw' && unit.internalStocks) {
@@ -90,6 +92,7 @@ export function applyCampaignReinforcement(state: Readonly<CampaignReinforcement
   if (action.type === 'place-campaign-supply') return placeCampaignSupply(state, action, context)
   if (action.type === 'roll-campaign-replacements') return rollCampaignReplacements(state, context)
   if (action.type === 'roll-campaign-special-replacement') return rollCampaignSpecialReplacement(state, context)
+  if (action.type === 'consolidate-campaign-units') return consolidateCampaignUnits(state, actor, action, context)
   if (state.segment !== 'scheduled') throw new Error('The scheduled reinforcement window must be open')
   const window = campaignReinforcementWindow(context.schedule, state.cursor)
   if (action.type === 'complete-scheduled-reinforcements') {

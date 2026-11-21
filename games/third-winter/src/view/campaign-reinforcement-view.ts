@@ -1,12 +1,13 @@
 import type { DiceRoll, Side } from '@ocs-eastern/series/state-types'
+import { campaignConsolidationOptions } from '../match/campaign-consolidation.ts'
 import { scheduledCampaignReinforcements } from '../match/campaign-reinforcement-actions.ts'
 import { campaignReinforcementStep } from '../match/campaign-reinforcement-flow.ts'
 import type { CampaignBoardState, CampaignCounter, CampaignReinforcementContext, CampaignReinforcementState } from '../match/campaign-reinforcement-state.ts'
 
 const copyDice = (dice: DiceRoll) => ({ ...dice, faces: [...dice.faces] })
 
-function ownCounter(id: string, { definition, kind, location, active, currentRe, internalStocks }: CampaignCounter) {
-  return { id, definition, kind, active, currentRe, internalStocks, location: location.kind === 'map'
+function ownCounter(id: string, { definition, kind, location, active, currentRe, stepsLost, internalStocks }: CampaignCounter) {
+  return { id, definition, kind, active, currentRe, internalStocks, ...(stepsLost === undefined ? {} : { stepsLost }), location: location.kind === 'map'
     ? { kind: location.kind, hex: location.hex }
     : location.kind === 'box' ? { kind: location.kind, box: location.box }
       : location.kind === 'breakout-return' ? { kind: location.kind, turn: location.turn } : { kind: location.kind } }
@@ -43,6 +44,7 @@ export function projectCampaignReinforcementActive(state: Readonly<CampaignReinf
     supply: supply && { ...supply, dice: copyDice(supply.dice), pools: supply.pools.map((pool) => ({ ...pool })) },
     replacement: replacement && { ...replacement, eq: [...replacement.eq] },
     specialReplacements: state.specialReplacements?.slice(),
+    consolidation: campaignConsolidationOptions(state, viewer, context),
     rolls: state.rolls.filter(({ side }) => side === viewer).map(({ check, dice }) => ({ check, dice: copyDice(dice) })),
   }
 }

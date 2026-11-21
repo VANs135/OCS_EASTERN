@@ -5,6 +5,7 @@ import type { Phase } from '@ocs-eastern/series/turn'
 import type { CampaignArrivalSite } from '../ttw/campaign/arrival-sites.ts'
 import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcement.ts'
 import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-timing.ts'
+import type { CampaignConsolidationBoard, CampaignConsolidationResult, ConsolidateCampaignUnits } from './campaign-consolidation.ts'
 
 export interface CampaignSupplyPool {
   kind: 'axis-cities' | 'axis-hq' | 'soviet-supply'
@@ -49,9 +50,11 @@ export interface CampaignCounter {
   kind: 'land' | 'hq' | 'transport' | 'aircraft'
   side: Side
   location: { kind: 'map'; hex: string } | { kind: 'box'; box: string } | { kind: 'breakout-return'; turn: number }
-    | { kind: 'available' | 'dead-pile' | 'withdrawn' }
+    | { kind: 'available' | 'dead-pile' | 'withdrawn' | 'consolidated' }
   active?: boolean
   currentRe?: number
+  stepsLost?: number
+  disorganized?: boolean
   internalStocks?: InternalStocks
 }
 
@@ -69,6 +72,7 @@ export interface CampaignReinforcementWindow {
   supplyAward?: CampaignSupplyAward
   replacementAward?: CampaignReplacementAward
   specialReplacements?: readonly CampaignSpecialReplacement[]
+  lastConsolidation?: CampaignConsolidationResult
   rolls: readonly CampaignReinforcementRoll[]
 }
 
@@ -89,6 +93,7 @@ export interface CampaignReinforcementContext {
   supplyPlacementPlan?(state: Readonly<CampaignReinforcementState>): readonly CampaignSupplyPlacementPlan[] | undefined
   replacementTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): CampaignReplacementAward | undefined
   specialReplacementTable?(state: Readonly<CampaignReinforcementState>, face: number): readonly CampaignSpecialReplacement[] | undefined
+  consolidation?: CampaignConsolidationBoard
 }
 
 export type CampaignReinforcementAction =
@@ -98,3 +103,4 @@ export type CampaignReinforcementAction =
   | { type: 'place-campaign-supply'; placements: readonly { pool: CampaignSupplyPool['kind']; hex: string; tokens: number }[] }
   | { type: 'roll-campaign-replacements' }
   | { type: 'roll-campaign-special-replacement' }
+  | ConsolidateCampaignUnits
