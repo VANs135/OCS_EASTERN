@@ -118,7 +118,7 @@ test('a drawn random event is retained with its ordered dice and holds initiativ
 })
 
 test('third April Mud ends before flight and ice removes the ferry marker when it starts', () => {
-  const ferry = { id: 'pontoon', side: 'soviet', hexside: ['A1.01', 'A2.02'] }
+  const ferry = { id: 'ferry', side: 'soviet', hex: 'A1.01', pontoonId: 'pontoon' }
   const initial = make('1944-04-08', 8, { weatherHistory: { ...initialWeatherHistory, aprilMudRun: 2 }, ferries: [ferry] })
   const ended = send(initial, 'determine-campaign-weather')
   assert.deepEqual(ended.state.cursor, { phase: 'ended', reason: 'april-mud' })
@@ -130,6 +130,7 @@ test('third April Mud ends before flight and ice removes the ferry marker when i
   const iced = send(pendingIce, 'determine-campaign-weather')
   assert.equal(view(iced, 'soviet').ice, true)
   assert.deepEqual(iced.state.ferries, [])
+  assert.deepEqual(view(iced, 'axis').ferries, [])
   assert.equal(pendingIce.state.ferries.length, 1)
 })
 

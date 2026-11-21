@@ -34,7 +34,8 @@ export interface CampaignPreTurnRoll {
 export interface CampaignFerry {
   id: string
   side: Side
-  hexside: readonly [string, string]
+  hex: string
+  pontoonId: string
 }
 
 export interface CampaignOpeningConditions {

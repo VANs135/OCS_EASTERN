@@ -135,3 +135,77 @@ test('closing the movement segment checks its obligations and enters the barrage
   assert.equal(ended.state.movementSegment, 'barrage')
   assert.throws(() => submit(ended, move(['A3.01']), config), /window-closed/)
 })
+
+function volga(bridge, additionalBank = false) {
+  return context({ crossingAt: (_, _id, from, to) => {
+    if ([from, to].includes('A3.1') && ([from, to].includes('A2.1') || additionalBank && [from, to].includes('B3.1'))) {
+      return { barrier: 'volga', bridge, routes: bridge === 'none' ? [] : ['road'] }
+    }
+    return { barrier: 'none', routes: [] }
+  } })
+}
+
+test('Volga bridge capacity uses reduced RE, canonical sides of the seam and both directions', () => {
+  const config = volga('intact')
+  const record = normal({ march: unit('A2.01', 'axis', { currentRe: 2 }), fractional: unit('A2.01', 'axis', { currentRe: 1.5 }),
+    reverse: unit('C3.34', 'axis', { currentRe: 1 }), excess: unit('A3.01', 'axis', { currentRe: 0.5 }),
+    enemy: unit('A4.01', 'soviet'), unknown: unit('A2.01') }, config)
+  const across = move(['C3.34'])
+  const overloaded = move(['C3.34'], [{ id: 'march' }, { id: 'fractional' }])
+  assert.throws(() => submit(record, overloaded, config), /crossing-capacity/)
+  assert.throws(() => submit(record, move(['C3.34', 'A2.01']), config), /crossing-capacity/)
+  assert.throws(() => submit(record, move(['C3.34'], [{ id: 'unknown' }]), config), /crossing-strength-unavailable/)
+  assert.equal(record.state.counters.march.location.hex, 'A2.01')
+  assert.equal(record.state.groundMovement.crossedReByHexside, undefined)
+  assert.equal(projectCampaignGroundRoute(record, 'axis', across, config).placements[0].spent, 0.5)
+
+  const crossed = submit(record, across, config)
+  const held = submit(crossed, { type: 'hold-campaign-ground-zoc', counterId: 'excess' }, config)
+  assert.deepEqual(held.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 2 })
+  const full = submit(held, move(['A2.01'], [{ id: 'reverse' }]), config)
+  assert.deepEqual(full.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 3 })
+  assert.deepEqual(projectCampaignMatch(full, 'axis', config).movement.crossedReByHexside, { 'A2.1|A3.1': 3 })
+  assert.equal(full.state.counters.reverse.location.hex, 'A2.1')
+  assert.equal(projectCampaignGroundDestinations(full, 'axis', { id: 'fractional' }, config).destinations.some(({ hex }) => hex === 'A3.1'), false)
+  assert.throws(() => submit(full, move(['A3.01'], [{ id: 'fractional' }]), config), /crossing-capacity/)
+  const complete = { ...config, groundMovement: { ...config.groundMovement, endBlockers: () => [] } }
+  const barrage = submit(full, { type: 'complete-campaign-ground-movement' }, complete)
+  assert.deepEqual(barrage.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 3 })
+  const next = { ...barrage, state: { ...barrage.state, cursor: { ...barrage.state.cursor, phasing: 'soviet' }, movementSegment: 'breakout' } }
+  assert.equal(submit(next, { type: 'complete-campaign-breakout' }, config, 'soviet').state.groundMovement.crossedReByHexside, undefined)
+})
+
+test('Volga crossing separates current ice from Freeze and distinguishes repaired and blown bridges', () => {
+  const units = { march: unit('A2.01', 'axis', { currentRe: 1 }), wheels: unit('A2.01', 'axis', { definition: 'truck', currentRe: 1 }) }
+  const closed = volga('none')
+  const frozen = normal(units, closed, 'freeze')
+  assert.throws(() => submit(frozen, move(['A3.01']), closed), /impassable/)
+  const ice = { ...frozen, state: { ...frozen.state, weatherHistory: { ...frozen.state.weatherHistory, ice: true } } }
+  assert.equal(projectCampaignGroundRoute(ice, 'axis', move(['C3.34']), closed).placements[0].stop, 'all-mp')
+  assert.throws(() => submit(ice, move(['A3.01', 'B3.01']), closed), /must-stop/)
+  assert.throws(() => submit(ice, move(['A3.01'], [{ id: 'wheels' }]), closed), /impassable/)
+  const blown = volga('blown')
+  assert.equal(projectCampaignGroundRoute(frozen, 'axis', move(['A3.01']), blown).placements[0].stop, 'all-mp')
+  assert.throws(() => submit(frozen, move(['A3.01'], [{ id: 'wheels' }]), blown), /impassable/)
+  const repaired = volga('repaired')
+  const wet = { ...ice, state: { ...ice.state, weather: { ground: 'mud', flight: 'none' } } }
+  assert.equal(projectCampaignGroundRoute(wet, 'axis', move(['A3.01'], [{ id: 'wheels' }]), repaired).placements[0].spent, 2)
+})
+
+test('one friendly ferry marker covers its adjacent river hexsides and fixes its pontoon in place', () => {
+  const config = volga('none', true)
+  const normalPhase = normal({ march: unit('A2.01', 'axis', { currentRe: 3 }), branch: unit('B3.01', 'axis', { currentRe: 3 }),
+    pontoon: unit('A3.01', 'axis', { currentRe: 1 }), enemy: unit('A4.01', 'soviet') }, config)
+  const ferry = { id: 'ferry', side: 'axis', hex: 'C3.34', pontoonId: 'pontoon' }
+  const record = { ...normalPhase, state: { ...normalPhase.state, ferries: [ferry] } }
+  assert.deepEqual(projectCampaignMatch(record, 'soviet', config).ferries, [{ id: 'ferry', side: 'axis', hex: 'A3.1' }])
+  assert.equal(projectCampaignMatch(record, 'axis', config).movement.availableIds.includes('pontoon'), false)
+  assert.throws(() => submit(record, move(['A2.01'], [{ id: 'pontoon' }]), config), /pontoon-has-active-ferry/)
+  assert.equal(config.groundMovement.cost(record.state, 'enemy', 'A2.1', 'A3.1', 'leg'), null)
+  const first = submit(record, move(['A3.01']), config)
+  const second = submit(first, move(['A3.01'], [{ id: 'branch' }]), config)
+  assert.deepEqual(second.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 3, 'A3.1|B3.1': 3 })
+  const inactive = { ...record, state: { ...record.state, counters: { ...record.state.counters, pontoon: unit('A1.01') } } }
+  assert.throws(() => submit(inactive, move(['A3.01']), config), /impassable/)
+  assert.deepEqual(projectCampaignMatch(inactive, 'soviet', config).ferries, [])
+})

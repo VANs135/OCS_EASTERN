@@ -2,6 +2,7 @@ import { reachableGroundHexes, walkGroundRoute } from '@ocs-eastern/series/groun
 import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
+import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
 import { campaignCounterGroundMode } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
@@ -10,6 +11,7 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 export interface CampaignGroundMovementProgress {
   moved: readonly string[]
   zocLocks: readonly string[]
+  crossedReByHexside?: Readonly<Record<string, number>>
 }
 
 export interface CampaignGroundMover {
@@ -47,6 +49,7 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
   const current = position.friendly.get(id)
   if (!current) return refuse('choose-friendly-counter')
   if (position.stopped.has(id) || position.locked.has(id)) return refuse('counter-cannot-spend-mp')
+  if (position.ferryPontoons.has(id)) return refuse('pontoon-has-active-ferry')
   const counter = state.counters[id]!
   if (mode === undefined || mode === counter.mode) return { ok: true as const, counter, ...current }
   if (mode !== 'combat' && mode !== 'move' && mode !== 'strat') return refuse('invalid-mode')
@@ -66,10 +69,11 @@ function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<Cam
     allowance: profile.ma * groundModeMovementFactor(mode, 'movement'), strategic: mode.marker === 'strat' } }
 }
 
-function settlePositions(state: Readonly<CampaignTurnState>, placements: readonly Settlement[]): CampaignTurnState {
+function settlePositions(state: Readonly<CampaignTurnState>, placements: readonly Settlement[],
+  crossedReByHexside = state.groundMovement?.crossedReByHexside): CampaignTurnState {
   const counters = { ...state.counters }
   for (const { id, hex } of placements) counters[id] = { ...counters[id]!, location: { kind: 'map', hex } }
-  return { ...state, counters, groundMovement: { zocLocks: state.groundMovement?.zocLocks ?? [],
+  return { ...state, counters, groundMovement: { crossedReByHexside, zocLocks: state.groundMovement?.zocLocks ?? [],
     moved: [...(state.groundMovement?.moved ?? []), ...placements.map(({ id }) => id)] } }
 }
 
@@ -104,14 +108,19 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
     proposed.counters[mover.id] = choice.counter
   }
   const placements: Settlement[] = []
+  const crossingUsage = campaignCrossingUsage(proposed, board)
   for (const { id, stopAfter } of movers) {
     const prepared = movementUnit(board, proposed, id, position.friendly.get(id)!.profile.inCombatMode)
     if (!prepared.ok) return prepared
-    const result = walkGroundRoute(position.stepBoard(id, prepared.unit.mobility, proposed), prepared.unit, origin!, route.slice(0, stopAfter ?? route.length))
+    const unitRoute = route.slice(0, stopAfter ?? route.length)
+    const stepBoard = position.stepBoard(id, prepared.unit.mobility, proposed, crossingUsage.stepRefusal(id))
+    const result = walkGroundRoute(stepBoard, prepared.unit, origin!, unitRoute)
     if (!result.ok) return result
+    const crossingRefusal = crossingUsage.reserveRoute(id, origin!, unitRoute)
+    if (crossingRefusal) return { ok: false as const, ...crossingRefusal }
     placements.push({ id, ...result.step })
   }
-  const settled = settlePositions(proposed, placements)
+  const settled = settlePositions(proposed, placements, crossingUsage.settled())
   if (!strategicEndpoints(settled, placements, board)) return refuse('strategic-end-needs-trace')
   return { ok: true as const, placements, settled }
 }
@@ -119,14 +128,13 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
 export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>, side: Side, config?: CampaignGroundMovementBoard) {
   if (!movementOpen(state, side)) return null
   const inspected = inspect(state, side, config)
-  if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], endBlockers: null }
+  if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], endBlockers: null, crossedReByHexside: {} }
   const { position } = inspected
-  const availableIds = [...position.friendly.keys()].filter((id) => !position.stopped.has(id) && !position.locked.has(id))
-  const zocHoldIds = availableIds.filter((id) => {
-    const { hex, profile } = position.friendly.get(id)!
-    return profile.combat && position.enemyZoc.has(hex)
-  })
-  return { configured: true, availableIds, zocHoldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null }
+  const uncommitted = [...position.friendly].filter(([id]) => !position.stopped.has(id) && !position.locked.has(id))
+  const availableIds = uncommitted.flatMap(([id]) => position.ferryPontoons.has(id) ? [] : [id])
+  const zocHoldIds = uncommitted.flatMap(([id, { hex, profile }]) => profile.combat && position.enemyZoc.has(hex) ? [id] : [])
+  return { configured: true, availableIds, zocHoldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null,
+    crossedReByHexside: { ...state.groundMovement?.crossedReByHexside } }
 }
 
 export function previewCampaignGroundMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCampaignGround,
@@ -147,7 +155,9 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode)
   if (!prepared.ok) return prepared
   const { unit } = prepared
-  const destinations = reachableGroundHexes(position.stepBoard(id, unit.mobility, proposed), unit, choice.hex).filter((step) => {
+  const crossingUsage = campaignCrossingUsage(proposed, board)
+  const stepBoard = position.stepBoard(id, unit.mobility, proposed, crossingUsage.stepRefusal(id))
+  const destinations = reachableGroundHexes(stepBoard, unit, choice.hex).filter((step) => {
     if (!unit.strategic) return true
     const placements = [{ id, ...step }]
     return strategicEndpoints(settlePositions(proposed, placements), placements, board)
@@ -172,6 +182,6 @@ export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, 
   }
   const options = campaignGroundMovementOptions(state, side, config)
   if (!options?.zocHoldIds.includes(action.counterId)) throw new Error('Campaign ground movement: cannot-hold-zoc')
-  return { ...state, groundMovement: { moved: state.groundMovement?.moved ?? [],
+  return { ...state, groundMovement: { ...state.groundMovement, moved: state.groundMovement?.moved ?? [],
     zocLocks: [...(state.groundMovement?.zocLocks ?? []), action.counterId] } }
 }

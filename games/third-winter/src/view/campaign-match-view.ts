@@ -5,6 +5,7 @@ import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-p
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
 import { campaignGroundDestinations, campaignGroundMovementOptions, previewCampaignGroundMove } from '../match/campaign-ground-movement.ts'
 import type { CampaignGroundMover, MoveCampaignGround } from '../match/campaign-ground-movement.ts'
+import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
 import { projectCampaignReinforcementActive, projectCampaignSeat } from './campaign-reinforcement-view.ts'
@@ -24,8 +25,13 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   const { cursor, reinforcement, when, turn, weather, weatherHistory } = state
   const preTurnRolls = state.preTurnRolls.map(({ segment, check, dice }) => ({ segment, check,
     dice: { ...dice, faces: [...dice.faces] } }))
+  const map = context.groundMovement?.map
+  const ferries = state.ferries.flatMap((marker) => {
+    const hex = map ? activeCampaignFerryHex(state, marker, map) : weatherHistory.ice ? undefined : marker.hex
+    return hex ? [{ id: marker.id, side: marker.side, hex }] : []
+  })
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
-    phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    ferries, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null

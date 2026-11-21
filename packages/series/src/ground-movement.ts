@@ -10,13 +10,16 @@ export interface GroundMoveUnit {
 export interface GroundMoveBoard {
   neighbors(hex: string): readonly string[]
   cost(from: string, to: string): StepCost
+  crossingRefusal?(from: string, to: string): CrossingRefusal | null
   entryAt(hex: string): 'open' | 'enemy-combat' | 'entry-unresolved'
   enemyZocAt(hex: string): boolean
   negatedZocAt(hex: string): boolean
 }
 
 type Stop = 'all-mp' | 'minimum-move' | 'enemy-zoc' | 'allowance-used'
+type CrossingRefusal = 'crossing-capacity' | 'crossing-strength-unavailable'
 type Refusal = 'not-adjacent' | 'enemy-combat' | 'entry-unresolved' | 'impassable' | 'strategic-zoc' | 'insufficient-mp' | 'must-stop'
+  | CrossingRefusal
 interface GroundStep {
   hex: string
   spent: number
@@ -33,6 +36,8 @@ function evaluateStep(board: GroundMoveBoard, unit: GroundMoveUnit, from: Ground
   const cost = board.cost(from.hex, to)
   if (cost === null || board.cost(to, from.hex) === null ||
     (cost !== 'all' && (!Number.isFinite(cost) || cost < 0))) return { ok: false, reason: 'impassable' }
+  const crossingRefusal = board.crossingRefusal?.(from.hex, to)
+  if (crossingRefusal) return { ok: false, reason: crossingRefusal }
   const enemyZoc = board.enemyZocAt(to)
   const negated = board.negatedZocAt(to)
   if (unit.strategic && zocAffectsAction('stratMovement', enemyZoc, negated)) return { ok: false, reason: 'strategic-zoc' }
