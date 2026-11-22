@@ -1,6 +1,7 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import { campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch, setCampaignMarchInterruption } from './campaign-ground-march.ts'
+import { campaignMarchPreview, planCampaignGroundMarch, setCampaignMarchInterruption } from './campaign-ground-march.ts'
 import type { CampaignGroundMarch } from './campaign-ground-march.ts'
+import { normalizeCampaignPath } from './campaign-ground-position.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { recordCampaignBridgeDecisions } from './campaign-volga-bridges.ts'
@@ -17,7 +18,7 @@ function marchResponseAtCursor(state: Readonly<CampaignTurnState>) {
 }
 
 function planResume(state: Readonly<CampaignTurnState>, board: CampaignGroundMovementBoard, paused: CampaignGroundMarch, action: ResumeMarch) {
-  const path = normalizeCampaignMarchPath(board, action.path)
+  const path = normalizeCampaignPath(board.map, action.path)
   if (!path) return { ok: false as const, reason: 'outside-play-area' }
   const haltIds = new Set(action.haltIds ?? [])
   const { movers } = paused

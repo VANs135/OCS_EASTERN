@@ -32,16 +32,6 @@ export function campaignGroundMovementActor(pending: CampaignMarchInterruption):
 
 const refused = (reason: string, hex?: string) => ({ ok: false as const, reason, ...(hex === undefined ? {} : { hex }) })
 
-export function normalizeCampaignMarchPath(board: CampaignGroundMovementBoard, raw: readonly string[]) {
-  const path: string[] = []
-  for (const printed of raw) {
-    const hex = board.map.resolveHex(printed)
-    if (!hex) return undefined
-    path.push(hex)
-  }
-  return path
-}
-
 export function setCampaignMarchInterruption(state: Readonly<CampaignTurnState>, interruption?: CampaignMarchInterruption): CampaignTurnState {
   const { moved = [], zocLocks = [] } = state.groundMovement ?? {}
   return { ...state, groundMovement: { ...state.groundMovement, moved, zocLocks, interruption } }
@@ -116,8 +106,10 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
     if (finished.length) {
       const untraced = finished.find((mover) => !canFinishMarch(current, board, mover))
       if (untraced) return refused('strategic-end-needs-trace', untraced.progress.hex)
+      const approachByCounter = { ...current.groundMovement?.approachByCounter }
+      for (const { id, progress, unit } of finished) approachByCounter[id] = { spent: progress.spent, allowance: unit.allowance }
       current = { ...current, groundMovement: { ...current.groundMovement, zocLocks: current.groundMovement?.zocLocks ?? [],
-        moved: [...(current.groundMovement?.moved ?? []), ...finished.map(({ id }) => id)] } }
+        moved: [...(current.groundMovement?.moved ?? []), ...finished.map(({ id }) => id)], approachByCounter } }
       movers = movers.filter(({ stepsLeft }) => stepsLeft > 0)
     }
     const to = march.path[index]

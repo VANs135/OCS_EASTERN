@@ -12,6 +12,8 @@ import type { CampaignMarchInterruption } from '../match/campaign-ground-march.t
 import { previewCampaignMarchResume } from '../match/campaign-march-response.ts'
 import type { CampaignMarchResponse } from '../match/campaign-march-response.ts'
 import { campaignPontoonOptions } from '../match/campaign-pontoon-phase.ts'
+import { campaignRailLoading, campaignRailStatus, previewCampaignRailTransport } from '../match/campaign-rail-transport.ts'
+import type { TransportCampaignRail } from '../match/campaign-rail-transport.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
 import type { CampaignCursor, CampaignTurnContext } from '../match/campaign-turn-state.ts'
@@ -72,6 +74,7 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     movement: campaignGroundMovementOptions(state, viewer, context.groundMovement),
     pontoon: campaignPontoonOptions(state, viewer, context.groundMovement),
     khersonFerry: campaignKhersonFerryOptions(state, viewer, context.groundMovement),
+    railTransport: campaignRailStatus(state, viewer, context.railTransport),
     barrageEndBlockers: state.movementSegment === 'barrage' && viewer === cursor.phasing
       ? context.movementBarrageBlockers?.(state, viewer)?.slice() ?? null : null }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player
@@ -107,4 +110,13 @@ export function projectCampaignMarchResume(record: Readonly<CampaignMatch>, view
 export function projectCampaignKhersonFerry(record: Readonly<CampaignMatch>, viewer: Side, action: UseCampaignKhersonFerry,
   context: CampaignTurnContext) {
   return { revision: record.revision, ...previewCampaignKhersonFerry(record.state, viewer, action, context.groundMovement) }
+}
+
+export function projectCampaignRailLoading(record: Readonly<CampaignMatch>, viewer: Side, source: string, context: CampaignTurnContext) {
+  return { revision: record.revision, ...campaignRailLoading(record.state, viewer, source, context.railTransport, context.groundMovement) }
+}
+
+export function projectCampaignRailTransport(record: Readonly<CampaignMatch>, viewer: Side, action: TransportCampaignRail,
+  context: CampaignTurnContext) {
+  return { revision: record.revision, ...previewCampaignRailTransport(record.state, viewer, action, context.railTransport, context.groundMovement) }
 }

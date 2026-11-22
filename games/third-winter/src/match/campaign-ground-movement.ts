@@ -1,9 +1,9 @@
 import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
-import { campaignMarchDestinations, campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch } from './campaign-ground-march.ts'
+import { campaignMarchDestinations, campaignMarchPreview, planCampaignGroundMarch } from './campaign-ground-march.ts'
 import type { CampaignMarchInterruption, CampaignMarchMover } from './campaign-ground-march.ts'
-import { campaignCombatPontoon, campaignCounterGroundMode } from './campaign-ground-position.ts'
+import { campaignCombatPontoon, campaignCounterGroundMode, normalizeCampaignPath } from './campaign-ground-position.ts'
 import type { CampaignGroundProfile } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
@@ -12,6 +12,8 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 export interface CampaignGroundMovementProgress {
   moved: readonly string[]
   zocLocks: readonly string[]
+  approachByCounter?: Readonly<Record<string, { spent: number; allowance: number }>>
+  railCapacitySpent?: number
   crossedReByHexside?: Readonly<Record<string, number>>
   usedFerryIds?: readonly string[]
   interruption?: CampaignMarchInterruption
@@ -86,7 +88,7 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   if (!path.length || !movers.length || new Set(movers.map(({ id }) => id)).size !== movers.length ||
     movers.some(({ stopAfter }) => stopAfter !== undefined && (!Number.isSafeInteger(stopAfter) || stopAfter < 1 || stopAfter > path.length)) ||
     !movers.some(({ stopAfter }) => stopAfter === undefined || stopAfter === path.length)) return refuse('invalid-route')
-  const route = normalizeCampaignMarchPath(board, path)
+  const route = normalizeCampaignPath(board.map, path)
   if (!route) return refuse('outside-play-area')
   const proposed = { ...state, counters: { ...state.counters } }
   let origin: string | undefined

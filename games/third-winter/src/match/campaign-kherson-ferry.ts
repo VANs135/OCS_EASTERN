@@ -15,6 +15,7 @@ export interface CampaignKhersonFerryPhase {
   starts: Readonly<Record<string, string>>
   startingSupply: Readonly<Record<string, number>>
   sentSupply: Readonly<Record<string, number>>
+  removedStartingSupply?: Readonly<Record<string, number>>
 }
 
 export interface UseCampaignKhersonFerry {
@@ -28,6 +29,22 @@ export interface UseCampaignKhersonFerry {
 
 const tokensPerSp = 4
 const refuse = <Reason extends string>(reason: Reason) => ({ ok: false as const, reason })
+
+export function khersonFerryLockedSupply(state: Readonly<CampaignTurnState>, side: Side, hex: string) {
+  const phase = state.khersonFerryPhase
+  if (!phase || phase.turn !== state.turn || phase.side !== side) return 0
+  const departureBank = Object.keys(phase.startingSupply).find((bank) => bank !== hex)
+  return Object.hasOwn(phase.startingSupply, hex) && departureBank ? phase.sentSupply[departureBank] ?? 0 : 0
+}
+
+/** Other transport removes the original, unlocked stock before any later arrivals at this bank. */
+export function removeKhersonStartingSupply(state: Readonly<CampaignTurnState>, side: Side, hex: string, tokens: number) {
+  const phase = state.khersonFerryPhase
+  if (!tokens || !phase || phase.turn !== state.turn || phase.side !== side || !Object.hasOwn(phase.startingSupply, hex)) return phase
+  const removed = Math.min((phase.startingSupply[hex] ?? 0) - (phase.sentSupply[hex] ?? 0),
+    (phase.removedStartingSupply?.[hex] ?? 0) + tokens)
+  return { ...phase, removedStartingSupply: { ...phase.removedStartingSupply, [hex]: removed } }
+}
 
 /** TTW 1.4d. Record the actual phase start, before breakout or any other movement. */
 export function beginCampaignKhersonFerryPhase(state: Readonly<CampaignTurnState>, side: Side, map?: CampaignGroundMap): CampaignTurnState {
@@ -83,7 +100,7 @@ function ferryLoadingOptions(state: Readonly<CampaignTurnState>, side: Side, win
     if (needsMoveFace && (!Number.isFinite(profile.moveMa) || profile.moveMa < 0)) return []
     return [{ id, re, needsMoveFace }]
   })
-  const original = (phase.startingSupply[from] ?? 0) - (phase.sentSupply[from] ?? 0)
+  const original = (phase.startingSupply[from] ?? 0) - (phase.sentSupply[from] ?? 0) - (phase.removedStartingSupply?.[from] ?? 0)
   const onHand = (state.supplyDumps[side][from] ?? 0) - (phase.sentSupply[to] ?? 0)
   const supplyTokens = Math.max(0, Math.min(original, onHand, Math.floor(remainingRe * tokensPerSp)))
   return { from, to, units, supplyTokens }

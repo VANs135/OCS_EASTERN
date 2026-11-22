@@ -11,6 +11,7 @@ import { applyCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
 import { applyCampaignPontoonAction, closeCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
+import { applyCampaignRailTransport } from './campaign-rail-transport.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
@@ -59,6 +60,8 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
     case 'use-campaign-kherson-ferry':
       return applyCampaignKhersonFerry(state, actor, action, context.groundMovement)
+    case 'transport-campaign-rail':
+      return applyCampaignRailTransport(state, actor, action, context.railTransport, context.groundMovement)
     case 'deploy-campaign-ferry':
     case 'remove-campaign-ferry':
     case 'repair-campaign-volga-bridge':

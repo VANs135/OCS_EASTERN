@@ -11,6 +11,16 @@ export interface CampaignGroundMap {
   neighbors(hex: string): readonly string[]
 }
 
+export function normalizeCampaignPath(map: CampaignGroundMap, printedHexes: readonly string[]) {
+  const path: string[] = []
+  for (const printed of printedHexes) {
+    const hex = map.resolveHex(printed)
+    if (!hex) return undefined
+    path.push(hex)
+  }
+  return path
+}
+
 export interface CampaignGroundProfile {
   combat: boolean
   /** A TTW pontoon unit, from its normalized counter definition. */
