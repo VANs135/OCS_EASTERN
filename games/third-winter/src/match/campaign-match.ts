@@ -6,6 +6,7 @@ import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
+import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
 import { applyCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
@@ -80,6 +81,8 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)
+    case 'complete-campaign-exploitation':
+      return completeCampaignExploitation(state, actor, context)
     case 'complete-campaign-refit': {
       const { cursor } = state
       if (cursor.phase !== 'aircraft-refit') throw new Error('Campaign refit is not open in this campaign player turn')

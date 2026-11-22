@@ -1,27 +1,21 @@
 import type { Mobility, StepCost } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { supplyNetwork } from '@ocs-eastern/series/supply-network'
-import type { SupplyNetworkBoard, SupplyNetworkPosition, SupplyTraceOption } from '@ocs-eastern/series/supply-network'
+import type { SupplyTraceOption } from '@ocs-eastern/series/supply-network'
 import type { CampaignBreakoutBoard } from './campaign-breakout.ts'
-import { campaignGroundPosition } from './campaign-ground-position.ts'
-import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
-import { campaignKhersonRailTrace } from './campaign-kherson-trace.ts'
+import { campaignTraceSupply } from './campaign-trace-supply.ts'
+import type { CampaignSupplyBoard, CampaignSupplyFacts } from './campaign-trace-supply.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
-export interface CampaignBreakoutSupply extends Pick<SupplyNetworkPosition, 'sources' | 'controlled' | 'headquarters' | 'extenders'>,
-  Pick<SupplyNetworkBoard, 'railCanTrace' | 'detrainable'> {
+export interface CampaignBreakoutSupply extends CampaignSupplyFacts {
   /** Resolve formation and work-specific supply eligibility. Undefined means the rules or choice are still pending. */
   inTrace(counterId: string, ordinary: readonly SupplyTraceOption[]): boolean | undefined
   /** Includes the 12.8e exclusions for feeding and special supply. */
   firstTurnWithoutTrace(counterId: string): boolean | undefined
 }
 
-interface CampaignBreakoutBoardInputs {
-  map: CampaignGroundMap
-  profileOf: CampaignGroundProfiles
+interface CampaignBreakoutBoardInputs extends CampaignSupplyBoard {
   distance(from: string, to: string): number
   movementCost(state: Readonly<CampaignTurnState>, from: string, to: string, mobility: Mobility): StepCost
-  traceCost(state: Readonly<CampaignTurnState>, from: string, to: string, mobility: Mobility): StepCost
   supply(state: Readonly<CampaignTurnState>, side: Side): CampaignBreakoutSupply | undefined
 }
 
@@ -32,23 +26,10 @@ export function createCampaignBreakoutBoard(inputs: CampaignBreakoutBoardInputs)
   const neighbors = (hex: string) => map.neighbors(hex)
 
   return (state, side) => {
-    const ground = campaignGroundPosition(state, side, map, inputs.profileOf)
     const position = inputs.supply(state, side)
-    if (!ground || !position) return undefined
-
-    const sources = [...position.sources].map(resolveHex)
-    const controlled = [...position.controlled].map(resolveHex)
-    const headquarters = position.headquarters.map((hq) => ({ ...hq, hex: resolveHex(hq.hex) }))
-    const extenders = position.extenders?.map((unit) => ({ ...unit, hex: resolveHex(unit.hex) }))
-    if (!sources.every(knownHex) || !controlled.every(knownHex) || !headquarters.every(hasHex) || extenders && !extenders.every(hasHex)) {
-      return undefined
-    }
-    const network = supplyNetwork({ hasHex: (hex) => resolveHex(hex) === hex, neighbors,
-      traceCost: (from, to, mobility) => inputs.traceCost(state, from, to, mobility),
-      ...campaignKhersonRailTrace(map, state.weatherHistory.ice, (from, to) => position.railCanTrace(from, to)),
-      detrainable: (hex) => position.detrainable(hex),
-    }, { sources: new Set(sources), controlled: new Set(controlled), headquarters, extenders,
-      enemyCombat: ground.enemyCombat, unnegatedEnemyZoc: ground.unnegatedEnemyZoc })
+    const trace = position && campaignTraceSupply(state, side, inputs, position)
+    if (!position || !trace) return undefined
+    const { ground, network } = trace
 
     return { resolveHex, neighbors, distance: inputs.distance,
       canCross: (from, to, mobility) => inputs.movementCost(state, from, to, mobility) !== null,
@@ -66,12 +47,4 @@ export function createCampaignBreakoutBoard(inputs: CampaignBreakoutBoardInputs)
       },
     }
   }
-}
-
-function knownHex(hex: string | undefined): hex is string {
-  return hex !== undefined
-}
-
-function hasHex<T extends { hex: string | undefined }>(value: T): value is T & { hex: string } {
-  return knownHex(value.hex)
 }

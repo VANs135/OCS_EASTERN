@@ -16,7 +16,7 @@ export interface CampaignRailBoard {
   ordinaryCargo(state: Readonly<CampaignTurnState>, id: string): boolean
   controlBlocksAt(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   /** Includes source connectivity, control and applicable TTW facilities. Vehicle ZOC is checked separately. */
-  detrainable(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
+  detrainable?(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   trainbustingAt(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
 }
 
@@ -51,7 +51,10 @@ function railPosition(state: Readonly<CampaignTurnState>, side: Side, rail?: Cam
   if (!window.ok) return window
   const position = ground && campaignMovementPosition(state, side, ground)
   if (!rail || !ground?.railNetwork || !position) return refuse('board-unavailable')
-  return { ...window, rail, ground, position }
+  const trace = ground.traceSupply?.(state, side)
+  const detrainable = ground.traceSupply ? (hex: string) => trace?.hasRailCargoUnloadSite(hex) === true
+    : (hex: string) => rail.detrainable?.(state, side, hex) === true
+  return { ...window, rail, ground, position, detrainable }
 }
 
 type OpenRailPosition = Extract<ReturnType<typeof railPosition>, { ok: true }>
@@ -108,7 +111,7 @@ export function campaignRailLoading(state: Readonly<CampaignTurnState>, side: Si
   const board = routeBoard(state, side, window)
   if (board.rawEnemyZocAt(from) || board.enemyCombatAt(from) ||
     board.controlBlocksAt(from)) return refuse('rail-boarding-unavailable')
-  const detrainable = window.rail.detrainable(state, side, from)
+  const detrainable = window.detrainable(from)
   if (!detrainable && !window.ground.map.neighbors(from).some((to) => board.edge(from, to)?.usableGauge)) {
     return refuse('rail-boarding-unavailable')
   }
@@ -149,8 +152,8 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
     cargo.push(choice.cargo)
   }
   if (supplyTokens || passengers.some(({ repair }) => !repair)) {
-    if (!window.rail.detrainable(state, side, from)) return refuse('rail-boarding-unavailable')
-    if (!window.rail.detrainable(state, side, to)) return refuse('rail-unloading-unavailable')
+    if (!window.detrainable(from)) return refuse('rail-boarding-unavailable')
+    if (!window.detrainable(to)) return refuse('rail-unloading-unavailable')
   }
   const charge = railCapacityCost(cargo, route)
   if (!Number.isFinite(charge.cost) || charge.cost > window.remainingCapacity) return refuse('rail-capacity-exceeded')

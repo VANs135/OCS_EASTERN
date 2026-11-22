@@ -72,6 +72,7 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     marchResponse: projectMarchInterruption(pending, viewer) }
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
+  if (cursor.phase === 'cleanup') return { ...player, sovietConvertedEdges: state.cleanup?.sovietConvertedEdges.slice() ?? [] }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
     breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard),
     movement: campaignGroundMovementOptions(state, viewer, context.groundMovement),

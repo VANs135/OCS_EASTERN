@@ -13,6 +13,8 @@ import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-groun
 import { campaignPontoonTrackBoard } from './campaign-pontoon-tracks.ts'
 import type { CampaignPontoonTrackMarker, PontoonStepPosition } from './campaign-pontoon-tracks.ts'
 import type { CampaignRailNetwork } from './campaign-rail-network.ts'
+import { campaignTraceSupply } from './campaign-trace-supply.ts'
+import type { CampaignSupplyBoard, CampaignSupplyFacts } from './campaign-trace-supply.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { campaignVolgaBridgeCostState } from './campaign-volga-bridges.ts'
 
@@ -32,12 +34,17 @@ export interface CampaignGroundMovementBoard {
   entryRequiresResolution(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   /** Supply facts for the proposed board at the end of the move. */
   inTrace(state: Readonly<CampaignTurnState>, id: string, hex: string): boolean | undefined
+  traceSupply?(state: Readonly<CampaignTurnState>, side: Side): ReturnType<typeof campaignTraceSupply>
   /** Check stacking, Reserve with hedgehogs, and any TTW obligations at the end of this segment. */
   endBlockers?(state: Readonly<CampaignTurnState>, side: Side): readonly string[] | undefined
 }
 
-type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost'> & {
+type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost' | 'traceSupply' | 'inTrace'> & {
   terrainAt(hex: string): readonly Terrain[] | undefined
+  inTrace?: CampaignGroundMovementBoard['inTrace']
+  supply?: Pick<CampaignSupplyBoard, 'traceCost'> & {
+    facts(state: Readonly<CampaignTurnState>, side: Side): CampaignSupplyFacts | undefined
+  }
   /** Use the canonical hexside and current bridge state. Undefined leaves the step unavailable. */
   crossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwOrdinaryCrossing | TtwVolgaCrossing | undefined
 }
@@ -45,6 +52,11 @@ type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost'> & {
 /** Bind normalized terrain to the TTW ground movement table and Volga crossing rules. */
 export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs): CampaignGroundMovementBoard {
   const pontoonTracks = campaignPontoonTrackBoard(inputs.map, inputs.profileOf)
+  const supply = inputs.supply
+  const traceSupply = supply && ((state: Readonly<CampaignTurnState>, side: Side) => {
+    const facts = supply.facts(state, side)
+    return facts && campaignTraceSupply(state, side, { ...inputs, traceCost: supply.traceCost }, facts)
+  })
   function crossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwOrdinaryCrossing | TtwVolgaCrossing | undefined {
     if (edgeKey(from, to) === khersonRailFerryHexside) return { barrier: 'volga', bridge: 'none', routes: [] }
     const crossing = inputs.crossingAt(state, id, from, to)
@@ -55,7 +67,13 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
     if (crossing?.barrier === 'volga') return crossing
   }
   return { map: inputs.map, railNetwork: inputs.railNetwork, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
-    entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    entryRequiresResolution: inputs.entryRequiresResolution, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    inTrace: inputs.inTrace ?? ((state, id, hex) => {
+      const side = state.counters[id]?.side
+      const trace = side && traceSupply?.(state, side)
+      const unit = trace?.ground.friendly.get(id)
+      return trace && unit ? trace.network.trace(hex, unit.profile.drawMobility).length > 0 : undefined
+    }),
     pontoonTrackMarkers: (state) => pontoonTracks.markers(state, (id, from, to) => {
       const crossing = crossingAt(state, id, from, to)
       return crossing?.barrier === 'volga' ? undefined : crossing

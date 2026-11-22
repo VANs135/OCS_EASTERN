@@ -140,5 +140,9 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     return Boolean(hq && canThrow(hq, location))
   }
 
-  return { trace, canUseDump, canDrawDump, canUseDumpVia, inThrowRange, canConnectExtender }
+  function hasConnectedUnloadSite(hex: string): boolean {
+    return board.detrainable(hex) && state.controlled.has(hex) && railSeen.has(hex)
+  }
+
+  return { trace, canUseDump, canDrawDump, canUseDumpVia, inThrowRange, canConnectExtender, hasConnectedUnloadSite }
 }

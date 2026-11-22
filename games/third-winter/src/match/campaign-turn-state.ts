@@ -15,6 +15,7 @@ import type { CampaignBridgeDecision, CampaignBridgeRepair } from './campaign-vo
 import type { CampaignPontoonAction, CampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import type { CampaignKhersonFerryPhase, UseCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 import type { CampaignRailBoard, TransportCampaignRail } from './campaign-rail-transport.ts'
+import type { CampaignRailCleanupBoard } from './campaign-rail-cleanup.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -63,6 +64,7 @@ export interface CampaignTurnState extends CampaignBoardState {
   pontoonPhase?: CampaignPontoonPhase
   khersonFerryPhase?: CampaignKhersonFerryPhase
   railGaugeByEdge?: Readonly<Record<string, TtwRailGauge>>
+  cleanup?: { sovietConvertedEdges: readonly string[] }
   preTurnRolls: readonly CampaignPreTurnRoll[]
   movementSegment?: 'breakout' | 'movement' | 'barrage'
   groundMovement?: CampaignGroundMovementProgress
@@ -86,17 +88,19 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry | TransportCampaignRail
-  | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' }
+  | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' }
 
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext
   breakoutBoard?: CampaignBreakoutBoard
   groundMovement?: CampaignGroundMovementBoard
   railTransport?: CampaignRailBoard
+  railCleanup?: CampaignRailCleanupBoard
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
   thawTiming?: CampaignThawTiming
   /** The work-specific stage rules certify resolution of applicable opening and closing obligations. */
   reinforcementBlockers?: (state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing') => readonly string[]
   movementBarrageBlockers?: (state: Readonly<CampaignTurnState>, side: Side) => readonly string[] | undefined
+  exploitationEndBlockers?: (state: Readonly<CampaignTurnState>, side: Side) => readonly string[] | undefined
 }
