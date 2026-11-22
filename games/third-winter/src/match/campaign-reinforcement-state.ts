@@ -58,6 +58,7 @@ export interface CampaignCounter {
   disorganized?: boolean
   mode?: 'combat' | 'move' | 'reserve' | 'strat'
   outOfSupply?: boolean
+  transportPoints?: number
   transportCargoTokens?: number
   internalStocks?: InternalStocks
 }

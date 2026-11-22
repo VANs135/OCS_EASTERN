@@ -3,6 +3,8 @@ import { actingSide } from '@ocs-eastern/series/turn'
 import { campaignAircraftConsolidationOptions } from '../match/campaign-aircraft-consolidation.ts'
 import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-phase.ts'
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
+import { campaignKhersonFerryOptions, previewCampaignKhersonFerry } from '../match/campaign-kherson-ferry.ts'
+import type { UseCampaignKhersonFerry } from '../match/campaign-kherson-ferry.ts'
 import { campaignGroundDestinations, campaignGroundMovementOptions, previewCampaignGroundMove } from '../match/campaign-ground-movement.ts'
 import type { CampaignGroundMover, MoveCampaignGround } from '../match/campaign-ground-movement.ts'
 import { campaignGroundMovementActor } from '../match/campaign-ground-march.ts'
@@ -68,6 +70,7 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard),
     movement: campaignGroundMovementOptions(state, viewer, context.groundMovement),
     pontoon: campaignPontoonOptions(state, viewer, context.groundMovement),
+    khersonFerry: campaignKhersonFerryOptions(state, viewer, context.groundMovement),
     barrageEndBlockers: state.movementSegment === 'barrage' && viewer === cursor.phasing
       ? context.movementBarrageBlockers?.(state, viewer)?.slice() ?? null : null }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player
@@ -98,4 +101,9 @@ export function projectCampaignGroundRoute(record: Readonly<CampaignMatch>, view
 export function projectCampaignMarchResume(record: Readonly<CampaignMatch>, viewer: Side,
   action: Extract<CampaignMarchResponse, { type: 'resume-campaign-ground-march' }>, context: CampaignTurnContext) {
   return { revision: record.revision, ...previewCampaignMarchResume(record.state, viewer, action, context.groundMovement) }
+}
+
+export function projectCampaignKhersonFerry(record: Readonly<CampaignMatch>, viewer: Side, action: UseCampaignKhersonFerry,
+  context: CampaignTurnContext) {
+  return { revision: record.revision, ...previewCampaignKhersonFerry(record.state, viewer, action, context.groundMovement) }
 }

@@ -18,6 +18,7 @@ export interface SupplyHeadquarter {
 export interface SupplyNetworkBoard {
   hasHex(hex: string): boolean
   neighbors(hex: string): readonly string[]
+  railNeighbors?(hex: string): readonly string[]
   traceCost(from: string, to: string, mobility: Mobility): StepCost
   railCanTrace(from: string, to: string): boolean
   detrainable(hex: string): boolean
@@ -43,6 +44,7 @@ export interface SupplyTraceOption {
 export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPosition) {
   const eligible = (id: string) => board.hasHex(id) && !state.enemyCombat.has(id)
   const railAccessible = (id: string) => eligible(id) && !state.unnegatedEnemyZoc.has(id)
+  const railNeighbors = (hex: string) => board.railNeighbors?.(hex) ?? board.neighbors(hex)
   const ranges = new Map<string, ReadonlyMap<string, number>>()
   function reach(origin: string, range: number, mobility: Mobility) {
     const key = [origin, range, mobility].join(':')
@@ -70,7 +72,7 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     if (board.detrainable(hex) && state.controlled.has(hex)) sources.add(hex)
   }
   const outgoingRail = (link: SupplyExtender) => [link.hex, ...board.neighbors(link.hex)]
-    .filter((hex) => railNode(hex) && board.neighbors(hex).some((near) => board.railCanTrace(hex, near)))
+    .filter((hex) => railNode(hex) && railNeighbors(hex).some((near) => board.railCanTrace(hex, near)))
   function canConnectExtender(link: SupplyExtender) {
     if (!railAccessible(link.hex)) return false
     const reachable = reach(link.hex, link.range, link.mobility)
@@ -84,7 +86,7 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
   while (true) {
     while (examined < queue.length) {
       const from = queue[examined++]!
-      for (const to of board.neighbors(from)) if (railNode(to) && board.railCanTrace(from, to)) addRail(to)
+      for (const to of railNeighbors(from)) if (railNode(to) && board.railCanTrace(from, to)) addRail(to)
     }
     let linked = false
     for (const extender of pending) {

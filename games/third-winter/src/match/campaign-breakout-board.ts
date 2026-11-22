@@ -5,6 +5,7 @@ import type { SupplyNetworkBoard, SupplyNetworkPosition, SupplyTraceOption } fro
 import type { CampaignBreakoutBoard } from './campaign-breakout.ts'
 import { campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
+import { campaignKhersonRailTrace } from './campaign-kherson-trace.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export interface CampaignBreakoutSupply extends Pick<SupplyNetworkPosition, 'sources' | 'controlled' | 'headquarters' | 'extenders'>,
@@ -44,7 +45,8 @@ export function createCampaignBreakoutBoard(inputs: CampaignBreakoutBoardInputs)
     }
     const network = supplyNetwork({ hasHex: (hex) => resolveHex(hex) === hex, neighbors,
       traceCost: (from, to, mobility) => inputs.traceCost(state, from, to, mobility),
-      railCanTrace: (from, to) => position.railCanTrace(from, to), detrainable: (hex) => position.detrainable(hex),
+      ...campaignKhersonRailTrace(map, state.weatherHistory.ice, (from, to) => position.railCanTrace(from, to)),
+      detrainable: (hex) => position.detrainable(hex),
     }, { sources: new Set(sources), controlled: new Set(controlled), headquarters, extenders,
       enemyCombat: ground.enemyCombat, unnegatedEnemyZoc: ground.unnegatedEnemyZoc })
 

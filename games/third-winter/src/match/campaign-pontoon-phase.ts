@@ -1,6 +1,7 @@
 import { edgeKey } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { khersonRailFerryHexside, volgaBridgeRepairPhases } from '../ttw/campaign/volga-movement.ts'
+import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
+import { volgaBridgeRepairPhases } from '../ttw/campaign/volga-movement.ts'
 import { campaignCounterGroundMode, campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundProfile } from './campaign-ground-position.ts'
 import { activeCampaignFerryHex } from './campaign-movement-board.ts'

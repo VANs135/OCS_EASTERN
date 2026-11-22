@@ -7,6 +7,7 @@ import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
+import { applyCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
 import { applyCampaignPontoonAction, closeCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
@@ -56,6 +57,8 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
     case 'hold-campaign-ground-zoc':
     case 'complete-campaign-ground-movement':
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
+    case 'use-campaign-kherson-ferry':
+      return applyCampaignKhersonFerry(state, actor, action, context.groundMovement)
     case 'deploy-campaign-ferry':
     case 'remove-campaign-ferry':
     case 'repair-campaign-volga-bridge':
@@ -70,7 +73,7 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
       if (!blockers) throw new Error('Campaign movement barrage rules are not configured')
       if (blockers.length) throw new Error('Campaign movement barrage obligations are outstanding')
       const settled = closeCampaignPontoonPhase(state, actor, context.groundMovement)
-      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined }
+      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined }
     }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)

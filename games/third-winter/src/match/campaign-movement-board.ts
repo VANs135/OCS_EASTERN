@@ -1,7 +1,9 @@
+import { edgeKey } from '@ocs-eastern/series/ground-map'
 import type { Mobility, StepCost } from '@ocs-eastern/series/ground-map'
 import type { GroundMoveBoard } from '@ocs-eastern/series/ground-movement'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { Terrain } from '../import/scorpion-map.ts'
+import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
 import { ttwVolgaMovementCost, volgaHexsidePhaseLimitRe } from '../ttw/campaign/volga-movement.ts'
 import type { TtwVolgaCrossing } from '../ttw/campaign/volga-movement.ts'
 import { ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
@@ -37,9 +39,14 @@ type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost'> & {
 
 /** Bind normalized terrain to the TTW ground movement table and Volga crossing rules. */
 export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs): CampaignGroundMovementBoard {
-  function volgaCrossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string) {
+  function crossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwOrdinaryCrossing | TtwVolgaCrossing | undefined {
+    if (edgeKey(from, to) === khersonRailFerryHexside) return { barrier: 'volga', bridge: 'none', routes: [] }
     const crossing = inputs.crossingAt(state, id, from, to)
-    if (crossing?.barrier === 'volga') return campaignVolgaBridgeCostState(state, crossing, from, to)
+    return crossing?.barrier === 'volga' ? campaignVolgaBridgeCostState(state, crossing, from, to) : crossing
+  }
+  function volgaCrossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string) {
+    const crossing = crossingAt(state, id, from, to)
+    if (crossing?.barrier === 'volga') return crossing
   }
   return { map: inputs.map, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers, volgaCrossingAt,
@@ -51,13 +58,13 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
     },
     cost(state, id, from, to, mobility) {
       const ground = state.weather?.ground
-      const crossing = inputs.crossingAt(state, id, from, to)
+      const crossing = crossingAt(state, id, from, to)
       const terrain = inputs.terrainAt(to)?.filter((item) => item !== 'Village')
       if (!ground || ground === 'thaw' || !crossing || !terrain?.length) return null
       if (crossing.barrier === 'volga') {
         const { ice } = state.weatherHistory
         const ferry = !ice && crossingFerry(state, inputs.map, state.counters[id]?.side, from, to) !== undefined
-        return ttwVolgaMovementCost(terrain, campaignVolgaBridgeCostState(state, crossing, from, to), mobility, ground, ice, ferry)
+        return ttwVolgaMovementCost(terrain, crossing, mobility, ground, ice, ferry)
       }
       return ttwOrdinaryTerrainCost(terrain, crossing, mobility, ground)
     },

@@ -12,6 +12,7 @@ import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignMarchResponse } from './campaign-march-response.ts'
 import type { CampaignBridgeDecision, CampaignBridgeRepair } from './campaign-volga-bridges.ts'
 import type { CampaignPontoonAction, CampaignPontoonPhase } from './campaign-pontoon-phase.ts'
+import type { CampaignKhersonFerryPhase, UseCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -58,6 +59,7 @@ export interface CampaignTurnState extends CampaignBoardState {
   volgaBridgeDecisions?: Readonly<Record<string, CampaignBridgeDecision>>
   volgaBridgeRepairs?: Readonly<Record<string, CampaignBridgeRepair>>
   pontoonPhase?: CampaignPontoonPhase
+  khersonFerryPhase?: CampaignKhersonFerryPhase
   preTurnRolls: readonly CampaignPreTurnRoll[]
   movementSegment?: 'breakout' | 'movement' | 'barrage'
   groundMovement?: CampaignGroundMovementProgress
@@ -80,7 +82,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
   | { type: 'complete-campaign-reinforcement' }
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
-  | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction
+  | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' }
 
 export interface CampaignTurnContext {
