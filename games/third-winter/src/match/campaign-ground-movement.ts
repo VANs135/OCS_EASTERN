@@ -5,7 +5,8 @@ import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
 import { campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch } from './campaign-ground-march.ts'
 import type { CampaignMarchInterruption, CampaignMarchMover } from './campaign-ground-march.ts'
-import { campaignCounterGroundMode } from './campaign-ground-position.ts'
+import { campaignCombatPontoon, campaignCounterGroundMode } from './campaign-ground-position.ts'
+import type { CampaignGroundProfile } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
@@ -75,6 +76,11 @@ function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<Cam
     allowance: profile.ma * groundModeMovementFactor(mode, 'movement'), strategic: mode.marker === 'strat' } }
 }
 
+function formerPontoonBridge(state: Readonly<CampaignTurnState>, proposed: Readonly<CampaignTurnState>, id: string, hex: string,
+  profile: CampaignGroundProfile) {
+  if (campaignCombatPontoon(state.counters[id]!, profile) && !campaignCombatPontoon(proposed.counters[id]!, profile)) return hex
+}
+
 function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCampaignGround, config?: CampaignGroundMovementBoard) {
   const inspected = inspect(state, side, config)
   if (!inspected.ok) return inspected
@@ -96,11 +102,11 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   }
   const members: CampaignMarchMover[] = []
   for (const { id, stopAfter } of movers) {
-    const { combat, inCombatMode } = position.friendly.get(id)!.profile
-    const prepared = movementUnit(board, proposed, id, inCombatMode)
+    const { hex, profile } = position.friendly.get(id)!
+    const prepared = movementUnit(board, proposed, id, profile.inCombatMode)
     if (!prepared.ok) return prepared
-    members.push({ id, combat, unit: prepared.unit, progress: { hex: origin!, spent: 0, stop: null },
-      stepsLeft: stopAfter ?? route.length })
+    members.push({ id, combat: profile.combat, unit: prepared.unit, progress: { hex, spent: 0, stop: null },
+      stepsLeft: stopAfter ?? route.length, ownBridgeDeparture: formerPontoonBridge(state, proposed, id, hex, profile) })
   }
   return planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
 }
@@ -135,7 +141,8 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   if (!prepared.ok) return prepared
   const { unit } = prepared
   const crossingUsage = campaignCrossingUsage(proposed, board)
-  const stepBoard = position.stepBoard(id, unit.mobility, proposed, crossingUsage.stepRefusal(id))
+  const ownBridgeDeparture = formerPontoonBridge(state, proposed, id, choice.hex, choice.profile)
+  const stepBoard = position.stepBoard(id, unit.mobility, proposed, crossingUsage.stepRefusal(id), ownBridgeDeparture)
   const pauseAt = (hex: string) => side === 'soviet' && choice.profile.combat && campaignDemolishableBridges(proposed, board, id, hex).length > 0
   const destinations = reachableGroundHexes(stepBoard, unit, choice.hex, pauseAt).flatMap((step) => {
     if (pauseAt(step.hex)) return [{ ...step, pause: 'volga-bridge-demolition' as const }]

@@ -14,6 +14,7 @@ export interface CampaignMarchMover {
   unit: GroundMoveUnit
   progress: GroundStep
   stepsLeft: number
+  ownBridgeDeparture?: string
 }
 
 export interface CampaignGroundMarch {
@@ -73,7 +74,7 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
     const entered: CampaignMarchMover[] = []
     for (const mover of movers) {
       const { id, unit, progress, stepsLeft } = mover
-      const stepBoard = position.stepBoard(id, unit.mobility, current, usage.stepRefusal(id))
+      const stepBoard = position.stepBoard(id, unit.mobility, current, usage.stepRefusal(id), mover.ownBridgeDeparture)
       const result = evaluateGroundStep(stepBoard, unit, progress, to, !march.started && index === 0)
       if (!result.ok) return refused(result.reason, to)
       const { step } = result

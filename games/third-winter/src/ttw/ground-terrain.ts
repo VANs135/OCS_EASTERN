@@ -25,6 +25,11 @@ export interface TtwOrdinaryCrossing {
   routes: readonly ('road' | 'track' | 'rail')[]
 }
 
+/** TTW 1.5. A pontoon track can bridge an ordinary river without a printed crossing. */
+export function admitsPontoonTrackBridge(crossing?: TtwOrdinaryCrossing): boolean {
+  return crossing !== undefined && (crossing.barrier === 'minor' || crossing.barrier === 'major') && crossing.routes.length === 0
+}
+
 export function ttwGroundCellCost(terrains: readonly Terrain[], mobility: Mobility, ground: GroundCondition): StepCost {
   return mostExpensiveGroundTerrain(terrains.map((terrain) => groundCosts[ground][terrain][mobilityIndex[mobility]]))
 }

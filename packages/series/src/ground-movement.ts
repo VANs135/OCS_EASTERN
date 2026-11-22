@@ -9,7 +9,8 @@ export interface GroundMoveUnit {
 
 export interface GroundMoveBoard {
   neighbors(hex: string): readonly string[]
-  cost(from: string, to: string): StepCost
+  /** Evaluate both directions against the same board just before this step. */
+  cost(from: string, to: string, moverAt: string, first: boolean): StepCost
   crossingRefusal?(from: string, to: string): CrossingRefusal | null
   entryAt(hex: string): 'open' | 'enemy-combat' | 'entry-unresolved'
   enemyZocAt(hex: string): boolean
@@ -33,8 +34,8 @@ export function evaluateGroundStep(board: GroundMoveBoard, unit: GroundMoveUnit,
   if (to === from.hex || !board.neighbors(from.hex).includes(to)) return { ok: false, reason: 'not-adjacent' }
   const entry = board.entryAt(to)
   if (entry !== 'open') return { ok: false, reason: entry }
-  const cost = board.cost(from.hex, to)
-  if (cost === null || board.cost(to, from.hex) === null ||
+  const cost = board.cost(from.hex, to, from.hex, first)
+  if (cost === null || board.cost(to, from.hex, from.hex, first) === null ||
     (cost !== 'all' && (!Number.isFinite(cost) || cost < 0))) return { ok: false, reason: 'impassable' }
   const crossingRefusal = board.crossingRefusal?.(from.hex, to)
   if (crossingRefusal) return { ok: false, reason: crossingRefusal }

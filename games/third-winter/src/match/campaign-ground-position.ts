@@ -32,6 +32,10 @@ export function campaignCounterGroundMode(counter: CampaignCounter, combatFace: 
   return { face, marker }
 }
 
+export function campaignCombatPontoon(counter: CampaignCounter, profile: CampaignGroundProfile): boolean {
+  return profile.combat && profile.pontoon === true && campaignCounterGroundMode(counter, profile.inCombatMode).face === 'combat'
+}
+
 /** Read a consistent snapshot of occupation and ZOC. Missing on-map facts leave the snapshot unavailable. */
 export function campaignGroundPosition(state: Readonly<CampaignTurnState>, side: Side, map: CampaignGroundMap,
   profileOf: CampaignGroundProfiles) {

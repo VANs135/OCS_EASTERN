@@ -2,11 +2,9 @@ import { edgeKey } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
 import { volgaBridgeRepairPhases } from '../ttw/campaign/volga-movement.ts'
-import { campaignCounterGroundMode, campaignGroundPosition } from './campaign-ground-position.ts'
-import type { CampaignGroundProfile } from './campaign-ground-position.ts'
+import { campaignCombatPontoon, campaignGroundPosition } from './campaign-ground-position.ts'
 import { activeCampaignFerryHex } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
-import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { finishReadyVolgaBridgeRepairs, reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
 
@@ -21,9 +19,6 @@ export interface CampaignPontoonPhase {
 export type CampaignPontoonAction = { type: 'deploy-campaign-ferry' | 'remove-campaign-ferry' | 'cancel-campaign-volga-repair'; pontoonId: string }
   | { type: 'repair-campaign-volga-bridge'; pontoonId: string; bridgeId: string }
 
-const combatPontoon = (counter: CampaignCounter, profile: CampaignGroundProfile) => profile.combat && profile.pontoon === true &&
-  campaignCounterGroundMode(counter, profile.inCombatMode).face === 'combat'
-
 export function campaignPontoonAtPhase(state: Readonly<CampaignTurnState>, side: Side) {
   const phase = state.pontoonPhase
   return state.cursor.phase === 'movement' && state.cursor.phasing === side && phase?.side === side && phase.turn === state.turn ? phase : undefined
@@ -36,7 +31,7 @@ export function beginCampaignPontoonPhase(state: Readonly<CampaignTurnState>, si
   if (!position) return state
   const opened = finishReadyVolgaBridgeRepairs(reconcileCampaignBridgeRepairs(state, board), side)
   const starts = Object.fromEntries([...position.friendly].flatMap(([id, { hex, profile }]) => {
-    if (!combatPontoon(state.counters[id]!, profile)) return []
+    if (!campaignCombatPontoon(state.counters[id]!, profile)) return []
     const enemyAdjacent = board.map.neighbors(hex).some((near) => position.enemyCombat.has(near))
     return [[id, { hex, enemyAdjacent }] as const]
   }))
@@ -56,7 +51,7 @@ export function campaignPontoonOptions(state: Readonly<CampaignTurnState>, side:
   const moved = new Set(state.groundMovement?.moved)
   return Object.entries(phase.starts).flatMap(([id, start]) => {
     const current = position.friendly.get(id)
-    if (!current || start.hex !== current.hex || moved.has(id) || !combatPontoon(state.counters[id]!, current.profile)) return []
+    if (!current || start.hex !== current.hex || moved.has(id) || !campaignCombatPontoon(state.counters[id]!, current.profile)) return []
     const { hex } = current
     const neighbors = board.map.neighbors(hex)
     const crossings = neighbors.flatMap((near) => {
@@ -136,7 +131,7 @@ export function closeCampaignPontoonPhase(state: Readonly<CampaignTurnState>, si
     const current = position.friendly.get(id)
     const start = phase.starts[id]
     if (!repair || !current || !start || start.hex !== current.hex || moved.has(id) || start.enemyAdjacent ||
-      !combatPontoon(state.counters[id]!, current.profile) || board.map.neighbors(current.hex).some((near) => position.enemyCombat.has(near))) continue
+      !campaignCombatPontoon(state.counters[id]!, current.profile) || board.map.neighbors(current.hex).some((near) => position.enemyCombat.has(near))) continue
     worked.add(repair)
   }
   for (const id of worked) {

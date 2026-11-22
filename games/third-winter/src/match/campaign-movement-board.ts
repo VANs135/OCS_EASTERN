@@ -6,10 +6,12 @@ import type { Terrain } from '../import/scorpion-map.ts'
 import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
 import { ttwVolgaMovementCost, volgaHexsidePhaseLimitRe } from '../ttw/campaign/volga-movement.ts'
 import type { TtwVolgaCrossing } from '../ttw/campaign/volga-movement.ts'
-import { ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
+import { admitsPontoonTrackBridge, ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
 import type { TtwOrdinaryCrossing } from '../ttw/ground-terrain.ts'
 import { campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
+import { campaignPontoonTrackBoard } from './campaign-pontoon-tracks.ts'
+import type { CampaignPontoonTrackMarker, PontoonStepPosition } from './campaign-pontoon-tracks.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { campaignVolgaBridgeCostState } from './campaign-volga-bridges.ts'
 
@@ -19,7 +21,8 @@ export interface CampaignGroundMovementBoard {
   moveProfile(state: Readonly<CampaignTurnState>, id: string):
     { ma: number; mobility: Mobility; fuelReady: boolean } | undefined
   /** Receives canonical endpoints. TTW owns weather, crossings and route availability. */
-  cost(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): StepCost
+  cost(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility, step?: PontoonStepPosition): StepCost
+  pontoonTrackMarkers?(state: Readonly<CampaignTurnState>): readonly CampaignPontoonTrackMarker[]
   crossingLimit?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): number | undefined
   volgaCrossingAt?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwVolgaCrossing | undefined
   ferryUsedForStep?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): string | undefined
@@ -39,6 +42,7 @@ type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost'> & {
 
 /** Bind normalized terrain to the TTW ground movement table and Volga crossing rules. */
 export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs): CampaignGroundMovementBoard {
+  const pontoonTracks = campaignPontoonTrackBoard(inputs.map, inputs.profileOf)
   function crossingAt(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): TtwOrdinaryCrossing | TtwVolgaCrossing | undefined {
     if (edgeKey(from, to) === khersonRailFerryHexside) return { barrier: 'volga', bridge: 'none', routes: [] }
     const crossing = inputs.crossingAt(state, id, from, to)
@@ -50,13 +54,17 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
   }
   return { map: inputs.map, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    pontoonTrackMarkers: (state) => pontoonTracks.markers(state, (id, from, to) => {
+      const crossing = crossingAt(state, id, from, to)
+      return crossing?.barrier === 'volga' ? undefined : crossing
+    }),
     crossingLimit: (state, id, from, to) => volgaCrossingAt(state, id, from, to) ? volgaHexsidePhaseLimitRe : undefined,
     ferryUsedForStep(state, id, from, to, mobility) {
       if (mobility === 'leg' && !state.weatherHistory.ice && volgaCrossingAt(state, id, from, to)?.bridge === 'none') {
         return crossingFerry(state, inputs.map, state.counters[id]?.side, from, to)
       }
     },
-    cost(state, id, from, to, mobility) {
+    cost(state, id, from, to, mobility, step) {
       const ground = state.weather?.ground
       const crossing = crossingAt(state, id, from, to)
       const terrain = inputs.terrainAt(to)?.filter((item) => item !== 'Village')
@@ -65,6 +73,9 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
         const { ice } = state.weatherHistory
         const ferry = !ice && crossingFerry(state, inputs.map, state.counters[id]?.side, from, to) !== undefined
         return ttwVolgaMovementCost(terrain, crossing, mobility, ground, ice, ferry)
+      }
+      if (admitsPontoonTrackBridge(crossing) && pontoonTracks.connects(state, id, from, to, step)) {
+        return ttwOrdinaryTerrainCost(terrain, { ...crossing, routes: ['track'] }, mobility, ground)
       }
       return ttwOrdinaryTerrainCost(terrain, crossing, mobility, ground)
     },
@@ -103,10 +114,11 @@ export function campaignMovementPosition(state: Readonly<CampaignTurnState>, sid
     profile.combat && (stopped.has(id) || locked.has(id)) ? [hex] : []))
   return { ...ground, stopped, locked, ferryPontoons, engineeringPontoons,
     stepBoard(id: string, mobility: Mobility, proposed: Readonly<CampaignTurnState>,
-      crossingRefusal?: GroundMoveBoard['crossingRefusal']): GroundMoveBoard {
+      crossingRefusal?: GroundMoveBoard['crossingRefusal'], ownBridgeDeparture?: string): GroundMoveBoard {
       return {
         neighbors: (hex) => board.map.neighbors(hex),
-        cost: (from, to) => board.cost(proposed, id, from, to, mobility),
+        cost: (from, to, moverAt, first) => board.cost(proposed, id, from, to, mobility,
+          { moverAt, ownDeparture: first && moverAt === ownBridgeDeparture }),
         crossingRefusal,
         entryAt: (hex) => ground.enemyCombat.has(hex) ? 'enemy-combat'
           : ground.enemyNoncombat.has(hex) || board.entryRequiresResolution(proposed, side, hex) ? 'entry-unresolved' : 'open',

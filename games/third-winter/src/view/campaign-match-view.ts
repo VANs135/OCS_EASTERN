@@ -51,8 +51,9 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   const repairedBridges = Object.entries(state.volgaBridgeDecisions ?? {}).flatMap(([id, decision]) =>
     decision === 'repaired' ? [{ id, hexside: id.split('|') }] : [])
   const repairingBridges = Object.entries(state.volgaBridgeRepairs ?? {}).map(([id, { side, phases }]) => ({ id, hexside: id.split('|'), side, phases }))
+  const pontoonTrackBridges = context.groundMovement?.pontoonTrackMarkers?.(state).filter(({ side }) => side === viewer) ?? []
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
-    ferries, blownBridges, repairingBridges, repairedBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    ferries, blownBridges, repairingBridges, repairedBridges, pontoonTrackBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null
