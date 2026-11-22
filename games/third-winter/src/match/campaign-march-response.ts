@@ -24,7 +24,8 @@ function planResume(state: Readonly<CampaignTurnState>, board: CampaignGroundMov
   const { movers } = paused
   if (haltIds.size !== (action.haltIds?.length ?? 0) || [...haltIds].some((id) => !movers.some((mover) => mover.id === id)) ||
     path.length > 0 && haltIds.size === movers.length) return { ok: false as const, reason: 'choose-paused-counters' }
-  const march = { started: true, path, movers: movers.map((mover) => ({ ...mover, stepsLeft: haltIds.has(mover.id) ? 0 : path.length })) }
+  const march = { started: true, path, movers: movers.map((mover) => ({ ...mover, railWork: undefined,
+    stepsLeft: haltIds.has(mover.id) ? 0 : path.length })) }
   return planCampaignGroundMarch(setCampaignMarchInterruption(state), 'soviet', board, march)
 }
 
@@ -32,7 +33,7 @@ export function previewCampaignMarchResume(state: Readonly<CampaignTurnState>, s
   board?: CampaignGroundMovementBoard) {
   const pending = marchResponseAtCursor(state)
   if (side !== 'soviet' || pending?.kind !== 'resume-march' || !board) return { ok: false as const, reason: 'window-closed' }
-  return campaignMarchPreview(planResume(state, board, pending.march, action))
+  return campaignMarchPreview(planResume(state, board, pending.march, action), state)
 }
 
 export function applyCampaignMarchResponse(state: Readonly<CampaignTurnState>, side: Side, action: CampaignMarchResponse,

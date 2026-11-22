@@ -1,20 +1,19 @@
-import { edgeKey } from '@ocs-eastern/series/ground-map'
 import { inspectRailRoute, railCapacityCost, transportEquivalentOf } from '@ocs-eastern/series/rail-transport'
 import type { RailCargo, RailRouteBoard } from '@ocs-eastern/series/rail-transport'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
+import { ttwRailGauge } from '../ttw/campaign/rail-gauge.ts'
 import { campaignCounterGroundMode, normalizeCampaignPath } from './campaign-ground-position.ts'
 import { khersonFerryLockedSupply, removeKhersonStartingSupply } from './campaign-kherson-ferry.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
+import { campaignRailEdge } from './campaign-rail-network.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
-import { campaignDemolishableBridges, reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
+import { reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
 
 /** Facts for ordinary on-map rail. The work supplies scenario capacity, current gauge and usable facilities. */
 export interface CampaignRailBoard {
   capacity(state: Readonly<CampaignTurnState>, side: Side): number | undefined
   ordinaryCargo(state: Readonly<CampaignTurnState>, id: string): boolean
-  edge(state: Readonly<CampaignTurnState>, side: Side, from: string, to: string): ReturnType<RailRouteBoard['edge']>
   controlBlocksAt(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   /** Includes source connectivity, control and applicable TTW facilities. Vehicle ZOC is checked separately. */
   detrainable(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
@@ -51,20 +50,21 @@ function railPosition(state: Readonly<CampaignTurnState>, side: Side, rail?: Cam
   const window = railWindow(state, side, rail)
   if (!window.ok) return window
   const position = ground && campaignMovementPosition(state, side, ground)
-  if (!rail || !ground || !position) return refuse('board-unavailable')
+  if (!rail || !ground?.railNetwork || !position) return refuse('board-unavailable')
   return { ...window, rail, ground, position }
 }
 
 type OpenRailPosition = Extract<ReturnType<typeof railPosition>, { ok: true }>
 
-function boardingChoice(state: Readonly<CampaignTurnState>, id: string, from: string, { rail, position }: OpenRailPosition) {
+function boardingChoice(state: Readonly<CampaignTurnState>, id: string, from: string, { rail, ground, position }: OpenRailPosition) {
   const current = position.friendly.get(id)
-  if (current?.hex !== from || !rail.ordinaryCargo(state, id) || position.locked.has(id) ||
+  const repair = current?.profile.combat === true && ground.railNetwork?.isRepairUnit?.(state, id) === true
+  if (current?.hex !== from || (!repair && !rail.ordinaryCargo(state, id)) || state.groundMovement?.railRepairRides?.[id] || position.locked.has(id) ||
     position.ferryPontoons.has(id) || position.engineeringPontoons.has(id)) return undefined
   const counter = state.counters[id]!
   const mode = campaignCounterGroundMode(counter, current.profile.inCombatMode)
   if (mode.marker === 'dg') return undefined
-  const needsMoveFace = counter.kind === 'transport' ? mode.marker !== undefined : mode.face !== 'move' || mode.marker !== undefined
+  const needsMoveFace = mode.marker !== undefined || counter.kind !== 'transport' && mode.face !== 'move' && !repair
   const approach = state.groundMovement?.approachByCounter?.[id]
   if (position.stopped.has(id) && (!approach || needsMoveFace || approach.spent > approach.allowance / 2)) return undefined
 
@@ -79,7 +79,7 @@ function boardingChoice(state: Readonly<CampaignTurnState>, id: string, from: st
     if (!current.profile.combat || re === undefined || !Number.isFinite(re) || re <= 0 || !Number.isFinite(moveMa) || moveMa < 0) return undefined
     cargo = { kind: 'unit', re, mobility: moveMobility, moveMa }
   }
-  return { cargo, needsMoveFace }
+  return { cargo, needsMoveFace, repair, face: mode.face, preLoadMp: approach?.spent ?? 0 }
 }
 
 function unlockedSupply(state: Readonly<CampaignTurnState>, side: Side, hex: string) {
@@ -89,9 +89,8 @@ function unlockedSupply(state: Readonly<CampaignTurnState>, side: Side, hex: str
 function routeBoard(state: Readonly<CampaignTurnState>, side: Side, { rail, ground, position }: OpenRailPosition): RailRouteBoard {
   return {
     edge(from, to) {
-      const key = edgeKey(from, to)
-      if (key === khersonRailFerryHexside || state.volgaBridgeDecisions?.[key] === 'blown' || !ground.map.neighbors(from).includes(to)) return undefined
-      return rail.edge(state, side, from, to)
+      const edge = campaignRailEdge(state, ground.map, ground.railNetwork, from, to)
+      return edge && { usableGauge: edge.gauge === ttwRailGauge(side), multiTrack: edge.multiTrack }
     },
     rawEnemyZocAt: (hex) => position.enemyZoc.has(hex),
     enemyCombatAt: (hex) => position.enemyCombat.has(hex),
@@ -107,13 +106,18 @@ export function campaignRailLoading(state: Readonly<CampaignTurnState>, side: Si
   const from = window.ground.map.resolveHex(source)
   if (!from) return refuse('outside-play-area')
   const board = routeBoard(state, side, window)
-  if (!window.rail.detrainable(state, side, from) || board.rawEnemyZocAt(from) || board.enemyCombatAt(from) ||
+  if (board.rawEnemyZocAt(from) || board.enemyCombatAt(from) ||
     board.controlBlocksAt(from)) return refuse('rail-boarding-unavailable')
+  const detrainable = window.rail.detrainable(state, side, from)
+  if (!detrainable && !window.ground.map.neighbors(from).some((to) => board.edge(from, to)?.usableGauge)) {
+    return refuse('rail-boarding-unavailable')
+  }
   const counters = [...window.position.friendly.keys()].flatMap((id) => {
     const choice = boardingChoice(state, id, from, window)
-    return choice ? [{ id, needsMoveFace: choice.needsMoveFace, equivalent: transportEquivalentOf(choice.cargo) }] : []
+    return choice && (detrainable || choice.repair) ? [{ id, needsMoveFace: choice.needsMoveFace, equivalent: transportEquivalentOf(choice.cargo) }] : []
   })
-  return { ok: true as const, from, remainingCapacity: window.remainingCapacity, counters, supplyTokens: unlockedSupply(state, side, from) }
+  return { ok: true as const, from, remainingCapacity: window.remainingCapacity, counters,
+    supplyTokens: detrainable ? unlockedSupply(state, side, from) : 0 }
 }
 
 function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, action: TransportCampaignRail,
@@ -127,8 +131,6 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
   if (!from || !to || from === to) return refuse('rail-route-too-short')
   const route = inspectRailRoute(path, routeBoard(state, side, window))
   if (!route.ok) return route
-  if (!window.rail.detrainable(state, side, from)) return refuse('rail-boarding-unavailable')
-  if (!window.rail.detrainable(state, side, to)) return refuse('rail-unloading-unavailable')
 
   const { counterIds, moveFaceIds = [], supplyTokens } = action
   const selected = new Set(counterIds)
@@ -137,10 +139,18 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
     selected.size !== counterIds.length || flips.size !== moveFaceIds.length || moveFaceIds.some((id) => !selected.has(id))) return refuse('invalid-cargo')
   if (supplyTokens > unlockedSupply(state, side, from)) return refuse('rail-supply-unavailable')
   const cargo: RailCargo[] = supplyTokens ? [{ kind: 'sp', amount: supplyTokens / tokensPerSp }] : []
+  const passengers = []
   for (const id of counterIds) {
     const choice = boardingChoice(state, id, from, window)
     if (!choice || choice.needsMoveFace && !flips.has(id)) return refuse('counter-ineligible-for-rail')
+    const mode: 'combat' | 'move' = choice.repair && choice.face === 'combat' && !flips.has(id) ? 'combat' : 'move'
+    if (mode !== choice.face && state.groundMovement?.approachByCounter?.[id]) return refuse('cannot-change-mode-after-ground-approach')
+    passengers.push({ id, ...choice, mode })
     cargo.push(choice.cargo)
+  }
+  if (supplyTokens || passengers.some(({ repair }) => !repair)) {
+    if (!window.rail.detrainable(state, side, from)) return refuse('rail-boarding-unavailable')
+    if (!window.rail.detrainable(state, side, to)) return refuse('rail-unloading-unavailable')
   }
   const charge = railCapacityCost(cargo, route)
   if (!Number.isFinite(charge.cost) || charge.cost > window.remainingCapacity) return refuse('rail-capacity-exceeded')
@@ -150,17 +160,22 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
     if (window.position.enemyNoncombat.has(hex) || (state.supplyDumps[other][hex] ?? 0) > 0 || window.ground.entryRequiresResolution(state, side, hex)) {
       return { ...refuse('rail-entry-unresolved'), hex }
     }
-    if (side === 'soviet' && counterIds.some((id) => window.position.friendly.get(id)?.profile.combat &&
-      campaignDemolishableBridges(state, window.ground, id, hex).length > 0)) return { ...refuse('rail-bridge-response-unavailable'), hex }
   }
 
   const counters = { ...state.counters }
   const approachByCounter = { ...state.groundMovement?.approachByCounter }
   const moved = new Set(state.groundMovement?.moved)
-  for (const id of counterIds) {
-    counters[id] = { ...counters[id]!, mode: 'move', location: { kind: 'map', hex: to } }
+  const railRepairRides = { ...state.groundMovement?.railRepairRides }
+  const converted = new Set(state.groundMovement?.railConvertedHexes)
+  const usedNewTrack = path.some((hex) => converted.has(hex))
+  for (const { id, mode, repair, preLoadMp } of passengers) {
+    counters[id] = { ...counters[id]!, mode, location: { kind: 'map', hex: to } }
     delete approachByCounter[id]
-    moved.add(id)
+    if (repair) {
+      if (usedNewTrack && state.groundMovement?.railConversionCount?.[id]) return refuse('rail-conversion-no-leapfrog')
+      railRepairRides[id] = { spent: preLoadMp, usedNewTrack }
+      moved.delete(id)
+    } else moved.add(id)
   }
   const dumps = { ...state.supplyDumps[side] }
   if (supplyTokens) {
@@ -174,7 +189,7 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
   const settled = reconcileCampaignBridgeRepairs({ ...state, counters, supplyDumps: { ...state.supplyDumps, [side]: dumps },
     khersonFerryPhase: removeKhersonStartingSupply(state, side, from, supplyTokens),
     groundMovement: { ...state.groundMovement, moved: [...moved], zocLocks: state.groundMovement?.zocLocks ?? [],
-      approachByCounter, railCapacitySpent: (state.groundMovement?.railCapacitySpent ?? 0) + charge.cost },
+      approachByCounter, railRepairRides, railCapacitySpent: (state.groundMovement?.railCapacitySpent ?? 0) + charge.cost },
   }, window.ground)
   return { ok: true as const, from, to, ...charge, remainingCapacity, settled }
 }

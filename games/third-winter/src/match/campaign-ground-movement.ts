@@ -7,6 +7,7 @@ import { campaignCombatPontoon, campaignCounterGroundMode, normalizeCampaignPath
 import type { CampaignGroundProfile } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
+import type { CampaignRailWork } from './campaign-rail-conversion.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export interface CampaignGroundMovementProgress {
@@ -14,6 +15,9 @@ export interface CampaignGroundMovementProgress {
   zocLocks: readonly string[]
   approachByCounter?: Readonly<Record<string, { spent: number; allowance: number }>>
   railCapacitySpent?: number
+  railConversionCount?: Readonly<Record<string, number>>
+  railConvertedHexes?: readonly string[]
+  railRepairRides?: Readonly<Record<string, { spent: number; usedNewTrack: boolean }>>
   crossedReByHexside?: Readonly<Record<string, number>>
   usedFerryIds?: readonly string[]
   interruption?: CampaignMarchInterruption
@@ -24,6 +28,7 @@ export interface CampaignGroundMover {
   mode?: 'combat' | 'move' | 'strat'
   /** Leave the marching stack at this one-based step, or follow the whole route. */
   stopAfter?: number
+  railWork?: readonly CampaignRailWork[]
 }
 
 export interface MoveCampaignGround {
@@ -58,6 +63,7 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
   if (position.engineeringPontoons.has(id)) return refuse('pontoon-committed-to-engineering')
   const counter = state.counters[id]!
   if (mode === undefined || mode === counter.mode) return { ok: true as const, counter, ...current }
+  if (state.groundMovement?.railRepairRides?.[id]) return refuse('cannot-change-mode-after-rail')
   if (mode !== 'combat' && mode !== 'move' && mode !== 'strat') return refuse('invalid-mode')
   if (counter.kind === 'transport' && mode !== 'move') return refuse('transport-mode')
   if (mode === 'strat' && (counter.disorganized || zocAffectsAction('stratMode', position.enemyZoc.has(current.hex), false))) {
@@ -100,12 +106,24 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
     proposed.counters[mover.id] = choice.counter
   }
   const members: CampaignMarchMover[] = []
-  for (const { id, stopAfter } of movers) {
+  for (const { id, stopAfter, railWork = [] } of movers) {
     const { hex, profile } = position.friendly.get(id)!
     const prepared = movementUnit(board, proposed, id, profile.inCombatMode)
     if (!prepared.ok) return prepared
-    members.push({ id, combat: profile.combat, unit: prepared.unit, progress: { hex, spent: 0, stop: null },
-      stepsLeft: stopAfter ?? route.length, ownBridgeDeparture: formerPontoonBridge(state, proposed, id, hex, profile) })
+    const stepsLeft = stopAfter ?? route.length
+    if (new Set(railWork.map(({ step }) => step)).size !== railWork.length) return refuse('invalid-rail-work')
+    const work = new Map<number, readonly string[]>()
+    for (const { step, connections } of railWork) {
+      const normalized = normalizeCampaignPath(board.map, connections)
+      if (!Number.isSafeInteger(step) || step < 1 || step > stepsLeft || !normalized?.length ||
+        new Set(normalized).size !== normalized.length) return refuse('invalid-rail-work')
+      work.set(step, normalized)
+    }
+    const spent = state.groundMovement?.railRepairRides?.[id]?.spent ?? 0
+    if (spent >= prepared.unit.allowance) return refuse('no-movement-allowance')
+    members.push({ id, combat: profile.combat, unit: prepared.unit, progress: { hex, spent, stop: null },
+      stepsLeft, railWork: work.size ? [...work.entries()] : undefined,
+      ownBridgeDeparture: formerPontoonBridge(state, proposed, id, hex, profile) })
   }
   return planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
 }
@@ -124,7 +142,7 @@ export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>
 
 export function previewCampaignGroundMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCampaignGround,
   config?: CampaignGroundMovementBoard) {
-  return campaignMarchPreview(planMove(state, side, action, config))
+  return campaignMarchPreview(planMove(state, side, action, config), state)
 }
 
 export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, side: Side, mover: CampaignGroundMover,
@@ -138,8 +156,10 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const proposed = { ...state, counters: { ...state.counters, [id]: choice.counter } }
   const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode)
   if (!prepared.ok) return prepared
+  const spent = state.groundMovement?.railRepairRides?.[id]?.spent ?? 0
+  if (spent >= prepared.unit.allowance) return refuse('no-movement-allowance')
   const destinations = campaignMarchDestinations(proposed, side, board, { id, combat: choice.profile.combat, unit: prepared.unit,
-    progress: { hex: choice.hex, spent: 0, stop: null }, ownBridgeDeparture: formerPontoonBridge(state, proposed, id, choice.hex, choice.profile) })
+    progress: { hex: choice.hex, spent, stop: null }, ownBridgeDeparture: formerPontoonBridge(state, proposed, id, choice.hex, choice.profile) })
   return { ok: true as const, destinations }
 }
 

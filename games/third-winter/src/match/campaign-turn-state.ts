@@ -1,6 +1,7 @@
 import type { DiceRoll, Side } from '@ocs-eastern/series/state-types'
 import type { PlayerTurnCursor } from '@ocs-eastern/series/turn'
 import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-timing.ts'
+import type { TtwRailGauge } from '../ttw/campaign/rail-gauge.ts'
 import type { CampaignEventCheck, CampaignEventDraw } from '../ttw/campaign/random-events.ts'
 import type { CampaignThawTiming, CampaignWeather, CampaignWeatherCheck, WeatherHistory } from '../ttw/campaign/weather.ts'
 import type { CampaignBoardState, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
@@ -61,6 +62,7 @@ export interface CampaignTurnState extends CampaignBoardState {
   volgaBridgeRepairs?: Readonly<Record<string, CampaignBridgeRepair>>
   pontoonPhase?: CampaignPontoonPhase
   khersonFerryPhase?: CampaignKhersonFerryPhase
+  railGaugeByEdge?: Readonly<Record<string, TtwRailGauge>>
   preTurnRolls: readonly CampaignPreTurnRoll[]
   movementSegment?: 'breakout' | 'movement' | 'barrage'
   groundMovement?: CampaignGroundMovementProgress

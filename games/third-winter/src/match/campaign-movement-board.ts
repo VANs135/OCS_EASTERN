@@ -12,11 +12,13 @@ import { campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
 import { campaignPontoonTrackBoard } from './campaign-pontoon-tracks.ts'
 import type { CampaignPontoonTrackMarker, PontoonStepPosition } from './campaign-pontoon-tracks.ts'
+import type { CampaignRailNetwork } from './campaign-rail-network.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { campaignVolgaBridgeCostState } from './campaign-volga-bridges.ts'
 
 export interface CampaignGroundMovementBoard {
   map: CampaignGroundMap
+  railNetwork?: CampaignRailNetwork
   profileOf: CampaignGroundProfiles
   moveProfile(state: Readonly<CampaignTurnState>, id: string):
     { ma: number; mobility: Mobility; fuelReady: boolean } | undefined
@@ -52,7 +54,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
     const crossing = crossingAt(state, id, from, to)
     if (crossing?.barrier === 'volga') return crossing
   }
-  return { map: inputs.map, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
+  return { map: inputs.map, railNetwork: inputs.railNetwork, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, inTrace: inputs.inTrace, endBlockers: inputs.endBlockers, volgaCrossingAt,
     pontoonTrackMarkers: (state) => pontoonTracks.markers(state, (id, from, to) => {
       const crossing = crossingAt(state, id, from, to)

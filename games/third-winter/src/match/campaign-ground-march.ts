@@ -4,6 +4,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
+import { planCampaignRailConversion } from './campaign-rail-conversion.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { campaignDemolishableBridges, reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
 import type { CampaignVolgaBridge } from './campaign-volga-bridges.ts'
@@ -14,6 +15,8 @@ export interface CampaignMarchMover {
   unit: GroundMoveUnit
   progress: GroundStep
   stepsLeft: number
+  stepsDone?: number
+  railWork?: readonly (readonly [step: number, connections: readonly string[]])[]
   ownBridgeDeparture?: string
 }
 
@@ -52,7 +55,7 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
     for (const mover of movers) {
       const { id, unit, progress, stepsLeft } = mover
       const stepBoard = position.stepBoard(id, unit.mobility, state, usage.stepRefusal(id), mover.ownBridgeDeparture)
-      const result = evaluateGroundStep(stepBoard, unit, progress, to, first)
+      const result = evaluateGroundStep(stepBoard, unit, progress, to, first && progress.spent === 0)
       if (!result.ok) return refused(result.reason, to)
       const { step } = result
       if (step.stop && stepsLeft > 1) return refused('must-stop', next)
@@ -60,14 +63,21 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
       if (crossingRefusal) return refused(crossingRefusal, to)
       const ferry = board.ferryUsedForStep?.(state, id, progress.hex, to, unit.mobility)
       if (ferry !== undefined) usedFerries.add(ferry)
-      entered.push({ ...mover, progress: step, stepsLeft: stepsLeft - 1 })
+      entered.push({ ...mover, progress: step, stepsLeft: stepsLeft - 1, stepsDone: (mover.stepsDone ?? 0) + 1 })
       counters[id] = { ...counters[id]!, location: { kind: 'map', hex: to } }
     }
-    const afterEntry = reconcileCampaignBridgeRepairs({ ...state, counters, groundMovement: { ...state.groundMovement,
+    let afterEntry = reconcileCampaignBridgeRepairs({ ...state, counters, groundMovement: { ...state.groundMovement,
       moved: state.groundMovement?.moved ?? [], zocLocks: state.groundMovement?.zocLocks ?? [], crossedReByHexside: usage.settled(),
       usedFerryIds: [...usedFerries] } }, board)
     const firstCombat = side === 'soviet' && entered.find(({ combat }) => combat)
     const bridges = firstCombat ? campaignDemolishableBridges(afterEntry, board, firstCombat.id, to) : []
+    for (const { id, unit, stepsDone, railWork } of entered) {
+      const work = railWork?.find(([step]) => step === stepsDone)
+      if (!work) continue
+      const conversion = planCampaignRailConversion(afterEntry, side, board, id, to, work[1], position.enemyZoc.has(to), unit.allowance)
+      if (!conversion.ok) return conversion
+      afterEntry = conversion.settled
+    }
     return { ok: true as const, entered, afterEntry, bridges }
   }
 }
@@ -80,7 +90,7 @@ function campaignTransitKey(hex: string, state: Readonly<CampaignTurnState>) {
 
 export function campaignMarchDestinations(state: Readonly<CampaignTurnState>, side: Side, board: CampaignGroundMovementBoard,
   mover: Omit<CampaignMarchMover, 'stepsLeft'>) {
-  return reachableGroundHexes<Readonly<CampaignTurnState>>(mover.progress.hex, state, function* (progress, current, first) {
+  return reachableGroundHexes<Readonly<CampaignTurnState>>(mover.progress, state, function* (progress, current, first) {
     const enter = prepareMarchStep(current, side, board)
     if (!enter) return
     for (const to of board.map.neighbors(progress.hex)) {
@@ -131,8 +141,11 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
   }
 }
 
-export function campaignMarchPreview(result: ReturnType<typeof planCampaignGroundMarch>) {
+export function campaignMarchPreview(result: ReturnType<typeof planCampaignGroundMarch>, before: Readonly<CampaignTurnState>) {
   if (!result.ok) return result
   const pause = result.settled.groundMovement?.interruption
-  return { ok: true as const, placements: result.placements, ...(pause ? { pause: { kind: pause.kind, hex: pause.hex } } : {}) }
+  const changes = Object.entries(result.settled.railGaugeByEdge ?? {}).flatMap(([edge, gauge]) =>
+    before.railGaugeByEdge?.[edge] !== gauge ? [{ edge, gauge }] : [])
+  return { ok: true as const, placements: result.placements, ...(pause ? { pause: { kind: pause.kind, hex: pause.hex } } : {}),
+    ...(changes.length ? { railGaugeChanges: changes } : {}) }
 }

@@ -21,7 +21,7 @@ const groundCosts = { dry, freeze, mud }
 
 export interface TtwOrdinaryCrossing {
   barrier: 'none' | 'minor' | 'major' | 'blocked'
-  /** Provide only routes that are usable on this hexside, including the bridge state. */
+  /** Routes usable for spending MP, independent of railway gauge. Bridge state still applies. */
   routes: readonly ('road' | 'track' | 'rail')[]
 }
 
@@ -42,7 +42,10 @@ export function ttwOrdinaryTerrainCost(terrains: readonly Terrain[], crossing: T
   const minor: Costs = ground === 'freeze' ? [2, 3, 0] : [3, 5, 1]
   const major: Costs = ground === 'freeze' ? [4, 6, 2] : [null, null, 'all']
   const hexside = barrier === 'minor' ? minor[index] : barrier === 'major' ? major[index] : barrier === 'blocked' ? null : 0
-  const routes = crossing.routes.map((route) => ground === 'mud' ? (route === 'road' ? (mobility === 'truck' ? 2 : 1)
-    : mobility === 'truck' ? 4 : 1) : route === 'road' ? 0.5 : 1)
+  // TTW TEC. A rail line used for ground movement has the same MP cost as a track.
+  const routes = crossing.routes.map((route) => {
+    if (route === 'road') return ground === 'mud' ? (mobility === 'truck' ? 2 : 1) : 0.5
+    return ground === 'mud' && mobility === 'truck' ? 4 : 1
+  })
   return selectGroundTerrainCost(ttwGroundCellCost(terrains, mobility, ground), hexside, routes)
 }

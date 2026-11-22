@@ -5,7 +5,7 @@ import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-ma
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
 import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
-import { projectCampaignMatch, projectCampaignRailLoading, projectCampaignRailTransport } from '../src/view/campaign-match-view.ts'
+import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMatch, projectCampaignRailLoading, projectCampaignRailTransport } from '../src/view/campaign-match-view.ts'
 
 const hexes = Array.from({ length: 7 }, (_, i) => `D${12 + i}.03`)
 const map = campaignMapInPlayArea(indexTtwCampaignMap({ items: hexes.map((hex_id) => ({ hex_id })) }, {
@@ -15,18 +15,19 @@ const land = (hex, props = {}) => ({ kind: 'land', definition: 'infantry', side:
   location: { kind: 'map', hex }, ...props })
 
 function rules(rail = {}, ground = {}) {
+  const { network, ...railRules } = rail
   return {
     reinforcement: { schedule: new Map(), bindings: new Map(), resolveHex: map.resolveHex, arrivalSites: () => [] },
     reinforcementBlockers: () => [], movementBarrageBlockers: () => [],
     groundMovement: createCampaignOrdinaryMovementBoard({ map, terrainAt: () => ['Open'], crossingAt: () => ({ barrier: 'none', routes: [] }),
+      railNetwork: { edge: () => ({ gauge: 'standard', multiTrack: true }), isRepairUnit: (_, id) => ['engineer', 'rider'].includes(id), ...network },
       profileOf: (state, id) => ({ combat: state.counters[id].kind !== 'transport', attackCapable: true,
         inCombatMode: state.counters[id].mode === 'combat', outOfSupply: false, moveMa: 4, moveMobility: 'leg',
         drawMobility: 'leg', singleTransportPoint: true }),
       moveProfile: () => ({ ma: 4, mobility: 'leg', fuelReady: true }), entryRequiresResolution: () => false,
       inTrace: () => true, endBlockers: () => [], ...ground }),
     railTransport: { capacity: (_, side) => side === 'axis' ? 2 : 4, ordinaryCargo: (_, id) => id !== 'special',
-      edge: () => ({ usableGauge: true, multiTrack: true }), controlBlocksAt: () => false,
-      detrainable: () => true, trainbustingAt: () => false, ...rail },
+      controlBlocksAt: () => false, detrainable: () => true, trainbustingAt: () => false, ...railRules },
   }
 }
 
@@ -101,7 +102,7 @@ test('rail rejects bad gauge, unapproved stations, raw ZOC and an unresolved ent
   const held = submit(record, { type: 'hold-campaign-ground-zoc', counterId: 'guard' }, config)
   assert.equal(projectCampaignRailTransport(held, 'axis', rail(['D12.03', 'D13.03', 'D14.03'], ['foot']), config).reason, 'rail-enemy-zoc')
   const order = rail(['D12.03', 'D13.03'], ['foot'])
-  assert.throws(() => submit(record, order, rules({ edge: () => ({ usableGauge: false, multiTrack: false }) })), /rail-wrong-gauge/)
+  assert.throws(() => submit(record, order, rules({ network: { edge: () => ({ gauge: 'broad', multiTrack: false }) } })), /rail-wrong-gauge/)
   assert.throws(() => submit(record, order, rules({ detrainable: (_, _side, hex) => hex === 'D13.3' })), /rail-boarding-unavailable/)
   assert.throws(() => submit(record, order, rules({ detrainable: (_, _side, hex) => hex === 'D12.3' })), /rail-unloading-unavailable/)
   assert.throws(() => submit(record, order, rules({}, { entryRequiresResolution: () => true })), /rail-entry-unresolved/)
@@ -125,18 +126,94 @@ test('Kherson freight cannot transfer to a train and rail receipts cannot replac
   assert.throws(() => submit(refilled, ferry('D14.03', [], 1), config), /ferry-supply-unavailable/)
 })
 
-test('rail cannot bypass a first-entry bridge decision or use a destroyed railroad bridge', () => {
+test('compatible-gauge rail freight is independent of the ground-movement bridge decision', () => {
   const bridge = 'D13.3|D14.3'
-  const config = rules({}, { crossingAt: (_, _id, from, to) => [from, to].sort().join('|') === bridge
+  const config = rules({ network: { edge: () => ({ gauge: 'broad', multiTrack: true }) } }, { crossingAt: (_, _id, from, to) => [from, to].sort().join('|') === bridge
     ? { barrier: 'volga', bridge: 'intact', routes: ['rail'] } : { barrier: 'none', routes: [] } })
   const opening = beforeMovement({ foot: land('D12.03', { side: 'soviet' }) }, undefined, undefined, 'soviet')
   const record = normal(opening, config)
   const order = rail(['D12.03', 'D13.03', 'D14.03'], ['foot'])
-  assert.equal(projectCampaignRailTransport(record, 'soviet', order, config).reason, 'rail-bridge-response-unavailable')
-  assert.throws(() => submit(record, order, config), /rail-bridge-response-unavailable/)
-  assert.equal(record.state.groundMovement.railCapacitySpent, undefined)
-  const kept = { ...record, state: { ...record.state, volgaBridgeDecisions: { [bridge]: 'kept' } } }
-  assert.equal(submit(kept, order, config).state.counters.foot.location.hex, 'D14.3')
+  assert.equal(projectCampaignGroundRoute(record, 'soviet', march('foot', 'D13.03'), config).pause.kind, 'volga-bridge-demolition')
+  assert.equal(submit(record, order, config).state.groundMovement.interruption, undefined)
   const blown = { ...record, state: { ...record.state, volgaBridgeDecisions: { [bridge]: 'blown' } } }
-  assert.equal(projectCampaignRailTransport(blown, 'soviet', order, config).reason, 'rail-not-connected')
+  assert.equal(submit(blown, order, config).state.counters.foot.location.hex, 'D14.3')
+  const across = { type: 'move-campaign-ground', movers: [{ id: 'foot' }], path: ['D13.03', 'D14.03'] }
+  assert.equal(projectCampaignGroundRoute(blown, 'soviet', across, config).reason, 'insufficient-mp')
+})
+
+const keyOf = (a, b) => [a, b].sort().join('|')
+const engineerMove = (id, hex, connections) => ({ type: 'move-campaign-ground',
+  movers: [{ id, railWork: [{ step: 1, connections }] }], path: [hex] })
+
+test('ground rail costs the same as a track regardless of gauge; conversion updates both directions and railhead projection', () => {
+  const frontier = 'D13.3|D14.3'
+  const config = rules({ network: { initialGaugeJunctions: ['D13.3'], edge: (a, b) => ({
+    gauge: keyOf(a, b) === frontier ? 'broad' : 'standard', multiTrack: false,
+  }) } }, { crossingAt: () => ({ barrier: 'none', routes: ['rail'] }), terrainAt: () => ['Forest'] })
+  const record = normal(beforeMovement({ engineer: land('D12.03', { mode: 'combat' }), foot: land('D12.03'),
+    rider: land('D12.03', { mode: 'combat' }), back: land('D14.03') }), config)
+  const trip = rail(['D12.03', 'D13.03', 'D14.03'], ['foot'])
+  const ground = { type: 'move-campaign-ground', movers: [{ id: 'foot' }], path: trip.path.slice(1) }
+  assert.equal(projectCampaignGroundRoute(record, 'axis', ground, config).placements[0].spent, 2)
+  assert.equal(projectCampaignRailTransport(record, 'axis', trip, config).reason, 'rail-wrong-gauge')
+  assert.deepEqual(projectCampaignMatch(record, 'axis', config).railheads.map(({ hex }) => hex), ['D13.3'])
+  assert.throws(() => submit(record, engineerMove('foot', 'D13.03', ['D14.03']), config), /rail-repair-unit-required/)
+  const work = engineerMove('engineer', 'D13.03', ['D14.03'])
+  assert.equal(projectCampaignGroundRoute(record, 'axis', work, config).placements[0].spent, 1)
+  assert.deepEqual(projectCampaignGroundRoute(record, 'axis', work, config).railGaugeChanges, [{ edge: frontier, gauge: 'standard' }])
+  const changed = submit(record, work, config)
+  assert.deepEqual(changed.state.railGaugeByEdge, { [frontier]: 'standard' })
+  assert.deepEqual(changed.state.groundMovement.railConversionCount, { engineer: 1 })
+  assert.deepEqual(projectCampaignMatch(changed, 'axis', config).railheads, [])
+  assert.equal(projectCampaignRailTransport(changed, 'axis', trip, config).ok, true)
+  assert.equal(projectCampaignRailTransport(changed, 'axis', rail(trip.path.toReversed(), ['back']), config).ok, true)
+  assert.throws(() => submit(changed, rail(trip.path.slice(1), ['engineer']), config), /rail-conversion-no-leapfrog/)
+  const rode = submit(changed, rail(trip.path, ['rider']), config)
+  assert.throws(() => submit(rode, engineerMove('rider', 'D13.03', ['D12.03']), config), /rail-conversion-no-leapfrog/)
+})
+
+test('rail repair may board off station in combat mode and resume with its unspent MP', () => {
+  const config = rules({ detrainable: () => false, network: { edge: (a, b) => ({
+    gauge: keyOf(a, b) === 'D17.3|D18.3' ? 'broad' : 'standard', multiTrack: false,
+  }) } })
+  const record = normal(beforeMovement({ engineer: land('D15.03', { mode: 'combat' }), ordinary: land('D16.03') }), config)
+  const approach = submit(record, march('engineer', 'D16.03'), config)
+  const path = ['D16.03', 'D17.03']
+  assert.equal(projectCampaignRailLoading(approach, 'axis', 'D16.03', config).counters.length, 1)
+  assert.throws(() => submit(approach, rail(path, ['ordinary']), config), /rail-boarding-unavailable/)
+  const rode = submit(approach, rail(path, ['engineer']), config)
+  assert.equal(rode.state.counters.engineer.mode, 'combat')
+  assert.equal(rode.state.groundMovement.railRepairRides.engineer.spent, 1)
+  const work = engineerMove('engineer', 'D18.03', ['D17.03'])
+  const destination = projectCampaignGroundDestinations(rode, 'axis', { id: 'engineer' }, config).destinations.find(({ hex }) => hex === 'D18.3')
+  assert.equal(destination.spent, 2)
+  assert.equal(projectCampaignGroundRoute(rode, 'axis', work, config).placements[0].spent, 2)
+  assert.equal(submit(rode, work, config).state.railGaugeByEdge['D17.3|D18.3'], 'standard')
+})
+
+test('active conversion needs a combat-face repair unit and obeys raw ZOC and each unit’s current MA', () => {
+  const config = rules({ network: { edge: () => ({ gauge: 'broad', multiTrack: false }) } }, {
+    crossingAt: () => ({ barrier: 'none', routes: ['road'] }),
+    moveProfile: () => ({ ma: 2, mobility: 'leg', fuelReady: true }),
+  })
+  const combatEngineer = land('D15.03', { mode: 'combat' })
+  const normalTurn = normal(beforeMovement({ engineer: combatEngineer }), config)
+  const path = ['D16.03', 'D17.03', 'D18.03']
+  const railWork = ['D15.03', 'D16.03', 'D17.03'].map((hex, step) => ({ step: step + 1, connections: [hex] }))
+  const order = { type: 'move-campaign-ground', movers: [{ id: 'engineer', railWork }], path }
+  assert.equal(projectCampaignGroundRoute(normalTurn, 'axis', order, config).reason, 'rail-conversion-limit')
+  assert.equal(normalTurn.state.railGaugeByEdge, undefined)
+  const limited = submit(normalTurn, { ...order, movers: [{ id: 'engineer', railWork: railWork.slice(0, 2) }] }, config)
+  assert.equal(limited.state.groundMovement.railConversionCount.engineer, 2)
+
+  const marked = normal(beforeMovement({ engineer: { ...combatEngineer, disorganized: true } }), config)
+  const one = engineerMove('engineer', 'D16.03', ['D15.03'])
+  assert.equal(submit(marked, one, config).state.railGaugeByEdge['D15.3|D16.3'], 'standard')
+  assert.equal(projectCampaignGroundRoute(normalTurn, 'axis', { ...one, movers: [{ ...one.movers[0], mode: 'move' }] }, config).reason,
+    'rail-conversion-combat-face-required')
+
+  const threatened = normal(beforeMovement({ engineer: combatEngineer, guard: land('D16.03'),
+    enemy: land('D17.03', { side: 'soviet', mode: 'combat' }) }), config)
+  const held = submit(threatened, { type: 'hold-campaign-ground-zoc', counterId: 'guard' }, config)
+  assert.equal(projectCampaignGroundRoute(held, 'axis', one, config).reason, 'rail-conversion-enemy-zoc')
 })

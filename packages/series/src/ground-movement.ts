@@ -64,9 +64,10 @@ interface ReachStep<Context> {
 interface ReachNode<Context> extends ReachStep<Context> { parent: ReachNode<Context> | null }
 
 /** Adapted from computeReachableHexes. Keep distinct transit states even when they end on the same hex. */
-export function reachableGroundHexes<Context>(origin: string, context: Context,
+export function reachableGroundHexes<Context>(startStep: GroundStep, context: Context,
   expand: (current: GroundStep, context: Context, first: boolean) => Iterable<ReachStep<Context>>) {
-  const start: ReachNode<Context> = { step: { hex: origin, spent: 0, stop: null }, context, key: '',
+  const origin = startStep.hex
+  const start: ReachNode<Context> = { step: startStep, context, key: '',
     parent: null, canFinish: false, paused: false }
   const transit = new Map<string, ReachNode<Context>>()
   const destinations = new Map<string, ReachNode<Context>>()

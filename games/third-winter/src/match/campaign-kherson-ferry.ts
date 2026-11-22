@@ -88,7 +88,7 @@ function ferryLoadingOptions(state: Readonly<CampaignTurnState>, side: Side, win
   const { position, phase, banks, remainingRe } = window
   const to = from === banks[0] ? banks[1] : banks[0]
   const units = [...position.friendly].flatMap(([id, { hex, profile }]) => {
-    if (hex !== from || phase.starts[id] !== from || position.stopped.has(id) || position.locked.has(id) ||
+    if (hex !== from || phase.starts[id] !== from || position.stopped.has(id) || position.locked.has(id) || state.groundMovement?.railRepairRides?.[id] ||
       position.ferryPontoons.has(id) || position.engineeringPontoons.has(id)) return []
     const counter = state.counters[id]!
     const mode = campaignCounterGroundMode(counter, profile.inCombatMode)

@@ -13,6 +13,7 @@ import { previewCampaignMarchResume } from '../match/campaign-march-response.ts'
 import type { CampaignMarchResponse } from '../match/campaign-march-response.ts'
 import { campaignPontoonOptions } from '../match/campaign-pontoon-phase.ts'
 import { campaignRailLoading, campaignRailStatus, previewCampaignRailTransport } from '../match/campaign-rail-transport.ts'
+import { campaignRailheads } from '../match/campaign-rail-network.ts'
 import type { TransportCampaignRail } from '../match/campaign-rail-transport.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
@@ -54,8 +55,10 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     decision === 'repaired' ? [{ id, hexside: id.split('|') }] : [])
   const repairingBridges = Object.entries(state.volgaBridgeRepairs ?? {}).map(([id, { side, phases }]) => ({ id, hexside: id.split('|'), side, phases }))
   const pontoonTrackBridges = context.groundMovement?.pontoonTrackMarkers?.(state).filter(({ side }) => side === viewer) ?? []
+  const railheads = map ? campaignRailheads(state, map, context.groundMovement?.railNetwork) : []
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
-    ferries, blownBridges, repairingBridges, repairedBridges, pontoonTrackBridges, phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    ferries, blownBridges, repairingBridges, repairedBridges, pontoonTrackBridges, railheads,
+    phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null
