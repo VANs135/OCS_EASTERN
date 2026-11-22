@@ -49,6 +49,13 @@ function lossFromSource(source: unknown) {
   return stepsLost && Number.isSafeInteger(stepsLost) ? { stepsLost } : { issue: 'ambiguous-loss-source' as const }
 }
 
+function readLoss(entry: Record<string, unknown>): { stepsLost?: number; issue?: string } {
+  if (entry.steps_lost === undefined) return lossFromSource(entry.src)
+  const stepsLost = entry.steps_lost
+  return typeof stepsLost === 'number' && Number.isSafeInteger(stepsLost) && stepsLost > 0 ? { stepsLost }
+    : stepsLost === 0 ? {} : { issue: 'invalid-explicit-loss' }
+}
+
 /** Prepare known placements and retain pending setup actions. A prepared list alone cannot open a match. */
 export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map: TtwCampaignMapIndex, area?: PlayableMap) {
   if (!isRecord(raw) || !Array.isArray(raw.units) || (raw.random_draws !== undefined && !Array.isArray(raw.random_draws))) {
@@ -56,6 +63,7 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
   }
   const counters: SetupCounter[] = []
   const pendingMarkerRows: { row: number; side: Side; ref: string; printedHex: string | null; lossHint?: number }[] = []
+  const formationHeadings: { row: number; side: Side; ref: string }[] = []
   const unresolvedSetup: { row: number; side: Side; ref: string; issue: CampaignReferenceIssue }[] = []
   const missingSetupHexes: { row: number; ref: string; hex: string | null }[] = []
   const outsideSetupArea: typeof missingSetupHexes = []
@@ -77,7 +85,11 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
       continue
     }
     const { definition } = reference
-    const loss = lossFromSource(entry.src)
+    if (definition.kind === 'formation' && typeof entry.note === 'string' && entry.note.includes('编队本级')) {
+      formationHeadings.push({ row, side, ref })
+      continue
+    }
+    const loss = readLoss(entry)
     if (definition.kind === 'marker') {
       pendingMarkerRows.push({ row, ref, side, printedHex, ...(loss.stepsLost ? { lossHint: loss.stepsLost } : {}) })
       continue
@@ -93,7 +105,7 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
       ...(loss.stepsLost === undefined ? {} : { stepsLost: loss.stepsLost }) })
   }
 
-  const drawOrders: { row: number; side: Side; pool: string; hex: string }[] = []
+  const drawOrders: { row: number; side: Side; pool: string; hex: string; count?: number }[] = []
   const unresolvedDraws: { row: number; hex: string; pool: string; issue: HexIssue }[] = []
   for (const [index, entry] of (raw.random_draws ?? []).entries()) {
     const row = index + 1
@@ -101,13 +113,15 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
       throw new Error(`Invalid campaign setup draw ${row}`)
     }
     const { pool, hex } = entry
+    const count = entry.count
+    if (count !== undefined && (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 1)) throw new Error(`Invalid setup draw count at ${row}`)
     const side = readSide(entry.side, `draw ${row}`)
     const location = resolveLocation(hex, map, area)
     if ('issue' in location) unresolvedDraws.push({ row, pool, hex, issue: location.issue })
-    else drawOrders.push({ row, pool, hex: location.hex, side })
+    else drawOrders.push({ row, pool, hex: location.hex, side, ...(count === undefined ? {} : { count }) })
   }
   return {
     total: raw.units.length, resolvedNonMarkers, counters, pendingMarkerRows, unresolvedSetup, unresolvedLosses,
-    missingSetupHexes, outsideSetupArea, drawOrders, unresolvedDraws,
+    missingSetupHexes, outsideSetupArea, drawOrders, unresolvedDraws, formationHeadings,
   }
 }

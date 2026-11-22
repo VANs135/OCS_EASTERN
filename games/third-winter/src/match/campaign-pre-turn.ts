@@ -3,6 +3,7 @@ import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { playerPhases } from '@ocs-eastern/series/turn'
 import { drawCampaignEvent } from '../ttw/campaign/random-events.ts'
+import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { campaignWeather } from '../ttw/campaign/weather.ts'
 import type { CampaignThawTiming } from '../ttw/campaign/weather.ts'
 import type { CampaignCursor, CampaignPreTurnAction, CampaignPreTurnCheck, CampaignPreTurnRoll, CampaignTurnState } from './campaign-turn-state.ts'
@@ -42,8 +43,8 @@ export function applyCampaignPreTurn(state: Readonly<CampaignTurnState>, actor: 
       if (cursor.segment !== 'weather') throw new Error('Campaign weather is not due')
       const [, month, day] = state.when.date.split('-').map(Number)
       const dice = preTurnDice(state, 'weather')
-      const result = campaignWeather({ month: month!, day: day! }, state.weatherHistory, dice.roll,
-        state.opening?.weather, thawTiming)
+      const prescribed = state.when.scenarioId === kirovogradScenario ? kirovogradOpening.weather : state.opening?.weather
+      const result = campaignWeather({ month: month!, day: day! }, state.weatherHistory, dice.roll, prescribed, thawTiming)
       return { ...state, ...dice.result(), weather: result.weather, weatherHistory: result.state,
         ferries: result.removeFerries ? [] : state.ferries,
         cursor: result.endGame ? { phase: 'ended', reason: 'april-mud' } : { phase: 'pre-turn', segment: 'random-event' } }

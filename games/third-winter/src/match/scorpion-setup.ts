@@ -17,9 +17,10 @@ import type { TransportCounterLimit } from './scorpion-transport-points.ts'
 type UnitDefinition = Definition<BackupUnit>
 export interface ScorpionSetupData {
   units: readonly GroundSetupRow[]
-  air: readonly { ref: string }[]
+  air: readonly { ref: string; reduced?: boolean }[]
   dead_pile: readonly { ref: string }[]
   pools: { alert: readonly { ref: string; count: number }[] }
+  alertPoolCounts?: 'remaining'
 }
 
 export interface ScorpionSetupAssets {
@@ -63,11 +64,12 @@ export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: S
   const pool = data.pools.alert.flatMap(({ ref, count }) => {
     const aliases = catalog.aliases.get(ref)
     const definition = aliases?.length === 1 ? aliases[0] : undefined
+    const remaining = data.alertPoolCounts === 'remaining'
     if (!definition?.source.abilities?.includes('alert_battalion') || definition.source.side !== 'axis' ||
-      !Number.isSafeInteger(count) || count < 1) throw new Error(`Invalid Alert pool entry: ${ref}`)
+      !Number.isSafeInteger(count) || count < (remaining ? 0 : 1)) throw new Error(`Invalid Alert pool entry: ${ref}`)
     const onMap = Object.values(units).filter((unit) => unit.definition === definition.key).length
-    if (onMap > count) throw new Error(`Alert pool is missing printed counters: ${ref}`)
-    return Array.from({ length: count - onMap }, (_, index) => ({
+    if (!remaining && onMap > count) throw new Error(`Alert pool is missing printed counters: ${ref}`)
+    return Array.from({ length: remaining ? count : count - onMap }, (_, index) => ({
       id: `alert:${definition.key}:${onMap + index + 1}`, definition: definition.key,
     }))
   })

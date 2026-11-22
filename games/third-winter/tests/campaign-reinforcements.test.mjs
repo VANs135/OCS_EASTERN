@@ -65,3 +65,16 @@ test('malformed dates and missing references identify the invalid source row', (
   assert.throws(() => prepareCampaignReinforcements([group('withdraw', [axisUnit], { date: null })], aliases, map), /group at row 1/)
   assert.throws(() => prepareCampaignReinforcements([group('withdraw', [{}])], aliases, map), /entry at 1\.1/)
 })
+
+test('fixed entry rows bind to the cropped map and skip only marked formation headings', () => {
+  const definitions = new Map(aliases)
+  definitions.set('Group heading', [{ key: 'formation:id:5', kind: 'formation', source: { side: 'axis' } }])
+  const area = campaignMapInPlayArea(map, { kind: 'hex-list', hexes: ['D14.03'] })
+  const result = prepareCampaignReinforcements([group('reinforce hex', [
+    { ref: 'Group heading', entry: 'D14.03', note: '编队本级，非算子' },
+    { ...axisUnit, entry: 'D14.03' }, { ...axisUnit, entry: 'A1.1' },
+  ])], definitions, map, area)
+  assert.equal(result.formationHeadings.length, 1)
+  assert.deepEqual(result.entries[0].operation.channel, { kind: 'fixed-hex', hex: 'D14.3', printedHex: 'D14.03' })
+  assert.equal(result.entries[1].issue, 'outside-scenario')
+})

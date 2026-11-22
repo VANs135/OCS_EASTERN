@@ -8,12 +8,14 @@ const verifiedSetup = fileURLToPath(new URL('../../data/scorpion-real-library/sc
 
 export async function loadScorpionFiles(root, unitRoot, readJson) {
   const units = unitRoot ?? join(root, 'data')
-  const schema = unitRoot && !await hasV2Catalog(units) ? 'legacy' : 'v2'
+  const schema = unitRoot && !await exists(join(units, 'units_inf_div.json')) ? 'legacy' : 'v2'
   const legacyScenario = join(root, 'data', 'scenarios', '08-scorpion')
-  // The rebuilt setup uses printed coordinates and still needs a deployment audit.
-  const setupFile = schema === 'v2' ? verifiedSetup : join(legacyScenario, 'setup.json')
+  const revisedScenario = join(root, 'scenarios', '08-korsun-pocket')
+  const revisedSetup = join(revisedScenario, 'setup.json')
+  const useRevisedSetup = schema === 'v2' && await exists(revisedSetup)
+  const setupFile = useRevisedSetup ? revisedSetup : schema === 'v2' ? verifiedSetup : join(legacyScenario, 'setup.json')
   const arrivalsFile = schema === 'v2'
-    ? join(root, 'scenarios', '08-korsun-pocket', 'reinforcements.json')
+    ? join(revisedScenario, 'reinforcements.json')
     : join(legacyScenario, 'reinforcements.json')
   const [catalog, map, setup, arrivals] = await Promise.all([
     loadScorpionUnits((file) => readJson(join(units, file)), schema),
@@ -21,12 +23,13 @@ export async function loadScorpionFiles(root, unitRoot, readJson) {
     readJson(setupFile),
     readJson(arrivalsFile),
   ])
-  return { catalog, map, setup, arrivals, schema }
+  if (useRevisedSetup && setup.meta?.id !== 8) throw new Error('新版瓶中蝎初设不是 8 号剧本')
+  return { catalog, map, setup: useRevisedSetup ? { ...setup, alertPoolCounts: 'remaining' } : setup, arrivals, schema }
 }
 
-async function hasV2Catalog(directory) {
+async function exists(file) {
   try {
-    await stat(join(directory, 'units_inf_div.json'))
+    await stat(file)
     return true
   } catch (error) {
     if (error.code === 'ENOENT') return false

@@ -10,6 +10,7 @@
     "check": "npm run typecheck && npm test",
     "audit:data": "node --experimental-strip-types scripts/audit-data.mjs",
     "audit:campaign": "node --experimental-strip-types scripts/audit-campaign.mjs",
+    "audit:scenario-import": "node --experimental-strip-types scripts/audit-scenario-import.mjs",
     "preview:map": "node --experimental-strip-types scripts/scorpion-map-preview.mjs",
     "play:local": "node --experimental-strip-types desktop/local/start.mjs",
     "test:local": "node --experimental-strip-types desktop/local/smoke.mjs",

@@ -4,6 +4,7 @@ import { createRngState } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
+import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
@@ -35,7 +36,8 @@ export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): 
     !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== when.date) {
     throw new Error('Invalid campaign turn or date')
   }
-  return { revision: 0, receipts: [], state: { ...opening, cursor: { phase: 'pre-turn', segment: 'weather' },
+  const prescribed = when.scenarioId === kirovogradScenario && turn === 1 ? kirovogradOpening : opening.opening
+  return { revision: 0, receipts: [], state: { ...opening, opening: prescribed, cursor: { phase: 'pre-turn', segment: 'weather' },
     rng: createRngState(seed), weather: null, weatherHistory: { ...(opening.weatherHistory ?? initialWeatherHistory) },
     preTurnRolls: [], breakoutRolls: [], ferries: opening.ferries ?? [], supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
     withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } } }

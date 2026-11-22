@@ -1,12 +1,14 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { ScorpionArrival } from '../ttw/scorpion/arrival.ts'
+import { scorpionFixedSupply } from '../ttw/scorpion/fixed-supply.ts'
 import type { Definition } from './unit-catalog.ts'
+import type { BackupUnit } from './unit-backup.ts'
 
 export interface ArrivalBlock {
   turn: number
   phase: string
   side: Side
-  entries: readonly { ref: string; entry: string | readonly string[]; face?: string; vp_cost?: number; note?: string }[]
+  entries: readonly { ref: string; entry: string | readonly string[]; face?: string; steps_lost?: number; qty?: number; vp_cost?: number; note?: string }[]
 }
 
 export interface UnitArrival extends ScorpionArrival {
@@ -32,10 +34,11 @@ const printedTwoStepLosses = new Set(['Ge 376 Inf Div', 'Ge 82 Inf Div'])
 /** Read the published list and resolve the legacy JSON's unit references through TTW's catalog. */
 export function scorpionArrivalCatalog(
   blocks: readonly ArrivalBlock[],
-  aliases: ReadonlyMap<string, readonly Definition[]>,
+  aliases: ReadonlyMap<string, readonly Definition<BackupUnit>[]>,
 ): UnitArrival[] {
   const arrivals: UnitArrival[] = []
   const ids = new Set<string>()
+  const listedSupply = new Set<string>()
   const optionalBySide = { axis: 'axis-24-panzer', soviet: 'soviet-5-guards-cavalry' } as const
 
   function add(side: Side, turn: number, row: ArrivalBlock['entries'][number], organicTruck?: 'full' | 'empty') {
@@ -49,10 +52,13 @@ export function scorpionArrivalCatalog(
     if (row.vp_cost !== undefined && row.vp_cost !== 5) throw new Error(`Invalid VP cost for ${row.ref}`)
     const id = `${turn}:${side}:${definition.key}`
     if (ids.has(id)) throw new Error(`Duplicate Scorpion arrival: ${row.ref}`)
+    if (row.steps_lost !== undefined && (!Number.isSafeInteger(row.steps_lost) || row.steps_lost < 0)) {
+      throw new Error(`Invalid Scorpion reinforcement steps: ${row.ref}`)
+    }
     ids.add(id)
     arrivals.push({
       id, side, turn, destinations, definition: definition.key, face: row.face, note: row.note, organicTruck,
-      stepsLost: printedTwoStepLosses.has(row.ref) ? 2 : row.face === 'reduced' ? 1 : undefined,
+      stepsLost: row.steps_lost ?? (printedTwoStepLosses.has(row.ref) ? 2 : row.face === 'reduced' ? 1 : undefined),
       optionalForce: row.vp_cost === 5 ? optionalBySide[side] : undefined,
     })
   }
@@ -62,6 +68,19 @@ export function scorpionArrivalCatalog(
       throw new Error('Invalid Scorpion reinforcement block')
     }
     for (const row of block.entries) {
+      if (row.ref === 'Supply Point') {
+        const setup = scorpionFixedSupply.find(({ turn, side }) => turn === block.turn && side === block.side)
+        const at = typeof row.entry === 'string' ? row.entry.trim().split(/\s+/) : row.entry
+        const key = `${block.turn}:${block.side}`
+        if (!setup || listedSupply.has(key) || row.qty !== setup.sp || !at ||
+          JSON.stringify([...at].sort()) !== JSON.stringify([...setup.destinations].sort())) {
+          throw new Error(`Scorpion fixed supply conflicts with scenario rules in ${key}`)
+        }
+        listedSupply.add(key)
+        continue
+      }
+      const reference = aliases.get(row.ref)
+      if (reference?.length === 1 && reference[0]?.kind === 'formation' && reference[0].source.side === block.side) continue
       const truck = printedTrucks.find(({ side, turn, ref }) =>
         side === block.side && turn === block.turn && ref === row.ref,
       )

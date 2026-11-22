@@ -6,7 +6,7 @@ import type {
 import type { TtwCampaignMapIndex } from './campaign-map-index.ts'
 import { resolveCampaignReference } from './campaign-reference.ts'
 import type { CampaignAliases } from './campaign-reference.ts'
-import { campaignHexKey } from './hex-id.ts'
+import { tryCampaignHexKey } from './hex-id.ts'
 
 const channels = new Map<string, CampaignReinforcementOperation>([
   ['withdraw', { kind: 'withdraw' }],
@@ -35,6 +35,7 @@ export function prepareCampaignReinforcements(
 ) {
   if (!Array.isArray(raw)) throw new Error('Invalid campaign reinforcement rows')
   const entries: CampaignReinforcement[] = []
+  const formationHeadings: { row: number; entry: number; side: Side; turn: number; ref: string }[] = []
   const byTurn = new Map<number, Record<Side, CampaignReinforcement[]>>()
   const groupCounts = new Map<string, number>()
   for (const [index, group] of raw.entries()) {
@@ -61,20 +62,28 @@ export function prepareCampaignReinforcements(
       const entry = entryIndex + 1
       if (!isRecord(source) || (source.ref !== null && (typeof source.ref !== 'string' || !source.ref.trim())) ||
         (source.note != null && typeof source.note !== 'string')) throw new Error(`Invalid campaign reinforcement entry at ${row}.${entry}`)
+      if (source.ref !== null && typeof source.note === 'string' && source.note.includes('编队本级')) {
+        const match = resolveCampaignReference(aliases, source.ref, side)
+        if ('definition' in match && match.definition.kind === 'formation') {
+          formationHeadings.push({ row, entry, side, turn, ref: source.ref })
+          continue
+        }
+      }
       const result: CampaignReinforcement = { ...position, id: `campaign-reinforcement:${row}:${entry}`, entry,
-        ref: source.ref, note: source.note ?? null, ...classifyEntry(source.ref, side, sourceChannel, aliases, map, area) }
+        ref: source.ref, note: source.note ?? null, ...classifyEntry(source.ref, side, sourceChannel, source.entry, aliases, map, area) }
       entries.push(result)
       window[side].push(result)
     }
   }
   const schedule: CampaignReinforcementSchedule = byTurn
-  return { entries, schedule, groups: raw.length, groupCounts }
+  return { entries, schedule, groups: raw.length, groupCounts, formationHeadings }
 }
 
 function classifyEntry(
   ref: string | null,
   side: Side,
   label: string,
+  entryHex: unknown,
   aliases: CampaignAliases,
   map: TtwCampaignMapIndex,
   area?: ReturnType<typeof campaignMapInPlayArea>,
@@ -86,9 +95,10 @@ function classifyEntry(
   if (identity.counterKind === 'marker') return { ...identity, status: 'pending', issue: 'marker' }
 
   const channel = label.trim().toLowerCase()
-  if (channel === 'kherson d14.03') {
-    const printedHex = 'D14.03'
-    const hex = map.canonicalByHex.get(campaignHexKey(printedHex))
+  if (channel === 'kherson d14.03' || channel === 'reinforce hex') {
+    const printedHex = channel === 'kherson d14.03' ? 'D14.03' : typeof entryHex === 'string' ? entryHex : ''
+    const key = tryCampaignHexKey(printedHex)
+    const hex = key && map.canonicalByHex.get(key)
     if (!hex || !map.onMapHexes.has(hex)) return { ...identity, status: 'pending', issue: 'missing-entry-hex' }
     if (area && !area.availableHexes.has(hex)) return { ...identity, status: 'pending', issue: 'outside-scenario' }
     return { ...identity, status: 'classified', operation: { kind: 'arrival', channel: { kind: 'fixed-hex', hex, printedHex } } }

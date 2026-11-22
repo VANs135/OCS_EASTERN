@@ -11,6 +11,7 @@ const [root, scenario = '01-dnepr-battles'] = process.argv.slice(2)
 if (!root || !/^0[1-9]-[a-z0-9-]+$/.test(scenario)) {
   throw new Error('Usage: npm run audit:campaign --workspace=@ocs-eastern/third-winter -- <TTW directory> [scenario directory]')
 }
+if (scenario === '08-korsun-pocket') throw new Error('Scorpion uses a separate map. Run audit:scenario-import with scenario 08')
 const read = async (...parts) => JSON.parse((await readFile(join(root, ...parts), 'utf8')).replace(/^\uFEFF/, ''))
 const scenarioFile = (name) => read('scenarios', scenario, name)
 const [hexes, edges, catalog, setup, arrivals, objectives] = await Promise.all([
@@ -42,8 +43,8 @@ const firstTurn = Object.fromEntries(['axis', 'soviet'].map((phasing) =>
 
 const victory = {
   rule: objectives.campaign_vp?.rule ?? null,
-  sourceRows: objectives.vp_sources?.length ?? 0,
-  resultBands: objectives.bands?.length ?? 0,
+  sourceRows: (objectives.vp_sources ?? objectives.vpSources)?.length ?? 0,
+  resultBands: (objectives.bands ?? objectives.terminal?.bands)?.length ?? 0,
 }
 const report = { scenario, map, playArea,
   setup: { ...setupChecks, preparedCounters: counters.length,
@@ -55,7 +56,7 @@ const report = { scenario, map, playArea,
     resolvedNonMarkers: reinforcements.entries.filter(({ counterKind }) => counterKind && counterKind !== 'marker').length,
     channels: Object.fromEntries(reinforcements.groupCounts),
     classifiedByOperation: Object.fromEntries([...classifiedByOperation].map(([kind, rows]) => [kind, rows.length])),
-    pendingOrders, unresolvedReferences, firstTurn },
+    pendingOrders, unresolvedReferences, formationHeadings: reinforcements.formationHeadings, firstTurn },
   victory,
 }
 console.log(JSON.stringify(report, null, 2))

@@ -1,10 +1,13 @@
 import { campaignHexKey } from './hex-id.ts'
+import { terrainKinds } from './scorpion-map.ts'
+import type { Terrain } from './scorpion-map.ts'
 
 interface SourceHex {
   hex_id: string
   on_map?: boolean
   seam_twin: string | null
   seam_primary: boolean | null
+  terrains_present?: readonly string[]
 }
 
 interface SourceEdge {
@@ -22,6 +25,7 @@ interface SourceEdge {
   lake_edge?: string | boolean | null
   bridge?: string | boolean | null
   blocked_kind?: string | null
+  river_class_status?: string | null
 }
 
 const connectionFields = ['road_present', 'road_subclass', 'rail_present', 'rail_class',
@@ -35,6 +39,7 @@ interface CampaignConnection {
 }
 
 const orderedPair = (a: string, b: string): [string, string] => a < b ? [a, b] : [b, a]
+const knownTerrains = new Set<string>(terrainKinds)
 
 interface CampaignTable<T> {
   items: readonly T[]
@@ -122,6 +127,12 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   return {
     canonicalByHex,
     onMapHexes,
+    terrainAt(hex: string): readonly Terrain[] | undefined {
+      const key = canonicalByHex.get(campaignHexKey(hex))
+      const terrains = key && byHex.get(key)?.terrains_present
+      return Array.isArray(terrains) && terrains.length > 0 && terrains.every((terrain) => knownTerrains.has(terrain))
+        ? terrains as readonly Terrain[] : undefined
+    },
     // Geometric neighbors can include rivers, blocked edges and disputes. Movement owns passability.
     neighbors(hex: string): readonly string[] {
       const id = canonicalByHex.get(campaignHexKey(hex))

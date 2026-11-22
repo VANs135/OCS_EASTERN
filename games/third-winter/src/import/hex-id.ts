@@ -15,6 +15,14 @@ export function scorpionPrintedHex(col: number, programRow: number): string {
   return `s${col}.${String(11 - programRow).padStart(2, '0')}`
 }
 
+/** Revised scenario rows explicitly mark their coordinates as printed on the small map. */
+export function scorpionSetupHex(at: { map?: string; col: number; row: number }): string {
+  if (!Number.isSafeInteger(at.col) || !Number.isSafeInteger(at.row)) throw new Error('Invalid Scorpion setup coordinate')
+  if (at.map === undefined) return scorpionPrintedHex(at.col, at.row)
+  if (at.map !== 'S') throw new Error(`Wrong map in Scorpion setup: ${at.map}`)
+  return scorpionHexId(`s${at.col}.${at.row}`)
+}
+
 export function scorpionHexId(source: string): string {
   const match = /^s(\d+)\.(\d{1,2})$/i.exec(source)
   if (!match) throw new Error(`Invalid printed Scorpion hex: ${source}`)

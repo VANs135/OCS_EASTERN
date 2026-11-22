@@ -50,3 +50,17 @@ test('setup reports loss ambiguity, out-of-scope locations and wrong-side refere
   assert.deepEqual(result.outsideSetupArea.map(({ row }) => row), [3])
   assert.deepEqual(result.unresolvedSetup.map(({ issue }) => issue), ['wrong-side'])
 })
+
+test('revised setup reads explicit losses and separates formation headings and draw quantities', () => {
+  const definitions = new Map(aliases)
+  definitions.set('Group heading', [{ key: 'formation:id:10', kind: 'formation', source: { side: 'axis' } }])
+  const result = prepareCampaignSetup({ units: [
+    row({ steps_lost: 1, src: '减1军力' }),
+    row({ ref: 'Group heading', note: '编队本级，非算子' }),
+    row({ steps_lost: -1 }),
+  ], random_draws: [{ side: 'axis', pool: 'alert', hex: 'C2.34', count: 2 }] }, definitions, map)
+  assert.deepEqual(result.counters.map(({ stepsLost }) => stepsLost), [1])
+  assert.equal(result.formationHeadings[0].ref, 'Group heading')
+  assert.equal(result.unresolvedLosses[0].issue, 'invalid-explicit-loss')
+  assert.equal(result.drawOrders[0].count, 2)
+})

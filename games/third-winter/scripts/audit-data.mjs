@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import { basename, dirname, join, resolve } from 'node:path'
 import { barrageColumn } from '@ocs-eastern/series/tables/barrage'
-import { scorpionHexDistance, scorpionHexId, scorpionPrintedHex } from '../src/import/hex-id.ts'
+import { scorpionHexDistance, scorpionHexId, scorpionSetupHex } from '../src/import/hex-id.ts'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
@@ -52,12 +52,13 @@ function references(value) {
   if (value === null || typeof value !== 'object') return []
   return typeof value.ref === 'string' ? [value.ref] : Object.values(value).flatMap(references)
 }
-const sourceRefs = [...references(setup), ...references(reinforcement)]
+const sourceRefs = [setup.units, setup.air, setup.dead_pile, setup.pools.alert, reinforcement]
+  .flatMap(references).filter((name) => name !== 'Supply Point')
 const unresolved = [...new Set(sourceRefs.filter((name) => aliases.get(name)?.length !== 1))]
 const playableArrivals = unresolved.length === 0 ? scorpionArrivalCatalog(reinforcement, aliases) : []
 const missingSetupHexes = [...new Set(
-  [setup.units, setup.air, setup.markers].flat().filter(({ at }) => at)
-    .map(({ at }) => scorpionPrintedHex(at.col, at.row)).filter((hex) => !map.hexes.has(hex)),
+  [setup.units, setup.air, setup.markers ?? []].flat().filter(({ at }) => at)
+    .map(({ at }) => scorpionSetupHex(at)).filter((hex) => !map.hexes.has(hex)),
 )]
 const placementHexes = [...playableArrivals, ...scorpionFixedSupply].flatMap(({ destinations }) => destinations)
 const missingArrivalHexes = [...new Set(placementHexes.filter((hex) =>

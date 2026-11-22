@@ -13,6 +13,20 @@ const truckNames = ['Sov 5.Gd Cav Truck', 'Ge 24.Pz Truck', 'Sov 20.Tk Truck', '
   'Ge 1.Pz Truck', 'Ge 1.SS Pz Truck', 'Ge 10.PG Truck']
 const bySource = (arrivals, name) => arrivals.find(({ definition }) => definition === name)
 
+test('revised roster uses explicit losses and leaves fixed supplies and formation headings out of the unit arrivals', () => {
+  const aliases = aliasesOf(...truckNames, 'Division')
+  aliases.set('Group', [{ key: 'group', kind: 'formation', source: { side: 'soviet' } }])
+  const rows = block(1, 'soviet', [
+    { ref: 'Supply Point', entry: 's22.02', qty: 2 },
+    { ref: 'Group', entry: 's22.02' },
+    { ref: 'Division', entry: 's22.02', steps_lost: 2 },
+  ])
+  const arrivals = scorpionArrivalCatalog(rows, aliases)
+  assert.equal(arrivals.length, truckNames.length + 1)
+  assert.equal(arrivals.find(({ turn }) => turn === 1).stepsLost, 2)
+  assert.throws(() => scorpionArrivalCatalog(block(1, 'soviet', [{ ref: 'Supply Point', entry: 's22.02', qty: 3 }]), aliases), /fixed supply conflicts/)
+})
+
 test('published rows resolve through the catalog and carry face, note and truck data', () => {
   const names = [...truckNames, 'Ge 376 Inf Div', 'Sov 32.Cav Div']
   const arrivals = scorpionArrivalCatalog(block(2, 'soviet', [

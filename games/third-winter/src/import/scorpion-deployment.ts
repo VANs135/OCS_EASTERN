@@ -1,6 +1,6 @@
 import { scorpionGroundProfile } from './ground-profile.ts'
 import type { GroundProfile } from './ground-profile.ts'
-import { scorpionPrintedHex } from './hex-id.ts'
+import { scorpionSetupHex } from './hex-id.ts'
 import type { ScorpionMap } from './scorpion-map.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
@@ -12,8 +12,9 @@ import type { ArtilleryFace } from './scorpion-artillery.ts'
 
 export interface GroundSetupRow {
   ref: string
-  at: { col: number; row: number }
+  at: { map?: string; col: number; row: number }
   face?: 'reduced'
+  steps_lost?: number
 }
 
 export interface DeployedCounter extends GroundProfile {
@@ -122,8 +123,10 @@ export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], alias
   for (const row of setup) {
     if (row.face !== undefined && row.face !== 'reduced') throw new Error(`Unknown setup face for ${row.ref}`)
     const choice = lossPairs.some((pair) => pair.some((ref) => ref === row.ref))
-    const stepsLost = choice || row.face !== 'reduced' ? 0 : multipleLosses.get(row.ref) ?? 1
-    add(row.ref, scorpionPrintedHex(row.at.col, row.at.row), stepsLost)
+    const explicit = row.steps_lost
+    if (explicit !== undefined && (!Number.isSafeInteger(explicit) || explicit < 0)) throw new Error(`Invalid setup steps for ${row.ref}`)
+    const stepsLost = choice ? 0 : explicit ?? (row.face === 'reduced' ? multipleLosses.get(row.ref) ?? 1 : 0)
+    add(row.ref, scorpionSetupHex(row.at), stepsLost)
   }
   for (const row of printedTransports) {
     // A later scenario export may include a printed truck already.

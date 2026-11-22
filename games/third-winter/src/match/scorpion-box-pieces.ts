@@ -18,13 +18,13 @@ export interface ScorpionBoxPiece {
 
 /** TTW Scenarios pp.54–56. Aircraft leave the setup list only once a basing choice has been made. */
 export function scorpionSetupBoxPieces(
-  setup: { air: readonly { ref: string }[]; dead_pile: readonly { ref: string }[] },
+  setup: { air: readonly { ref: string; reduced?: boolean }[]; dead_pile: readonly { ref: string }[] },
   aliases: ReadonlyMap<string, readonly Definition<BackupUnit>[]>,
 ): ScorpionBoxPiece[] {
   const reducedGroups = new Set(['Sov Pe.2', 'Sov IL.4', 'Sov Yak.9'])
   const copies = new Map<string, number>()
 
-  function piece(ref: string, location: 'air-setup' | 'dead-pile'): ScorpionBoxPiece {
+  function piece(ref: string, location: 'air-setup' | 'dead-pile', reduced?: boolean): ScorpionBoxPiece {
     const matches = aliases.get(ref)
     const definition = matches?.length === 1 ? matches[0] : undefined
     const kind = location === 'air-setup' ? 'aircraft' : 'land'
@@ -33,11 +33,11 @@ export function scorpionSetupBoxPieces(
     copies.set(definition.key, copy)
     return { id: `${location}:${definition.key}:${copy}`, side: definition.source.side, definition: definition.key,
       kind: location === 'air-setup' ? 'aircraft' : 'ground', location: { kind: location },
-      reduced: reducedGroups.has(ref) && copy === 1, active: location === 'air-setup' ? true : undefined }
+      reduced: reduced ?? (reducedGroups.has(ref) && copy === 1), active: location === 'air-setup' ? true : undefined }
   }
 
   return [...setup.dead_pile.map(({ ref }) => piece(ref, 'dead-pile')),
-    ...setup.air.map(({ ref }) => piece(ref, 'air-setup'))]
+    ...setup.air.map(({ ref, reduced }) => piece(ref, 'air-setup', reduced))]
 }
 
 /** TTW Scenarios p.53 permits either side to base an aircraft in its off-map box. */
