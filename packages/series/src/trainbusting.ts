@@ -1,4 +1,5 @@
 import type { Mobility } from './ground-map.ts'
+import { railCapacityFactor } from './rail-transport.ts'
 import type { Side } from './state-types.ts'
 
 export interface TrainbustingMarker {
@@ -16,6 +17,6 @@ export function inTrainbustingZone(markers: readonly TrainbustingMarker[], side:
 /** OCS 13.3a and 14.8c. The route includes loading and unloading hexes. */
 export function railCapacityCost(cargoEquivalents: number, route: readonly string[], allMultiTrack: boolean,
   markers: readonly TrainbustingMarker[], side: Side, neighbors: (hex: string) => readonly string[]) {
-  const disrupted = route.some((hex) => inTrainbustingZone(markers, side, hex, neighbors, 'rail'))
-  return cargoEquivalents * (allMultiTrack ? 0.5 : 1) * (disrupted ? 2 : 1)
+  const hasTrainbustingZone = route.some((hex) => inTrainbustingZone(markers, side, hex, neighbors, 'rail'))
+  return cargoEquivalents * railCapacityFactor({ hasTrainbustingZone, entirePathMultiTrack: allMultiTrack })
 }
