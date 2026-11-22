@@ -53,32 +53,45 @@ export function evaluateGroundStep(board: GroundMoveBoard, unit: GroundMoveUnit,
   return { ok: true, step: { hex: to, spent, stop } }
 }
 
-interface ReachNode extends GroundStep { parent: ReachNode | null }
+interface ReachStep<Context> {
+  step: GroundStep
+  context: Context
+  key: string
+  canFinish: boolean
+  paused: boolean
+}
 
-/** Adapted from computeReachableHexes. The least costly passable route wins for each hex. */
-export function reachableGroundHexes(board: GroundMoveBoard, unit: GroundMoveUnit, origin: string,
-  pauseAt?: (hex: string) => boolean) {
-  const start: ReachNode = { hex: origin, spent: 0, stop: null, parent: null }
-  const best = new Map([[origin, start]])
+interface ReachNode<Context> extends ReachStep<Context> { parent: ReachNode<Context> | null }
+
+/** Adapted from computeReachableHexes. Keep distinct transit states even when they end on the same hex. */
+export function reachableGroundHexes<Context>(origin: string, context: Context,
+  expand: (current: GroundStep, context: Context, first: boolean) => Iterable<ReachStep<Context>>) {
+  const start: ReachNode<Context> = { step: { hex: origin, spent: 0, stop: null }, context, key: '',
+    parent: null, canFinish: false, paused: false }
+  const transit = new Map<string, ReachNode<Context>>()
+  const destinations = new Map<string, ReachNode<Context>>()
   const queue = [start]
   for (let head = 0; head < queue.length; head++) {
     const current = queue[head]!
-    if (current.stop || best.get(current.hex) !== current || current !== start && pauseAt?.(current.hex)) continue
-    for (const to of board.neighbors(current.hex)) {
-      const result = evaluateGroundStep(board, unit, current, to, current === start)
-      if (!result.ok) continue
-      const previous = best.get(to)
-      const { step } = result
-      if (previous && (previous.spent < step.spent || previous.spent === step.spent && (!previous.stop || step.stop))) continue
-      const node = { ...step, parent: current }
-      best.set(to, node)
-      queue.push(node)
+    if (current !== start && transit.get(current.key) !== current) continue
+    for (const result of expand(current.step, current.context, current === start)) {
+      const { step, key, paused, canFinish } = result
+      const node = { ...result, parent: current }
+      const previous = destinations.get(step.hex)
+      const continues = !step.stop && !paused
+      if (canFinish && step.hex !== origin && (!previous || step.spent < previous.step.spent ||
+        step.spent === previous.step.spent && continues && (previous.step.stop || previous.paused))) {
+        destinations.set(step.hex, node)
+      }
+      if (continues && step.spent < (transit.get(key)?.step.spent ?? Infinity)) {
+        transit.set(key, node)
+        queue.push(node)
+      }
     }
   }
-  best.delete(origin)
-  return [...best.values()].map(({ hex, spent, stop, parent }) => {
-    const path = [hex]
-    for (let node = parent; node?.parent; node = node.parent) path.push(node.hex)
-    return { hex, spent, stop, path: path.reverse() }
+  return [...destinations.values()].map(({ step, paused, parent }) => {
+    const path = [step.hex]
+    for (let node = parent; node?.parent; node = node.parent) path.push(node.step.hex)
+    return { ...step, paused, path: path.reverse() }
   })
 }

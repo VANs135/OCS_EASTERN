@@ -1,8 +1,13 @@
 /** Campaign print and database aliases, e.g. D14.03 / D14.3. */
 export function campaignHexKey(source: string): string {
+  const key = tryCampaignHexKey(source)
+  if (!key) throw new Error(`Invalid campaign hex: ${source}`)
+  return key
+}
+
+export function tryCampaignHexKey(source: string): string | undefined {
   const match = /^([A-D])(\d+)\.(\d+)$/.exec(source)
-  if (!match) throw new Error(`Invalid campaign hex: ${source}`)
-  return `${match[1]}${Number(match[2])}.${Number(match[3])}`
+  if (match) return `${match[1]}${Number(match[2])}.${Number(match[3])}`
 }
 
 /** Scorpion program rows are inverted at row 11 (e.g. 40th Army: 1,-3 / s1.14). */

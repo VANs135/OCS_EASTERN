@@ -11,7 +11,6 @@ export interface TtwVolgaCrossing {
 }
 
 export const volgaHexsidePhaseLimitRe = 3
-export const volgaBridgeRepairPhases = 4
 
 /** TTW 1.4b and 1.5a, Axis Player Booklet p.8. This handles ordinary, non-rail-ferry movement. */
 export function ttwVolgaMovementCost(terrain: readonly Terrain[], crossing: TtwVolgaCrossing, mobility: Mobility,

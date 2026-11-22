@@ -1,4 +1,4 @@
-import { campaignHexKey } from '../../import/hex-id.ts'
+import { tryCampaignHexKey } from '../../import/hex-id.ts'
 import type { TtwCampaignMapIndex } from '../../import/campaign-map-index.ts'
 
 export type CampaignPlayArea = { kind: 'all-map' } | { kind: 'hex-list'; hexes: readonly string[] }
@@ -10,7 +10,10 @@ export function ttwCampaignPlayArea(scenarioId: string): CampaignPlayArea | unde
 
 /** Apply the scenario boundary to geometric queries. Terrain and occupancy rules run separately. */
 export function campaignMapInPlayArea(map: TtwCampaignMapIndex, area: CampaignPlayArea) {
-  const indexedHex = (printed: string) => map.canonicalByHex.get(campaignHexKey(printed))
+  const indexedHex = (printed: string) => {
+    const key = tryCampaignHexKey(printed)
+    return key ? map.canonicalByHex.get(key) : undefined
+  }
   const availableHexes: ReadonlySet<string> = area.kind === 'all-map'
     ? map.onMapHexes
     : new Set(area.hexes.map((printed) => {

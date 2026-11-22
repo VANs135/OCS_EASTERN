@@ -1,7 +1,7 @@
 import { edgeKey } from '@ocs-eastern/series/ground-map'
 import { groundModeEffect } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
-import { volgaBridgeRepairPhases } from '../ttw/campaign/volga-movement.ts'
+import { bridgeRepairReady } from '../ttw/campaign/bridge-repair.ts'
 import type { TtwVolgaCrossing } from '../ttw/campaign/volga-movement.ts'
 import { campaignCounterGroundMode } from './campaign-ground-position.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
@@ -60,7 +60,7 @@ export function reconcileCampaignBridgeRepairs(state: Readonly<CampaignTurnState
 
 export function finishReadyVolgaBridgeRepairs(state: Readonly<CampaignTurnState>, side: Side): CampaignTurnState {
   const repairs = Object.entries(state.volgaBridgeRepairs ?? {})
-  const ready = repairs.filter(([, repair]) => repair.side === side && repair.phases >= volgaBridgeRepairPhases)
+  const ready = repairs.filter(([, repair]) => repair.side === side && bridgeRepairReady(repair.phases))
   if (!ready.length) return state
   const volgaBridgeDecisions = { ...state.volgaBridgeDecisions }
   const volgaBridgeRepairs = { ...state.volgaBridgeRepairs }

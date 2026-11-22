@@ -1,16 +1,13 @@
-import { reachableGroundHexes } from '@ocs-eastern/series/ground-movement'
 import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
-import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
-import { campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch } from './campaign-ground-march.ts'
+import { campaignMarchDestinations, campaignMarchPreview, normalizeCampaignMarchPath, planCampaignGroundMarch } from './campaign-ground-march.ts'
 import type { CampaignMarchInterruption, CampaignMarchMover } from './campaign-ground-march.ts'
 import { campaignCombatPontoon, campaignCounterGroundMode } from './campaign-ground-position.ts'
 import type { CampaignGroundProfile } from './campaign-ground-position.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
-import { campaignDemolishableBridges } from './campaign-volga-bridges.ts'
 
 export interface CampaignGroundMovementProgress {
   moved: readonly string[]
@@ -139,17 +136,8 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const proposed = { ...state, counters: { ...state.counters, [id]: choice.counter } }
   const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode)
   if (!prepared.ok) return prepared
-  const { unit } = prepared
-  const crossingUsage = campaignCrossingUsage(proposed, board)
-  const ownBridgeDeparture = formerPontoonBridge(state, proposed, id, choice.hex, choice.profile)
-  const stepBoard = position.stepBoard(id, unit.mobility, proposed, crossingUsage.stepRefusal(id), ownBridgeDeparture)
-  const pauseAt = (hex: string) => side === 'soviet' && choice.profile.combat && campaignDemolishableBridges(proposed, board, id, hex).length > 0
-  const destinations = reachableGroundHexes(stepBoard, unit, choice.hex, pauseAt).flatMap((step) => {
-    if (pauseAt(step.hex)) return [{ ...step, pause: 'volga-bridge-demolition' as const }]
-    const candidate = { ...proposed, counters: { ...proposed.counters,
-      [id]: { ...choice.counter, location: { kind: 'map' as const, hex: step.hex } } } }
-    return !unit.strategic || board.inTrace(candidate, id, step.hex) === true ? [step] : []
-  })
+  const destinations = campaignMarchDestinations(proposed, side, board, { id, combat: choice.profile.combat, unit: prepared.unit,
+    progress: { hex: choice.hex, spent: 0, stop: null }, ownBridgeDeparture: formerPontoonBridge(state, proposed, id, choice.hex, choice.profile) })
   return { ok: true as const, destinations }
 }
 

@@ -62,6 +62,33 @@ test('single-unit previews replay through the normal command at the same cost ac
   assert.throws(() => submitCampaignMatch(settled, 'axis', { ...command(record, action), id: 'stale-preview' }, config), /Stale match revision/)
   assert.throws(() => submit(settled, move(['A3.01']), config), /counter-cannot-spend-mp/)
   assert.throws(() => submit(record, move([...action.path, 'A5.01']), config), /outside-play-area/)
+  assert.deepEqual(projectCampaignGroundRoute(record, 'axis', move(['invalid']), config),
+    { revision: record.revision, ok: false, reason: 'outside-play-area' })
+})
+
+test('destination search evaluates entry against the current route position and retains alternate crossing histories', () => {
+  const neighbors = (hex) => [...map.neighbors(hex), ...({ 'A1.1': ['B2.1'], 'B2.1': ['A1.1', 'B3.1'], 'B3.1': ['B2.1'] }[hex] ?? [])]
+  const key = 'A2.1|A3.1'
+  const config = context({ map: { ...map, neighbors }, moveProfile: () => ({ ma: 5, mobility: 'leg', fuelReady: true }),
+    entryRequiresResolution: (state, _side, to) => {
+      if (to === 'A3.1') return !['A2.1', 'B3.1'].includes(state.counters.march.location.hex)
+      return to === 'A4.1' && Boolean(state.groundMovement?.crossedReByHexside?.[key])
+    },
+  })
+  const { groundMovement } = config
+  groundMovement.crossingLimit = (_, _id, from, to) => [from, to].sort().join('|') === key ? 3 : undefined
+  const record = normal({ march: unit('A1.01', 'axis', { currentRe: 1 }) }, config)
+  const choices = projectCampaignGroundDestinations(record, 'axis', { id: 'march' }, config).destinations
+  assert.deepEqual(choices.find(({ hex }) => hex === 'A3.1').path, ['A2.1', 'A3.1'])
+  assert.equal(projectCampaignGroundRoute(record, 'axis', move(['A2.1', 'A3.1', 'A4.1']), config).reason, 'entry-unresolved')
+  const furthest = choices.find(({ hex }) => hex === 'A4.1')
+  assert.deepEqual(furthest.path, ['B2.1', 'B3.1', 'A3.1', 'A4.1'])
+  for (const { hex, path, spent } of choices) {
+    const action = move(path)
+    assert.equal(projectCampaignGroundRoute(record, 'axis', action, config).placements[0].spent, spent)
+    assert.equal(submit(record, action, config).state.counters.march.location.hex, hex)
+  }
+  assert.equal(record.state.counters.march.location.hex, 'A1.01')
 })
 
 test('a wheel unit stops in ZOC and can go farther after a friendly combat unit commits its MP', () => {
@@ -293,6 +320,8 @@ test('a blown bridge commits the answer and lets Soviet replan using only remain
   assert.throws(() => submit(blocked, { ...reroute, path: ['A3.01'] }, config, 'soviet'), /impassable/)
   assert.throws(() => submit(blocked, move(['B2.01']), config, 'soviet'), /awaits a response/)
   assert.equal(projectCampaignMarchResume(blocked, 'axis', reroute, config).ok, false)
+  assert.deepEqual(projectCampaignMarchResume(blocked, 'soviet', { ...reroute, path: ['invalid'] }, config),
+    { revision: blocked.revision, ok: false, reason: 'outside-play-area' })
   assert.deepEqual(projectCampaignMarchResume(blocked, 'soviet', reroute, config).placements,
     [{ id: 'march', hex: 'B2.1', spent: 2, stop: null }])
   const finished = submit(blocked, reroute, config, 'soviet')

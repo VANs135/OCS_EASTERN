@@ -1,7 +1,7 @@
 import { edgeKey } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { khersonRailFerryHexside } from '../ttw/campaign/kherson-ferry.ts'
-import { volgaBridgeRepairPhases } from '../ttw/campaign/volga-movement.ts'
+import { bridgeRepairProgress } from '../ttw/campaign/bridge-repair.ts'
 import { campaignCombatPontoon, campaignGroundPosition } from './campaign-ground-position.ts'
 import { activeCampaignFerryHex } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
@@ -132,11 +132,15 @@ export function closeCampaignPontoonPhase(state: Readonly<CampaignTurnState>, si
     const start = phase.starts[id]
     if (!repair || !current || !start || start.hex !== current.hex || moved.has(id) || start.enemyAdjacent ||
       !campaignCombatPontoon(state.counters[id]!, current.profile) || board.map.neighbors(current.hex).some((near) => position.enemyCombat.has(near))) continue
-    worked.add(repair)
+    const near = repair.split('|').find((hex) => hex !== current.hex)
+    if (near && board.volgaCrossingAt?.(settled, id, current.hex, near)?.bridge === 'blown') worked.add(repair)
   }
   for (const id of worked) {
     const repair = repairs[id]
-    if (repair?.side === side && repair.phases < volgaBridgeRepairPhases) repairs[id] = { ...repair, phases: repair.phases + 1 }
+    if (repair?.side === side) repairs[id] = { ...repair, phases: bridgeRepairProgress({ condition: 'destroyed' }, {
+      completedMovementPhases: repair.phases, combatModePontoonAtEndpointThroughout: true,
+      enemyCombatAdjacentToPontoon: false, enemyAttackCapableAtEndpoint: false,
+    }) }
   }
   for (const [id, repair] of Object.entries(repairs)) if (repair.side === side) {
     const pontoonIds = (repair.pontoonIds ?? []).filter((worker) => phase.orders[worker]?.repair === id &&
