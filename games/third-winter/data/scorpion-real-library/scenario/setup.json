@@ -1223,7 +1223,8 @@
    }
   },
   {
-   "ref": "Supply Ton 2T",
+   "ref": "Truck Points",
+   "count": 2,
    "at": {
     "col": 5,
     "row": -5
@@ -1244,7 +1245,8 @@
    }
   },
   {
-   "ref": "Supply Ton 3T",
+   "ref": "Truck Points",
+   "count": 3,
    "at": {
     "col": 21,
     "row": 7

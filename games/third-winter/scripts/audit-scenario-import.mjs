@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { loadKirovogradScenario } from '../src/import/kirovograd-scenario.ts'
 import { scorpionArrivalCatalog } from '../src/import/scorpion-arrivals.ts'
 import { loadScorpionFiles } from '../src/import/scorpion-files.mjs'
+import { scorpionSetupHex } from '../src/import/hex-id.ts'
+import { transportPoints } from '../src/match/scorpion-transport-points.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
 
@@ -22,15 +24,24 @@ async function auditScorpion() {
     const tokens = ref === 'Supply Point' ? 4 : Number(/^Supply Ton ([1-3])T$/.exec(ref)?.[1] ?? 0)
     return sum + tokens * (count ?? 1)
   }, 0)
-  if (missingEntries.length) process.exitCode = 1
-  return { scenario: '08', revisedSetup: loaded.setup.alertPoolCounts === 'remaining', playableHexes: loaded.map.hexes.size,
+  const revisedSetup = loaded.setup.alertPoolCounts === 'remaining'
+  const openingTokens = Object.values(deployment.dumps).reduce((sum, dump) => sum + dump.tokens, 0)
+  const openingTruckPoints = (loaded.setup.markers ?? []).filter(({ ref }) => ref === 'Truck Points').map(({ at, side, count }) => {
+    const hex = scorpionSetupHex(at)
+    const points = Object.values(deployment.units).filter((unit) => unit.hex === hex && (!side || unit.side === side) &&
+      !unit.combat && !unit.organicTruck).reduce((sum, unit) => sum + (transportPoints(loaded.catalog.definitions.get(unit.definition)) ?? 0), 0)
+    return { hex, listed: count, deployed: points }
+  })
+  if (missingEntries.length || revisedSetup && dataTokens !== openingTokens || openingTruckPoints.some(({ listed, deployed }) => listed !== deployed)) {
+    process.exitCode = 1
+  }
+  return { scenario: '08', revisedSetup, playableHexes: loaded.map.hexes.size,
     sourceGroundRows: loaded.setup.units.length, deployedGroundCounters: Object.keys(deployment.units).length,
     air: deployment.pieces.filter(({ kind }) => kind === 'aircraft').length,
     openingPhase: started.state.cursor.phase, openingSide: started.state.cursor.phasing,
     stepsToChoose: deployment.lossChoices.length, availableAlertsAfterDraw: deployment.availableAlerts.length,
     arrivals: arrivals.length, missingEntries, fixedSupply: scorpionFixedSupply,
-    sourceOpeningTokens: loaded.setup.alertPoolCounts === 'remaining' ? dataTokens : null,
-    engineOpeningTokens: Object.values(deployment.dumps).reduce((sum, dump) => sum + dump.tokens, 0) }
+    sourceOpeningTokens: revisedSetup ? dataTokens : null, engineOpeningTokens: openingTokens, openingTruckPoints }
 }
 
 async function auditKirovograd() {

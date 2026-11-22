@@ -1,11 +1,10 @@
 // TTW Scenarios pp.54–56. The values below are in tokens (1 SP = 4T).
-// The opening tonnage follows the `setup.json` marker total of 131T (user ruling, 2026-11-19,
-// under verification on the data side): s5.16 and s21.04 fold in their 2T and 3T Supply Ton markers.
+// The 2 and 3 Truck Points at s5.16 and s21.04 are deployed by scorpionGroundDeployment.
 export const scorpionOpeningDumps = [
   { hex: 's1.14', side: 'soviet', tokens: 8 },
   { hex: 's3.16', side: 'soviet', tokens: 4 },
-  { hex: 's5.16', side: 'soviet', tokens: 38 },
-  { hex: 's21.04', side: 'soviet', tokens: 43 },
+  { hex: 's5.16', side: 'soviet', tokens: 36 },
+  { hex: 's21.04', side: 'soviet', tokens: 40 },
   { hex: 's21.10', side: 'soviet', tokens: 12 },
   { hex: 's3.10', side: 'axis', tokens: 2 },
   { hex: 's8.11', side: 'axis', tokens: 4 },

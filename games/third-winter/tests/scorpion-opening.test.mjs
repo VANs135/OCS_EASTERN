@@ -87,10 +87,10 @@ test('the opening assigns only control sites and legacy saves retain later entri
   assert.equal(pruneScorpionGroundControl(restored, map).railControl['s14.08'], undefined)
 })
 
-test('the opening dumps match the 131T marker total from setup.json', () => {
+test('opening supply totals 126T and excludes the ordinary Truck Points', () => {
   const total = scorpionOpeningDumps.reduce((sum, dump) => sum + dump.tokens, 0)
-  assert.equal(total, 131)
+  assert.equal(total, 126)
   const byHex = Object.fromEntries(scorpionOpeningDumps.map(({ hex, tokens }) => [hex, tokens]))
-  assert.deepEqual(byHex, { 's1.14': 8, 's3.16': 4, 's5.16': 38, 's21.04': 43, 's21.10': 12,
+  assert.deepEqual(byHex, { 's1.14': 8, 's3.16': 4, 's5.16': 36, 's21.04': 40, 's21.10': 12,
     's3.10': 2, 's8.11': 4, 's13.11': 4, 's15.01': 16 })
 })
