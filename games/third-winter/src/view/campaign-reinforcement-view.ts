@@ -7,8 +7,12 @@ import type { CampaignBoardState, CampaignCounter, CampaignReinforcementContext,
 
 const copyDice = (dice: DiceRoll) => ({ ...dice, faces: [...dice.faces] })
 
-function ownCounter(id: string, { definition, kind, location, active, currentRe, stepsLost, mode, transportCargoTokens, internalStocks }: CampaignCounter) {
+function ownCounter(id: string, { definition, kind, location, active, currentRe, stepsLost, mode, transportCargoTokens, internalStocks,
+  disorganized, exploiting, fueled, outOfSupply, specialTruckExtender }: CampaignCounter) {
   return { id, definition, kind, active, currentRe, internalStocks, ...(stepsLost === undefined ? {} : { stepsLost }),
+    ...(disorganized === undefined ? {} : { disorganized }), ...(exploiting === undefined ? {} : { exploiting }),
+    ...(fueled === undefined ? {} : { fueled }), ...(outOfSupply === undefined ? {} : { outOfSupply }),
+    ...(specialTruckExtender ? { specialTruckExtender: true } : {}),
     ...(mode === undefined ? {} : { mode }), ...(transportCargoTokens === undefined ? {} : { transportCargoTokens }), location: location.kind === 'map'
     ? { kind: location.kind, hex: location.hex }
     : location.kind === 'box' ? { kind: location.kind, box: location.box }

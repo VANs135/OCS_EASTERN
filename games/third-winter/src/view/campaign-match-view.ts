@@ -1,6 +1,7 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { campaignAircraftConsolidationOptions } from '../match/campaign-aircraft-consolidation.ts'
+import { campaignRefitOptions } from '../match/campaign-aircraft-refit.ts'
 import { campaignReinforcementAtCursor } from '../match/campaign-reinforcement-phase.ts'
 import { campaignBreakoutReturnOptions } from '../match/campaign-breakout-returns.ts'
 import { campaignKhersonFerryOptions, previewCampaignKhersonFerry } from '../match/campaign-kherson-ferry.ts'
@@ -14,6 +15,8 @@ import type { CampaignMarchResponse } from '../match/campaign-march-response.ts'
 import { campaignPontoonOptions } from '../match/campaign-pontoon-phase.ts'
 import { campaignRailLoading, campaignRailStatus, previewCampaignRailTransport } from '../match/campaign-rail-transport.ts'
 import { campaignRailheads } from '../match/campaign-rail-network.ts'
+import { campaignSupplyDecision } from '../match/campaign-supply-phase.ts'
+import { campaignSteOptions } from '../match/campaign-special-truck-extender.ts'
 import type { TransportCampaignRail } from '../match/campaign-rail-transport.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
@@ -58,7 +61,8 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
   const railheads = map ? campaignRailheads(state, map, context.groundMovement?.railNetwork) : []
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
     ferries, blownBridges, repairingBridges, repairedBridges, pontoonTrackBridges, railheads,
-    phase: cursor.phase, preTurnRolls, own: projectCampaignSeat(state, viewer) }
+    trainbusting: (state.trainbusting ?? []).map((marker) => ({ ...marker })), phase: cursor.phase, preTurnRolls,
+    own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }
   if (cursor.phase === 'pre-turn') {
     const event = cursor.segment === 'random-event' && cursor.event ? { ...cursor.event } : null
@@ -72,13 +76,17 @@ export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Si
     marchResponse: projectMarchInterruption(pending, viewer) }
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
+  if (cursor.phase === 'aircraft-refit') return { ...player, refit: campaignRefitOptions(state, viewer, context) }
+  if (cursor.phase === 'supply') return { ...player, supply: campaignSupplyDecision(state, viewer, context) }
   if (cursor.phase === 'cleanup') return { ...player, sovietConvertedEdges: state.cleanup?.sovietConvertedEdges.slice() ?? [] }
+  if (cursor.phase === 'reaction' || cursor.phase === 'combat' || cursor.phase === 'exploitation') return { ...player, segment: state.lateTurnSegment }
   if (cursor.phase === 'movement') return { ...player, segment: state.movementSegment,
     breakout: projectCampaignBreakout(state, viewer, context.breakoutBoard),
     movement: campaignGroundMovementOptions(state, viewer, context.groundMovement),
     pontoon: campaignPontoonOptions(state, viewer, context.groundMovement),
     khersonFerry: campaignKhersonFerryOptions(state, viewer, context.groundMovement),
     railTransport: campaignRailStatus(state, viewer, context.railTransport),
+    ste: campaignSteOptions(state, viewer),
     barrageEndBlockers: state.movementSegment === 'barrage' && viewer === cursor.phasing
       ? context.movementBarrageBlockers?.(state, viewer)?.slice() ?? null : null }
   if (cursor.phase !== 'reinforcement' || !reinforcement) return player

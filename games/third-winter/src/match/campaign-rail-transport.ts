@@ -160,7 +160,8 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
 
   const other = side === 'axis' ? 'soviet' : 'axis'
   for (const hex of path.slice(1)) {
-    if (window.position.enemyNoncombat.has(hex) || (state.supplyDumps[other][hex] ?? 0) > 0 || window.ground.entryRequiresResolution(state, side, hex)) {
+    if (window.position.enemyNoncombat.has(hex) || window.position.enemySte.has(hex) || (state.supplyDumps[other][hex] ?? 0) > 0 ||
+      window.ground.entryRequiresResolution(state, side, hex)) {
       return { ...refuse('rail-entry-unresolved'), hex }
     }
   }

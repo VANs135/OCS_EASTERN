@@ -11,7 +11,7 @@ export type CampaignFormationProfile = Pick<FormationExchangeUnit, 'formationId'
 function participant(state: Readonly<CampaignReinforcementState>, actor: Side, id: string, source: 'field' | 'dead-pile',
   context: CampaignReinforcementContext): { unit: FormationExchangeUnit; counter: CampaignCounter } | { reason: string } {
   const counter = Object.hasOwn(state.counters, id) ? state.counters[id] : undefined
-  if (counter?.side !== actor || (counter.kind !== 'land' && counter.kind !== 'transport')) {
+  if (counter?.side !== actor || counter.specialTruckExtender || (counter.kind !== 'land' && counter.kind !== 'transport')) {
     return { reason: 'choose-a-friendly-ground-unit-or-transport' }
   }
   if (source === 'dead-pile') {

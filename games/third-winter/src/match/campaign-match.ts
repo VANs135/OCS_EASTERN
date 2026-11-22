@@ -5,21 +5,27 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
+import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
+import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
 import { applyCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
+import { completeCampaignLateSegment } from './campaign-late-turn.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
 import { applyCampaignPontoonAction, closeCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import { applyCampaignPreTurn } from './campaign-pre-turn.ts'
 import { applyCampaignRailTransport } from './campaign-rail-transport.ts'
 import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.ts'
+import { applyCampaignSupplyPhase } from './campaign-supply-phase.ts'
+import { applyCampaignSte } from './campaign-special-truck-extender.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, Side>
 
 type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
-  Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' | 'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge'>>
+  Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' |
+  'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting'>>
 
 /** Use a normalized board after scenario setup, or a small board for single-mechanism tests. */
 export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): CampaignMatch {
@@ -63,6 +69,9 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
       return applyCampaignKhersonFerry(state, actor, action, context.groundMovement)
     case 'transport-campaign-rail':
       return applyCampaignRailTransport(state, actor, action, context.railTransport, context.groundMovement)
+    case 'deploy-campaign-ste':
+    case 'withdraw-campaign-ste':
+      return applyCampaignSte(state, actor, action, context.groundMovement?.map, context.stePlacement)
     case 'deploy-campaign-ferry':
     case 'remove-campaign-ferry':
     case 'repair-campaign-volga-bridge':
@@ -77,17 +86,31 @@ function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
       if (!blockers) throw new Error('Campaign movement barrage rules are not configured')
       if (blockers.length) throw new Error('Campaign movement barrage obligations are outstanding')
       const settled = closeCampaignPontoonPhase(state, actor, context.groundMovement)
-      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined }
+      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined, supplyPhase: undefined }
     }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)
+    case 'refit-campaign-aircraft':
+      return refitCampaignAircraft(state, actor, action, context)
     case 'complete-campaign-exploitation':
       return completeCampaignExploitation(state, actor, context)
+    case 'recover-campaign-stocks':
+    case 'complete-campaign-stock-recovery':
+    case 'choose-campaign-formation-trace':
+    case 'feed-campaign-units':
+    case 'check-campaign-attrition':
+    case 'assign-campaign-attrition':
+    case 'complete-campaign-supply':
+      return applyCampaignSupplyPhase(state, actor, action, context)
+    case 'complete-campaign-late-segment':
+      return completeCampaignLateSegment(state, actor, action, context)
+    case 'complete-campaign-cleanup':
+      return completeCampaignCleanup(state, actor, context)
     case 'complete-campaign-refit': {
       const { cursor } = state
       if (cursor.phase !== 'aircraft-refit') throw new Error('Campaign refit is not open in this campaign player turn')
       if (cursor.phasing !== actor) throw new Error('Only the active side can complete campaign refit')
-      return { ...state, cursor: advancePlayerTurn(cursor, actor)!, reinforcement: { stage: 'opening' } }
+      return { ...state, cursor: advancePlayerTurn(cursor, actor)!, reinforcement: { stage: 'opening' }, refittedBases: undefined }
     }
     default:
       return applyCampaignReinforcementPhase(state, actor, action, context)

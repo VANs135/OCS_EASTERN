@@ -23,7 +23,7 @@ export type CampaignBreakoutBoard = (state: Readonly<CampaignTurnState>, side: S
 function inspectBreakout(state: Readonly<CampaignTurnState>, actor: Side, board: CampaignBreakoutPosition) {
   const map = { neighbors: board.neighbors, resolveHex: board.resolveHex ?? ((id: string) => id) }
   const own = new Map(Object.entries(state.counters).flatMap(([id, unit]) => {
-    if (unit.side !== actor || unit.location.kind !== 'map' || unit.kind === 'aircraft') return []
+    if (unit.side !== actor || unit.location.kind !== 'map' || unit.kind === 'aircraft' || unit.specialTruckExtender) return []
     const facts = board.unitFacts(id)
     const hex = board.resolveHex ? board.resolveHex(unit.location.hex) : unit.location.hex
     if (!facts || !hex) return []

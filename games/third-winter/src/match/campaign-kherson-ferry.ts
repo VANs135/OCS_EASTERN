@@ -73,7 +73,7 @@ function inspectFerry(state: Readonly<CampaignTurnState>, side: Side, board?: Ca
   if (!position) return refuse('board-unavailable')
   if (banks.some((hex) => position.enemyZoc.has(hex))) return refuse('enemy-zoc-at-ferry')
   const other = side === 'axis' ? 'soviet' : 'axis'
-  if (banks.some((hex) => position.enemyCombat.has(hex) || position.enemyNoncombat.has(hex) ||
+  if (banks.some((hex) => position.enemyCombat.has(hex) || position.enemyNoncombat.has(hex) || position.enemySte.has(hex) ||
     (state.supplyDumps[other][hex] ?? 0) > 0 || board.entryRequiresResolution(state, side, hex))) return refuse('ferry-entry-unresolved')
   const key = edgeKey(...banks)
   const usedRe = state.groundMovement?.crossedReByHexside?.[key] ?? 0

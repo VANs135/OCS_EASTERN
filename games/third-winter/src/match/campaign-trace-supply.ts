@@ -33,8 +33,17 @@ export function campaignTraceSupply(state: Readonly<CampaignTurnState>, side: Si
   const sources = [...facts.sources].map((hex) => map.resolveHex(hex))
   const controlled = [...facts.controlled].map((hex) => map.resolveHex(hex))
   const headquarters = facts.headquarters.map((hq) => ({ ...hq, hex: map.resolveHex(hq.hex) }))
-  const extenders = facts.extenders?.map((unit) => ({ ...unit, hex: map.resolveHex(unit.hex) }))
-  if (!sources.every(knownHex) || !controlled.every(knownHex) || !headquarters.every(hasHex) || extenders && !extenders.every(hasHex)) {
+  const extenders = (facts.extenders ?? []).filter((unit) => side !== 'soviet' || unit.mobility !== 'truck')
+    .map((unit) => ({ ...unit, hex: map.resolveHex(unit.hex) }))
+  if (side === 'soviet') {
+    for (const unit of Object.values(state.counters)) {
+      if (unit.side !== side || !unit.specialTruckExtender || unit.location.kind !== 'map') continue
+      const { range } = unit.specialTruckExtender
+      if (!Number.isFinite(range) || range <= 0) return undefined
+      extenders.push({ hex: map.resolveHex(unit.location.hex), range, mobility: 'truck' })
+    }
+  }
+  if (!sources.every(knownHex) || !controlled.every(knownHex) || !headquarters.every(hasHex) || !extenders.every(hasHex)) {
     return undefined
   }
   const canTrace = railNetwork

@@ -5,6 +5,7 @@ import { campaignCrossingUsage } from './campaign-crossing-usage.ts'
 import { campaignMovementPosition } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import { planCampaignRailConversion } from './campaign-rail-conversion.ts'
+import { displaceCampaignSte } from './campaign-special-truck-extender.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 import { campaignDemolishableBridges, reconcileCampaignBridgeRepairs } from './campaign-volga-bridges.ts'
 import type { CampaignVolgaBridge } from './campaign-volga-bridges.ts'
@@ -48,6 +49,8 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
   const position = campaignMovementPosition(state, side, board)
   if (!position) return undefined
   return (movers: readonly CampaignMarchMover[], to: string, first: boolean, next?: string) => {
+    const displaceSte = position.enemySte.has(to) && side === 'axis' && movers.some(({ combat }) => combat)
+    if (!displaceSte && position.enemySte.has(to)) return refused('entry-unresolved', to)
     const usage = campaignCrossingUsage(state, board)
     const usedFerries = new Set(state.groundMovement?.usedFerryIds)
     const counters = { ...state.counters }
@@ -69,6 +72,7 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
     let afterEntry = reconcileCampaignBridgeRepairs({ ...state, counters, groundMovement: { ...state.groundMovement,
       moved: state.groundMovement?.moved ?? [], zocLocks: state.groundMovement?.zocLocks ?? [], crossedReByHexside: usage.settled(),
       usedFerryIds: [...usedFerries] } }, board)
+    if (displaceSte) afterEntry = displaceCampaignSte(afterEntry, board.map, to)
     const firstCombat = side === 'soviet' && entered.find(({ combat }) => combat)
     const bridges = firstCombat ? campaignDemolishableBridges(afterEntry, board, firstCombat.id, to) : []
     for (const { id, unit, stepsDone, railWork } of entered) {
@@ -82,14 +86,16 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
   }
 }
 
-/** Along a single-unit march only its position, crossings, ferry usage and bridge repairs can change. */
-function campaignTransitKey(hex: string, state: Readonly<CampaignTurnState>) {
+/** Distinguish private boards whose previous route might affect the next move. */
+function campaignTransitKey(hex: string, state: Readonly<CampaignTurnState>, steIds: readonly string[]) {
+  const movedSte = steIds.filter((id) => state.counters[id]?.location.kind === 'box')
   return JSON.stringify([hex, Object.entries(state.groundMovement?.crossedReByHexside ?? {}).sort(),
-    [...(state.groundMovement?.usedFerryIds ?? [])].sort(), Object.keys(state.volgaBridgeRepairs ?? {}).sort()])
+    [...(state.groundMovement?.usedFerryIds ?? [])].sort(), Object.keys(state.volgaBridgeRepairs ?? {}).sort(), movedSte])
 }
 
 export function campaignMarchDestinations(state: Readonly<CampaignTurnState>, side: Side, board: CampaignGroundMovementBoard,
   mover: Omit<CampaignMarchMover, 'stepsLeft'>) {
+  const steIds = Object.keys(state.counters).filter((id) => state.counters[id]?.specialTruckExtender)
   return reachableGroundHexes<Readonly<CampaignTurnState>>(mover.progress, state, function* (progress, current, first) {
     const enter = prepareMarchStep(current, side, board)
     if (!enter) return
@@ -98,7 +104,7 @@ export function campaignMarchDestinations(state: Readonly<CampaignTurnState>, si
       if (!entry.ok) continue
       const { afterEntry, entered: [arrived], bridges } = entry
       const paused = bridges.length > 0
-      yield { step: arrived!.progress, context: afterEntry, key: campaignTransitKey(to, afterEntry),
+      yield { step: arrived!.progress, context: afterEntry, key: campaignTransitKey(to, afterEntry, steIds),
         paused, canFinish: paused || canFinishMarch(afterEntry, board, arrived!) }
     }
   }).map(({ paused, ...destination }) => paused ? { ...destination, pause: 'volga-bridge-demolition' as const } : destination)

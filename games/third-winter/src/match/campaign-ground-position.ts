@@ -53,10 +53,16 @@ export function campaignGroundPosition(state: Readonly<CampaignTurnState>, side:
   const friendlyCombat = new Set<string>()
   const enemyCombat = new Set<string>()
   const enemyNoncombat = new Set<string>()
+  const enemySte = new Set<string>()
   const enemyZoc = new Set<string>()
   for (const [id, unit] of Object.entries(state.counters)) {
     if (unit.location.kind !== 'map') continue
     const hex = map.resolveHex(unit.location.hex)
+    if (unit.specialTruckExtender) {
+      if (!hex) return undefined
+      if (unit.side !== side) enemySte.add(hex)
+      continue
+    }
     if (unit.kind === 'aircraft') {
       if (hex && unit.side !== side) enemyNoncombat.add(hex)
       continue
@@ -77,5 +83,5 @@ export function campaignGroundPosition(state: Readonly<CampaignTurnState>, side:
   }
   // OCS 4.5a–b. A friendly combat unit can negate ZOC for trace and the breakout path.
   const unnegatedEnemyZoc = new Set([...enemyZoc].filter((hex) => zocAffectsAction('truckSupply', true, friendlyCombat.has(hex))))
-  return { friendly, enemyCombat, enemyNoncombat, enemyZoc, unnegatedEnemyZoc }
+  return { friendly, enemyCombat, enemyNoncombat, enemySte, enemyZoc, unnegatedEnemyZoc }
 }

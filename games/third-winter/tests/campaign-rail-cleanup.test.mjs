@@ -41,7 +41,7 @@ const config = {
 function exploitation(side = 'soviet', before) {
   const opening = before ?? openCampaignMatch({ when: { scenarioId: '01', date: '1943-10-05' }, turn: 2,
     counters: { freight: unit('soviet', 'A1.01'), draw: unit('soviet', 'A4.01'), line: unit('axis', 'A8.01'), pocket: unit('axis', 'A9.01') } }, 193)
-  return { ...opening, state: { ...opening.state, cursor: { phase: 'exploitation', first: 'axis', phasing: side } } }
+  return { ...opening, state: { ...opening.state, lateTurnSegment: 'ground-combat', cursor: { phase: 'exploitation', first: 'axis', phasing: side } } }
 }
 
 const end = (record) => ({ id: `exploitation-${record.revision}`, expectedRevision: record.revision, action: { type: 'complete-campaign-exploitation' } })
