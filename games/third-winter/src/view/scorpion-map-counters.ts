@@ -102,12 +102,12 @@ function groundBadges(unit: DeployedCounter, catalog: Catalog, bulkFuel: boolean
     if (showPhysicalReserve) add(unit.side === 'axis' ? 'Axis Reserve' : 'Sov Reserve', '预备', '预')
     else badges.push({ label: '同格预备堆叠', text: '预' })
   }
-  if (unit.exploit) add(`Exploit ${unit.exploitRating ?? ''}`, '扩张', '扩')
+  if (unit.exploit) add(`Exploit ${unit.exploitRating ?? ''}`, '进击', '进')
   if (unit.outOfSupply) add('Out of Supply', '断补', '断')
   if (unit.internalStocks === 'low') add('Low/Exhausted', '部队储备低下', '低')
   if (unit.internalStocks === 'exhausted') add('Exhausted', '部队储备耗尽', '耗')
   if (unit.stepsLost) add(`Step Loss ${unit.stepsLost}`, `已损失 ${unit.stepsLost} 步`, String(unit.stepsLost))
-  if (bulkFuel) badges.push({ label: '已获燃料，有效至己方整理', asset: unit.side === 'soviet' ? 'misc_fueled-Sv.png' : 'misc_fueled.png' })
+  if (bulkFuel) badges.push({ label: '已获燃料，有效至己方清理阶段', asset: unit.side === 'soviet' ? 'misc_fueled-Sv.png' : 'misc_fueled.png' })
   else if (unit.fueled) badges.push({ label: '本阶段已加油', text: '油' })
   if (unit.transportCargoTokens !== undefined || unit.organicTruck) {
     const tokens = carriedScorpionTokens(unit)

@@ -21,7 +21,7 @@ import { supplyDraft } from './supply-draft.mjs'
 export const opponent = (side) => side === 'axis' ? 'soviet' : 'axis'
 export const sideName = (side) => side === 'axis' ? '轴心' : '苏军'
 export const phaseNames = { 'aircraft-refit': '飞机整备', reinforcement: '增援', movement: '移动', supply: '补给',
-  reaction: '反应', combat: '战斗', exploitation: '扩张', cleanup: '整理' }
+  reaction: '反应', combat: '战斗', exploitation: '进击', cleanup: '清理' }
 
 export function localDecisionSide(state) {
   if (state.kind === 'setup') return state.opening.seat

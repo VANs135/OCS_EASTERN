@@ -36,6 +36,9 @@ export const TEST_FIXED_SEED = 20260913
 /** 骰面数（本作判定均为 1d6 / 2d6，见 9.8 奇袭、9.9 战斗表等） */
 export const DIE_FACES = 6
 
+const STATE_INCREMENT = 0x6d2b79f5
+const UINT32_RANGE = 2 ** 32
+
 /** 一次抽取的结果：推进后的状态 + 抽出的值 */
 export interface RngDraw<T> {
   /** 推进后的 RNG 状态（须替换旧值） */
@@ -46,7 +49,7 @@ export interface RngDraw<T> {
 
 /** mulberry32 单步：内部状态 → 新内部状态 + 32 位输出 */
 function step(state: number): { state: number; output: number } {
-  const next = (state + 0x6d2b79f5) | 0
+  const next = (state + STATE_INCREMENT) | 0
   let t = Math.imul(next ^ (next >>> 15), 1 | next)
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
   return { state: next >>> 0, output: (t ^ (t >>> 14)) >>> 0 }
@@ -70,6 +73,9 @@ export function createRngState(seed: number): RngState {
 
 /** 抽取一个 32 位无符号整数（[0, 2^32) 均匀） */
 export function nextUint32(rng: RngState): RngDraw<number> {
+  if (!Number.isSafeInteger(rng.drawCount) || rng.drawCount < 0 || rng.drawCount === Number.MAX_SAFE_INTEGER) {
+    throw new RangeError('随机抽取次数超出有效范围')
+  }
   const stepped = step(rng.state)
   return {
     rng: { seed: rng.seed, state: stepped.state, drawCount: rng.drawCount + 1 },
@@ -80,11 +86,11 @@ export function nextUint32(rng: RngState): RngDraw<number> {
 /** 抽取一个 [0, 1) 浮点数（用于百分比类判定，如 12.11a 补给站爆破） */
 export function nextFloat(rng: RngState): RngDraw<number> {
   const draw = nextUint32(rng)
-  return { rng: draw.rng, value: draw.value / 2 ** 32 }
+  return { rng: draw.rng, value: draw.value / UINT32_RANGE }
 }
 
 /** 32 位取值中可整除成整轮骰面的上界（其上为尾部余数，须拒绝） */
-const DICE_LIMIT = Math.floor(2 ** 32 / DIE_FACES) * DIE_FACES
+const DICE_LIMIT = Math.floor(UINT32_RANGE / DIE_FACES) * DIE_FACES
 
 /**
  * 掷一枚骰（1..6）
@@ -108,7 +114,7 @@ export function rollDie(rng: RngState): RngDraw<Die> {
  * @param count 骰数（≥1 的整数）
  */
 export function rollDice(rng: RngState, count: number): RngDraw<DiceRoll> {
-  if (!Number.isInteger(count) || count < 1) {
+  if (!Number.isSafeInteger(count) || count < 1) {
     throw new RangeError(`掷骰数量须为 ≥1 的整数，收到 ${count}`)
   }
 
@@ -140,14 +146,14 @@ export function roll2d6(rng: RngState): RngDraw<DiceRoll> {
  * 用途：随机抽取盒（1.6c 从死亡堆里抽一个师、剧本编队抽签抽 N 个编队）需要「在候选池中
  * 均匀抽一个」，而骰子只给 1–6。与 `rollDie` 同样用拒绝采样丢掉尾部余数，保证等概率。
  *
- * @param size 候选个数（≥1 的整数）
+ * @param size 候选个数（1 至 2^32 的整数）
  */
 export function pickIndex(rng: RngState, size: number): RngDraw<number> {
-  if (!Number.isInteger(size) || size < 1) {
-    throw new RangeError(`候选个数须为 ≥1 的整数，收到 ${size}`)
+  if (!Number.isSafeInteger(size) || size < 1 || size > UINT32_RANGE) {
+    throw new RangeError(`候选个数须为 1 至 2^32 的整数，收到 ${size}`)
   }
   if (size === 1) return { rng, value: 0 }
-  const limit = Math.floor(2 ** 32 / size) * size
+  const limit = Math.floor(UINT32_RANGE / size) * size
   let draw = nextUint32(rng)
   while (draw.value >= limit) {
     draw = nextUint32(draw.rng)
@@ -161,17 +167,12 @@ export function pickIndex(rng: RngState, size: number): RngDraw<number> {
  * @param steps 推进步数（≥0 的整数）
  */
 export function advance(rng: RngState, steps: number): RngState {
-  if (!Number.isInteger(steps) || steps < 0) {
-    throw new RangeError(`推进步数须为 ≥0 的整数，收到 ${steps}`)
+  const drawCount = rng.drawCount + steps
+  if (!Number.isSafeInteger(steps) || steps < 0 || !Number.isSafeInteger(drawCount) || !Number.isSafeInteger(rng.drawCount) || rng.drawCount < 0) {
+    throw new RangeError(`随机抽取次数或推进步数超出有效范围，收到 ${steps}`)
   }
-
-  let state = rng.state
-  let drawCount = rng.drawCount
-  for (let index = 0; index < steps; index += 1) {
-    state = step(state).state
-    drawCount += 1
-  }
-  return { seed: rng.seed, state, drawCount }
+  // The internal state advances by a constant modulo 2^32; imul keeps the low 32 bits.
+  return { seed: rng.seed, state: (rng.state + Math.imul(steps, STATE_INCREMENT)) >>> 0, drawCount }
 }
 
 /**
@@ -180,7 +181,7 @@ export function advance(rng: RngState, steps: number): RngState {
  * 存档若只保留 seed，也可用本函数回复到任意一次结算前的状态。
  */
 export function replayFrom(seed: number, drawCount: number): RngState {
-  if (!Number.isInteger(drawCount) || drawCount < 0) {
+  if (!Number.isSafeInteger(drawCount) || drawCount < 0) {
     throw new RangeError(`抽取次数须为 ≥0 的整数，收到 ${drawCount}`)
   }
   return advance(createRngState(seed), drawCount)
@@ -193,12 +194,12 @@ export function replayFrom(seed: number, drawCount: number): RngState {
  */
 export function verifyRngState(rng: RngState): boolean {
   if (
-    !Number.isInteger(rng.seed) ||
+    !rng || !Number.isInteger(rng.seed) ||
     !Number.isInteger(rng.state) ||
-    !Number.isInteger(rng.drawCount)
+    !Number.isSafeInteger(rng.drawCount)
   ) {
     return false
   }
-  if (rng.seed < 0 || rng.state < 0 || rng.drawCount < 0) return false
+  if (rng.seed < 0 || rng.seed >= UINT32_RANGE || rng.state < 0 || rng.state >= UINT32_RANGE || rng.drawCount < 0) return false
   return replayFrom(rng.seed, rng.drawCount).state === rng.state
 }

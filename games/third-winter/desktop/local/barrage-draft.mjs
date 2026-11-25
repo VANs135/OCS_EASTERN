@@ -30,7 +30,7 @@ function batteryEntry(state, side, unitId, target, fired) {
   const phase = state.cursor.phase
   if (phase === 'reaction' && !unit.released) return { ok: false, why: '反应阶段需先释放预备队' }
   if (phase === 'exploitation' && !unit.released &&
-    (!unit.exploit || scorpionGroundActivity(state).airlifted.includes(unitId))) return { ok: false, why: '扩张阶段不可射击' }
+    (!unit.exploit || scorpionGroundActivity(state).airlifted.includes(unitId))) return { ok: false, why: '进击阶段不可射击' }
   if (phase === 'movement' && (unit.moveMode || unit.disorganized)) return { ok: false, why: '移动面或混乱状态不可射击' }
   const used = fired.filter((battery) => battery.unitId === unitId).reduce((total, battery) => total + battery.re, 0)
   const remaining = (face.independentRe ? remainingSteps(unit) : 1) - used
@@ -42,7 +42,7 @@ function batteryEntry(state, side, unitId, target, fired) {
 export function barrageTargetReason(state, side, target, data, targetKind = 'units') {
   if (!state || state.kind !== 'playing') return '对局未进行'
   if (state.barrage) return '已有一次射击待结算'
-  if (state.cursor.phasing !== side || !ordinaryPhases.includes(state.cursor.phase)) return '只在反应、战斗或扩张阶段射击'
+  if (state.cursor.phasing !== side || !ordinaryPhases.includes(state.cursor.phase)) return '只在反应、战斗或进击阶段射击'
   if (state.combatTargets?.length) return '本阶段已发起地面战斗'
   if (!data.assets.map.hexes.has(target)) return '目标不在地图上'
   if (targetKind === 'air-base') {

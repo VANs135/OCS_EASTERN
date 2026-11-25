@@ -164,7 +164,13 @@ test('desktop movement adds and removes several breakdown counters before a sing
   await client.choose(add)
   const pending = projectLocalScorpion(client.view()).actions
   assert.ok(pending.some(({ actionTypes }) => actionTypes.includes('ground-move')))
-  await client.choose(({ label }) => label.startsWith('确认 2 枚拆分'))
+  const confirmation = pending.find(({ label }) => label.startsWith('确认 2 枚拆分'))
+  assert.ok(confirmation)
+  const request = { kind: 'apply', revision: client.view().revision, key: confirmation.key }
+  const submitted = client.dispatch(request)
+  const stale = assert.rejects(client.dispatch(request), /局面已更新/)
+  await submitted
+  await stale
   const after = await client.saved()
   assert.equal(after.revision, 1)
   assert.deepEqual(after.receipts[0].action.breakdownDefinitions, ['split', 'split'])

@@ -1,4 +1,5 @@
 import { randomUUID, randomBytes } from 'node:crypto'
+import { createRequestQueue } from '@ocs-eastern/match-core/request-queue'
 import { submitScorpionSession, createScorpionSession } from '../../src/match/scorpion-session.ts'
 import { scorpionPendingAirDecision } from '../../src/match/scorpion-air-actions.ts'
 import { scorpionPendingCombatDecision } from '../../src/match/scorpion-combat-actions.ts'
@@ -203,7 +204,8 @@ export async function openLocalScorpion(data, savePath, seed = randomBytes(4).re
       shown = render(record, selection, data)
       return shown
     }
-    return { dispatch, view: () => shown, close: unlock }
+    const queue = createRequestQueue(dispatch, unlock)
+    return { ...queue, view: () => shown }
   } catch (error) {
     await unlock()
     throw error
