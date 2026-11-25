@@ -7,6 +7,7 @@ import { scorpionSetupHex } from '../src/import/hex-id.ts'
 import { transportPoints } from '../src/match/scorpion-transport-points.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
+import { sampleKirovogradOpening } from './kirovograd-sample-opening.mjs'
 
 const [root, scenario] = process.argv.slice(2)
 if (!root || scenario && !['08', '09'].includes(scenario)) {
@@ -48,6 +49,9 @@ async function auditScorpion() {
 
 async function auditKirovograd() {
   const data = await loadKirovogradScenario((...parts) => json(join(root, ...parts)))
+  const { started, context, markerSetup } = sampleKirovogradOpening(data)
+  const session = started.state
+  if (session.kind !== 'playing') throw new Error('Kirovograd setup did not reach the turn')
   const { diagnostics, setup, reinforcement } = data
   const pendingOrders = reinforcement.entries.filter(({ status }) => status === 'pending')
   const pendingSetup = [...setup.unresolvedSetup, ...setup.unresolvedLosses, ...setup.missingSetupHexes,
@@ -60,7 +64,11 @@ async function auditKirovograd() {
     aircraft: data.aircraft.length, arrivals: reinforcement.entries.length, arrivalFormationHeadings: reinforcement.formationHeadings.length,
     objectives: { sources: data.victory.sources.length, bands: data.victory.bands.length }, pendingSetup, pendingOrders,
     missingTerrain: diagnostics.missingTerrain, unresolvedCrossings: diagnostics.unresolvedCrossings,
-    provisionalRivers: diagnostics.provisionalRivers.length }
+    provisionalRivers: diagnostics.provisionalRivers.length,
+    openingSession: { revision: started.revision, initialPlacements: data.placements.length, drawnAlerts: session.setupDraws.length,
+      remainingAlerts: context.setupPlan.pools['09:axis:alert'].counterIds.filter((id) => session.turn.counters[id].location.kind === 'available').length,
+      reinforcementBindings: context.turn.reinforcement.bindings.size, weather: session.turn.weather,
+      rngDrawCount: session.turn.rng.drawCount, pendingMarkerKinds: [...new Set(markerSetup.map(({ ref }) => ref))] } }
 }
 
 const report = await Promise.all([...(scenario === '09' ? [] : [auditScorpion()]), ...(scenario === '08' ? [] : [auditKirovograd()])])

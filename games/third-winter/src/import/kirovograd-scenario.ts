@@ -27,7 +27,10 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
     read('scenarios', kirovogradScenario, 'objectives.json'),
   ])
   const data = record(rawSetup)
-  if (record(data.meta).id !== 9) throw new Error('Expected TTW scenario 09 setup')
+  const meta = record(data.meta)
+  if (meta.id !== 9) throw new Error('Expected TTW scenario 09 setup')
+  if (meta.setup_order !== 'axis' && meta.setup_order !== 'soviet') throw new Error('Missing Kirovograd setup order')
+  const setupOrder: readonly Side[] = [meta.setup_order, meta.setup_order === 'axis' ? 'soviet' : 'axis']
   const geometry = indexTtwCampaignMap(hexes, edges)
   const map = campaignMapInPlayArea(geometry, ttwCampaignPlayArea(kirovogradScenario)!)
   const terrain = campaignTerrain(map)
@@ -38,7 +41,7 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
     ? [{ id, center: hex, choices: [hex, ...map.neighbors(hex)] }] : [])
 
   const supplyDumps: Record<Side, Record<string, number>> = { axis: {}, soviet: {} }
-  const otherMarkers = []
+  const otherMarkers: { ref: string; side: Side; count: number; hex: string | undefined }[] = []
   for (const entry of rows(data.markers)) {
     const { ref, side, count } = entry
     if (typeof ref !== 'string' || (side !== 'axis' && side !== 'soviet') || typeof count !== 'number' || !Number.isSafeInteger(count) || count <= 0) {
@@ -83,7 +86,7 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
     if (!terrain.crossingAt(from, to)) unresolvedCrossings.add(key)
     if (terrain.riverStatus(from, to) === 'auto_pending_visual') provisionalRivers.add(key)
   }
-  return { map, terrain, opening: kirovogradOpening, dates: kirovogradDates, catalog, setup, placements, supplyDumps, otherMarkers,
+  return { map, terrain, opening: kirovogradOpening, dates: kirovogradDates, setupOrder, catalog, setup, placements, supplyDumps, otherMarkers,
     aircraft, alertPool, reinforcement, victory, diagnostics: { missingTerrain, unresolvedCrossings: [...unresolvedCrossings],
       provisionalRivers: [...provisionalRivers] } }
 }
