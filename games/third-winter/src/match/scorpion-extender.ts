@@ -76,7 +76,7 @@ export function scorpionExtenderDisplacements(state: Readonly<ScorpionInPlay>, s
     const { hex: from, extender } = state.units[id]!
     const destinations = [...map.hexes.keys()].filter((hex) => {
       if (hex === from || scorpionHexDistance(from, hex) > extender!.range) return false
-      if (!supplied.has(hex)) supplied.set(hex, network.trace(hex).length > 0)
+      if (!supplied.has(hex)) supplied.set(hex, network.hasTrace(hex))
       return supplied.get(hex)
     })
     return { id, destinations }

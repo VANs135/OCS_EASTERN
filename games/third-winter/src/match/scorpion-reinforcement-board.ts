@@ -47,7 +47,7 @@ export function scorpionReinforcementBoard(state: Readonly<ScorpionInPlay>, { ma
         if (unit.side !== 'axis' || !unit.headquarters || !catalog.definitions.get(unit.definition)?.source.name.startsWith('Ge HQ ')) return false
         // TTW 1.7a, 2.3a and 2.4b. Alert battalions also have the Kessel placement exception.
         return unit.headquarters.kessel || (!unit.moveMode && !unit.reserve && !enemyZoc.has(unit.hex) &&
-          network.trace(unit.hex, unit.traceDrawMobility).length > 0)
+          network.hasTrace(unit.hex, unit.traceDrawMobility))
       }).map(({ hex }) => hex)
       return [...new Set(hexes)]
     },

@@ -96,7 +96,7 @@ export function rebuildScorpionRemnant(state: Readonly<ScorpionInPlay>, side: Si
     unit.headquarters && !unit.headquarters.kessel && !unit.moveMode && !unit.reserve &&
     catalog.definitions.get(unit.definition)?.source.name.startsWith('Ge HQ '))
   if (!remnant || !parent || !hqPresent || scorpionEnemyZoc(state, map, side).has(remnant.hex) ||
-    !scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, rail)).trace(remnant.hex).length) {
+    !scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side, rail)).hasTrace(remnant.hex)) {
     throw new Error('Choose a remnant stacked with an eligible supplied Axis Corps or Army HQ outside enemy ZOC')
   }
   const definition = catalog.definitions.get(parent.definition)

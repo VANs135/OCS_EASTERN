@@ -72,7 +72,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
       const side = state.counters[id]?.side
       const trace = side && traceSupply?.(state, side)
       const unit = trace?.ground.friendly.get(id)
-      return trace && unit ? trace.network.trace(hex, unit.profile.drawMobility).length > 0 : undefined
+      return trace && unit ? trace.network.hasTrace(hex, unit.profile.drawMobility) : undefined
     }),
     pontoonTrackMarkers: (state) => pontoonTracks.markers(state, (id, from, to) => {
       const crossing = crossingAt(state, id, from, to)

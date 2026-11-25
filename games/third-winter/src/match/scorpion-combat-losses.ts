@@ -39,7 +39,7 @@ export function applyScorpionCombatLosses(state: Readonly<ScorpionInPlay>, alloc
     let isolated = false
     if (unit.side === 'axis') {
       const network = scorpionSupplyNetwork(assets.map, scorpionSupplyPosition(current, assets.map, 'axis', railroad))
-      isolated = !network.trace(unit.hex, unit.traceDrawMobility).length
+      isolated = !network.hasTrace(unit.hex, unit.traceDrawMobility)
     }
     const lost = takeScorpionSteps(current, new Map([[id, steps]]), assets.catalog)
     const settled = unit.headquarters?.kessel && !Object.hasOwn(lost.units, id)

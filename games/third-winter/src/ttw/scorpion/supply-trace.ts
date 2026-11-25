@@ -48,7 +48,8 @@ export function scorpionSupplyNetwork(map: ScorpionMap, state: TracePosition) {
   }, { ...state, headquarters: state.headquarters.map(({ kessel, ...hq }) => ({
     ...hq, selfContained: kessel && state.side === 'axis',
   })) })
-  return { ...network, trace: (location: string, mobility: Mobility = 'truck'): TraceOption[] =>
+  return { ...network, hasTrace: (location: string, mobility: Mobility = 'truck') => network.hasTrace(scorpionHexId(location), mobility),
+    trace: (location: string, mobility: Mobility = 'truck'): TraceOption[] =>
     network.trace(scorpionHexId(location), mobility).map((option) => ({
       ...option, kind: option.kind === 'self-contained' ? 'kessel' : option.kind,
     })) }
