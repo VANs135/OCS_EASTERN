@@ -7,6 +7,7 @@ import { resolveCampaignReference } from './campaign-reference.ts'
 import { prepareCampaignSetup } from './campaign-setup.ts'
 import { campaignTerrain } from './campaign-terrain.ts'
 import { loadThirdWinterV2Units } from './unit-v2.ts'
+import { readCounterPoolRows } from './counter-pool-rows.ts'
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Kirovograd scenario row')
@@ -64,12 +65,10 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
       reduced: entry.reduced === true, availableThrough: side === 'axis' ? 5 : 3 }
   })
 
-  const alertPool = rows(record(data.pools).alert).map(({ ref, count }) => {
-    if (typeof ref !== 'string' || typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) throw new Error('Invalid Kirovograd alert pool')
+  const alertPool = readCounterPoolRows(record(data.pools).alert, (ref) => {
     const match = resolveCampaignReference(catalog.aliases, ref, 'axis')
-    if (!('definition' in match) || !match.definition.source.abilities?.includes('alert_battalion')) throw new Error(`Unresolved Kirovograd alert: ${ref}`)
-    return { ref, definition: match.definition.key, count }
-  })
+    if ('definition' in match && match.definition.source.abilities?.includes('alert_battalion')) return match.definition.key
+  }, 'Kirovograd alert pool')
   const objectives = record(rawObjectives)
   const terminal = record(objectives.terminal)
   if (objectives.scenario !== '09' || terminal.turn !== kirovogradDates.length) throw new Error('Invalid Kirovograd objective dates')

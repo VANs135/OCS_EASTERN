@@ -50,6 +50,8 @@ function readUnit(value: unknown, kind: CatalogKind, file: string): BackupUnit {
     category: row.combat_category === 'inf' ? 'infantry' : asString(row.combat_category) ?? undefined,
     org: { parentFmt: asString(row.formation), airGroup: asString(row.air_group) },
     abilities: [...runtimeAbilities],
+    ...(typeof row.multi_instance === 'boolean' ? { multiInstance: row.multi_instance } : {}),
+    ...(typeof row.instance_pool === 'string' ? { instancePool: row.instance_pool } : {}),
     faces: {
       combat: readFace(row.front, row.defensiveOnly === true, `${label} · front`),
       move: readFace(row.back, row.defensiveOnly === true, `${label} · back`),

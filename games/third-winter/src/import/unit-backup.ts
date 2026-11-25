@@ -32,6 +32,8 @@ export interface BackupUnit extends SourceUnit {
   kind?: Exclude<BackupKind, 'marker'>
   faces: { combat: BackupFace | null; move: BackupFace | null }
   abilities?: readonly string[]
+  multiInstance?: boolean
+  instancePool?: string
 }
 
 export async function loadThirdWinterUnits(readJson: (file: string) => Promise<unknown>) {

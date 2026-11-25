@@ -1,3 +1,7 @@
+import { counterPoolCapacity } from '@ocs-eastern/series/counter-pool'
+import { readCounterPoolRows } from './counter-pool-rows.ts'
+import { resolveCampaignReference } from './campaign-reference.ts'
+import type { CampaignAliases } from './campaign-reference.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 
@@ -6,8 +10,25 @@ function record(value: unknown, location: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-/** Explicit scenario pool membership and optional native-pixel box coordinates. */
-export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<string, Definition<BackupUnit>>) {
+/** Per-definition amounts supplied by a scenario, separate from parent membership and box geometry. */
+export function readScorpionBreakdownCounts(input: unknown, aliases: CampaignAliases) {
+  const groups = record(input, 'counts')
+  if (Object.keys(groups).some((side) => side !== 'axis' && side !== 'soviet')) throw new Error('Invalid breakdown pool side')
+  const counts = new Map<string, number>()
+  for (const side of ['axis', 'soviet'] as const) {
+    if (groups[side] === undefined) continue
+    for (const { definition, count } of readCounterPoolRows(groups[side], (ref) => {
+      const match = resolveCampaignReference(aliases, ref, side)
+      if ('definition' in match && match.definition.kind === 'land' && match.definition.source.re === 1 &&
+        (!match.definition.source.instancePool || match.definition.source.instancePool === 'breakdown')) return match.definition.key
+    }, `${side} breakdown pool`)) counts.set(definition, count)
+  }
+  return counts
+}
+
+/** Explicit pool membership, default quantities and optional native-pixel box coordinates. */
+export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<string, Definition<BackupUnit>>,
+  scenarioCounts?: ReadonlyMap<string, number>) {
   const config = record(input, 'configuration')
   if (!Array.isArray(config.parents) || !Array.isArray(config.counters)) throw new Error('Breakdown configuration requires parents and counters')
   const parentPools = new Map<string, string>()
@@ -19,9 +40,11 @@ export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<stri
     const { definition, pool, copies, box } = record(value, at)
     const model = typeof definition === 'string' ? catalog.get(definition) : undefined
     if (typeof definition !== 'string' || model?.kind !== 'land' || !model.source.side || model.source.re !== 1 ||
-      typeof pool !== 'string' || !pool.trim() || typeof copies !== 'number' || !Number.isSafeInteger(copies) || copies < 0 ||
+      typeof pool !== 'string' || !pool.trim() || (copies !== undefined && typeof copies !== 'number') ||
       counters.has(definition)) throw new Error(`Invalid breakdown ${at}`)
-    counters.set(definition, { pool, copies })
+    const capacity = counterPoolCapacity(copies, scenarioCounts?.get(definition))
+    if (!capacity) throw new Error(`Missing breakdown capacity: ${definition}`)
+    counters.set(definition, { pool, copies: capacity.count })
     const owners = pools.get(pool) ?? new Set<string>()
     owners.add(model.source.side)
     pools.set(pool, owners)
@@ -31,6 +54,9 @@ export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<stri
         ![x, y, w, h].every(Number.isFinite) || x < 0 || y < 0 || w <= 0 || h <= 0) throw new Error(`Invalid breakdown ${at} box`)
       boxes.set(definition, { x, y, w, h })
     }
+  }
+  for (const definition of scenarioCounts?.keys() ?? []) {
+    if (!counters.has(definition)) throw new Error(`Missing breakdown pool membership: ${definition}`)
   }
   for (const [index, value] of config.parents.entries()) {
     const { definition, pool } = record(value, `parent ${index + 1}`)

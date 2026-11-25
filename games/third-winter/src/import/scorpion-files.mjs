@@ -3,6 +3,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadScorpionMap } from './scorpion-map-files.ts'
 import { loadScorpionUnits } from './scorpion-unit-sources.ts'
+import { readScorpionBreakdownCounts } from './scorpion-breakdown-config.ts'
+import { readAggregateCounterPool } from './counter-pool-rows.ts'
+import { resolveCampaignReference } from './campaign-reference.ts'
 
 const verifiedSetup = fileURLToPath(new URL('../../data/scorpion-real-library/scenario/setup.json', import.meta.url))
 
@@ -24,7 +27,15 @@ export async function loadScorpionFiles(root, unitRoot, readJson) {
     readJson(arrivalsFile),
   ])
   if (useRevisedSetup && setup.meta?.id !== 8) throw new Error('新版瓶中蝎初设不是 8 号剧本')
-  return { catalog, map, setup: useRevisedSetup ? { ...setup, alertPoolCounts: 'remaining' } : setup, arrivals, schema }
+  const breakdownCounts = useRevisedSetup && setup.pools?.breakdown !== undefined
+    ? readScorpionBreakdownCounts(setup.pools.breakdown, catalog.aliases) : undefined
+  const remnantPool = useRevisedSetup && setup.pools?.remnants !== undefined
+    ? readAggregateCounterPool(setup.pools.remnants, (ref, side) => {
+      const match = resolveCampaignReference(catalog.aliases, ref, side)
+      const definition = match.definition
+      return definition?.kind === 'land' && (!definition.source.instancePool || definition.source.instancePool === 'remnant') ? definition.key : undefined
+    }, 'remnant pool') : undefined
+  return { catalog, map, setup: useRevisedSetup ? { ...setup, alertPoolCounts: 'remaining' } : setup, arrivals, schema, breakdownCounts, remnantPool }
 }
 
 async function exists(file) {

@@ -21,7 +21,7 @@ export async function loadLocalScorpion(root, tables, unitRoot) {
     data.set(path, raw)
     return JSON.parse(raw.toString('utf8').replace(/^\uFEFF/, ''))
   }
-  const [{ map, catalog, setup, arrivals: arrivalsData, schema }, calibration, table, barrage, facilityBarrage, breakdownData] = await Promise.all([
+  const [{ map, catalog, setup, arrivals: arrivalsData, schema, breakdownCounts }, calibration, table, barrage, facilityBarrage, breakdownData] = await Promise.all([
     loadScorpionFiles(root, unitRoot, json),
     json(join(root, '地图标定', 'hex-calib-瓶中蝎.json')),
     json(process.env.OCS_V43_CRT || join(tables, 'ocs-v43-crt.json')),
@@ -29,7 +29,7 @@ export async function loadLocalScorpion(root, tables, unitRoot) {
     json(process.env.OCS_V43_FACILITY || join(tables, 'ocs-v43-facility.json')),
     json(join(root, 'scenarios', '08-korsun-pocket', 'breakdowns.json'), true),
   ])
-  const breakdowns = breakdownData === undefined ? undefined : readScorpionBreakdowns(breakdownData, catalog.definitions)
+  const breakdowns = breakdownData === undefined ? undefined : readScorpionBreakdowns(breakdownData, catalog.definitions, breakdownCounts)
   const liveBreakdownCards = new Set([...(breakdowns?.boxes.keys() ?? [])].map((id) => `${catalog.definitions.get(id).source.side}-breakdowns`))
   const arrivals = scorpionArrivalCatalog(arrivalsData, catalog.aliases)
   const surface = calibratedSurface(calibration)

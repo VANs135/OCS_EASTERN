@@ -41,7 +41,9 @@ async function auditScorpion() {
     openingPhase: started.state.cursor.phase, openingSide: started.state.cursor.phasing,
     stepsToChoose: deployment.lossChoices.length, availableAlertsAfterDraw: deployment.availableAlerts.length,
     arrivals: arrivals.length, missingEntries, fixedSupply: scorpionFixedSupply,
-    sourceOpeningTokens: revisedSetup ? dataTokens : null, engineOpeningTokens: openingTokens, openingTruckPoints }
+    sourceOpeningTokens: revisedSetup ? dataTokens : null, engineOpeningTokens: openingTokens, openingTruckPoints,
+    scenarioAlertQuantityRows: loaded.setup.pools.alert.length, scenarioBreakdownQuantityRows: loaded.breakdownCounts?.size ?? 0,
+    remnantPoolDefinitions: loaded.remnantPool?.definitions.length ?? 0, remnantCapacitySource: loaded.remnantPool?.capacity.source ?? null }
 }
 
 async function auditKirovograd() {
@@ -54,7 +56,7 @@ async function auditKirovograd() {
   return { scenario: '09', playableHexes: data.map.availableHexes.size, dates: data.dates, opening: data.opening,
     ground: setup.counters.length, setupFormationHeadings: setup.formationHeadings.length,
     explicitLossRows: setup.counters.filter(({ stepsLost }) => stepsLost !== undefined).length,
-    freePlacements: data.placements.length, randomDraws: setup.drawOrders.length,
+    freePlacements: data.placements.length, randomDraws: setup.drawOrders.length, scenarioAlertQuantityRows: data.alertPool.length,
     aircraft: data.aircraft.length, arrivals: reinforcement.entries.length, arrivalFormationHeadings: reinforcement.formationHeadings.length,
     objectives: { sources: data.victory.sources.length, bands: data.victory.bands.length }, pendingSetup, pendingOrders,
     missingTerrain: diagnostics.missingTerrain, unresolvedCrossings: diagnostics.unresolvedCrossings,
