@@ -1,7 +1,7 @@
 import { acceptCommand } from '@ocs-eastern/match-core/command-log'
 import type { Command, MatchRecord } from '@ocs-eastern/match-core/command-log'
-import { createRngState } from '@ocs-eastern/series/rng'
-import type { Side } from '@ocs-eastern/series/state-types'
+import { createRngState, verifyRngState } from '@ocs-eastern/series/rng'
+import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
@@ -24,12 +24,12 @@ import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from 
 
 export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, Side>
 
-type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
+export type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
   Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' |
   'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting'>>
 
 /** Use a normalized board after scenario setup, or a small board for single-mechanism tests. */
-export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): CampaignMatch {
+export function openCampaignMatch(opening: CampaignMatchOpening, seed: number | RngState): CampaignMatch {
   const { when, turn } = opening
   const date = new Date(`${when.date}T00:00:00Z`)
   if (!Number.isSafeInteger(turn) || turn < 1 || !/^\d{4}-\d{2}-\d{2}$/.test(when.date) ||
@@ -37,8 +37,10 @@ export function openCampaignMatch(opening: CampaignMatchOpening, seed: number): 
     throw new Error('Invalid campaign turn or date')
   }
   const prescribed = when.scenarioId === kirovogradScenario && turn === 1 ? kirovogradOpening : opening.opening
+  const rng = typeof seed === 'number' ? createRngState(seed) : { ...seed }
+  if (!verifyRngState(rng)) throw new Error('Invalid opening random state')
   return { revision: 0, receipts: [], state: { ...opening, opening: prescribed, cursor: { phase: 'pre-turn', segment: 'weather' },
-    rng: createRngState(seed), weather: null, weatherHistory: { ...(opening.weatherHistory ?? initialWeatherHistory) },
+    rng, weather: null, weatherHistory: { ...(opening.weatherHistory ?? initialWeatherHistory) },
     preTurnRolls: [], breakoutRolls: [], ferries: opening.ferries ?? [], supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
     withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } } }
 }
@@ -48,7 +50,7 @@ export function submitCampaignMatch(record: Readonly<CampaignMatch>, actor: Side
   return acceptCommand(record, actor, command, (state, side, action) => applyCampaignTurn(state, side, action, context))
 }
 
-function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
+export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
   action: CampaignTurnAction, context: CampaignTurnContext): CampaignTurnState {
   if (action.type === 'resolve-campaign-bridge-demolition' || action.type === 'resume-campaign-ground-march') {
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)

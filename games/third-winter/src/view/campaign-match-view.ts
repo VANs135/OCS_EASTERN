@@ -42,7 +42,7 @@ function projectMarchInterruption(pending: CampaignMarchInterruption, viewer: Si
     movers: pending.march.movers.map(({ id, unit, progress }) => ({ id, remainingMp: unit.allowance - progress.spent, stop: progress.stop })) } : publicStep
 }
 
-export function projectCampaignMatch(record: Readonly<CampaignMatch>, viewer: Side, context: CampaignTurnContext) {
+export function projectCampaignMatch(record: Readonly<Pick<CampaignMatch, 'state' | 'revision'>>, viewer: Side, context: CampaignTurnContext) {
   const { state, revision } = record
   const { cursor, reinforcement, when, turn, weather, weatherHistory } = state
   const preTurnRolls = state.preTurnRolls.map(({ segment, check, dice }) => ({ segment, check,

@@ -1,4 +1,5 @@
-import { createRngState, pickIndex } from '@ocs-eastern/series/rng'
+import { createRngState } from '@ocs-eastern/series/rng'
+import { drawWithoutReplacement } from '@ocs-eastern/series/pool-draw'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexId } from '../import/hex-id.ts'
 import { deployScorpionGroundCounter, scorpionGroundDeployment } from '../import/scorpion-deployment.ts'
@@ -74,10 +75,7 @@ export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: S
     }))
   })
   if (pool.length < 2 || new Set(pool.map(({ id }) => id)).size !== pool.length) throw new Error('Invalid setup Alert pool')
-  const first = pickIndex(createRngState(seed), pool.length)
-  const firstAlert = pool.splice(first.value, 1)[0]!
-  const second = pickIndex(first.rng, pool.length)
-  const secondAlert = pool.splice(second.value, 1)[0]!
+  const picked = drawWithoutReplacement(createRngState(seed), pool, 2)
   const dumps = Object.fromEntries(scorpionOpeningDumps.map(({ hex, side, tokens }) => {
     if (!map.hexes.has(hex)) throw new Error(`Missing opening dump hex ${hex}`)
     return [`${side}:hex:${hex}`, { side, tokens, location: 'on-map' as const }]
@@ -85,8 +83,8 @@ export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: S
   for (const { hex } of scorpionOpeningAirBases) {
     if (!map.hexes.has(hex)) throw new Error(`Missing opening air base ${hex}`)
   }
-  return { seat: 'axis', rng: second.rng, units, pieces, lossChoices, drawnAlerts: [firstAlert, secondAlert],
-    availableAlerts: pool, dumps }
+  return { seat: 'axis', rng: picked.rng, units, pieces, lossChoices, drawnAlerts: picked.draws.map(({ item }) => item),
+    availableAlerts: picked.remaining, dumps }
 }
 
 /** A null result hands the final confirmed position to the first player turn. */
