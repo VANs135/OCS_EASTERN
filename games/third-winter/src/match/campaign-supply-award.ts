@@ -1,14 +1,28 @@
 import { campaignReinforcementStep } from './campaign-reinforcement-flow.ts'
 import { drawCampaignReinforcementCheck } from './campaign-reinforcement-rolls.ts'
-import type { CampaignReinforcementContext, CampaignReinforcementState, CampaignSupplyAward } from './campaign-reinforcement-state.ts'
+import type { DiceRoll } from '@ocs-eastern/series/state-types'
+import type { CampaignReinforcementContext, CampaignReinforcementState, CampaignSupplyAward, CampaignSupplyPool } from './campaign-reinforcement-state.ts'
 
 /** OCS 2.3 and TTW 1.7c. Record the award before its separate placement procedure. */
 export function rollCampaignSupply(state: Readonly<CampaignReinforcementState>, context: CampaignReinforcementContext): CampaignReinforcementState {
-  if (campaignReinforcementStep(state) !== 'roll-supply') throw new Error('The supply roll is not available')
-  const side = state.cursor.phasing
+  if (context.fixedSupply || campaignReinforcementStep(state) !== 'roll-supply') throw new Error('The supply roll is not available')
   const { dice, rng, rolls } = drawCampaignReinforcementCheck(state, 'supply')
   const row = context.supplyTable?.(state, dice.total)
   if (!row) throw new Error('The campaign Supply Table is not configured for this result')
+  return recordSupplyAward({ ...state, rng, rolls }, row, dice)
+}
+
+export function issueCampaignFixedSupply(state: Readonly<CampaignReinforcementState>, context: CampaignReinforcementContext): CampaignReinforcementState {
+  if (!context.fixedSupply || campaignReinforcementStep(state, undefined, true) !== 'issue-fixed-supply') {
+    throw new Error('Fixed campaign supply is not available')
+  }
+  const row = context.fixedSupply(state)
+  if (!row) throw new Error('The fixed campaign supply rule is not configured for this position')
+  return recordSupplyAward(state, row, null)
+}
+
+function recordSupplyAward(state: Readonly<CampaignReinforcementState>, row: readonly CampaignSupplyPool[], dice: DiceRoll | null): CampaignReinforcementState {
+  const side = state.cursor.phasing
   const pools = row.map(({ kind, tokens }) => ({ kind, tokens }))
   const expected = side === 'axis' ? ['axis-cities', 'axis-hq'] : ['soviet-supply']
   const grossTokens = pools.reduce((sum, pool) => sum + pool.tokens, 0)
@@ -22,6 +36,6 @@ export function rollCampaignSupply(state: Readonly<CampaignReinforcementState>, 
   const supplyAward: CampaignSupplyAward = { dice, pools, grossTokens, ...(requiredTokens > grossTokens
     ? { status: 'deduction-pending', requiredTokens }
     : { status: 'awaiting-placement', withheldTokens: requiredTokens, tokensToPlace: grossTokens - requiredTokens }) }
-  return { ...state, rng, rolls, supplyAward, withdrawalSupplyDebt: supplyAward.status === 'awaiting-placement'
+  return { ...state, supplyAward, withdrawalSupplyDebt: supplyAward.status === 'awaiting-placement'
     ? { ...state.withdrawalSupplyDebt, [side]: 0 } : state.withdrawalSupplyDebt }
 }

@@ -41,13 +41,14 @@ export function projectCampaignReinforcementActive(state: Readonly<CampaignReinf
   const supply = state.supplyAward
   const replacement = state.replacementAward
   return {
-    step: campaignReinforcementStep(state, context.schedule),
+    step: campaignReinforcementStep(state, context.schedule, context.fixedSupply !== undefined),
     scheduled: scheduledCampaignReinforcements(state, context).map((entry) => ({
       id: entry.order.id, ref: entry.order.ref, note: entry.order.note, status: entry.status,
       ...(entry.status === 'ready' ? { counterIds: [...entry.counterIds], destinations: [...entry.capacity].map(([hex, capacity]) =>
         ({ hex, capacity: Number.isFinite(capacity) ? capacity : null })) } : {}),
     })),
-    supply: supply && { ...supply, dice: copyDice(supply.dice), pools: supply.pools.map((pool) => ({ ...pool })) },
+    supply: supply && { ...supply, dice: supply.dice ? copyDice(supply.dice) : null, pools: supply.pools.map((pool) => ({ ...pool })),
+      placementPlan: context.supplyPlacementPlan?.(state)?.map((plan) => ({ ...plan, sites: plan.sites.map((site) => ({ ...site })) })) },
     replacement: replacement && { ...replacement, eq: [...replacement.eq] },
     specialReplacements: state.specialReplacements?.slice(),
     consolidation: campaignConsolidationOptions(state, viewer, context),

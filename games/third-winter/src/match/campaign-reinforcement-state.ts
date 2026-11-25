@@ -13,7 +13,7 @@ export interface CampaignSupplyPool {
   tokens: number
 }
 
-export type CampaignSupplyAward = { dice: DiceRoll; pools: readonly CampaignSupplyPool[]; grossTokens: number } & (
+export type CampaignSupplyAward = { dice: DiceRoll | null; pools: readonly CampaignSupplyPool[]; grossTokens: number } & (
   | { status: 'awaiting-placement'; withheldTokens: number; tokensToPlace: number }
   | { status: 'deduction-pending'; requiredTokens: number }
 )
@@ -98,6 +98,9 @@ export interface CampaignReinforcementContext {
   arrivalSites(state: Readonly<CampaignReinforcementState>): readonly CampaignArrivalSite[]
   /** Returns the approved Supply Table result in T, with date and table modifiers applied. */
   supplyTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): readonly CampaignSupplyPool[] | undefined
+  /** A scenario's fixed award uses no table roll. Undefined keeps its unresolved award blocked. */
+  fixedSupply?(state: Readonly<CampaignReinforcementState>): readonly CampaignSupplyPool[] | undefined
+  skipReplacementRolls?: boolean
   /** Game-specific quotas and legal locations, including an approved distribution of any withheld tokens. */
   supplyPlacementPlan?(state: Readonly<CampaignReinforcementState>): readonly CampaignSupplyPlacementPlan[] | undefined
   replacementTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): CampaignReplacementAward | undefined
@@ -109,6 +112,7 @@ export type CampaignReinforcementAction =
   | { type: 'execute-scheduled-reinforcement'; orderId: string; placements?: readonly { counterId: string; hex: string }[] }
   | { type: 'complete-scheduled-reinforcements' }
   | { type: 'roll-campaign-supply' }
+  | { type: 'issue-fixed-campaign-supply' }
   | { type: 'place-campaign-supply'; placements: readonly { pool: CampaignSupplyPool['kind']; hex: string; tokens: number }[] }
   | { type: 'roll-campaign-replacements' }
   | { type: 'roll-campaign-special-replacement' }

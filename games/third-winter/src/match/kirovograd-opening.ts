@@ -9,6 +9,7 @@ import type { CampaignMatchOpening } from './campaign-match.ts'
 import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignTurnContext } from './campaign-turn-state.ts'
 import { kirovogradSetupTransports } from './kirovograd-setup-transports.ts'
+import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -107,7 +108,8 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   }
   const context: CampaignOpeningContext = { setupPlan, setupRules, turn: { ...turnRules,
     reinforcement: { ...turnRules.reinforcement, schedule: data.reinforcement.schedule, bindings,
-      resolveHex: (hex) => data.map.resolveHex(hex), arrivalSites: turnRules.reinforcement?.arrivalSites ?? (() => []) },
+      resolveHex: (hex) => data.map.resolveHex(hex), arrivalSites: turnRules.reinforcement?.arrivalSites ?? (() => []),
+      ...kirovogradReinforcementSupply(data) },
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps }

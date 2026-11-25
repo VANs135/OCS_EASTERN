@@ -13,7 +13,7 @@ export function isCampaignRebuildWindow(state: Readonly<CampaignReinforcementSta
 }
 
 /** The phase and segment own timing. The step is derived from the pending work within that segment. */
-export function campaignReinforcementStep(state: Readonly<CampaignReinforcementState>, schedule?: CampaignReinforcementSchedule) {
+export function campaignReinforcementStep(state: Readonly<CampaignReinforcementState>, schedule?: CampaignReinforcementSchedule, fixedSupply = false) {
   if (state.cursor.phase !== 'reinforcement') return undefined
   switch (state.segment) {
     case 'scheduled':
@@ -22,7 +22,7 @@ export function campaignReinforcementStep(state: Readonly<CampaignReinforcementS
       }
       return dueCampaignBreakoutReturns(state).length ? 'place-breakout-returns' : 'close-scheduled-orders'
     case 'supply':
-      if (!state.supplyAward) return 'roll-supply'
+      if (!state.supplyAward) return fixedSupply ? 'issue-fixed-supply' : 'roll-supply'
       return state.supplyAward.status === 'deduction-pending' ? 'resolve-withdrawal-shortfall' : 'place-supply'
     case 'variable-replacements': return state.replacementAward ? 'roll-special-replacement' : 'roll-replacements'
     case 'rebuild-consolidate': return 'rebuild-or-consolidate'

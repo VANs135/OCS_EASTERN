@@ -10,7 +10,7 @@ const sovietSpecialKinds = new Set<CampaignSpecialReplacement>(['artillery', 'as
 
 /** TTW 1.7a–b. SR is its own check; the main replacement roll only decides whether to open it. */
 export function rollCampaignReplacements(state: Readonly<CampaignReinforcementState>, context: CampaignReinforcementContext): CampaignReinforcementState {
-  if (campaignReinforcementStep(state) !== 'roll-replacements') throw new Error('The replacement roll is not available')
+  if (context.skipReplacementRolls || campaignReinforcementStep(state) !== 'roll-replacements') throw new Error('The replacement roll is not available')
   const { dice, rng, rolls } = drawCampaignReinforcementCheck(state, 'replacements')
   const row = context.replacementTable?.(state, dice.total)
   if (!row) throw new Error('The campaign Replacement Table is not configured for this result')
@@ -27,7 +27,7 @@ export function rollCampaignReplacements(state: Readonly<CampaignReinforcementSt
 
 export function rollCampaignSpecialReplacement(state: Readonly<CampaignReinforcementState>,
   context: CampaignReinforcementContext): CampaignReinforcementState {
-  if (campaignReinforcementStep(state) !== 'roll-special-replacement' || !state.replacementAward?.special) {
+  if (context.skipReplacementRolls || campaignReinforcementStep(state) !== 'roll-special-replacement' || !state.replacementAward?.special) {
     throw new Error('The special replacement roll is not available')
   }
   const { dice, rng, rolls } = drawCampaignReinforcementCheck(state, 'special-replacement')

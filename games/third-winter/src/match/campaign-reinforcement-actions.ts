@@ -9,7 +9,7 @@ import type { CampaignCounter, CampaignReinforcementAction, CampaignReinforcemen
 import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
 import { consolidateCampaignUnits } from './campaign-consolidation.ts'
 import { exchangeCampaignFormationUnit } from './campaign-formation-exchange.ts'
-import { rollCampaignSupply } from './campaign-supply-award.ts'
+import { issueCampaignFixedSupply, rollCampaignSupply } from './campaign-supply-award.ts'
 import { placeCampaignSupply } from './campaign-supply-placement.ts'
 import { rollCampaignReplacements, rollCampaignSpecialReplacement } from './campaign-replacement-rolls.ts'
 
@@ -90,6 +90,7 @@ export function applyCampaignReinforcement(state: Readonly<CampaignReinforcement
     throw new Error('The active side must be in its reinforcement phase')
   }
   if (action.type === 'roll-campaign-supply') return rollCampaignSupply(state, context)
+  if (action.type === 'issue-fixed-campaign-supply') return issueCampaignFixedSupply(state, context)
   if (action.type === 'place-campaign-supply') return placeCampaignSupply(state, action, context)
   if (action.type === 'roll-campaign-replacements') return rollCampaignReplacements(state, context)
   if (action.type === 'roll-campaign-special-replacement') return rollCampaignSpecialReplacement(state, context)

@@ -72,5 +72,6 @@ export function placeCampaignSupply(state: Readonly<CampaignReinforcementState>,
       dumps[hex] = total
     }
   }
-  return { ...state, segment: nextReinforcementSegment('supply')!, supplyDumps: { ...state.supplyDumps, [side]: dumps } }
+  const segment = context.skipReplacementRolls ? 'rebuild-consolidate' : nextReinforcementSegment('supply')!
+  return { ...state, segment, supplyDumps: { ...state.supplyDumps, [side]: dumps } }
 }
