@@ -26,13 +26,13 @@ export function readScorpionBreakdownCounts(input: unknown, aliases: CampaignAli
   return counts
 }
 
-/** Explicit pool membership, default quantities and optional native-pixel box coordinates. */
+/** Explicit pool membership, scenario quantities and optional native-pixel box coordinates. */
 export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<string, Definition<BackupUnit>>,
   scenarioCounts?: ReadonlyMap<string, number>) {
   const config = record(input, 'configuration')
   if (!Array.isArray(config.parents) || !Array.isArray(config.counters)) throw new Error('Breakdown configuration requires parents and counters')
   const parentPools = new Map<string, string>()
-  const counters = new Map<string, { pool: string; copies: number }>()
+  const counters = new Map<string, { pool: string; copies: number | null }>()
   const boxes = new Map<string, { x: number; y: number; w: number; h: number }>()
   const pools = new Map<string, Set<string>>()
   for (const [index, value] of config.counters.entries()) {
@@ -40,11 +40,11 @@ export function readScorpionBreakdowns(input: unknown, catalog: ReadonlyMap<stri
     const { definition, pool, copies, box } = record(value, at)
     const model = typeof definition === 'string' ? catalog.get(definition) : undefined
     if (typeof definition !== 'string' || model?.kind !== 'land' || !model.source.side || model.source.re !== 1 ||
-      typeof pool !== 'string' || !pool.trim() || (copies !== undefined && typeof copies !== 'number') ||
+      typeof pool !== 'string' || !pool.trim() || (copies != null && (typeof copies !== 'number' || !Number.isSafeInteger(copies) || copies < 0)) ||
       counters.has(definition)) throw new Error(`Invalid breakdown ${at}`)
-    const capacity = counterPoolCapacity(copies, scenarioCounts?.get(definition))
-    if (!capacity) throw new Error(`Missing breakdown capacity: ${definition}`)
-    counters.set(definition, { pool, copies: capacity.count })
+    const scenarioLimit = scenarioCounts ? scenarioCounts.get(definition) : copies ?? undefined
+    const capacity = counterPoolCapacity(undefined, scenarioLimit)
+    counters.set(definition, { pool, copies: capacity?.count ?? null })
     const owners = pools.get(pool) ?? new Set<string>()
     owners.add(model.source.side)
     pools.set(pool, owners)

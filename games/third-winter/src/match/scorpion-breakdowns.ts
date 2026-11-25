@@ -10,7 +10,8 @@ import type { ScorpionSetupAssets } from './scorpion-setup.ts'
 export interface ScorpionBreakdownRules {
   /** An explicit pool assignment encodes nationality and TTW 1.6e exceptions. */
   parentPools: ReadonlyMap<string, string>
-  counters: ReadonlyMap<string, { pool: string; copies: number }>
+  /** Null means the scenario has no numerical limit for this breakdown definition. */
+  counters: ReadonlyMap<string, { pool: string; copies: number | null }>
 }
 
 export interface ScorpionBreakdownOrder {
@@ -44,10 +45,11 @@ export function scorpionBreakdownStock(board: Readonly<BreakdownPosition>, { bre
   const { occupiedIds, inUse } = breakdownStockPosition(board)
   return [...breakdowns.counters].flatMap(([definition, { pool, copies }]) => {
     const side = catalog.definitions.get(definition)?.source.side
-    if (!side || !Number.isSafeInteger(copies) || copies < 0) return []
+    if (!side || (copies !== null && (!Number.isSafeInteger(copies) || copies < 0))) return []
     const used = inUse.get(definition) ?? 0
     const ids = freeBreakdownIds(definition, occupiedIds, board.breakdownReturns?.[definition])
-    const availableIds = Array.from({ length: Math.max(0, copies - used) }, () => ids.next().value!)
+    // An unlimited pool exposes the next allocatable identity, not infinitely many counters.
+    const availableIds = Array.from({ length: copies === null ? 1 : Math.max(0, copies - used) }, () => ids.next().value!)
     return [{ definition, side, pool, copies, inUse: used, availableIds }]
   })
 }
@@ -105,11 +107,11 @@ export function detachScorpionBreakdowns(state: Readonly<ScorpionInPlay>, side: 
       const entry = breakdowns.counters.get(key)
       const definition = catalog.definitions.get(key)
       if (!entry || entry.pool !== pool || definition?.kind !== 'land' || definition.source.side !== side ||
-        definition.source.re !== 1 || !Number.isSafeInteger(entry.copies) || entry.copies < 0) {
+        definition.source.re !== 1 || (entry.copies !== null && (!Number.isSafeInteger(entry.copies) || entry.copies < 0))) {
         throw new Error('Choose a one-step breakdown from the parent unit’s pool')
       }
       const used = inUse.get(key) ?? 0
-      if (used >= entry.copies) throw new Error('No copy of this breakdown counter remains in the pool')
+      if (entry.copies !== null && used >= entry.copies) throw new Error('No copy of this breakdown counter remains in the pool')
       const deployed = deployScorpionGroundCounter(definition, parent.hex, 0)
       const counter = parent.moveMode ? scorpionModeFace(deployed, definition, 'move') : deployed
       if (!isBreakdownCounter(counter)) throw new Error('Choose an eligible breakdown counter')

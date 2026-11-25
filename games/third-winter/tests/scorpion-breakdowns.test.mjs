@@ -98,6 +98,30 @@ test('physical limits count boxed copies, and a rejected path or stock request l
   assert.equal(after.state.pieces[0].id, 'breakdown:split:1')
 })
 
+test('unlimited stock permits additional identities while the parent step constraint remains', () => {
+  const split = unit('split', 2, 1)
+  split.source.faces.combat.asset = 'synthetic.png'
+  const catalog = { definitions: new Map([...assets.catalog.definitions, ['split', split]]) }
+  const config = { parents: [{ definition: 'parent', pool: 'first' }],
+    counters: [{ definition: 'split', pool: 'first', box: { x: 12, y: 18, w: 48, h: 40 } }] }
+  const parsed = readScorpionBreakdowns(config, catalog.definitions, new Map())
+  const local = { ...assets, catalog, breakdowns: parsed.rules }
+  const before = fixture({ pieces: [{ id: 'breakdown:split:1', kind: 'ground', side: 'soviet', definition: 'split',
+    location: { kind: 'dead-pile' } }] })
+  const after = submit(before, action({ breakdownDefinitions: ['split', 'split'] }), 'soviet', local)
+  assert.equal(after.state.units.parent.stepsLost, 2)
+  assert.ok(after.state.units['breakdown:split:2'])
+  assert.ok(after.state.units['breakdown:split:3'])
+  const stock = scorpionBreakdownStock(after.state, local)
+  assert.deepEqual(stock[0], { definition: 'split', side: 'soviet', pool: 'first', copies: null, inUse: 3, availableIds: ['breakdown:split:4'] })
+  const card = scorpionBreakdownCardViews(stock, catalog, parsed.boxes)['soviet-breakdowns']
+  assert.equal(card.counters.length, 1)
+  assert.match(card.captions[0].text, /不限量/)
+  assert.throws(() => submit(before, action({ breakdownDefinitions: ['split', 'split', 'split'] }), 'soviet', local), /last step/)
+  const capped = { ...local, breakdowns: readScorpionBreakdowns(config, catalog.definitions, new Map([['split', 0]])).rules }
+  assert.throws(() => submit(fixture(), action(), 'soviet', capped), /No copy/)
+})
+
 const order = { parentId: 'parent', definitions: ['split'] }
 const atCombat = (combat, patch) => {
   const record = fixture({ combat }, patch)

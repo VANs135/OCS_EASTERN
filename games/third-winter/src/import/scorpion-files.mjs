@@ -27,8 +27,8 @@ export async function loadScorpionFiles(root, unitRoot, readJson) {
     readJson(arrivalsFile),
   ])
   if (useRevisedSetup && setup.meta?.id !== 8) throw new Error('新版瓶中蝎初设不是 8 号剧本')
-  const breakdownCounts = useRevisedSetup && setup.pools?.breakdown !== undefined
-    ? readScorpionBreakdownCounts(setup.pools.breakdown, catalog.aliases) : undefined
+  const breakdownCounts = useRevisedSetup
+    ? readScorpionBreakdownCounts(setup.pools?.breakdown ?? {}, catalog.aliases) : undefined
   const remnantPool = useRevisedSetup && setup.pools?.remnants !== undefined
     ? readAggregateCounterPool(setup.pools.remnants, (ref, side) => {
       const match = resolveCampaignReference(catalog.aliases, ref, side)

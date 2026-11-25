@@ -10,7 +10,7 @@ const catalog = unitCatalog([{ kind: 'land', file: 'synthetic', rows: [
   definition('b', 'B', 'axis', 1), definition('c', 'C', 'soviet', 1),
 ] }])
 
-test('configured counters accept the scenario override and use explicit defaults for unlisted types', () => {
+test('configured breakdowns use scenario quantities and are unlimited when no scenario upper bound is listed', () => {
   const overrides = readScorpionBreakdownCounts({ axis: [{ ref: 'A', count: 0 }], soviet: [{ ref: 'C', count: 4 }] }, catalog.aliases)
   const config = { parents: [{ definition: 'land:id:parent', pool: 'pool-one' }], counters: [
     { definition: 'land:id:a', pool: 'pool-one', copies: 7 },
@@ -18,8 +18,9 @@ test('configured counters accept the scenario override and use explicit defaults
     { definition: 'land:id:c', pool: 'pool-two' },
   ] }
   const { rules } = readScorpionBreakdowns(config, catalog.definitions, overrides)
-  assert.deepEqual([...rules.counters.values()].map(({ copies }) => copies), [0, 5, 4])
-  assert.throws(() => readScorpionBreakdowns(config, catalog.definitions), /Missing breakdown capacity/)
+  assert.deepEqual([...rules.counters.values()].map(({ copies }) => copies), [0, null, 4])
+  assert.deepEqual([...readScorpionBreakdowns(config, catalog.definitions).rules.counters.values()].map(({ copies }) => copies), [7, 5, null])
+  assert.deepEqual([...readScorpionBreakdowns(config, catalog.definitions, new Map()).rules.counters.values()].map(({ copies }) => copies), [null, null, null])
   assert.throws(() => readScorpionBreakdowns({ ...config, counters: config.counters.slice(0, 2) }, catalog.definitions, overrides), /Missing breakdown pool membership/)
 })
 

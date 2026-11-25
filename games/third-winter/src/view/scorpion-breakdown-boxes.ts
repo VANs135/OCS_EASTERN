@@ -9,19 +9,20 @@ export function scorpionBreakdownCardViews(stock: ReturnType<typeof scorpionBrea
   boxes?: ReadonlyMap<string, Box>) {
   const cards: Record<string, Card> = {}
   if (!boxes) return cards
-  for (const { definition, side, copies, availableIds } of stock) {
+  for (const { definition, side, copies, inUse, availableIds } of stock) {
     const box = boxes.get(definition)
     const source = catalog.definitions.get(definition)?.source
     if (!box || !source) continue
     const key = `${side}-breakdowns`
     const card = cards[key] ??= { counters: [], captions: [] }
+    const quantity = copies === null ? `不限量 · 已用 ${inUse}` : `${availableIds.length}/${copies}`
     const asset = source.faces.combat?.asset
     const size = Math.min(box.w, box.h) * 0.75
     const spacing = availableIds.length > 1 ? Math.min(7, (box.w - size) / (availableIds.length - 1)) : 0
     const first = box.x + (box.w - spacing * (availableIds.length - 1)) / 2
     if (asset) availableIds.forEach((id, index) => card.counters.push({ id, asset,
-      label: `${source.name} · 可用 ${availableIds.length}/${copies}`, x: first + spacing * index, y: box.y + box.h / 2, size }))
-    if (!asset || !availableIds.length) card.captions.push({ x: box.x, y: box.y, text: `${availableIds.length}/${copies}` })
+      label: `${source.name} · ${copies === null ? quantity : `可用 ${quantity}`}`, x: first + spacing * index, y: box.y + box.h / 2, size }))
+    if (copies === null || !asset || !availableIds.length) card.captions.push({ x: box.x, y: box.y, text: quantity })
   }
   return cards
 }
