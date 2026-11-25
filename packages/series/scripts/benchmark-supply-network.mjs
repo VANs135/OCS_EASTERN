@@ -27,6 +27,7 @@ function run(create, mode) {
   const board = {
     hasHex: (hex) => adjacency.has(hex),
     neighbors: (hex) => { counters.neighbors++; return adjacency.get(hex) ?? [] },
+    incomingNeighbors: (hex) => { counters.neighbors++; return adjacency.get(hex) ?? [] },
     traceCost: (from, to, mobility) => {
       counters.costs++
       const sample = (Number(from) * 19 + Number(to) * 13) % 17
@@ -39,6 +40,9 @@ function run(create, mode) {
   }
   const start = performance.now()
   const network = create(board, state)
+  if (mode === 'trace-exists' && network.prepareTraceCoverage) {
+    for (const mobility of new Set(queries.map((query) => query.mobility))) network.prepareTraceCoverage(mobility)
+  }
   const values = queries.map(({ hex, mobility }, index) => {
     const dump = queries[(index + 11) % queries.length].hex
     if (mode === 'trace-and-dump') return [network.trace(hex, mobility), network.canUseDump(hex, dump, mobility)]

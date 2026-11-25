@@ -1,5 +1,5 @@
 import type { Mobility, StepCost } from './ground-map.ts'
-import { traceReach } from './trace-path.ts'
+import { incomingTraceCoverage, traceReach } from './trace-path.ts'
 import { TraceTargets } from './trace-targets.ts'
 
 export interface SupplyExtender {
@@ -19,6 +19,8 @@ export interface SupplyHeadquarter {
 export interface SupplyNetworkBoard {
   hasHex(hex: string): boolean
   neighbors(hex: string): readonly string[]
+  /** Predecessors in the same geometric graph; optional for callers with directed/custom maps. */
+  incomingNeighbors?(hex: string): readonly string[]
   railNeighbors?(hex: string): readonly string[]
   traceCost(from: string, to: string, mobility: Mobility): StepCost
   railCanTrace(from: string, to: string): boolean
@@ -51,6 +53,15 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     adjacency.set(hex, result)
     return result
   }
+  const incomingAdjacency = new Map<string, readonly string[]>()
+  function incoming(hex: string) {
+    if (board.incomingNeighbors === board.neighbors) return neighbors(hex)
+    const cached = incomingAdjacency.get(hex)
+    if (cached) return cached
+    const result = board.incomingNeighbors!(hex)
+    incomingAdjacency.set(hex, result)
+    return result
+  }
   const eligibility = new Map<string, boolean>()
   function eligible(id: string) {
     const cached = eligibility.get(id)
@@ -60,6 +71,7 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     return result
   }
   const railAccessible = (id: string) => eligible(id) && !state.unnegatedEnemyZoc.has(id)
+  const allows = (hex: string, mobility: Mobility) => eligible(hex) && (mobility !== 'truck' || !state.unnegatedEnemyZoc.has(hex))
   const railNeighbors = (hex: string) => board.railNeighbors?.(hex) ?? neighbors(hex)
   const costs: Record<Mobility, Map<string, Map<string, StepCost>>> = {
     leg: new Map(), truck: new Map(), track: new Map(),
@@ -82,8 +94,7 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     const key = [origin, range, mobility].join(':')
     const stored = ranges.get(key)
     if (stored) return stored
-    const result = traceReach({ neighbors }, origin, range, (id) => eligible(id) &&
-      (mobility !== 'truck' || !state.unnegatedEnemyZoc.has(id)), (from, to) => traceCost(from, to, mobility))
+    const result = traceReach({ neighbors }, origin, range, (id) => allows(id, mobility), (from, to) => traceCost(from, to, mobility))
     ranges.set(key, result)
     return result
   }
@@ -200,8 +211,37 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     return options
   }
 
+  const coverage = new Map<Mobility, ReadonlySet<string> | null>()
+  let hqCoverage: ReadonlySet<string> | undefined
+  function prepareTraceCoverage(mobility: Mobility = 'truck') {
+    if (!board.incomingNeighbors || coverage.has(mobility)) return
+    connectSources()
+    const targets = [...sources].flatMap((source) => [source, ...neighbors(source)])
+    const direct = incomingTraceCoverage(targets, 5, incoming, (hex) => allows(hex, mobility),
+      (from, to) => traceCost(from, to, mobility))
+    if (!direct) {
+      coverage.set(mobility, null)
+      return
+    }
+    if (!hqCoverage) {
+      const supplied = new Set<string>()
+      for (const hq of state.headquarters) {
+        if (!hq.selfContained && !sourceTargets.intersects(reach(hq.hex, 5, hq.mobility))) continue
+        for (const reached of reach(hq.hex, hq.throwRange, hq.mobility).keys()) {
+          supplied.add(reached)
+          for (const hex of incoming(reached)) if (eligible(hex)) supplied.add(hex)
+        }
+      }
+      hqCoverage = supplied
+    }
+    for (const hex of hqCoverage) direct.add(hex)
+    coverage.set(mobility, direct)
+  }
+
   function hasTrace(hex: string, mobility: Mobility = 'truck'): boolean {
     if (!eligible(hex)) return false
+    const prepared = coverage.get(mobility)
+    if (prepared) return prepared.has(hex)
     connectSources()
     return sourceTargets.intersects(reach(hex, 5, mobility)) || headquartersInRange(hex).some((hq) =>
       hq.selfContained || sourceTargets.intersects(reach(hq.hex, 5, hq.mobility)))
@@ -229,5 +269,5 @@ export function supplyNetwork(board: SupplyNetworkBoard, state: SupplyNetworkPos
     return board.detrainable(hex) && state.controlled.has(hex) && railSeen.has(hex)
   }
 
-  return { trace, hasTrace, canUseDump, canDrawDump, canUseDumpVia, inThrowRange, canConnectExtender, hasConnectedUnloadSite }
+  return { trace, hasTrace, prepareTraceCoverage, canUseDump, canDrawDump, canUseDumpVia, inThrowRange, canConnectExtender, hasConnectedUnloadSite }
 }

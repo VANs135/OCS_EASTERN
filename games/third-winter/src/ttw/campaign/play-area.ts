@@ -41,6 +41,10 @@ export function campaignMapInPlayArea(map: TtwCampaignMapIndex, area: CampaignPl
     const hex = indexedHex(printed)
     return hex && availableHexes.has(hex) ? hex : undefined
   }
+  function neighbors(printed: string) {
+    const hex = resolveHex(printed)
+    return hex ? map.neighbors(hex).filter((near) => availableHexes.has(near)) : []
+  }
   return {
     availableHexes,
     resolveHex,
@@ -48,10 +52,7 @@ export function campaignMapInPlayArea(map: TtwCampaignMapIndex, area: CampaignPl
       const hex = resolveHex(printed)
       return hex ? map.terrainAt(hex) : undefined
     },
-    neighbors(printed: string) {
-      const hex = resolveHex(printed)
-      return hex ? map.neighbors(hex).filter((near) => availableHexes.has(near)) : []
-    },
+    neighbors, incomingNeighbors: neighbors,
     connection(from: string, to: string) {
       const a = resolveHex(from)
       const b = resolveHex(to)

@@ -82,3 +82,30 @@ test('queries on the same snapshot share cost lookups and do not share returned 
   network.trace('b', 'truck')
   assert.equal(counts.cost, used, 'shared directed edge costs are reused across origins')
 })
+
+test('reverse coverage agrees with forward queries on directed edges, all-cost steps, zero costs and HQ coverage', () => {
+  const adjacency = { source: ['end'], end: [], zero: ['end'], all: ['zero'], earlier: ['all'],
+    normal: ['zero'], blocked: ['zero'], hq: ['zone'], zone: [], final: ['zone'], isolated: [] }
+  const incomingNeighbors = (hex) => Object.keys(adjacency).filter((from) => adjacency[from].includes(hex))
+  const map = { ...board(adjacency, { costs: { 'all:zero': 'all', 'zero:end': 0, 'normal:zero': 4.5 } }), incomingNeighbors }
+  const state = position({ sources: new Set(['source']), unnegatedEnemyZoc: new Set(['blocked']),
+    headquarters: [{ id: 'local', hex: 'hq', throwRange: 1, mobility: 'truck', selfContained: true }] })
+  const network = supplyNetwork(map, state)
+  assert.equal(network.hasTrace('all'), true)
+  assert.equal(network.hasTrace('earlier'), false, 'an all-cost edge is only a valid first step')
+  assert.equal(network.hasTrace('final'), true)
+  assert.equal(network.hasTrace('blocked', 'truck'), false)
+  assert.equal(network.hasTrace('blocked', 'leg'), true)
+  for (const mobility of ['truck', 'leg', 'track']) {
+    network.prepareTraceCoverage(mobility)
+    for (const hex of Object.keys(adjacency)) assert.equal(network.hasTrace(hex, mobility), network.trace(hex, mobility).length > 0, `${hex} ${mobility}`)
+  }
+})
+
+test('fractional costs outside exact half points keep the forward result', () => {
+  const adjacency = { a: ['b'], b: ['a', 'c'], c: ['b'] }
+  const map = { ...board(adjacency, { costs: { 'c:b': 0.1 } }), incomingNeighbors: (hex) => adjacency[hex] ?? [] }
+  const network = supplyNetwork(map, position({ sources: new Set(['a']) }))
+  network.prepareTraceCoverage('truck')
+  for (const hex of Object.keys(adjacency)) assert.equal(network.hasTrace(hex), network.trace(hex).length > 0)
+})

@@ -42,6 +42,7 @@ export interface ScorpionEdge {
 export interface ScorpionMap extends GroundMap<ScorpionEdge> {
   hexes: ReadonlyMap<string, ScorpionHex>
   edgeCount: number
+  incomingNeighbors?(hex: string): readonly string[]
 }
 
 const terrains = new Set<string>(terrainKinds)
@@ -94,9 +95,10 @@ export function scorpionMap(hexRows: readonly SourceHex[], edgeRows: readonly So
     adjacent.get(a)!.push(b)
     adjacent.get(b)!.push(a)
   }
+  const neighbors = (hex: string) => adjacent.get(scorpionHexId(hex)) ?? []
   return {
     hexes, edgeCount: edges.size,
-    neighbors: (hex) => adjacent.get(scorpionHexId(hex)) ?? [],
+    neighbors, incomingNeighbors: neighbors,
     edge: (a, b) => edges.get(edgeKey(scorpionHexId(a), scorpionHexId(b))),
   }
 }

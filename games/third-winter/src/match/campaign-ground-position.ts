@@ -9,6 +9,7 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 export interface CampaignGroundMap {
   resolveHex(printed: string): string | undefined
   neighbors(hex: string): readonly string[]
+  incomingNeighbors?(hex: string): readonly string[]
 }
 
 export function normalizeCampaignPath(map: CampaignGroundMap, printedHexes: readonly string[]) {

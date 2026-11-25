@@ -16,3 +16,25 @@ export function scorpionStepCost(
   if (!route && ttwGroundCellCost(a.terrains, mobility, weather) === null) return null
   return ttwOrdinaryTerrainCost(b.terrains, { barrier: edge.river ?? 'none', routes: route ? [route] : [] }, mobility, weather)
 }
+
+// The normalized map is immutable. Each weather/mobility/direction has its own static cost.
+const supplyCosts = new WeakMap<ScorpionMap, Map<string, StepCost>>()
+
+export function scorpionTraceStepCost(map: ScorpionMap, from: string, to: string, mobility: Mobility, weather: 'freeze' | 'thaw'): StepCost {
+  let costs = supplyCosts.get(map)
+  if (!costs) {
+    costs = new Map()
+    supplyCosts.set(map, costs)
+  }
+  const key = `${weather}:${mobility}:${from}:${to}`
+  const cached = costs.get(key)
+  if (cached !== undefined) return cached
+  const normal = scorpionStepCost(map, from, to, mobility, 'dry')
+  let cost = normal
+  if (weather === 'freeze') {
+    const reduced = scorpionStepCost(map, from, to, mobility, 'freeze')
+    if (typeof reduced === 'number') cost = typeof normal === 'number' ? Math.min(normal, reduced) : reduced
+  }
+  costs.set(key, cost)
+  return cost
+}

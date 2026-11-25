@@ -71,6 +71,7 @@ export function scorpionExtenderDisplacements(state: Readonly<ScorpionInPlay>, s
   const units = { ...state.units }
   for (const id of ids) delete units[id]
   const network = scorpionSupplyNetwork(map, scorpionSupplyPosition({ ...state, units }, map, side, railroad))
+  network.prepareTraceCoverage()
   const supplied = new Map<string, boolean>()
   return ids.map((id) => {
     const { hex: from, extender } = state.units[id]!

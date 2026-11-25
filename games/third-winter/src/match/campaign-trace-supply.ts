@@ -50,6 +50,7 @@ export function campaignTraceSupply(state: Readonly<CampaignTurnState>, side: Si
     ? (from: string, to: string) => campaignRailEdge(state, map, railNetwork, from, to)?.gauge === ttwRailGauge(side) && !facts.railTraceBlocked?.(from, to)
     : (from: string, to: string) => facts.railCanTrace?.(from, to) === true
   const supplyBoard: SupplyNetworkBoard = { hasHex: (hex) => map.resolveHex(hex) === hex, neighbors: (hex) => map.neighbors(hex),
+    incomingNeighbors: map.incomingNeighbors ? (hex) => map.incomingNeighbors!(hex) : undefined,
     traceCost: (from, to, mobility) => board.traceCost(state, from, to, mobility),
     railCanTrace: canTrace, detrainable: (hex) => facts.detrainable(hex) }
   const position = { sources: new Set(sources), controlled: new Set(controlled), headquarters,

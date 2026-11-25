@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { loadScorpionMap } from '../src/import/scorpion-map-files.ts'
 import { scorpionMap } from '../src/import/scorpion-map.ts'
-import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
+import { scorpionStepCost, scorpionTraceStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
 import { scorpionTraceOptions } from '../src/ttw/scorpion/supply-trace.ts'
 import { submitScorpionGroundMove } from '../src/match/scorpion-movement.ts'
 import { submitScorpionTraceCheck } from '../src/match/scorpion-ground-supply.ts'
@@ -77,4 +77,20 @@ test('rail and trace check control, ZOC, rail gauge and Kessel dispatch independ
   assert(!sources({ controlled: empty }).some((x) => x.kind === 'direct' && x.source === 's1.03'))
   assert(!sources({ unnegatedEnemyZoc: new Set(['s1.02']) }).some((x) => x.kind === 'direct' && x.source === 's1.03'))
   assert(sources({ sources: empty }).some((x) => x.kind === 'kessel'))
+})
+
+test('static trace costs are reused by map identity, direction, weather and mobility', () => {
+  let calls = 0
+  const counted = { ...map, edge: (from, to) => { calls++; return map.edge(from, to) } }
+  const cost = scorpionTraceStepCost(counted, 's1.02', 's1.03', 'truck', 'freeze')
+  assert.equal(calls, 2)
+  assert.equal(scorpionTraceStepCost(counted, 's1.02', 's1.03', 'truck', 'freeze'), cost)
+  assert.equal(calls, 2)
+  assert.equal(scorpionTraceStepCost(counted, 's1.02', 's1.03', 'truck', 'thaw'), scorpionStepCost(map, 's1.02', 's1.03', 'truck', 'dry'))
+  assert.equal(calls, 3)
+  scorpionTraceStepCost(counted, 's1.03', 's1.02', 'truck', 'freeze')
+  scorpionTraceStepCost(counted, 's1.02', 's1.03', 'leg', 'freeze')
+  assert.equal(calls, 7)
+  scorpionTraceStepCost({ ...counted }, 's1.02', 's1.03', 'truck', 'freeze')
+  assert.equal(calls, 9)
 })
