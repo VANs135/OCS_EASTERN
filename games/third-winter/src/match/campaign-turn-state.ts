@@ -121,6 +121,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   luftflotteAirliftUsed?: boolean
   /** TTW §2.3a B：本回合已获益免费移动的 Kessel HQ（每回合仅一个）。 */
   kesselFreeMove?: { turn: number; kesselId: string }
+  /** TTW §2.3a：Kessel HQ 移除/被毁后的返回可用回合（kesselId→turn+3）。 */
+  kesselReturn?: Readonly<Record<string, number>>
   /** TTW §2.3c D：各 Army Group HQ 最近一次放 SP 的回合（每 HQ 每回合一次）。 */
   armyGroupSpPlaced?: Record<string, number>
   trainbusting?: readonly TrainbustingMarker[]
@@ -143,6 +145,7 @@ export type CampaignPreTurnAction =
 
 export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout | PlaceCampaignHqRecovery
   | RebuildCampaignFromRemnant
+  | import('./campaign-kessel-placement.ts').CampaignKesselPlacementAction
   | { type: 'complete-campaign-reinforcement-opening' }
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
@@ -186,6 +189,7 @@ export interface CampaignTurnContext {
   barrage?: CampaignBarrageBoard
   combat?: CampaignCombatBoard
   hqRecovery?: CampaignHqRecoveryBoard
+  kesselPlacement?: import('./campaign-kessel-placement.ts').CampaignKesselPlacementBoard
   breakdown?: CampaignBreakdownBoard
   remnantRebuild?: CampaignRemnantRebuildBoard
   stePlacement?: CampaignStePlacement
