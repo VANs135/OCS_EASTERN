@@ -26,7 +26,7 @@ function planResume(state: Readonly<CampaignTurnState>, board: CampaignGroundMov
     path.length > 0 && haltIds.size === movers.length) return { ok: false as const, reason: 'choose-paused-counters' }
   const march = { started: true, path, movers: movers.map((mover) => ({ ...mover, railWork: undefined,
     stepsLeft: haltIds.has(mover.id) ? 0 : path.length })) }
-  return planCampaignGroundMarch(setCampaignMarchInterruption(state), 'soviet', board, march)
+  return { ...planCampaignGroundMarch(setCampaignMarchInterruption(state), 'soviet', board, march), march }
 }
 
 export function previewCampaignMarchResume(state: Readonly<CampaignTurnState>, side: Side, action: ResumeMarch,
@@ -46,7 +46,7 @@ export function applyCampaignMarchResponse(state: Readonly<CampaignTurnState>, s
     if (side !== 'axis' || pending.kind !== 'volga-bridge-demolition') throw new Error('Only Axis may answer the offered Volga bridges')
     const decided = recordCampaignBridgeDecisions(setCampaignMarchInterruption(state), pending.bridges, action.blow)
     const resumed = planCampaignGroundMarch(decided, 'soviet', board, pending.march)
-    if (resumed.ok) return resumed.settled
+    if (resumed.ok) return settleResumedControl(board, resumed.settled, pending.march, resumed)
     const { reason, hex } = resumed
     return setCampaignMarchInterruption(decided, { kind: 'resume-march', hex: pending.hex, refusal: { reason, hex }, march: pending.march })
   }
@@ -54,5 +54,15 @@ export function applyCampaignMarchResponse(state: Readonly<CampaignTurnState>, s
   if (side !== 'soviet' || pending.kind !== 'resume-march') throw new Error('Only Soviet may resume this paused march')
   const resumed = planResume(state, board, pending.march, action)
   if (!resumed.ok) throw new Error(`Campaign ground movement: ${resumed.reason}`)
-  return resumed.settled
+  return settleResumedControl(board, resumed.settled, resumed.march, resumed)
+}
+
+/** 渡桥暂停后继续走的部分同样按真实步数沉降控制点（暂停时只记到桥格）。 */
+function settleResumedControl(board: CampaignGroundMovementBoard, settled: CampaignTurnState, march: CampaignGroundMarch,
+  result: { placements?: readonly { id: string; hex: string }[]; reached?: Readonly<Record<string, number>> }) {
+  const afterMove = board.afterMove
+  if (!afterMove) return settled
+  return afterMove(settled, 'soviet', { path: march.path,
+    movers: march.movers.map(({ id, combat, stepsLeft }) => ({ id, combat, stepsLeft })),
+    placements: result.placements, reached: result.reached })
 }

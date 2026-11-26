@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
+import { campaignControlRecorder } from '../src/match/campaign-control.ts'
 import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMarchResume, projectCampaignMatch } from '../src/view/campaign-match-view.ts'
@@ -164,8 +165,8 @@ test('closing the movement segment checks its obligations and enters the barrage
   assert.throws(() => submit(ended, move(['A3.01']), config), /window-closed/)
 })
 
-function volga(bridge, additionalBank = false) {
-  return context({ crossingAt: (_, _id, from, to) => {
+function volga(bridge, additionalBank = false, afterMove = undefined) {
+  return context({ afterMove, crossingAt: (_, _id, from, to) => {
     if ([from, to].includes('A3.1') && ([from, to].includes('A2.1') || additionalBank && [from, to].includes('B3.1'))) {
       return { barrier: 'volga', bridge, routes: bridge === 'none' ? [] : ['road'] }
     }
@@ -266,7 +267,7 @@ test('one friendly ferry marker covers its adjacent river hexsides and fixes its
 })
 
 test('first Soviet combat entry stops at the bridge end and only Axis sees and answers the options', () => {
-  const config = volga('intact')
+  const config = volga('intact', false, campaignControlRecorder(new Set(['A2.1', 'A3.1', 'A4.1'])))
   const record = sovietMovement({ march: unit('A1.01', 'soviet', { currentRe: 1 }), later: unit('B2.01', 'soviet', { currentRe: 1 }) }, config)
   const route = move(['A2.01', 'C3.34', 'A4.01'])
   const reachable = projectCampaignGroundDestinations(record, 'soviet', { id: 'march' }, config)
@@ -277,6 +278,7 @@ test('first Soviet combat entry stops at the bridge end and only Axis sees and a
   assert.equal(record.state.counters.march.location.hex, 'A1.01')
   const waiting = submit(record, route, config, 'soviet')
   assert.equal(waiting.state.counters.march.location.hex, 'A2.1')
+  assert.deepEqual(waiting.state.hexControl, { 'A2.1': 'soviet' })
   assert.equal(waiting.state.groundMovement.moved.length, 0)
   const axis = projectCampaignMatch(waiting, 'axis', config)
   assert.deepEqual(axis.marchResponse.bridges, [{ id: 'A2.1|A3.1', hexside: ['A2.1', 'A3.1'] }])
@@ -291,6 +293,7 @@ test('first Soviet combat entry stops at the bridge end and only Axis sees and a
   const answer = command(waiting, bridgeDecision())
   const resumed = submitCampaignMatch(waiting, 'axis', answer, config).record
   assert.equal(resumed.state.counters.march.location.hex, 'A4.1')
+  assert.deepEqual(resumed.state.hexControl, { 'A2.1': 'soviet', 'A3.1': 'soviet', 'A4.1': 'soviet' })
   assert.deepEqual(resumed.state.volgaBridgeDecisions, { 'A2.1|A3.1': 'kept' })
   assert.deepEqual(resumed.state.groundMovement.crossedReByHexside, { 'A2.1|A3.1': 1 })
   assert.equal(resumed.state.rng.drawCount, record.state.rng.drawCount)
