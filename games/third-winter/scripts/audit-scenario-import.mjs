@@ -37,8 +37,15 @@ async function auditScorpion() {
   if (missingEntries.length || revisedSetup && dataTokens !== openingTokens || openingTruckPoints.some(({ listed, deployed }) => listed !== deployed)) {
     process.exitCode = 1
   }
+  const isHeading = (ref) => {
+    const matches = loaded.catalog.aliases.get(ref)
+    return matches?.length === 1 && matches[0].kind === 'formation'
+  }
   return { scenario: '08', revisedSetup, playableHexes: loaded.map.hexes.size,
-    sourceGroundRows: loaded.setup.units.length, deployedGroundCounters: Object.keys(deployment.units).length,
+    sourceGroundRows: loaded.setup.units.length, setupFormationHeadings: loaded.setup.units.filter(({ ref }) => isHeading(ref)).length,
+    deployedGroundCounters: Object.keys(deployment.units).length,
+    sourceArrivalEntries: loaded.arrivals.reduce((sum, { entries }) => sum + entries.length, 0),
+    arrivalFormationHeadings: loaded.arrivals.flatMap(({ entries }) => entries).filter(({ ref }) => isHeading(ref)).length,
     air: deployment.pieces.filter(({ kind }) => kind === 'aircraft').length,
     openingPhase: started.state.cursor.phase, openingSide: started.state.cursor.phasing,
     stepsToChoose: deployment.lossChoices.length, availableAlertsAfterDraw: deployment.availableAlerts.length,

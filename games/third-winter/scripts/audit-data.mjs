@@ -66,7 +66,7 @@ const missingArrivalHexes = [...new Set(placementHexes.filter((hex) =>
 ))]
 const deployment = unresolved.length === 0 && missingSetupHexes.length === 0
   ? scorpionGroundDeployment(setup.units, aliases, map)
-  : { units: {}, lossChoices: [] }
+  : { units: {}, lossChoices: [], formationHeadings: [] }
 function unknownMovement(keys) {
   return [...new Set(keys)].flatMap((key) => {
     const definition = definitions.get(key)
@@ -444,6 +444,7 @@ const report = {
     playableArrivals: playableArrivals.length,
     fixedSupplyDeliveries: scorpionFixedSupply.length,
     groundCounters: Object.keys(deployment.units).length,
+    formationMarkers: deployment.formationHeadings.length,
     printedStepLossChoices: deployment.lossChoices.length,
     fullOrganicTrucks: Object.values(deployment.units).filter((unit) => unit.organicTruck === 'full').length,
     unknownSetupMovement,

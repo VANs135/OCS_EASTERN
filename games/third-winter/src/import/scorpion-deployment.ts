@@ -6,6 +6,7 @@ import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
 import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
+import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionCombatSymbols } from './scorpion-combat-symbols.ts'
 import { scorpionArtillery } from './scorpion-artillery.ts'
 import type { ArtilleryFace } from './scorpion-artillery.ts'
@@ -13,8 +14,20 @@ import type { ArtilleryFace } from './scorpion-artillery.ts'
 export interface GroundSetupRow {
   ref: string
   at: { map?: string; col: number; row: number }
+  side?: string
   face?: 'reduced'
   steps_lost?: number
+}
+
+/**
+ * OCS 13.7. Every multi-unit formation (3.1c) owns a marker that shows where its units sit and
+ * has a normal and a fueled face (13.7D). The marker only displays positions, so it never
+ * enters the position; the scenario lists it as a parent display counter.
+ */
+export interface FormationHeading {
+  definition: string
+  side: Side
+  hex: string
 }
 
 export interface DeployedCounter extends GroundProfile {
@@ -106,6 +119,7 @@ export function deployScorpionGroundCounter(
 export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], aliases: Aliases, map: ScorpionMap) {
   const units: Record<string, DeployedCounter> = {}
   const byRef = new Map<string, string[]>()
+  const formationHeadings: FormationHeading[] = []
 
   function add(ref: string, hex: string, stepsLost: number, organicTruck?: 'full') {
     const candidates = aliases.get(ref)
@@ -122,6 +136,17 @@ export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], alias
 
   for (const row of setup) {
     if (row.face !== undefined && row.face !== 'reduced') throw new Error(`Unknown setup face for ${row.ref}`)
+    const candidates = aliases.get(row.ref)
+    const heading = candidates?.length === 1 && candidates[0]?.kind === 'formation' ? candidates[0] : undefined
+    if (heading) {
+      const hex = scorpionSetupHex(row.at)
+      if (heading.source.side === null || (row.side !== undefined && row.side !== heading.source.side) ||
+        row.face !== undefined || row.steps_lost !== undefined || !map.hexes.has(hex)) {
+        throw new Error(`Invalid Scorpion formation marker: ${row.ref}`)
+      }
+      formationHeadings.push({ definition: heading.key, side: heading.source.side, hex })
+      continue
+    }
     const choice = lossPairs.some((pair) => pair.some((ref) => ref === row.ref))
     const explicit = row.steps_lost
     if (explicit !== undefined && (!Number.isSafeInteger(explicit) || explicit < 0)) throw new Error(`Invalid setup steps for ${row.ref}`)
@@ -144,5 +169,5 @@ export function scorpionGroundDeployment(setup: readonly GroundSetupRow[], alias
     }
     return { candidates: [a[0]!, b[0]!] as const, stepsLost: 1 }
   })
-  return { units, lossChoices }
+  return { units, lossChoices, formationHeadings }
 }
