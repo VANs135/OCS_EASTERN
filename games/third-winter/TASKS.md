@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 6 子机制：G15 战斗/炮击表实值导入。核实通规 v4.3 实值表已随库提交（ocs-v43-crt/barrage/facility.json，PDF 抽取脚本产物），新建 `import/campaign-tables.ts` 结构校验导入（不改写表值）；合成 3 项用例对实值全格做 crtLookup→parseCombatResult 可用性遍历、炮击列成本与掷骰码校验、畸形表拒绝；门禁 436 条全绿。提交 `b7dfbc5` 已 push。绑定层经 loadCampaignTables 注入实值随 session 接通。
+
 - [x] 2026-11-26，批次 6 子机制：进格夺取钩子。战斗环增 `resolveEntry`（镜像瓶中蝎 resolveScorpionEntry），推进/突袭进格 afterCombat=true、撤退进格 false，绑定层注入夺取/控制结算；合成 2 项用例以 series capturedAmount 验证调用时机与补给点夺取记账；门禁 433 条全绿。提交 `d841d45` 已 push。真实夺取判定随绑定层与批次 12 控制点接通。
 
 - [x] 2026-11-26，批次 6b 时机合规修正（OCS 20.0a/d）：拆分创建窗口扩为开始移动/战后推进/战后撤退三时机；吸收改为仅段末义务窗，段末/阶段末 completion 先列减损母单位强制吸收义务（series `breakdownAbsorbObligations`），未结清开窗阻塞、结清后清窗推进；段中吸收拒绝。series 增时机常量与义务判定。合成 6 项用例；门禁 431 条全绿。提交 `aaf037a` 已 push。编成重建§13.9 已由 campaign-consolidation 覆盖；撤退/推进拆组已支持。批次 6b 结清。
