@@ -116,6 +116,8 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
   let current = state
   let movers = march.movers
   const placements = new Map(movers.map(({ id, progress }) => [id, { id, ...progress }]))
+  // 各 mover 实际进入的步数（含渡桥中断时的步数），供结算后按真实轨迹记账。
+  const reached = new Map(movers.map(({ id }) => [id, 0]))
 
   for (let index = 0; ; index++) {
     const finished = movers.filter(({ stepsLeft }) => stepsLeft === 0)
@@ -129,7 +131,7 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
       movers = movers.filter(({ stepsLeft }) => stepsLeft > 0)
     }
     const to = march.path[index]
-    if (to === undefined) return { ok: true as const, placements: [...placements.values()], settled: current }
+    if (to === undefined) return { ok: true as const, placements: [...placements.values()], reached: { ...Object.fromEntries(reached) }, settled: current }
 
     const enter = prepareMarchStep(current, side, board)
     if (!enter) return refused('board-unavailable')
@@ -137,11 +139,12 @@ export function planCampaignGroundMarch(state: Readonly<CampaignTurnState>, side
     if (!result.ok) return result
     const { afterEntry, entered, bridges } = result
     current = afterEntry
-    for (const { id, progress } of entered) placements.set(id, { id, ...progress })
+    for (const { id, progress } of entered) { placements.set(id, { id, ...progress }); reached.set(id, index + 1) }
     if (bridges.length) {
       const interruption = { kind: 'volga-bridge-demolition' as const, hex: to, bridges,
         march: { movers: entered, path: march.path.slice(index + 1), started: true } }
-      return { ok: true as const, placements: [...placements.values()], settled: setCampaignMarchInterruption(current, interruption) }
+      return { ok: true as const, placements: [...placements.values()], reached: { ...Object.fromEntries(reached) },
+        settled: setCampaignMarchInterruption(current, interruption) }
     }
     movers = entered
   }

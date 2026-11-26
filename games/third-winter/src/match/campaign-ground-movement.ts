@@ -258,9 +258,9 @@ export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, 
     const planned = planMove(state, side, action, config)
     if (!planned.ok) throw new Error(`Campaign ground movement: ${planned.reason}`)
     const settled = config?.afterMove?.(planned.settled, side,
-      { path: planned.route, movers: planned.movers, placements: planned.placements }) ?? planned.settled
+      { path: planned.route, movers: planned.movers, placements: planned.placements, reached: planned.reached }) ?? planned.settled
     return releaseCampaignCounters(settled, config?.releases?.(settled, side,
-      { path: planned.route, movers: planned.movers, placements: planned.placements }) ?? [])
+      { path: planned.route, movers: planned.movers, placements: planned.placements, reached: planned.reached }) ?? [])
   }
   if (action.type === 'complete-campaign-ground-movement') {
     if (state.cursor.phase !== 'movement') throw new Error('Campaign ground movement: complete reaction/exploitation via the phase segment')

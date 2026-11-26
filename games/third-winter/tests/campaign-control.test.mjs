@@ -43,11 +43,18 @@ test('a combat unit moving through a control site claims it, a supply unit does 
   assert.equal(split.state.hexControl['5'], 'axis')
   assert.equal(split.state.hexControl['6'], undefined)
   assert.equal(split.state.counters.truck.location.hex, '6')
+  // the truck may walk on and return to a hex the combat unit already passed; that detour is still not the combat unit's path
+  const loop = submit(game({ march: unit('4'),
+    truck: unit('4', { definition: 'truck', kind: 'transport' }) }),
+  { type: 'move-campaign-ground', movers: [{ id: 'march', stopAfter: 1 }, { id: 'truck' }], path: ['5', '6', '5'] })
+  assert.equal(loop.state.hexControl['5'], 'axis')
+  assert.equal(loop.state.hexControl['6'], undefined)
+  assert.equal(loop.state.counters.truck.location.hex, '5')
 })
 
 test('the last side through a site takes it, and a city needs every hex on one side (§5.0a)', () => {
   const record = campaignControlRecorder(sites)(game({}).state, 'soviet',
-    { path: ['5', '6'], movers: [{ id: 'x', combat: true, stepsLeft: 2 }], placements: [{ id: 'x', hex: '6' }] })
+    { path: ['5', '6'], movers: [{ id: 'x', combat: true, stepsLeft: 2 }], reached: { x: 2 } })
   assert.equal(record.hexControl['5'], 'soviet')
   const state = { ...record, hexControl: { ...record.hexControl, '4': 'axis' } }
   assert.equal(campaignCityControl(state, ['5', '4']), null)

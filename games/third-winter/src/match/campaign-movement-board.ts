@@ -41,13 +41,13 @@ export interface CampaignGroundMovementBoard {
    * `stepsLeft` is how far each mover actually advanced along `path`, so a mover that stops early is not credited with the rest. */
   releases?(settled: Readonly<CampaignTurnState>, side: Side,
     move: { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[];
-      placements?: readonly { id: string; hex: string }[] }): readonly string[]
+      placements?: readonly { id: string; hex: string }[]; reached?: Readonly<Record<string, number>> }): readonly string[]
   /** TTW §2.3b/c：轴心 Army/Army Group HQ 仅可铁路移动，不得地面 march。该类 HQ 返回 true。 */
   railOnly?(state: Readonly<CampaignTurnState>, id: string): boolean
   /** TTW §5.0a：移动后的控制点沉降（如最后穿越 VP/城市格的战斗单位归属）。placements 为各 mover 实际落点。 */
   afterMove?(state: Readonly<CampaignTurnState>, side: Side,
     move: { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[];
-      placements?: readonly { id: string; hex: string }[] }): Readonly<CampaignTurnState>
+      placements?: readonly { id: string; hex: string }[]; reached?: Readonly<Record<string, number>> }): Readonly<CampaignTurnState>
 }
 
 type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost' | 'traceSupply' | 'inTrace'> & {
