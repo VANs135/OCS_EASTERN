@@ -42,3 +42,25 @@ export function armyGroupCarryWithinCap(sp: number): boolean {
 export function armyGroupSpecialDumpAllowed(mode: 'combat' | 'move'): boolean {
   return mode === 'combat'
 }
+
+/** 计量口径：1 SP = 4 token（放置站点配额以 token 计）。 */
+export const TOKENS_PER_SP = 4
+
+/** 放置站点类别（供 supplyPlacementPlan 站点 min/max 配额消费）。 */
+export type TtwSupplySiteKind = 'axis-air-base' | 'axis-army-hq' | 'axis-army-group-hq' | 'soviet-front-hq' | 'soviet-fixed-hex'
+
+/**
+ * 由站点类别派生放置配额（token）。poolTokens 为该池可放总量，用作无专规上限站点的 max。
+ * §2.3b B：轴心 Army HQ 每站 ≤3 SP；§2.3c B：Army Group HQ 得该池余额（无每站上限）；
+ * §3.1b：苏军每 Front HQ 强制 ≥2 SP，固定城市格无强制下限。
+ */
+export function ttwSupplySiteQuota(kind: TtwSupplySiteKind, poolTokens: number): { minTokens: number; maxTokens: number } {
+  const pool = Number.isSafeInteger(poolTokens) && poolTokens >= 0 ? poolTokens : 0
+  switch (kind) {
+    case 'axis-army-hq': return { minTokens: 0, maxTokens: Math.min(AXIS_ARMY_HQ_SP_CAP * TOKENS_PER_SP, pool) }
+    case 'soviet-front-hq': return { minTokens: Math.min(SOVIET_FRONT_HQ_MANDATORY_SP * TOKENS_PER_SP, pool), maxTokens: pool }
+    case 'axis-air-base':
+    case 'axis-army-group-hq':
+    case 'soviet-fixed-hex': return { minTokens: 0, maxTokens: pool }
+  }
+}

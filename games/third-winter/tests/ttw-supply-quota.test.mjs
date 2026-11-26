@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { AXIS_ARMY_HQ_SP_CAP, SOVIET_FRONT_HQ_MANDATORY_SP, ARMY_GROUP_CARRY_SP, SOVIET_FIXED_SUPPLY_HEXES,
   axisArmyHqSpWithinCap, sovietFrontMandatoryMet, sovietRemainingSpValidHex, armyGroupCarryWithinCap,
-  armyGroupSpecialDumpAllowed } from '../src/ttw/campaign/supply-quota.ts'
+  armyGroupSpecialDumpAllowed, TOKENS_PER_SP, ttwSupplySiteQuota } from '../src/ttw/campaign/supply-quota.ts'
 
 test('Axis Army HQ placement cap is 3 SP per turn (§2.3b B)', () => {
   assert.equal(AXIS_ARMY_HQ_SP_CAP, 3)
@@ -34,4 +34,18 @@ test('Army Group HQ carries 1 SP and special dumps require Combat Mode (§2.3c D
   assert.equal(armyGroupCarryWithinCap(2), false)
   assert.equal(armyGroupSpecialDumpAllowed('combat'), true)
   assert.equal(armyGroupSpecialDumpAllowed('move'), false)
+})
+
+test('placement site quotas in tokens: Army HQ capped 3 SP, Front HQ mandatory 2 SP, Army Group residual (§2.3b B/§2.3c B/§3.1b)', () => {
+  assert.equal(TOKENS_PER_SP, 4)
+  // Axis Army HQ site capped at 3 SP = 12 tokens, bounded by pool
+  assert.deepEqual(ttwSupplySiteQuota('axis-army-hq', 40), { minTokens: 0, maxTokens: 12 })
+  assert.deepEqual(ttwSupplySiteQuota('axis-army-hq', 8), { minTokens: 0, maxTokens: 8 })
+  // Army Group HQ gets the pool residual (no per-site cap)
+  assert.deepEqual(ttwSupplySiteQuota('axis-army-group-hq', 40), { minTokens: 0, maxTokens: 40 })
+  assert.deepEqual(ttwSupplySiteQuota('axis-air-base', 40), { minTokens: 0, maxTokens: 40 })
+  // Soviet Front HQ mandatory 2 SP = 8 tokens, max bounded by pool
+  assert.deepEqual(ttwSupplySiteQuota('soviet-front-hq', 40), { minTokens: 8, maxTokens: 40 })
+  assert.deepEqual(ttwSupplySiteQuota('soviet-front-hq', 4), { minTokens: 4, maxTokens: 4 })
+  assert.deepEqual(ttwSupplySiteQuota('soviet-fixed-hex', 40), { minTokens: 0, maxTokens: 40 })
 })
