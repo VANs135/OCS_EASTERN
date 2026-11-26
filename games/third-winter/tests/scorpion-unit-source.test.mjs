@@ -80,3 +80,31 @@ test('the v2 catalog keeps the printed nation of each unit for nationality-speci
   tables['units_hq.json'] = table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: ' ' }])
   await assert.rejects(loadThirdWinterV2Units(read), /无效的算子国籍/)
 })
+
+test('HQ ground mobility is data-driven from the printed MA color: Kessel leg, Corps wheeled, rail-only HQ none', async () => {
+  const table = (units) => async () => ({ meta: { schema: 'ocs-wargame-db-v2', game: 'Third Winter', count: units.length }, units, markers: units })
+  const f = (file, ma, maColor) => ({ file, A: '1', MA: ma, ma_color: maColor })
+  // Values mirror data/units_hq.json: Kessel back MA3 white, Corps back MA10 black, Army Group back MA rr rail.
+  const tables = {
+    'units_inf_div.json': table([{ id: '1', name: 'Ge 8 Jg Bde', faction: 'AXIS', RE: '3', nation: 'Ge' }]),
+    'units_hq.json': table([
+      { id: '3', name: 'Ge HQ 1 Pz Kessel', faction: 'AXIS', RE: '1', nation: 'Ge', hq_kind: 'kessel', kessel: true, front: f('k.png', '0', 'white'), back: f('kb.png', '3', 'white') },
+      { id: '10', name: 'Ge HQ 4 Corps', faction: 'AXIS', RE: '1', nation: 'Ge', hq_kind: 'corps', front: f('c.png', '0', 'black'), back: f('cb.png', '10', 'black') },
+      { id: '8', name: 'Ge HQ AGS', faction: 'AXIS', RE: '1', nation: 'Ge', hq_kind: 'ags', rail_only: true, rail_cap_RE: 1, must_be_city: true, front: f('a.png', '0', 'rail'), back: f('ab.png', 'rr', 'rail') },
+    ]),
+    'units_transport.json': table([{ id: '4', name: 'Axis Truck', faction: 'AXIS', RE: null, nation: 'Axis' }]),
+    'units_air.json': table([{ id: '5', name: 'Ge He.177', faction: 'AXIS', RE: '1', nation: 'Ge' }]),
+    'units_air_army_hq.json': table([{ id: '6', name: 'Sov 2 Air Army HQ', faction: 'SOV', RE: '1', nation: 'Sov' }]),
+    'units_luftflotte_hq.json': table([{ id: '7', name: 'Ge Luftflotte 4', faction: 'AXIS', RE: '1', nation: 'Ge' }]),
+    'units_formation.json': table([{ id: '11', name: 'Hun 2.Pz Div', faction: 'AXIS', RE: null, nation: 'Hun' }]),
+    'units_markers.json': table([{ id: '9', name: 'Test marker', faction: null, side: 'Axis', RE: null, nation: 'Ge' }]),
+  }
+  const catalog = await loadThirdWinterV2Units((file) => tables[file]())
+  const profile = (name) => scorpionGroundProfile(catalog.aliases.get(name)[0], 'move')
+  // 突围（Kessel）HQ 徒步移动力（white MA3）。
+  assert.deepEqual(profile('Ge HQ 1 Pz Kessel'), { side: 'axis', combat: true, allowance: 3, mobility: 'leg' })
+  // 军（Corps）HQ 轮式移动力（black MA10）。
+  assert.deepEqual(profile('Ge HQ 4 Corps'), { side: 'axis', combat: true, allowance: 10, mobility: 'truck' })
+  // 仅铁路 HQ（rr）无地面移动 profile，配合 railOnly 闸门只走铁路。
+  assert.equal(profile('Ge HQ AGS'), null)
+})
