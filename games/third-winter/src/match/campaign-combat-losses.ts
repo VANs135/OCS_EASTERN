@@ -21,6 +21,14 @@ export interface CampaignHqRecovery {
   /** Corps 恢复掷骰（2.3d） */
   die?: number
   turn: number
+  /** 下一个轴心增援阶段所在回合（2.3b E/c G/d「下一个轴心国增援阶段」）。 */
+  availableTurn: number
+}
+
+/** 被毁回合＋先手顺序 ⇒ 免费重建可用的轴心增援回合。苏军先手时苏军回合内的被毁当回合轴心增援即可重建。 */
+function nextAxisReinforcementTurn(state: Readonly<CampaignTurnState>): number {
+  const sameTurn = 'phasing' in state.cursor && state.cursor.phasing === 'soviet' && state.cursor.first === 'soviet'
+  return state.turn + (sameTurn ? 0 : 1)
 }
 
 /**
@@ -52,12 +60,13 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
     const kind = counter.kind === 'hq' ? board.hqKindOf?.(state, id) : undefined
     if (kind === 'army' || kind === 'army-group') {
       vp += kind === 'army' ? ARMY_HQ_DESTROYED_VP : ARMY_GROUP_HQ_DESTROYED_VP
-      recoveries.push({ id, definition: counter.definition, kind, result: 'free-rebuild', turn: state.turn })
+      recoveries.push({ id, definition: counter.definition, kind, result: 'free-rebuild', turn: state.turn,
+        availableTurn: nextAxisReinforcementTurn(state) })
     } else if (kind === 'corps') {
       const rolled = rollDie(rng)
       rng = rolled.rng
       recoveries.push({ id, definition: counter.definition, kind, result: corpsHqRecoveryRoll(rolled.value),
-        die: rolled.value, turn: state.turn })
+        die: rolled.value, turn: state.turn, availableTurn: nextAxisReinforcementTurn(state) })
     }
     counters[id] = { ...counter, location: { kind: 'dead-pile' }, currentRe: 0, outOfSupply: false }
   }

@@ -2,6 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { returnCampaignBreakout } from './campaign-breakout-returns.ts'
 import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
+import { placeCampaignHqRecovery } from './campaign-hq-recovery.ts'
 import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 import { emptyCampaignReplacementSpent } from './campaign-reinforcement-state.ts'
@@ -51,6 +52,8 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
     const engineering = beginCampaignPontoonPhase(opened, actor, context.groundMovement)
     return beginCampaignKhersonFerryPhase(engineering, actor, context.groundMovement?.map)
   }
+
+  if (action.type === 'place-campaign-hq-recovery') return placeCampaignHqRecovery(state, actor, action, context.hqRecovery)
 
   const active = campaignReinforcementAtCursor(state)
   if (!active) throw new Error('Ordinary campaign reinforcement is not open')

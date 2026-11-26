@@ -24,6 +24,7 @@ import type { CampaignLateSegment, CompleteCampaignLateSegment } from './campaig
 import type { CampaignBarrage, CampaignBarrageAction, CampaignBarrageBoard, CampaignBarrageRecord } from './campaign-barrage.ts'
 import type { CampaignHqRecovery } from './campaign-combat-losses.ts'
 import type { CampaignCombat, CampaignCombatAction, CampaignCombatBoard } from './campaign-combat.ts'
+import type { CampaignHqRecoveryBoard, PlaceCampaignHqRecovery } from './campaign-hq-recovery.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
@@ -108,7 +109,7 @@ export type CampaignPreTurnAction =
   | { type: 'roll-campaign-initiative' }
   | { type: 'choose-campaign-first'; first: Side }
 
-export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout
+export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout | PlaceCampaignHqRecovery
   | { type: 'complete-campaign-reinforcement-opening' }
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
@@ -127,6 +128,7 @@ export interface CampaignTurnContext {
   supplyPhase?: CampaignSupplyPhaseBoard
   barrage?: CampaignBarrageBoard
   combat?: CampaignCombatBoard
+  hqRecovery?: CampaignHqRecoveryBoard
   stePlacement?: CampaignStePlacement
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
