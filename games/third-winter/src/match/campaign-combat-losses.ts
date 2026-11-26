@@ -1,6 +1,16 @@
 import { rollDie } from '@ocs-eastern/series/rng'
-import { ARMY_GROUP_HQ_DESTROYED_VP, ARMY_HQ_DESTROYED_VP, corpsHqRecoveryRoll } from '../ttw/combat-special.ts'
+import { ARMY_GROUP_HQ_DESTROYED_VP, ARMY_HQ_DESTROYED_VP, corpsHqRecoveryRoll, remnantGenerationEligible } from '../ttw/combat-special.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
+
+/** TTW 2.4d 残部自动生成事实（绑定层组合 remnantDestinations 与池库存）。 */
+export interface CampaignRemnantGeneration {
+  isParentDivision(state: Readonly<CampaignTurnState>, id: string): boolean
+  /** 距被毁格恰 2 格以西、开放 Leg 路径、堆叠 ≤10 的落点（已排序）。 */
+  destinations(state: Readonly<CampaignTurnState>, id: string, hex: string): readonly string[]
+  /** 池中可用残部物理身份；undefined＝池尽。 */
+  nextId(state: Readonly<CampaignTurnState>): string | undefined
+  definition: string
+}
 
 /** 战斗/炮击共用的损失结算事实（步数、RE 折算、HQ 类别）。 */
 export interface CampaignLossBoard {
@@ -10,6 +20,8 @@ export interface CampaignLossBoard {
   reAfterLoss(state: Readonly<CampaignTurnState>, id: string, losses: number): number | undefined
   /** TTW HQ 类别：歼灭 VP 与免费重建/恢复掷骰（2.3b E/c G/d、5.0a） */
   hqKindOf?(state: Readonly<CampaignTurnState>, id: string): 'army' | 'army-group' | 'corps' | undefined
+  /** TTW 2.4d 残部生成（可选；缺省＝不生成）。 */
+  remnant?: CampaignRemnantGeneration
 }
 
 /** 被毁 HQ 的恢复记录：增援环据此免费重建（Corps 4–6 留 Dead Pile）。 */
@@ -69,6 +81,17 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
         die: rolled.value, turn: state.turn, availableTurn: nextAxisReinforcementTurn(state) })
     }
     counters[id] = { ...counter, location: { kind: 'dead-pile' }, currentRe: 0, outOfSupply: false }
+    // TTW 2.4d：16-4-3 步兵师战斗损失最后一步 ⇒ 池有余且落点合法时自动生成残部营，继承指示物与模式。
+    const remnant = board.remnant
+    if (remnant && counter.location.kind === 'map' && remnant.isParentDivision(state, id)) {
+      const rid = remnant.nextId(state)
+      const dest = remnant.destinations(state, id, counter.location.hex)[0]
+      if (rid && dest && remnantGenerationEligible({ parentIs1643Infantry: true, lastStepLostInCombat: true, poolHasRemnant: true })) {
+        counters[rid] = { kind: 'land', side: counter.side, definition: remnant.definition, location: { kind: 'map', hex: dest },
+          currentRe: 1, stepsLost: 0, mode: counter.mode, disorganized: counter.disorganized, exploiting: counter.exploiting,
+          outOfSupply: counter.outOfSupply, internalStocks: counter.internalStocks }
+      }
+    }
   }
   return { ...state, counters, rng, sovietVp: vp, hqRecoveries: recoveries }
 }

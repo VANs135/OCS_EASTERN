@@ -3,6 +3,7 @@ import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { returnCampaignBreakout } from './campaign-breakout-returns.ts'
 import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
 import { placeCampaignHqRecovery } from './campaign-hq-recovery.ts'
+import { rebuildCampaignFromRemnant } from './campaign-remnants.ts'
 import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
 import { emptyCampaignReplacementSpent } from './campaign-reinforcement-state.ts'
@@ -54,6 +55,7 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
   }
 
   if (action.type === 'place-campaign-hq-recovery') return placeCampaignHqRecovery(state, actor, action, context.hqRecovery)
+  if (action.type === 'rebuild-campaign-from-remnant') return rebuildCampaignFromRemnant(state, actor, action, context.remnantRebuild)
 
   const active = campaignReinforcementAtCursor(state)
   if (!active) throw new Error('Ordinary campaign reinforcement is not open')

@@ -26,6 +26,7 @@ import type { CampaignHqRecovery } from './campaign-combat-losses.ts'
 import type { CampaignCombat, CampaignCombatAction, CampaignCombatBoard } from './campaign-combat.ts'
 import type { CampaignHqRecoveryBoard, PlaceCampaignHqRecovery } from './campaign-hq-recovery.ts'
 import type { CampaignBreakdownAction, CampaignBreakdownBoard } from './campaign-breakdown.ts'
+import type { CampaignRemnantRebuildBoard, RebuildCampaignFromRemnant } from './campaign-remnants.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
@@ -113,6 +114,7 @@ export type CampaignPreTurnAction =
   | { type: 'choose-campaign-first'; first: Side }
 
 export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout | PlaceCampaignHqRecovery
+  | RebuildCampaignFromRemnant
   | { type: 'complete-campaign-reinforcement-opening' }
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
@@ -134,6 +136,7 @@ export interface CampaignTurnContext {
   combat?: CampaignCombatBoard
   hqRecovery?: CampaignHqRecoveryBoard
   breakdown?: CampaignBreakdownBoard
+  remnantRebuild?: CampaignRemnantRebuildBoard
   stePlacement?: CampaignStePlacement
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
