@@ -8,6 +8,7 @@ import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovogra
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
+import { applyCampaignBarrage } from './campaign-barrage.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement, releaseCampaignCounters } from './campaign-ground-movement.ts'
@@ -115,6 +116,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       return applyCampaignSupplyPhase(state, actor, action, context)
     case 'complete-campaign-late-segment':
       return completeCampaignLateSegment(state, actor, action, context)
+    case 'declare-campaign-barrage':
+    case 'choose-campaign-barrage-terrain':
+    case 'assign-campaign-barrage-loss':
+      return applyCampaignBarrage(state, actor, action, context.barrage)
     case 'complete-campaign-cleanup':
       return completeCampaignCleanup(state, actor, context)
     case 'complete-campaign-refit': {

@@ -21,6 +21,8 @@ import type { CampaignRailCleanupBoard } from './campaign-rail-cleanup.ts'
 import type { CampaignSupplyAction, CampaignSupplyWindow } from './campaign-supply-phase.ts'
 import type { CampaignSupplyPhaseBoard } from './campaign-supply-stock.ts'
 import type { CampaignLateSegment, CompleteCampaignLateSegment } from './campaign-late-turn.ts'
+import type { CampaignBarrage, CampaignBarrageAction, CampaignBarrageBoard, CampaignBarrageRecord } from './campaign-barrage.ts'
+import type { CampaignHqRecovery } from './campaign-combat-losses.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
@@ -74,6 +76,13 @@ export interface CampaignTurnState extends CampaignBoardState {
   cleanup?: { sovietConvertedEdges: readonly string[] }
   supplyPhase?: CampaignSupplyWindow
   lateTurnSegment?: CampaignLateSegment
+  /** 进行中的炮击（OCS 10.0）；null＝已结算。 */
+  barrage?: CampaignBarrage | null
+  barrageHistory?: readonly CampaignBarrageRecord[]
+  /** TTW 5.0a 苏军累积 VP（歼灭 HQ 等）；突然死亡与终局计分随批次 6 后续接通。 */
+  sovietVp?: number
+  /** 被毁 HQ 的免费重建/恢复记录，增援环消费（TTW 2.3b E/c G/d）。 */
+  hqRecoveries?: readonly CampaignHqRecovery[]
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -99,7 +108,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry | TransportCampaignRail
-  | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft
+  | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
 
 export interface CampaignTurnContext {
@@ -109,6 +118,7 @@ export interface CampaignTurnContext {
   railTransport?: CampaignRailBoard
   railCleanup?: CampaignRailCleanupBoard
   supplyPhase?: CampaignSupplyPhaseBoard
+  barrage?: CampaignBarrageBoard
   stePlacement?: CampaignStePlacement
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
