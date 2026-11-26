@@ -134,6 +134,15 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction | CampaignCombatAction
   | CampaignBreakdownAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
+  | SetCampaignFrontPosture
+
+/** TTW §3.3c/d：姿态指定窗口——进攻在苏军增援阶段开始、regrouping 在阶段末。 */
+export interface SetCampaignFrontPosture {
+  type: 'set-campaign-front-posture'
+  front: string
+  mode: import('../ttw/front-posture.ts').TtwFrontPosture
+  window: 'start' | 'end'
+}
 
 export interface CampaignTurnContext {
   reinforcement: CampaignReinforcementContext

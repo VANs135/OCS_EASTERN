@@ -4,6 +4,7 @@ import { createRngState, verifyRngState } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
+import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive } from '../ttw/front-posture.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
@@ -60,6 +61,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'resolve-campaign-bridge-demolition' || action.type === 'resume-campaign-ground-march') {
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
   }
+  if (action.type === 'set-campaign-front-posture') return applyCampaignFrontPosture(state, actor, action)
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
   if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
@@ -151,4 +153,30 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     default:
       return applyCampaignReinforcementPhase(state, actor, action, context)
   }
+}
+
+/** TTW §3.3c/d/e：姿态指定（进攻＝增援阶段开始、regrouping＝阶段末；最多 2 进攻；3/9 回合计时）。 */
+function applyCampaignFrontPosture(state: Readonly<CampaignTurnState>, actor: Side,
+  action: Extract<CampaignTurnAction, { type: 'set-campaign-front-posture' }>): CampaignTurnState {
+  const cursor = state.cursor
+  if (!('phase' in cursor) || cursor.phase !== 'reinforcement' || cursor.phasing !== 'soviet' || actor !== 'soviet') {
+    throw new Error('Front posture changes only during the Soviet reinforcement phase')
+  }
+  const fronts = state.frontPostures ?? {}
+  const current = fronts[action.front]
+  if (action.mode === 'offensive') {
+    if (action.window !== 'start') throw new Error('Offensive posture is designated at the start of the reinforcement phase')
+    if (!canAddOffensive(fronts, action.front, state.turn)) {
+      throw new Error('This front cannot be designated offensive (two-front limit, eligibility or already offensive)')
+    }
+  } else {
+    if (action.window !== 'end') throw new Error('Regrouping posture is designated at the end of the reinforcement phase')
+    if (!canDesignateRegrouping(current, state.turn)) throw new Error('This front cannot yet switch to regrouping')
+  }
+  return { ...state, frontPostures: { ...fronts, [action.front]: { mode: action.mode, sinceTurn: state.turn } } }
+}
+
+/** §3.3e：进攻满 9 回合必须转 regrouping 的方面军清单（增援阶段末义务预检用）。 */
+export function campaignMustLeaveOffensiveFronts(state: Readonly<CampaignTurnState>): readonly string[] {
+  return Object.entries(state.frontPostures ?? {}).filter(([, f]) => mustLeaveOffensive(f, state.turn)).map(([front]) => front)
 }
