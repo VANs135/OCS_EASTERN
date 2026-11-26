@@ -80,6 +80,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       return applyCampaignBreakout(state, actor, action, context.breakoutBoard)
     case 'move-campaign-ground':
     case 'hold-campaign-ground-zoc':
+    case 'release-campaign-reserve':
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
     case 'complete-campaign-ground-movement':
       return { ...applyCampaignGroundMovement(state, actor, action, context.groundMovement), breakdownAbsorb: null }

@@ -39,8 +39,9 @@ export type CampaignGroundProfiles = (state: Readonly<CampaignTurnState>, counte
 
 export function campaignCounterGroundMode(counter: CampaignCounter, combatFace: boolean): GroundModeState {
   const face = counter.mode === 'combat' || (!counter.mode && combatFace) ? 'combat' : 'move'
-  const marker = counter.disorganized ? 'dg' : counter.mode === 'reserve' || counter.mode === 'strat' ? counter.mode : undefined
-  return { face, marker }
+  const marker = counter.disorganized ? 'dg' : counter.exploiting ? 'exploit'
+    : counter.mode === 'reserve' || counter.mode === 'strat' ? counter.mode : undefined
+  return { face, marker, released: counter.released === true }
 }
 
 export function campaignCombatPontoon(counter: CampaignCounter, profile: CampaignGroundProfile): boolean {

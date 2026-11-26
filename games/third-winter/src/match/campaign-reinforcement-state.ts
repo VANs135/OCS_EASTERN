@@ -62,6 +62,8 @@ export interface CampaignCounter {
   exploiting?: boolean
   fueled?: boolean
   mode?: 'combat' | 'move' | 'reserve' | 'strat'
+  /** 通规 5.7b：本阶段刚释放的预备（换阶段清除）。 */
+  released?: boolean
   /** Scenario release rule, e.g. TTW Scenario 9. The counter may not move while a reason is present. */
   held?: string
   outOfSupply?: boolean

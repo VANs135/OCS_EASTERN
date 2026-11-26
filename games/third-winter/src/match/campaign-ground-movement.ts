@@ -1,5 +1,6 @@
-import { groundModeMovementFactor } from '@ocs-eastern/series/modes'
+import { canMoveInPhase, canReleaseReserve, groundModeMovementFactor, type MovementSegmentPhase } from '@ocs-eastern/series/modes'
 import type { Side } from '@ocs-eastern/series/state-types'
+import { actingSide } from '@ocs-eastern/series/turn'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { campaignMarchDestinations, campaignMarchPreview, planCampaignGroundMarch } from './campaign-ground-march.ts'
 import type { CampaignMarchInterruption, CampaignMarchMover } from './campaign-ground-march.ts'
@@ -38,12 +39,26 @@ export interface MoveCampaignGround {
 }
 
 export type CampaignGroundMovementAction = MoveCampaignGround | { type: 'hold-campaign-ground-zoc'; counterId: string }
-  | { type: 'complete-campaign-ground-movement' }
+  | { type: 'complete-campaign-ground-movement' } | { type: 'release-campaign-reserve'; counterId: string }
 
 type Position = NonNullable<ReturnType<typeof campaignMovementPosition>>
 
+/** 通规 2.2/6.0/6.3a/11.0a：移动窗在移动阶段（阶段玩家）、反应阶段（非阶段玩家的释放预备）、进击阶段（阶段玩家的进击/释放预备）开放。 */
+function movementSegmentPhase(state: Readonly<CampaignTurnState>, side: Side): MovementSegmentPhase | null {
+  const cursor = state.cursor
+  if (!('phasing' in cursor)) return null
+  if (cursor.phase === 'movement') {
+    return state.movementSegment === 'movement' && cursor.phasing === side ? 'movement' : null
+  }
+  if (cursor.phase === 'reaction' || cursor.phase === 'exploitation') {
+    if (state.lateTurnSegment !== 'movement') return null
+    return actingSide(cursor.phasing, cursor.phase) === side ? cursor.phase : null
+  }
+  return null
+}
+
 function movementOpen(state: Readonly<CampaignTurnState>, side: Side) {
-  return state.cursor.phase === 'movement' && state.cursor.phasing === side && state.movementSegment === 'movement'
+  return movementSegmentPhase(state, side) !== null
 }
 
 const refuse = <Reason extends string>(reason: Reason) => ({ ok: false as const, reason })
@@ -55,7 +70,8 @@ function inspect(state: Readonly<CampaignTurnState>, side: Side, board?: Campaig
   return position && board ? { ok: true as const, position, board } : refuse('board-unavailable')
 }
 
-function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { id, mode }: CampaignGroundMover) {
+function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { id, mode }: CampaignGroundMover,
+  phase: MovementSegmentPhase) {
   const current = position.friendly.get(id)
   if (!current) return refuse('choose-friendly-counter')
   if (state.counters[id]?.held) return refuse('counter-held')
@@ -64,6 +80,8 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
   if (position.engineeringPontoons.has(id)) return refuse('pontoon-committed-to-engineering')
   const counter = state.counters[id]!
   if (mode === undefined || mode === counter.mode) return { ok: true as const, counter, ...current }
+  // 通规 5.4：主动模式切换只在移动阶段；反应/进击阶段不得借移动切模式。
+  if (phase !== 'movement') return refuse('mode-switch-only-in-movement')
   if (state.groundMovement?.railRepairRides?.[id]) return refuse('cannot-change-mode-after-rail')
   if (mode !== 'combat' && mode !== 'move' && mode !== 'strat') return refuse('invalid-mode')
   if (counter.kind === 'transport' && mode !== 'move') return refuse('transport-mode')
@@ -73,13 +91,16 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
   return { ok: true as const, counter: { ...counter, mode }, ...current }
 }
 
-function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<CampaignTurnState>, id: string, combatFace: boolean) {
+function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<CampaignTurnState>, id: string, combatFace: boolean,
+  side: Side, phase: MovementSegmentPhase) {
   const profile = board.moveProfile(proposed, id)
   if (!profile || !Number.isFinite(profile.ma) || profile.ma <= 0) return refuse('no-movement-allowance')
   if (!profile.fuelReady) return refuse('needs-fuel')
   const mode = campaignCounterGroundMode(proposed.counters[id]!, combatFace)
+  const activeSide = 'phasing' in proposed.cursor ? proposed.cursor.phasing : side
+  if (!canMoveInPhase({ state: mode, side, activeSide }, phase).ok) return refuse('unit-cannot-move-in-phase')
   return { ok: true as const, unit: { mobility: profile.mobility,
-    allowance: profile.ma * groundModeMovementFactor(mode, 'movement'), strategic: mode.marker === 'strat' } }
+    allowance: profile.ma * groundModeMovementFactor(mode, phase), strategic: mode.marker === 'strat' } }
 }
 
 function formerPontoonBridge(state: Readonly<CampaignTurnState>, proposed: Readonly<CampaignTurnState>, id: string, hex: string,
@@ -91,6 +112,7 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   const inspected = inspect(state, side, config)
   if (!inspected.ok) return inspected
   const { board, position } = inspected
+  const phase = movementSegmentPhase(state, side)!
   const { movers, path } = action
   if (!path.length || !movers.length || new Set(movers.map(({ id }) => id)).size !== movers.length ||
     movers.some(({ stopAfter }) => stopAfter !== undefined && (!Number.isSafeInteger(stopAfter) || stopAfter < 1 || stopAfter > path.length)) ||
@@ -100,7 +122,7 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   const proposed = { ...state, counters: { ...state.counters } }
   let origin: string | undefined
   for (const mover of movers) {
-    const choice = proposeMode(state, position, mover)
+    const choice = proposeMode(state, position, mover, phase)
     if (!choice.ok) return choice
     if (origin && origin !== choice.hex) return refuse('stack-not-co-located')
     origin = choice.hex
@@ -109,7 +131,7 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   const members: CampaignMarchMover[] = []
   for (const { id, stopAfter, railWork = [] } of movers) {
     const { hex, profile } = position.friendly.get(id)!
-    const prepared = movementUnit(board, proposed, id, profile.inCombatMode)
+    const prepared = movementUnit(board, proposed, id, profile.inCombatMode, side, phase)
     if (!prepared.ok) return prepared
     // OCS 8.1 突袭返回移动：仅突袭参与方可续走， allowance 取突袭余量 MP。
     const march = state.overrunMarch
@@ -161,6 +183,16 @@ export function releaseCampaignCounters(state: Readonly<CampaignTurnState>, rele
   return { ...state, counters }
 }
 
+/** 通规 5.7b：换阶段/换段即清除「本阶段刚释放」时点事实（释放本身已永久摘掉预备标记）。 */
+export function clearCampaignReserveRelease(state: Readonly<CampaignTurnState>): CampaignTurnState {
+  let changed = false
+  const counters = { ...state.counters }
+  for (const [id, counter] of Object.entries(counters)) {
+    if (counter.released === true) { counters[id] = { ...counter, released: false }; changed = true }
+  }
+  return changed ? { ...state, counters } : state
+}
+
 export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>, side: Side, config?: CampaignGroundMovementBoard) {
   if (!movementOpen(state, side) || state.groundMovement?.interruption) return null
   const inspected = inspect(state, side, config)
@@ -169,7 +201,13 @@ export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>
   const heldIds = [...position.friendly.keys()].filter((id) => Boolean(state.counters[id]?.held))
   const held = new Set(heldIds)
   const uncommitted = [...position.friendly].filter(([id]) => !position.stopped.has(id) && !position.locked.has(id) && !held.has(id))
-  const availableIds = uncommitted.flatMap(([id]) => position.ferryPontoons.has(id) || position.engineeringPontoons.has(id) ? [] : [id])
+  const phase = movementSegmentPhase(state, side)!
+  const activeSide = 'phasing' in state.cursor ? state.cursor.phasing : side
+  const availableIds = uncommitted.flatMap(([id, { profile }]) => {
+    if (position.ferryPontoons.has(id) || position.engineeringPontoons.has(id)) return []
+    const mode = campaignCounterGroundMode(state.counters[id]!, profile.inCombatMode)
+    return canMoveInPhase({ state: mode, side, activeSide }, phase).ok ? [id] : []
+  })
   const zocHoldIds = uncommitted.flatMap(([id, { hex, profile }]) => profile.combat && position.enemyZoc.has(hex) ? [id] : [])
   return { configured: true, availableIds, zocHoldIds, heldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null,
     crossedReByHexside: { ...state.groundMovement?.crossedReByHexside } }
@@ -185,11 +223,12 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const inspected = inspect(state, side, config)
   if (!inspected.ok) return inspected
   const { position, board } = inspected
-  const choice = proposeMode(state, position, mover)
+  const phase = movementSegmentPhase(state, side)!
+  const choice = proposeMode(state, position, mover, phase)
   if (!choice.ok) return choice
   const { id } = mover
   const proposed = { ...state, counters: { ...state.counters, [id]: choice.counter } }
-  const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode)
+  const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode, side, phase)
   if (!prepared.ok) return prepared
   if (state.overrunMarch?.enteredHex) {
     if (!Object.hasOwn(state.overrunMarch.remaining, id)) return refuse('overrun-march-pending')
@@ -204,12 +243,23 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
 
 export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, side: Side,
   action: CampaignGroundMovementAction, config?: CampaignGroundMovementBoard): CampaignTurnState {
+  if (action.type === 'release-campaign-reserve') {
+    const phase = movementSegmentPhase(state, side)
+    if (phase !== 'reaction' && phase !== 'exploitation') throw new Error('Campaign ground movement: reserve release only in reaction/exploitation')
+    const counter = state.counters[action.counterId]
+    if (!counter || counter.side !== side || counter.location.kind !== 'map') throw new Error('Campaign ground movement: choose a friendly on-map counter')
+    const activeSide = 'phasing' in state.cursor ? state.cursor.phasing : side
+    const verdict = canReleaseReserve({ state: campaignCounterGroundMode(counter, false), side, activeSide, phase })
+    if (!verdict.ok) throw new Error(`Campaign ground movement: ${verdict.reason}`)
+    return { ...state, counters: { ...state.counters, [action.counterId]: { ...counter, released: true } } }
+  }
   if (action.type === 'move-campaign-ground') {
     const planned = planMove(state, side, action, config)
     if (!planned.ok) throw new Error(`Campaign ground movement: ${planned.reason}`)
     return releaseCampaignCounters(planned.settled, config?.releases?.(planned.settled, side, { path: planned.route, movers: planned.movers }) ?? [])
   }
   if (action.type === 'complete-campaign-ground-movement') {
+    if (state.cursor.phase !== 'movement') throw new Error('Campaign ground movement: complete reaction/exploitation via the phase segment')
     const inspected = inspect(state, side, config)
     if (!inspected.ok) throw new Error(`Campaign ground movement: ${inspected.reason}`)
     const blockers = inspected.board.endBlockers?.(state, side)
