@@ -113,6 +113,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   headquartersFuel?: readonly import('./campaign-fuel.ts').CampaignHeadquartersFuel[]
   /** TTW §3.5a：各 RVGK 盒标记当前格（rvgk-1/rvgk-2 → hex）；铁路移动结算另接。 */
   rvgkMarkers?: Readonly<Record<string, string>>
+  /** TTW §2.4e：轴心 KG 标记（id＝领队算子，hex＝标记格；成员按同堆合格单位派生）。 */
+  kampfgruppen?: readonly { id: string; hex: string }[]
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -146,6 +148,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | SpendCampaignBarrageMarker
   | import('./campaign-fuel.ts').CampaignFuelAction
   | import('./campaign-rvgk.ts').CampaignRvgkAction
+  | import('./campaign-kg.ts').CampaignKgAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -195,4 +198,6 @@ export interface CampaignTurnContext {
   /** TTW §3.5d B：RVGK 释放的盘面事实（满编/最低编成维持/本回合入盒/独立单位编组，绑定层注入）。 */
   rvgkReleaseFacts?: (state: Readonly<CampaignTurnState>, id: string) =>
     { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number } | undefined
+  /** TTW §2.4e：KG 合格单位判定（德军＋卡车/履带 MA，绑定层注入）。 */
+  kgEligible?: (state: Readonly<CampaignTurnState>, id: string) => boolean
 }

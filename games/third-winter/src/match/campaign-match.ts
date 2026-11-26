@@ -7,6 +7,7 @@ import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker, turnsInPosture } from '../ttw/front-posture.ts'
 import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
 import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
+import { createCampaignKg, dissolveCampaignKg } from './campaign-kg.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -84,6 +85,11 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     if (!facts) throw new Error('RVGK release facts are unavailable')
     return releaseCampaignRvgk(state, actor, action, context.groundMovement.map, facts)
   }
+  if (action.type === 'create-campaign-kg') {
+    if (!context.groundMovement) throw new Error('Campaign KG requires a movement board')
+    return createCampaignKg(state, actor, action, context.groundMovement.map, context.kgEligible ?? (() => false))
+  }
+  if (action.type === 'dissolve-campaign-kg') return dissolveCampaignKg(state, actor, action)
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
   if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
