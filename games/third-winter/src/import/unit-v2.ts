@@ -50,6 +50,7 @@ function readUnit(value: unknown, kind: CatalogKind, file: string): BackupUnit {
   return {
     id: row.id, name: row.name, side, ...(nation ? { nation } : {}), re: numberField(row.RE, `${label} · RE`),
     category: row.combat_category === 'inf' ? 'infantry' : asString(row.combat_category) ?? undefined,
+    ...(asString(row.hq_kind) ? { hqKind: asString(row.hq_kind)! } : {}),
     org: { parentFmt: asString(row.formation), airGroup: asString(row.air_group) },
     abilities: [...runtimeAbilities],
     ...(typeof row.multi_instance === 'boolean' ? { multiInstance: row.multi_instance } : {}),

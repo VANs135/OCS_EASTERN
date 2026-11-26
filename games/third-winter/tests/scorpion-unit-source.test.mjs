@@ -53,7 +53,7 @@ test('the v2 catalog keeps the printed nation of each unit for nationality-speci
   const tables = {
     'units_inf_div.json': table([{ id: '1', name: 'Hun 2.Pz I-3 Pz Bn', faction: 'AXIS', RE: '1', nation: 'Hun' },
       { id: '2', name: 'Ge 8 Jg Bde', faction: 'AXIS', RE: '3', nation: 'Ge' }]),
-    'units_hq.json': table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: 'Ge', kessel: true }]),
+    'units_hq.json': table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: 'Ge', kessel: true, hq_kind: 'kessel' }]),
     'units_transport.json': table([{ id: '4', name: 'Axis Truck', faction: 'AXIS', RE: null, nation: 'Axis' }]),
     'units_air.json': table([{ id: '5', name: 'Ge He.177', faction: 'AXIS', RE: '1', nation: 'Ge' }]),
     'units_air_army_hq.json': table([{ id: '6', name: 'Sov 2 Air Army HQ', faction: 'SOV', RE: '1', nation: 'Sov' }]),
@@ -67,6 +67,8 @@ test('the v2 catalog keeps the printed nation of each unit for nationality-speci
   assert.equal(catalog.aliases.get('Ge 8 Jg Bde')[0].source.nation, 'Ge')
   assert.equal(catalog.aliases.get('Hun 2.Pz Div')[0].kind, 'formation')
   assert.equal(catalog.aliases.get('Axis Truck')[0].source.nation, 'Axis')
+  // the explicit HQ class is carried into the runtime unit for the campaign HQ hooks
+  assert.equal(catalog.aliases.get('Ge HQ 58 Pz Corps')[0].source.hqKind, 'kessel')
   // A nation that is present but blank is a data error rather than a missing one.
   tables['units_hq.json'] = table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: ' ' }])
   await assert.rejects(loadThirdWinterV2Units(read), /无效的算子国籍/)

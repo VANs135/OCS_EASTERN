@@ -32,6 +32,8 @@ export interface BackupUnit extends SourceUnit {
   org?: { parentFmt?: string | null; airGroup?: string | null } | null
   category?: string
   kind?: Exclude<BackupKind, 'marker'>
+  /** v2 库显式 HQ 类别（hq_kind），如 army/pz_army/ags/corps/pz_corps/ss_pz_corps/kessel/front/tank_army 等。 */
+  hqKind?: string
   faces: { combat: BackupFace | null; move: BackupFace | null }
   abilities?: readonly string[]
   multiInstance?: boolean
