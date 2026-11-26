@@ -22,12 +22,12 @@ const airlift = (targetHex) => ({ type: 'airlift-campaign-luftflotte', targetHex
 test('airlift places 2 SP at an airbase / 1 SP elsewhere within 60, once per game (§2.2b)', () => {
   const { record, context } = start()
   const base = submit(record, context, airlift('50'))
-  assert.equal(base.state.supplyDumps.axis['50'], 2)
+  assert.equal(base.state.supplyDumps.axis['50'], 8) // 2 SP = 8 token
   assert.equal(base.state.luftflotteAirliftUsed, true)
   assert.equal(campaignLuftflotteOptions(base.state, 'axis').available, false)
   assert.throws(() => submit(base, context, airlift('55')), /already used/)
   const other = start()
-  assert.equal(submit(other.record, other.context, airlift('55')).state.supplyDumps.axis['55'], 1)
+  assert.equal(submit(other.record, other.context, airlift('55')).state.supplyDumps.axis['55'], 4) // 1 SP = 4 token
 })
 
 test('airlift rejects out-of-range, non-friendly and wrong side targets (§2.2b)', () => {

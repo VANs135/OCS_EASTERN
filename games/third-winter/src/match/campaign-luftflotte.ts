@@ -30,6 +30,8 @@ export function applyCampaignLuftflotteAirlift(state: Readonly<CampaignTurnState
   const verdict = luftflotteAirlift({ usedThisGame: state.luftflotteAirliftUsed === true, friendlyHex: info.friendlyHex, within60, airBase: info.airBase })
   if (!verdict.ok) throw new Error('The airlift is already used, or the target is not a friendly hex within 60 hexes')
   const axisDumps = state.supplyDumps.axis ?? {}
-  const dumps = { ...axisDumps, [target]: (axisDumps[target] ?? 0) + verdict.sp }
+  // supplyDumps 以 token 计（1 SP = 4 token，与 campaign-supply-ledger / rail-transport 一致）。
+  const tokens = verdict.sp * 4
+  const dumps = { ...axisDumps, [target]: (axisDumps[target] ?? 0) + tokens }
   return { ...state, supplyDumps: { ...state.supplyDumps, axis: dumps }, luftflotteAirliftUsed: true }
 }
