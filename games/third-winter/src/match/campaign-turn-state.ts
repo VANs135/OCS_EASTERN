@@ -95,6 +95,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   combatAttackers?: readonly string[]
   /** 已回池拆分算子的物理身份（按定义），供复用以维持池数量上限。 */
   breakdownReturns?: Readonly<Record<string, readonly string[]>>
+  /** 突袭移动账本（OCS 8.0）：余量 MP 与是否已进格；null＝已结束。 */
+  overrunMarch?: { remaining: Readonly<Record<string, number>>; enteredHex: boolean } | null
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]

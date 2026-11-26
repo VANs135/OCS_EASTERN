@@ -53,6 +53,10 @@ export interface CampaignCombatBoard {
   stackingReAt(state: Readonly<CampaignTurnState>, hex: string): number
   /** 进击阶段攻击资格（释放/进击标记），与移动侧同一事实 */
   exploitEligible(state: Readonly<CampaignTurnState>, id: string): boolean
+  /** 突袭（OCS 8.0）：可用 MP、进格取费（≤3）、本阶段已移动判定。 */
+  overrunMp?(state: Readonly<CampaignTurnState>, id: string): number
+  overrunEntryCost?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): number | null
+  hasMoved?(state: Readonly<CampaignTurnState>, id: string): boolean
   /**
    * TTW 专规 AR 修正（1.6c 突击单位、3.3d B 守势、4.4 山地），由绑定层用
    * ttw/combat-special.ts 判定组合姿态/trace/编制事实后注入；默认 0。
@@ -84,10 +88,13 @@ export interface CampaignCombat {
   step: 'defender-supply' | 'attacker-rating' | 'defender-rating' | 'defender-terrain' | 'attacker-result' | 'defender-result' | 'advance'
   defenderMayIgnore?: boolean
   attackerRetreated?: boolean
+  overrun?: boolean
 }
 
 export type CampaignCombatAction =
   | { type: 'declare-campaign-combat'; target: string; attackers: readonly string[];
+      payments: readonly { unitId: string; source: CampaignSupplySource; tokens: number }[]; internalUnitIds?: readonly string[] }
+  | { type: 'declare-campaign-overrun'; target: string; attackers: readonly string[];
       payments: readonly { unitId: string; source: CampaignSupplySource; tokens: number }[]; internalUnitIds?: readonly string[] }
   | { type: 'defend-campaign-combat'; payments: readonly { source: CampaignSupplySource; tokens: number }[]; internalUnitIds?: readonly string[] }
   | { type: 'select-campaign-combat-rating'; unitId: string }
@@ -126,6 +133,7 @@ export function applyCampaignCombat(state: Readonly<CampaignTurnState>, actor: S
   if (!board) throw new Error('Campaign ground combat rules are not configured')
   switch (action.type) {
     case 'declare-campaign-combat': return declareCampaignCombat(state, actor, action, board)
+    case 'declare-campaign-overrun': return declareCampaignOverrun(state, actor, action, board)
     case 'defend-campaign-combat': return defendCampaignCombat(state, actor, action, board)
     case 'select-campaign-combat-rating': return selectCampaignCombatRating(state, actor, action, board)
     case 'choose-campaign-combat-terrain': return chooseCampaignCombatTerrain(state, actor, action, board)
@@ -140,7 +148,7 @@ function declareCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
   const target = board.map.resolveHex(action.target)
   const enemy = opposing(actor)
   if (!('phasing' in cursor) || (cursor.phase !== 'combat' && cursor.phase !== 'exploitation') ||
-    actingSide(cursor.phasing, cursor.phase) !== actor || state.combat || state.barrage || !target ||
+    actingSide(cursor.phasing, cursor.phase) !== actor || state.combat || state.barrage || state.overrunMarch || !target ||
     state.combatTargets?.includes(target) || !action.attackers.length ||
     new Set(action.attackers).size !== action.attackers.length) {
     throw new Error('This regular attack is unavailable')
@@ -172,9 +180,55 @@ function declareCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
     combatAttackers: [...(state.combatAttackers ?? []), ...action.attackers] }
 }
 
+/** OCS 8.0 突袭：移动段内同格出发、canOverrun、余 MP≥3、进格取费≤3；成功後全员进格。 */
+function declareCampaignOverrun(state: Readonly<CampaignTurnState>, actor: Side,
+  action: Extract<CampaignCombatAction, { type: 'declare-campaign-overrun' }>, board: CampaignCombatBoard): CampaignTurnState {
+  const { cursor } = state
+  const target = board.map.resolveHex(action.target)
+  const enemy = opposing(actor)
+  if (!('phasing' in cursor) || (cursor.phase !== 'movement' && cursor.phase !== 'reaction' && cursor.phase !== 'exploitation') ||
+    actingSide(cursor.phasing, cursor.phase) !== actor || state.combat || state.barrage || state.overrunMarch ||
+    (state.combatTargets?.length ?? 0) > 0 || !target || !action.attackers.length ||
+    new Set(action.attackers).size !== action.attackers.length || state.weather?.ground === 'thaw' ||
+    !board.overrunMp || !board.overrunEntryCost) {
+    throw new Error('Overrun movement requires the active Movement Segment')
+  }
+  const origin = hexOf(state, action.attackers[0]!, board)
+  const defenders = combatUnits(state, board).filter(([id, counter]) => counter.side === enemy &&
+    hexOf(state, id, board) === target).map(([id]) => id)
+  if (!defenders.length || !origin || board.distance(origin, target) !== 1) throw new Error('Choose an enterable adjacent overrun target')
+  const hedgehog = board.hedgehogAt(state, target)
+  if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
+  const remaining: Record<string, number> = {}
+  for (const id of action.attackers) {
+    const counter = Object.hasOwn(state.counters, id) ? state.counters[id] : undefined
+    const hex = hexOf(state, id, board)
+    const profile = counter && board.combatProfile(state, id)
+    const mode = counter && board.profileOf(state, id) && modeOf(state, id, board)
+    const mp = board.overrunMp(state, id)
+    const cost = board.overrunEntryCost(state, id, hex ?? '', target)
+    if (!counter || counter.side !== actor || hex !== origin || !profile?.attackCapable || !mode?.canOverrun ||
+      board.hasMoved?.(state, id) === true || mp === undefined || mp < 3 || cost === null || cost > 3) {
+      throw new Error('Choose eligible stacked attackers with at least 3 MP and an entry costing at most 3')
+    }
+    remaining[id] = mp - 3
+  }
+  const units = payAttackSupply(state, actor, action, board)
+  const all = combatUnits(state, board)
+  const heldAtStart = {
+    axis: all.filter(([, counter]) => counter.side === 'axis').map(([id]) => hexOf(state, id, board)!),
+    soviet: all.filter(([, counter]) => counter.side === 'soviet').map(([id]) => hexOf(state, id, board)!),
+  }
+  return { ...units, combat: { target, attacker: actor, attackers: [...action.attackers], defenders, hedgehog,
+    heldAtStart, step: 'defender-supply', overrun: true }, combatTargets: [...(state.combatTargets ?? []), target],
+    combatAttackers: [...(state.combatAttackers ?? []), ...action.attackers],
+    overrunMarch: { remaining, enteredHex: false } }
+}
+
 /** OCS 12.4：攻方每存活步 1T，或单位内部补给。 */
 function payAttackSupply(state: Readonly<CampaignTurnState>, actor: Side,
-  action: Extract<CampaignCombatAction, { type: 'declare-campaign-combat' }>, board: CampaignCombatBoard): CampaignTurnState {
+  action: { attackers: readonly string[]; payments: readonly { unitId: string; source: CampaignSupplySource; tokens: number }[]; internalUnitIds?: readonly string[] },
+  board: CampaignCombatBoard): CampaignTurnState {
   const internal = action.internalUnitIds ?? []
   if (new Set(internal).size !== internal.length || internal.some((id) => !action.attackers.includes(id))) {
     throw new Error('Internal stocks belong only to their individual participants')
@@ -294,7 +348,7 @@ function chooseCampaignCombatTerrain(state: Readonly<CampaignTurnState>, actor: 
     surprise: () => { const a = rollDie(rng); const b = rollDie(a.rng); rng = b.rng; return [a.value, b.value] as const },
     shift: () => { const d = rollDie(rng); rng = d.rng; return d.value },
     combat: () => { const a = rollDie(rng); const b = rollDie(a.rng); rng = b.rng; return [a.value, b.value] as const },
-  })
+  }, combat.overrun === true)
   const counters = { ...state.counters }
   // OCS 5.7d/9.12a：DG 结果在选损失/撤退之前作用于守方格；有损失/选项时解除守方预备队标记。
   if (result.disorganize) for (const id of combat.defenders) counters[id] = { ...counters[id]!, disorganized: true }
@@ -330,7 +384,7 @@ function resolveCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
     const origins = [...new Set(ids.map((id) => hexOf(state, id, board)!))]
     const threshold = combat.roll.exploit
     const granted = exploitMarkerEligibility({
-      threshold, overrun: false, combatPhase: 'phase' in state.cursor && state.cursor.phase === 'combat', unmetOptions: unmet, origins,
+      threshold, overrun: combat.overrun === true, combatPhase: 'phase' in state.cursor && state.cursor.phase === 'combat', unmetOptions: unmet, origins,
       adjacent: (a, b) => board.distance(a, b) === 1,
       attackers: ids.flatMap((id) => {
         const counter = settled.counters[id]
@@ -343,7 +397,13 @@ function resolveCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
       attackerRetreated: retreat > 0 } }
   }
   const empty = !combatUnits(settled, board).some(([id, counter]) => counter.side === actor && hexOf(settled, id, board) === combat.target)
-  const advance = empty && !combat.attackerRetreated && combat.attackers.some((id) => hexOf(settled, id, board) !== undefined)
+  const survivors = combat.attackers.some((id) => hexOf(settled, id, board) !== undefined)
+  if (combat.overrun) {
+    // OCS 8.1：目标清空且未撤退 ⇒ 全员强制进格；否则结束战斗、保留 march 供返回移动。
+    if (empty && !combat.attackerRetreated && survivors) return { ...settled, combat: { ...combat, step: 'advance' } }
+    return { ...settled, combat: null, ...(combat.attackerRetreated ? { overrunMarch: null } : {}) }
+  }
+  const advance = empty && !combat.attackerRetreated && survivors
   return { ...settled, combat: advance ? { ...combat, step: 'advance' } : null }
 }
 
@@ -354,9 +414,16 @@ function advanceCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
     action.unitIds.some((id) => !combat.attackers.includes(id) || hexOf(state, id, board) === undefined)) {
     throw new Error('Choose eligible surviving attackers for advancement')
   }
+  if (combat.overrun) {
+    const survivors = combat.attackers.filter((id) => hexOf(state, id, board) !== undefined)
+    if (action.unitIds.length !== survivors.length || survivors.some((id) => !action.unitIds.includes(id))) {
+      throw new Error('All surviving overrun participants must advance')
+    }
+  }
   const counters = { ...state.counters }
   for (const id of action.unitIds) counters[id] = { ...counters[id]!, location: { kind: 'map', hex: combat.target } }
-  const advanced = { ...state, counters, combat: null }
+  const advanced = { ...state, counters, combat: null,
+    ...(combat.overrun && state.overrunMarch ? { overrunMarch: { ...state.overrunMarch, enteredHex: true } } : {}) }
   if (board.stackingReAt(advanced, combat.target) > CAMPAIGN_STACKING_LIMIT_RE) throw new Error('Position exceeds stacking limit')
   return advanced
 }

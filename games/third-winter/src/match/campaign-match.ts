@@ -123,6 +123,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     case 'assign-campaign-barrage-loss':
       return applyCampaignBarrage(state, actor, action, context.barrage)
     case 'declare-campaign-combat':
+    case 'declare-campaign-overrun':
     case 'defend-campaign-combat':
     case 'select-campaign-combat-rating':
     case 'choose-campaign-combat-terrain':
