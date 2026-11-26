@@ -45,7 +45,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   for (const row of data.setup.counters) {
     const definition = data.catalog.definitions.get(row.definition)
     // Scenario Book p.64. The 29th Tank Corps starts unable to move.
-    const corps = definition?.source.org?.parentFmt === kirovogradTankCorps.formation
+    const corps = row.side === 'soviet' && definition?.source.org?.parentFmt === kirovogradTankCorps.formation
     add(row.id, { ...groundCounter(definition, row.side, row.stepsLost, row.face), location: { kind: 'map', hex: row.hex },
       ...(corps ? { held: kirovogradTankCorpsHold } : {}) })
   }

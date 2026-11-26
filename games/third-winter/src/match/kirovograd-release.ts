@@ -19,11 +19,10 @@ function mapHex(map: CampaignGroundMap, counter: Readonly<CampaignCounter>) {
   return counter.location.kind === 'map' ? map.resolveHex(counter.location.hex) ?? counter.location.hex : undefined
 }
 
-/** Hexes the march had entered when it settled. An interrupted march commits only the route up to its pause. */
-function reachedPath(state: Readonly<CampaignTurnState>, path: readonly string[], resolveHex: (hex: string) => string) {
-  const route = path.map(resolveHex)
+/** Steps of the route the march had committed when it settled. An interrupted march commits only up to its pause. */
+function committedSteps(state: Readonly<CampaignTurnState>, route: readonly string[], resolveHex: (hex: string) => string) {
   const pause = state.groundMovement?.interruption?.hex
-  return pause === undefined ? route : route.slice(0, route.indexOf(resolveHex(pause)) + 1)
+  return pause === undefined ? route.length : Math.max(0, route.indexOf(resolveHex(pause)) + 1)
 }
 
 /** Scenario Book p.62. Kirovograd liberated, or a German unit within five hexes of the corps, releases the whole corps. */
@@ -43,8 +42,12 @@ export function kirovogradReleaseRule(data: KirovogradReleaseData): NonNullable<
       const hex = mapHex(data.map, counter)
       return hex !== undefined && near.has(hex)
     })
-    const reached = reachedPath(state, path, canonical)
-    const kirovogradLiberated = movers.some(({ id, combat }) => combat && state.counters[id]?.side === 'soviet' && reached.includes(city))
+    const route = path.map(canonical)
+    const cityIndex = route.indexOf(city)
+    const committed = committedSteps(state, route, canonical)
+    // Only a mover that actually entered the city liberates it; one that stopped short does not, even if a stack-mate went on.
+    const kirovogradLiberated = cityIndex >= 0 && movers.some(({ id, combat, stepsLeft }) =>
+      combat && state.counters[id]?.side === 'soviet' && cityIndex < Math.min(stepsLeft, committed))
     if (!kirovogradTankCorpsReleased({ kirovogradLiberated, germanWithin })) return []
     return Object.keys(state.counters).filter((id) => state.counters[id]?.held === kirovogradTankCorpsHold)
   }

@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
+import { kirovogradReleaseRule } from '../src/match/kirovograd-release.ts'
 import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { projectCampaignGroundDestinations, projectCampaignGroundRoute, projectCampaignMatch, projectCampaignRailLoading, projectCampaignRailTransport } from '../src/view/campaign-match-view.ts'
@@ -227,4 +228,26 @@ test('a counter held by a scenario release rule can neither board a train nor ma
   assert.throws(() => submit(record, march('corps', 'D13.03'), config), /counter-held/)
   assert.deepEqual(projectCampaignMatch(record, 'axis', config).movement.heldIds, ['corps'])
   assert.ok(!projectCampaignMatch(record, 'axis', config).movement.availableIds.includes('corps'))
+})
+
+test('rail movement settles the scenario release: a German unit detraining within range frees the corps, a Soviet combat unit railing into the city liberates it', () => {
+  const hold = 'ttw-scenario-9:29th-tank-corps'
+  const definitions = new Map([['infantry', { key: 'infantry', kind: 'land', source: { side: 'axis', nation: 'Ge' } }]])
+  const release = kirovogradReleaseRule({ map, definitions, kirovogradHex: 'D18.03' })
+  const config = rules({}, { releases: release })
+  const sovietConfig = rules({ network: { edge: () => ({ gauge: 'broad', multiTrack: true }) } }, { releases: release })
+  const heldIds = (state) => Object.keys(state.counters).filter((id) => state.counters[id].held === hold)
+  const corps = land('D12.03', { side: 'soviet', held: hold })
+  // The corps sits at D12.03; D17.03 is five hexes away, D18.03 six. A German unit rails from D18.03 into range.
+  const far = normal(beforeMovement({ tk: corps, ge: land('D18.03') }), config)
+  assert.deepEqual(heldIds(far.state), ['tk'])
+  const near = submit(far, rail(['D18.03', 'D17.03'], ['ge']), config)
+  assert.deepEqual(heldIds(near.state), [])
+  // A Soviet rifle railing into the city liberates it; a truck railing in does not.
+  const rifle = normal(beforeMovement({ tk: corps, rifle: land('D16.03', { side: 'soviet' }) }, undefined, undefined, 'soviet'), sovietConfig)
+  const liberated = submit(rifle, rail(['D16.03', 'D17.03', 'D18.03'], ['rifle']), sovietConfig, 'soviet')
+  assert.deepEqual(heldIds(liberated.state), [])
+  const truck = normal(beforeMovement({ tk: corps, truck: land('D16.03', { side: 'soviet', kind: 'transport', transportPoints: 1 }) }, undefined, undefined, 'soviet'), sovietConfig)
+  const notLiberated = submit(truck, rail(['D16.03', 'D17.03', 'D18.03'], ['truck']), sovietConfig, 'soviet')
+  assert.deepEqual(heldIds(notLiberated.state), ['tk'])
 })

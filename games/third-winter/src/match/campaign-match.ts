@@ -10,7 +10,7 @@ import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
-import { applyCampaignGroundMovement } from './campaign-ground-movement.ts'
+import { applyCampaignGroundMovement, releaseCampaignCounters } from './campaign-ground-movement.ts'
 import { applyCampaignKhersonFerry } from './campaign-kherson-ferry.ts'
 import { completeCampaignLateSegment } from './campaign-late-turn.ts'
 import { applyCampaignMarchResponse } from './campaign-march-response.ts'
@@ -71,8 +71,13 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
     case 'use-campaign-kherson-ferry':
       return applyCampaignKhersonFerry(state, actor, action, context.groundMovement)
-    case 'transport-campaign-rail':
-      return applyCampaignRailTransport(state, actor, action, context.railTransport, context.groundMovement)
+    case 'transport-campaign-rail': {
+      const settled = applyCampaignRailTransport(state, actor, action, context.railTransport, context.groundMovement)
+      // Rail passengers occupy only their destination; a German unit detraining within range still releases the corps.
+      const to = action.path.at(-1)
+      const movers = action.counterIds.map((id) => ({ id, combat: settled.counters[id]?.kind !== 'transport', stepsLeft: 1 }))
+      return releaseCampaignCounters(settled, context.groundMovement?.releases?.(settled, actor, { path: to ? [to] : [], movers }) ?? [])
+    }
     case 'deploy-campaign-ste':
     case 'withdraw-campaign-ste':
       return applyCampaignSte(state, actor, action, context.groundMovement?.map, context.stePlacement)

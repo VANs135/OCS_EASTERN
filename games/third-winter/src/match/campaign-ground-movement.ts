@@ -128,7 +128,7 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
   }
   const march = planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
   // The route and the kind of each mover are kept for the scenario rules that settle after the move.
-  return march.ok ? { ...march, route, movers: members.map(({ id, combat }) => ({ id, combat })) } : march
+  return march.ok ? { ...march, route, movers: members.map(({ id, combat, stepsLeft }) => ({ id, combat, stepsLeft })) } : march
 }
 
 /** Drop the scenario hold of the released counters. A release lasts for the rest of the game. */
@@ -194,7 +194,9 @@ export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, 
     const blockers = inspected.board.endBlockers?.(state, side)
     if (!blockers) throw new Error('Campaign ground movement: end-rules-unavailable')
     if (blockers.length) throw new Error(`Campaign ground movement: ${blockers.join(', ')}`)
-    return { ...state, movementSegment: 'barrage' }
+    // A German unit may have come within range by rail, breakout or ferry earlier in the segment; settle proximity at its end.
+    const settled = releaseCampaignCounters(state, config?.releases?.(state, side, { path: [], movers: [] }) ?? [])
+    return { ...settled, movementSegment: 'barrage' }
   }
   const options = campaignGroundMovementOptions(state, side, config)
   if (!options?.zocHoldIds.includes(action.counterId)) throw new Error('Campaign ground movement: cannot-hold-zoc')

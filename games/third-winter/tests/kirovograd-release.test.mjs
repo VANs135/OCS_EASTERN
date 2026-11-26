@@ -104,6 +104,19 @@ test('liberating Kirovograd releases the corps at once, a march paused before th
   const paused = movement({ ...corps(), rifle: { ...counter('5', 'soviet', 'A2.02') } }, 'soviet').state
   const interrupted = { ...paused, groundMovement: { ...paused.groundMovement,
     interruption: { kind: 'resume-march', hex: 'A2.02', refusal: { reason: 'blocked' }, march: {} } } }
-  assert.deepEqual(release(interrupted, 'soviet', { path: ['A2.02', city], movers: [{ id: 'rifle', combat: true }] }), [])
-  assert.deepEqual(release(paused, 'soviet', { path: ['A2.02', city], movers: [{ id: 'rifle', combat: true }] }), ['tk25', 'tk31'])
+  assert.deepEqual(release(interrupted, 'soviet', { path: ['A2.02', city], movers: [{ id: 'rifle', combat: true, stepsLeft: 2 }] }), [])
+  assert.deepEqual(release(paused, 'soviet', { path: ['A2.02', city], movers: [{ id: 'rifle', combat: true, stepsLeft: 2 }] }), ['tk25', 'tk31'])
+})
+
+test('a combat unit that stops short of the city does not liberate it, even if a stack-mate reaches it', () => {
+  const context = config()
+  const start = { ...corps(), rifle: counter('5', 'soviet', 'A1.02'), truck: counter('6', 'soviet', 'A1.02') }
+  const order = (rifleStop) => ({ type: 'move-campaign-ground', path: ['A2.02', city],
+    movers: [{ id: 'rifle', ...(rifleStop ? { stopAfter: 1 } : {}) }, { id: 'truck' }] })
+  const short = submit(movement(start, 'soviet'), order(true), context)
+  assert.equal(short.state.counters.rifle.location.hex, 'A2.2')
+  assert.equal(short.state.counters.truck.location.hex, 'A3.2')
+  assert.deepEqual(heldIds(short.state), ['tk25', 'tk31'])
+  const both = submit(movement(start, 'soviet'), order(false), context)
+  assert.deepEqual(heldIds(both.state), [])
 })
