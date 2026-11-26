@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，接通反应/进击移动窗与预备释放（通规 6.3a/7.0a/11.0a/5.7b，复用 series 模式合法性层）：计数器增 `released` 表示、`campaignCounterGroundMode` 纳入 exploit/released；`movementOpen` 按阶段路由（移动＝阶段玩家、反应＝非阶段玩家释放预备、进击＝阶段玩家进击/释放预备），`movementUnit` 用实际阶段 MA 倍率＋`canMoveInPhase` 逐单位资格；新增 `release-campaign-reserve` 动作（仅反应/进击）；换段/换阶段清除释放时点事实（`clearCampaignReserveRelease` 接 late-turn/exploitation 完成）；模式切换仍限移动阶段。合成 3 例；门禁 448 全绿。提交 `a9e0b1e` 已 push。#23 余弹幕标记计时（§3.4 绑定）与真实进格夺取判定（绑定层/批次 12）。
+
 - [x] 2026-11-26，复用斯摩棱斯克通规模式合法性层：核实通用表格（CRT/炮击）已经 series 复用同一 v4.3 权威（G15），无需再接；将斯摩棱斯克 `src/engine/rules/modes.ts` 的通规 5.0–5.10 合法性层（模式切换/预备释放/阶段可动性/朝向翻转/状态不变量/ZOC·运输·工程·刺猬堆叠·战略结束补给派生/数值改写）移植进 `packages/series/src/modes.ts`，作品/剧本中立、专规闸门改注入式（`operationalLimit`），不内置斯摩棱斯克 2.3e/1.5/4.1a；修正已释放预备折回基础面与 MA 倍率。保留旧 API，门禁全绿（series 新增 5 例）。提交 `32c92db` 已 push。反应/进击移动窗接通待下一步（扩展计数器 released/exploit 表示＋阶段路由）。
 
 - [x] 2026-11-26，批次 10 姿态子机制（§3.3c–e）：纠正"守势"术语为 Regrouping 二分；新建 `ttw/front-posture.ts` 规则层（3/9 回合计时、最多 2 进攻、Regrouping 战斗修改与守势炮击规格、弹幕标记仅进攻）；战斗环接入免防御补给＋战斗步 2 后免费守势炮击＋AR 修正＋攻击补给 2SP/回合上限；新增 `set-campaign-front-posture` 动作（增援阶段开始/末窗口）与 `campaignMustLeaveOffensiveFronts` 义务查询。合成 9 项用例（规则层 3＋战斗 3＋动作 3）；门禁 445 全绿。提交 `f7e09b7`/`9d2fb2e`/`44d3367` 已 push。边界/编属/指挥半径与弹幕标记计时待后续。
