@@ -111,6 +111,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   formationFuel?: readonly import('./campaign-fuel.ts').CampaignFormationFuel[]
   /** 通规 §12.5c-B/12.5e：HQ 燃料标记（持续到本方清理阶段；used 锁定本阶段投递位置）。 */
   headquartersFuel?: readonly import('./campaign-fuel.ts').CampaignHeadquartersFuel[]
+  /** TTW §3.5a：各 RVGK 盒标记当前格（rvgk-1/rvgk-2 → hex）；铁路移动结算另接。 */
+  rvgkMarkers?: Readonly<Record<string, string>>
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -143,6 +145,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | SetCampaignFrontPosture
   | SpendCampaignBarrageMarker
   | import('./campaign-fuel.ts').CampaignFuelAction
+  | import('./campaign-rvgk.ts').CampaignRvgkAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -187,4 +190,9 @@ export interface CampaignTurnContext {
   barrageMarkerTarget?: (state: Readonly<CampaignTurnState>, front: string, hex: string) => boolean
   /** 通规 §12.5c-A：编队燃料的编队归属判定（绑定层注入）。 */
   organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined
+  /** TTW §3.5c：RVGK 入盒的战略可达判定（绑定层注入）。 */
+  rvgkStratReachable?: (state: Readonly<CampaignTurnState>, id: string) => boolean
+  /** TTW §3.5d B：RVGK 释放的盘面事实（满编/最低编成维持/本回合入盒/独立单位编组，绑定层注入）。 */
+  rvgkReleaseFacts?: (state: Readonly<CampaignTurnState>, id: string) =>
+    { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number } | undefined
 }

@@ -6,6 +6,7 @@ import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker, turnsInPosture } from '../ttw/front-posture.ts'
 import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
+import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -72,6 +73,16 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'fuel-campaign-unit') {
     if (!context.groundMovement) throw new Error('Campaign fuel requires a movement board')
     return fuelCampaignUnit(state, actor, action, context.groundMovement.map)
+  }
+  if (action.type === 'enter-campaign-rvgk') {
+    if (!context.groundMovement) throw new Error('Campaign RVGK requires a movement board')
+    return enterCampaignRvgk(state, actor, action, context.groundMovement.map, context.rvgkStratReachable ?? (() => false))
+  }
+  if (action.type === 'release-campaign-rvgk') {
+    if (!context.groundMovement) throw new Error('Campaign RVGK requires a movement board')
+    const facts = context.rvgkReleaseFacts?.(state, action.counterId)
+    if (!facts) throw new Error('RVGK release facts are unavailable')
+    return releaseCampaignRvgk(state, actor, action, context.groundMovement.map, facts)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
