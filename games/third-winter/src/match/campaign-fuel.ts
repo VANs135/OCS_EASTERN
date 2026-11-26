@@ -12,13 +12,13 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignFormationFuel = { side: Side; formation: string; recipients: readonly string[] }
 export type CampaignHeadquartersFuel = { side: Side; id: string; used?: { turn: number; phasing: Side; phase: string; hex: string }
-  /** 12.5e：投递格内获得燃料的独立单位。 */
+  /** 12.5e：投递基点半径内获得燃料的独立单位。 */
   recipients?: readonly string[] }
 export type CampaignFuelPayment = { key: string; tokens: number }
 export type CampaignFuelAction =
   | { type: 'fuel-campaign-formation'; formation: string; headquartersId?: string; payments: readonly CampaignFuelPayment[] }
   | { type: 'fuel-campaign-headquarters'; headquartersId: string; payments: readonly CampaignFuelPayment[]
-    /** 12.5e：HQ 法投到 throw 内一格，覆盖该格独立单位；缺省只覆盖 HQ 自己。 */
+    /** 12.5e：投递基点（HQ 的起始格或结束格），覆盖其投递距离内所有独立单位；缺省只覆盖 HQ 自己。 */
     deliveryHex?: string }
   | { type: 'fuel-campaign-unit'; unitId: string; sourceKey: string }
 
@@ -62,10 +62,12 @@ export function buyCampaignFuel(state: Readonly<CampaignTurnState>, side: Side,
       const delivery = map.resolveHex(action.deliveryHex)
       const reach = campaignHexesWithin(map, map.resolveHex(hq.location.hex) ?? hq.location.hex, radius)
       if (!delivery || !reach.includes(delivery)) throw new Error('Fuel is delivered within the HQ throw range')
+      // 12.5c-B/12.5e：投递基点固定后，其投递距离内的所有独立单位一并获得燃料。
+      const coverage = campaignHexesWithin(map, delivery, radius)
       const moved = new Set(state.groundMovement?.moved ?? [])
       recipients = Object.entries(state.counters)
-        .filter(([id, c]) => c.side === side && c.location.kind === 'map' && map.resolveHex(c.location.hex) === delivery &&
-          hooks?.independent?.(state, id) === true)
+        .filter(([id, c]) => c.side === side && c.location.kind === 'map' &&
+          coverage.includes(map.resolveHex(c.location.hex) ?? c.location.hex) && hooks?.independent?.(state, id) === true)
         .map(([id]) => id)
       const early = recipients.find((id) => moved.has(id))
       if (early) throw new Error('12.5e：独立单位必须先确定投递位置再移动')
