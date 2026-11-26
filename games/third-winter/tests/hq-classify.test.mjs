@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { campaignHqClass, axisLossHqKind, axisHqRail, axisHqRailOnly, axisHqDestroyedOnRetreat, isTankArmyHq } from '../src/ttw/hq-classify.ts'
+import { campaignHqClass, axisLossHqKind, axisHqRail, axisHqRailOnly, axisHqDestroyedOnRetreat, isTankArmyHq, hqRailOnly, hqRailFacts } from '../src/ttw/hq-classify.ts'
 
 test('hq_kind maps to the campaign HQ class for every value printed in units_hq.json', () => {
   assert.equal(campaignHqClass('army'), 'army')
@@ -39,4 +39,19 @@ test('Axis HQ hooks derive from the class; Soviet HQs give no Axis VP/rebuild', 
   // RVGK tank army HQ
   assert.equal(isTankArmyHq(campaignHqClass('guard_tank_army')), true)
   assert.equal(isTankArmyHq(campaignHqClass('guard_army')), false)
+})
+
+test('rail-only gate and rail facts are data-driven from the v2 rail_only flag', () => {
+  // German/Romanian Army HQ, Pz Army, Army Group: rail_only in the database.
+  const armyHq = { railOnly: true, railCapRe: 1 }
+  const ags = { railOnly: true, railCapRe: 1, mustBeCity: true }
+  assert.equal(hqRailOnly(armyHq), true)
+  assert.deepEqual(hqRailFacts(armyHq), { railRe: 1, waiveDetrainable: true })   // §2.3b waives detrainable
+  assert.deepEqual(hqRailFacts(ags), { railRe: 1, waiveDetrainable: false })     // §2.3c must be in a city
+  // Corps HQ and Soviet Army HQ have a wheeled movement face, no rail_only flag.
+  assert.equal(hqRailOnly({}), false)
+  assert.equal(hqRailOnly(undefined), false)
+  assert.equal(hqRailFacts({}), undefined)
+  // rail_cap_RE defaults to 1 when the flag is set without an explicit RE.
+  assert.deepEqual(hqRailFacts({ railOnly: true }), { railRe: 1, waiveDetrainable: true })
 })

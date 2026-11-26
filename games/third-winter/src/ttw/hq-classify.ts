@@ -39,6 +39,20 @@ export function axisHqRail(cls: CampaignHqClass | undefined): { railRe: number; 
 export function axisHqRailOnly(cls: CampaignHqClass | undefined): boolean {
   return cls === 'army' || cls === 'army-group'
 }
+
+/** 数据驱动（权威）：仅铁路地面闸门，直接读 v2 库 rail_only 标志。
+ *  专规 §2.3b/c 给的 HQ（德/罗集团军、装甲集团军、集团军群）带 rail_only；
+ *  军（Corps）与苏军集团军 HQ 有轮式移动面、无此标志，正常地面移动。会话装配优先用本函数而非按类推导。 */
+export function hqRailOnly(source: { railOnly?: boolean } | undefined): boolean {
+  return source?.railOnly === true
+}
+/** 数据驱动铁路特例：rail_cap_RE 计 RE（缺省 1）。
+ *  must_be_city（集团军群 §2.3c）须可卸载格→不免；其余仅铁路 HQ（集团军 §2.3b）起/止格免可卸载。 */
+export function hqRailFacts(source: { railOnly?: boolean; railCapRe?: number; mustBeCity?: boolean } | undefined):
+  { railRe: number; waiveDetrainable: boolean } | undefined {
+  if (!source?.railOnly) return undefined
+  return { railRe: source.railCapRe ?? 1, waiveDetrainable: source.mustBeCity !== true }
+}
 /** §2.3b D：轴心 Army/Army Group HQ 被迫撤退即毁（铁路炮另由 combat-special.destroyedOnForcedRetreat 计）。 */
 export function axisHqDestroyedOnRetreat(cls: CampaignHqClass | undefined): boolean {
   return cls === 'army' || cls === 'army-group'

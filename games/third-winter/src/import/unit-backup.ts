@@ -34,6 +34,12 @@ export interface BackupUnit extends SourceUnit {
   kind?: Exclude<BackupKind, 'marker'>
   /** v2 库显式 HQ 类别（hq_kind），如 army/pz_army/ags/corps/pz_corps/ss_pz_corps/kessel/front/tank_army 等。 */
   hqKind?: string
+  /** v2 库 rail_only：专规 §2.3b/c 给的 HQ（德/罗集团军、装甲集团军、集团军群）仅铁路移动；军/苏军集团军 HQ 无此标志，按轮式移动面正常移动。 */
+  railOnly?: boolean
+  /** v2 库 rail_cap_RE：仅铁路 HQ 占用的铁路运力 RE（默认 1）。 */
+  railCapRe?: number
+  /** v2 库 must_be_city：集团军群 HQ 须位于大/小城市格（§2.3c）。 */
+  mustBeCity?: boolean
   faces: { combat: BackupFace | null; move: BackupFace | null }
   abilities?: readonly string[]
   multiInstance?: boolean
