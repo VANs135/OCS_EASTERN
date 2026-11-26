@@ -7,7 +7,7 @@ import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker, turnsInPosture } from '../ttw/front-posture.ts'
 import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
 import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
-import { createCampaignKg, dissolveCampaignKg } from './campaign-kg.ts'
+import { createCampaignKg, dissolveCampaignKg, rollCampaignKgReaction, placeCampaignKg2T } from './campaign-kg.ts'
 import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
 import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
 import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
@@ -93,6 +93,11 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     return createCampaignKg(state, actor, action, context.groundMovement.map, context.kgEligible ?? (() => false))
   }
   if (action.type === 'dissolve-campaign-kg') return dissolveCampaignKg(state, actor, action)
+  if (action.type === 'roll-campaign-kg-reaction') return rollCampaignKgReaction(state, actor)
+  if (action.type === 'place-campaign-kg-2t') {
+    if (!context.kgMovedOrAttacked) throw new Error('KG reaction movement/attack facts are unavailable')
+    return placeCampaignKg2T(state, actor, action, context.kgMovedOrAttacked(state, action.id))
+  }
   if (action.type === 'airlift-campaign-luftflotte') {
     if (!context.groundMovement) throw new Error('Campaign Luftflotte airlift requires a movement board')
     if (!context.luftflotteFacts) throw new Error('Luftflotte airlift facts are unavailable')

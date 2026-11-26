@@ -115,6 +115,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   rvgkMarkers?: Readonly<Record<string, string>>
   /** TTW §2.4e：轴心 KG 标记（id＝领队算子，hex＝标记格；成员按同堆合格单位派生）。 */
   kampfgruppen?: readonly { id: string; hex: string }[]
+  /** TTW §2.4e：本回合轴心反应段 KG 特殊反应掷骰（取半＝可行动 KG 数）与 2T 落点。 */
+  kgReaction?: { turn: number; die: number; count: number; twoT: string | null }
   /** TTW §2.2b：Luftflotte HQ 本局一次性空运补给是否已用。 */
   luftflotteAirliftUsed?: boolean
   /** TTW §2.3a B：本回合已获益免费移动的 Kessel HQ（每回合仅一个）。 */
@@ -209,6 +211,8 @@ export interface CampaignTurnContext {
     { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number; truckOrTrackMa: boolean } | undefined
   /** TTW §2.4e：KG 合格单位判定（德军＋卡车/履带 MA，绑定层注入）。 */
   kgEligible?: (state: Readonly<CampaignTurnState>, id: string) => boolean
+  /** TTW §2.4e：该 KG 本反应段是否实际移动/攻击（2T 落点判定，绑定层注入）。 */
+  kgMovedOrAttacked?: (state: Readonly<CampaignTurnState>, id: string) => boolean
   /** TTW §2.2b：Luftflotte 空运的 HQ 当前格与目标格分类（绑定层注入）。 */
   luftflotteFacts?: (state: Readonly<CampaignTurnState>, targetHex: string) => { hqHex: string; friendlyHex: boolean; airBase: boolean } | undefined
   /** TTW §2.3a B：Kessel 免费移动盘面（资格/步事实/东西向，绑定层注入）。 */
