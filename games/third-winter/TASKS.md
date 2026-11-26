@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 4 子机制：特殊替换单位类别免费重建（TTW §1.7b）。`apply-campaign-special-replacement` 在重建／整编环按序号消费窗口 `specialReplacements`，经 `CampaignRebuildBoard.specialCategoryOf` 匹配本方死堆算子免费重建（Arty/Assault/Flak/AA/HQ/Pontoon/Tiger），落点沿用 §1.7a，消费后结果移出窗口。合成 6 项用例覆盖免费重建、类别匹配、复合结果消费、苏军 RVGK、非法落点与投影；门禁 370 条全绿。HH 刺猬/Alert 池/Tiger 留存待工事/池模块；HQ 免费重建（§2.3b–d）与残部生成（§2.4d）待全景战斗子系统（当前全景无战斗/被毁钩子/战役 VP）。[增援接口](docs/2026-11-21-全景增援阶段流程.md#特殊替换免费重建)
+
 - [x] 2026-11-26，通规移植批次 4 核心交付：抽象补员点数重建。`packages/series/src/rebuild.ts` 提取斯摩棱斯克 `5603e52` 的中立重建资格、步数恢复与余额算术；TTW 专规 `src/ttw/campaign/rebuild.ts` 落点数留存（Pax/Ally 跨回合、Air/Eq 当回合失效）、Eq 的 AR 门槛、Ally 仅罗/匈、Air 仅飞机与轴心 HQ／苏军 RVGK 落点。全景命令 `rebuild-campaign-unit` 接通重建／整编环，顶层 `replacementHoldings` 持久账本在环末转存 Pax/Ally 结余。合成 13 项用例覆盖支用、门槛、落点、原地恢复、转存与拒绝；门禁 364 条全绿。重建表成本（G05）与特殊替换/HQ/残部免费重建仍待接。[增援接口](docs/2026-11-21-全景增援阶段流程.md#抽象补员点数重建)
 
 - [x] 2026-11-26，瓶中蝎初设导入把编队标记行（OCS 13.7，资料库称父显示计数器）登记为标题而不生成算子，并校验其格号、阵营和减员字段。新版资料库初设 161 行含 9 枚标记，部署仍为 155 枚地面算子、24 架飞机、101 条到达。实库导入审计和整局回归通过。
