@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 6b 时机合规修正（OCS 20.0a/d）：拆分创建窗口扩为开始移动/战后推进/战后撤退三时机；吸收改为仅段末义务窗，段末/阶段末 completion 先列减损母单位强制吸收义务（series `breakdownAbsorbObligations`），未结清开窗阻塞、结清后清窗推进；段中吸收拒绝。series 增时机常量与义务判定。合成 6 项用例；门禁 431 条全绿。提交 `aaf037a` 已 push。编成重建§13.9 已由 campaign-consolidation 覆盖；撤退/推进拆组已支持。批次 6b 结清。
+
 - [x] 2026-11-26，批次 6 子机制：突袭返回移动续走（OCS 8.1）＋战斗账本边界清空。`move-campaign-ground` 在突袭进格后仅允许参与方以余量 MP 续走（allowance 覆盖为 `overrunMarch.remaining`），走毕扣减余量、记 moved；移动段结束清空返回窗口；`resetCampaignCombatLedgers` 于移动阶段结束/late 段推进/进击结束/清理边界清空 combatTargets/combatAttackers/overrunMarch/volgaAdvance，修正跨阶段跨回合残留。合成 3 项用例覆盖续走扣费/余量不足/非参与方拒绝/段末与回合边界清空；门禁 429 条全绿。提交 `2462d62` 已 push。反应/进击移动窗待本环开放后补齐其返回移动。
 
 - [x] 2026-11-26，批次 6 子机制：§1.4c 跨伏尔加级河战斗侧绑定。战斗环增 `riverCrossing` 钩子与单位 `mobility` 事实；常规/突袭 declare 校验跨河攻击资格（完好/修复桥任何单位，其余仅 Leg 且冻结/炸桥/渡轮；赫尔松仅 Leg）；攻方强度乘渡轮×¼；撤退逐格按伏尔加撤退枚举（赫尔松不可撤）；推进记每河岸每阶段 ≤3RE（`volgaAdvance`，跨阶段重置）。合成 4 项用例覆盖攻击资格/无桥无渡轮/赫尔松/撤退冻结/推进账本与跨阶段重置；门禁 426 条全绿。提交 `321df59` 已 push。
