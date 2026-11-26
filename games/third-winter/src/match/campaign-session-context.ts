@@ -3,6 +3,7 @@
 // 这是把已接机制从合成测试注入转向真实 catalog＋地图装配的统一入口。
 
 import { campaignDestroyOnRetreat, campaignHqHooks, type CampaignHqCatalog } from './campaign-hq-boards.ts'
+import { campaignEngineeringBoards, type CampaignEngineeringSources } from './campaign-engineering-boards.ts'
 import { campaignMovementProfiles, type CampaignMovementCatalog } from './campaign-movement-profiles.ts'
 import { campaignGeometryHooks, type CampaignGeometrySource } from './campaign-geometry.ts'
 import { campaignPostureHooks, type CampaignPostureSource } from './campaign-posture-boards.ts'
@@ -15,6 +16,8 @@ export interface CampaignSessionSources {
   posture: CampaignPostureSource
   /** 损失数据面（stepsOf/reAfterLoss）；hqKindOf/isKesselHq 由本工厂经 HQ 分类器补入。 */
   lossBoard: Pick<CampaignLossBoard, 'stepsOf' | 'reAfterLoss'> & Partial<Pick<CampaignLossBoard, 'remnant'>>
+  /** 工事/机场施工数据面（工程能力/RE/池/付款可达）；缺省不提供这两块 board。 */
+  engineering?: CampaignEngineeringSources
 }
 
 /** 组装各板片段。combat.losses 已含 HQ 分类钩子；destroyOnRetreat 复用同一损失面。 */
@@ -24,6 +27,7 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
   const geometry = campaignGeometryHooks(sources.geometry)
   const posture = campaignPostureHooks(sources.posture)
   const losses: CampaignLossBoard = { ...sources.lossBoard, hqKindOf: hq.hqKindOf, isKesselHq: hq.isKesselHq }
+  const engineering = sources.engineering ? campaignEngineeringBoards(sources.engineering) : undefined
   return {
     combat: {
       losses,
@@ -36,5 +40,6 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
     railTransport: { hqRail: hq.hqRail },
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
+    ...(engineering ? { hedgehogWork: engineering.hedgehogWork, airfieldWork: engineering.airfieldWork } : {}),
   }
 }

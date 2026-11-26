@@ -4,6 +4,7 @@
 import type { BackupUnit } from '../import/unit-backup.ts'
 import type { Definition } from '../import/unit-catalog.ts'
 import type { CampaignHqCatalog, CampaignHqDefinition } from './campaign-hq-boards.ts'
+import type { CampaignEngineeringCatalog, CampaignEngineeringDefinition } from './campaign-engineering-boards.ts'
 import type { CampaignMovementCatalog } from './campaign-movement-profiles.ts'
 
 export interface CampaignLoadedCatalog {
@@ -12,9 +13,11 @@ export interface CampaignLoadedCatalog {
 
 /** 由载入算子库派生 HQ catalog（hq_kind/种别/铁路字段）与移动 catalog（完整 Definition）。 */
 export function campaignCatalogAdapter(catalog: CampaignLoadedCatalog):
-  { hqCatalog: CampaignHqCatalog; movementCatalog: CampaignMovementCatalog } {
+  { hqCatalog: CampaignHqCatalog; movementCatalog: CampaignMovementCatalog;
+    engineeringCatalog: CampaignEngineeringCatalog } {
   const hqCatalog: Record<string, CampaignHqDefinition> = {}
   const movementCatalog: Record<string, Definition<BackupUnit>> = {}
+  const engineeringCatalog: Record<string, CampaignEngineeringDefinition> = {}
   for (const [key, def] of catalog.definitions) {
     movementCatalog[key] = def
     hqCatalog[key] = {
@@ -24,6 +27,11 @@ export function campaignCatalogAdapter(catalog: CampaignLoadedCatalog):
       ...(typeof def.source.railCapRe === 'number' ? { railCapRe: def.source.railCapRe } : {}),
       ...(def.source.mustBeCity === true ? { mustBeCity: true } : {}),
     }
+    engineeringCatalog[key] = {
+      combat: def.kind !== 'transport' && def.kind !== 'aircraft' && def.source.faces.combat !== null,
+      engineer: def.source.abilities?.includes('engineering') === true,
+      re: typeof def.source.re === 'number' ? def.source.re : 0,
+    }
   }
-  return { hqCatalog, movementCatalog }
+  return { hqCatalog, movementCatalog, engineeringCatalog }
 }
