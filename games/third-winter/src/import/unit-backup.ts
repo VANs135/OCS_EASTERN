@@ -26,6 +26,8 @@ export interface BackupFace {
 
 export interface BackupUnit extends SourceUnit {
   side: Side | null
+  /** Nation abbreviation of the v2 library, e.g. Ge, Hun or Rum. The old backup has none. */
+  nation?: string
   re?: number | null
   org?: { parentFmt?: string | null; airGroup?: string | null } | null
   category?: string

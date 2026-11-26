@@ -37,6 +37,8 @@ function readUnit(value: unknown, kind: CatalogKind, file: string): BackupUnit {
   }
   const label = `${file} · ${row.name}`
   const side = unitSide(row, kind, label)
+  const nation = row.nation == null ? '' : typeof row.nation === 'string' ? row.nation.trim() : ''
+  if (row.nation != null && !nation) throw new Error(`无效的算子国籍：${label}`)
   const abilities: unknown = row.abilities ?? []
   if (!Array.isArray(abilities) || !abilities.every((value: unknown) => typeof value === 'string')) {
     throw new Error(`无效的算子能力：${label}`)
@@ -46,7 +48,7 @@ function readUnit(value: unknown, kind: CatalogKind, file: string): BackupUnit {
   if (row.instance_pool === 'alert' || row.alert_pool === true) runtimeAbilities.add('alert_battalion')
   if (kind === 'hq' && row.kessel === true) runtimeAbilities.add('kessel_supply')
   return {
-    id: row.id, name: row.name, side, re: numberField(row.RE, `${label} · RE`),
+    id: row.id, name: row.name, side, ...(nation ? { nation } : {}), re: numberField(row.RE, `${label} · RE`),
     category: row.combat_category === 'inf' ? 'infantry' : asString(row.combat_category) ?? undefined,
     org: { parentFmt: asString(row.formation), airGroup: asString(row.air_group) },
     abilities: [...runtimeAbilities],

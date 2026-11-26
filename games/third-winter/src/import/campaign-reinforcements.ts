@@ -18,9 +18,13 @@ const channels = new Map<string, CampaignReinforcementOperation>([
   ['any army or army group hq', { kind: 'arrival', channel: { kind: 'army-or-army-group-hq' } }],
   ['any army or army group hq（map a/b）', { kind: 'arrival', channel: { kind: 'army-or-army-group-hq', panels: 'AB' } }],
   ['any army or army group hq（map c/d）', { kind: 'arrival', channel: { kind: 'army-or-army-group-hq', panels: 'CD' } }],
-  ...['any army or army group hq（map a/b 上的匈牙利单位）', 'any army or army group hq（map a/b 匈牙利单位）']
+  ...['any army or army group hq (hungarian units on maps a/b)', 'any army or army group hq（map a/b 上的匈牙利单位）',
+    'any army or army group hq（map a/b 匈牙利单位）']
     .map((label): [string, CampaignReinforcementOperation] =>
       [label, { kind: 'arrival', channel: { kind: 'army-or-army-group-hq', panels: 'AB', nation: 'hungarian' } }]),
+  // TTW 4.1. Operation Margarethe enters at Lvov or on the western map edge within ten hexes of it.
+  ['lviv or within 10 hexes of lviv, western map edge (optional rule 4.1)',
+    { kind: 'arrival', channel: { kind: 'lvov-west-edge', radius: 10 } }],
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -104,5 +108,17 @@ function classifyEntry(
     return { ...identity, status: 'classified', operation: { kind: 'arrival', channel: { kind: 'fixed-hex', hex, printedHex } } }
   }
   const operation = channels.get(channel)
-  return operation ? { ...identity, status: 'classified', operation } : { ...identity, status: 'pending', issue: 'unclassified-channel' }
+  if (!operation) return { ...identity, status: 'pending', issue: 'unclassified-channel' }
+  return { ...identity, status: 'classified', operation: scopedOperation(operation, reference.definition.source.nation) }
+}
+
+/** TTW 2.1b and 2.5c. The Hungarian entry restriction of a mixed group binds only its Hungarian units. */
+function scopedOperation(
+  operation: CampaignReinforcementOperation, nation: string | undefined,
+): CampaignReinforcementOperation {
+  if (operation.kind === 'arrival' && operation.channel.kind === 'army-or-army-group-hq' &&
+    operation.channel.nation === 'hungarian' && nation !== undefined && nation !== 'Hun') {
+    return { kind: 'arrival', channel: { kind: 'army-or-army-group-hq' } }
+  }
+  return operation
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignReinforcements } from '../src/import/campaign-reinforcements.ts'
+import { supportsCampaignArrival } from '../src/ttw/campaign/arrival-sites.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { campaignReinforcementWindow } from '../src/ttw/campaign/reinforcement.ts'
 
@@ -77,4 +78,26 @@ test('fixed entry rows bind to the cropped map and skip only marked formation he
   assert.equal(result.formationHeadings.length, 1)
   assert.deepEqual(result.entries[0].operation.channel, { kind: 'fixed-hex', hex: 'D14.3', printedHex: 'D14.03' })
   assert.equal(result.entries[1].issue, 'outside-scenario')
+})
+
+test('the revised arrival table names the Lvov optional rule and binds a mixed group to its Hungarian units', () => {
+  const definitions = new Map(aliases)
+  definitions.set('German Unit', [{ key: 'land:id:8', kind: 'land', source: { side: 'axis', nation: 'Ge' } }])
+  definitions.set('Hungarian Unit', [{ key: 'land:id:9', kind: 'land', source: { side: 'axis', nation: 'Hun' } }])
+  const { entries } = prepareCampaignReinforcements([
+    group('any army or army group hq (Hungarian units on maps A/B)',
+      [{ ref: 'German Unit' }, { ref: 'Hungarian Unit' }, axisUnit]),
+    group('Lviv or within 10 hexes of Lviv, western map edge (optional rule 4.1)', [{ ref: 'German Unit' }],
+      { turn: 59, date: '1944-04-12' }),
+  ], definitions, map)
+  assert.deepEqual(entries.map(({ operation }) => operation), [
+    { kind: 'arrival', channel: { kind: 'army-or-army-group-hq' } },
+    { kind: 'arrival', channel: { kind: 'army-or-army-group-hq', panels: 'AB', nation: 'hungarian' } },
+    // A definition without a nation keeps the restriction of its group.
+    { kind: 'arrival', channel: { kind: 'army-or-army-group-hq', panels: 'AB', nation: 'hungarian' } },
+    { kind: 'arrival', channel: { kind: 'lvov-west-edge', radius: 10 } },
+  ])
+  // Both special channels still lack placement, but their orders are no longer data-pending.
+  assert.equal(supportsCampaignArrival(entries[1].operation), false)
+  assert.equal(supportsCampaignArrival(entries[3].operation), false)
 })

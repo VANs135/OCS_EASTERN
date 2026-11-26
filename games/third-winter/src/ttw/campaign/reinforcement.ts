@@ -7,6 +7,8 @@ type ArrivalChannel =
   | { kind: 'army-or-army-group-hq'; panels?: 'AB' | 'CD'; nation?: 'hungarian' }
   | { kind: 'front-hq' | 'airbase' | 'detrainable-hex' | 'rvgk' }
   | { kind: 'fixed-hex'; hex: string; printedHex: string }
+  /** TTW 4.1. The 58th Panzer Corps option enters at Lvov or on the western map edge within the given hexes of it. */
+  | { kind: 'lvov-west-edge'; radius: number }
 
 export type CampaignReinforcementOperation =
   | { kind: 'arrival'; channel: ArrivalChannel }

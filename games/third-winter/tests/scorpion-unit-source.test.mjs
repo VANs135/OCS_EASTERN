@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { loadScorpionUnits } from '../src/import/scorpion-unit-sources.ts'
 import { loadThirdWinterUnits } from '../src/import/unit-backup.ts'
+import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 
 const face = (asset, move, maColor) => ({ asset, maColor, stats: { move } })
 const wall = { id: '4154', name: 'Ge Wall SS Mot Inf Rgt', kind: 'ground', side: 'axis',
@@ -43,4 +44,30 @@ test('the cleaned unit backup preserves source roles, scoped IDs and the Scorpio
   await assert.rejects(loadThirdWinterUnits(read), /Conflicting definition key/)
   tables['units.soviet.json'] = [wall]
   await assert.rejects(loadThirdWinterUnits(read), /Wrong unit kind or side/)
+})
+
+test('the v2 catalog keeps the printed nation of each unit for nationality-specific rules', async () => {
+  const table = (units) => async () => ({ meta: { schema: 'ocs-wargame-db-v2', game: 'Third Winter', count: units.length },
+    units, markers: units })
+  // The v2 library prints its numbers as strings.
+  const tables = {
+    'units_inf_div.json': table([{ id: '1', name: 'Hun 2.Pz I-3 Pz Bn', faction: 'AXIS', RE: '1', nation: 'Hun' },
+      { id: '2', name: 'Ge 8 Jg Bde', faction: 'AXIS', RE: '3', nation: 'Ge' }]),
+    'units_hq.json': table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: 'Ge', kessel: true }]),
+    'units_transport.json': table([{ id: '4', name: 'Axis Truck', faction: 'AXIS', RE: null, nation: 'Axis' }]),
+    'units_air.json': table([{ id: '5', name: 'Ge He.177', faction: 'AXIS', RE: '1', nation: 'Ge' }]),
+    'units_air_army_hq.json': table([{ id: '6', name: 'Sov 2 Air Army HQ', faction: 'SOV', RE: '1', nation: 'Sov' }]),
+    'units_luftflotte_hq.json': table([{ id: '7', name: 'Ge Luftflotte 4', faction: 'AXIS', RE: '1', nation: 'Ge' }]),
+    'units_formation.json': table([{ id: '8', name: 'Hun 2.Pz Div', faction: 'AXIS', RE: null, nation: 'Hun' }]),
+    'units_markers.json': table([{ id: '9', name: 'Test marker', faction: null, side: 'Axis', RE: null, nation: 'Ge' }]),
+  }
+  const read = (file) => tables[file]()
+  const catalog = await loadThirdWinterV2Units(read)
+  assert.equal(catalog.aliases.get('Hun 2.Pz I-3 Pz Bn')[0].source.nation, 'Hun')
+  assert.equal(catalog.aliases.get('Ge 8 Jg Bde')[0].source.nation, 'Ge')
+  assert.equal(catalog.aliases.get('Hun 2.Pz Div')[0].kind, 'formation')
+  assert.equal(catalog.aliases.get('Axis Truck')[0].source.nation, 'Axis')
+  // A nation that is present but blank is a data error rather than a missing one.
+  tables['units_hq.json'] = table([{ id: '3', name: 'Ge HQ 58 Pz Corps', faction: 'AXIS', RE: '1', nation: ' ' }])
+  await assert.rejects(loadThirdWinterV2Units(read), /无效的算子国籍/)
 })
