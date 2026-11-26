@@ -4,7 +4,7 @@ import { createRngState, verifyRngState } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
-import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker } from '../ttw/front-posture.ts'
+import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker, turnsInPosture } from '../ttw/front-posture.ts'
 import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
@@ -191,6 +191,19 @@ function applyCampaignFrontPosture(state: Readonly<CampaignTurnState>, actor: Si
 /** §3.3e：进攻满 9 回合必须转 regrouping 的方面军清单（增援阶段末义务预检用）。 */
 export function campaignMustLeaveOffensiveFronts(state: Readonly<CampaignTurnState>): readonly string[] {
   return Object.entries(state.frontPostures ?? {}).filter(([, f]) => mustLeaveOffensive(f, state.turn)).map(([front]) => front)
+}
+
+/** UI 只读投影：各 Front 姿态/计时/可切换/必须离开/弹幕标记状态，供姿态面板渲染（不替代指定入口）。 */
+export function campaignFrontPostureOptions(state: Readonly<CampaignTurnState>) {
+  const fronts = state.frontPostures ?? {}
+  return Object.entries(fronts).map(([front, f]) => ({
+    front, mode: f.mode, sinceTurn: f.sinceTurn, turnsInPosture: turnsInPosture(f, state.turn),
+    mayGoOffensive: canAddOffensive(fronts, front, state.turn),
+    mayGoRegrouping: canDesignateRegrouping(f, state.turn),
+    mustLeaveOffensive: mustLeaveOffensive(f, state.turn),
+    mayUseBarrageMarker: mayUseBarrageMarker(f),
+    barrageMarkerReady: campaignBarrageMarkerReady(state, front),
+  }))
 }
 
 /** §3.4b：弹幕标记是否 Ready（turn≥恢复回合；缺省初始 Ready）。 */

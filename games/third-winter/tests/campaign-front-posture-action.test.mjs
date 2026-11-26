@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { campaignMustLeaveOffensiveFronts, openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
+import { campaignFrontPostureOptions, campaignMustLeaveOffensiveFronts, openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 
 // 批次 10 姿态指定动作（§3.3c/d/e）：窗口、最多 2 进攻、3/9 回合计时与强制离开义务。
 const map = { resolveHex: (h) => h, neighbors: () => [] }
@@ -46,4 +46,19 @@ test('3/9 turn change limits and the must-leave-offensive obligation (§3.3e)', 
   assert.deepEqual(campaignMustLeaveOffensiveFronts(stale.record.state), ['f'])
   const regroupYoung = start({ f: reg(8) })
   assert.throws(() => submit(regroupYoung.record, regroupYoung.context, set('f', 'offensive', 'start')), /cannot be designated offensive/)
+})
+
+test('posture options projection exposes per-front status for the UI (§3.3)', () => {
+  const { record } = start({ a: off(1), b: reg(1) }) // turn 10：a 进攻 9 回合须离开；b regrouping 9 回合可转进攻
+  const options = campaignFrontPostureOptions(record.state)
+  const a = options.find((o) => o.front === 'a')
+  const b = options.find((o) => o.front === 'b')
+  assert.equal(a.turnsInPosture, 9)
+  assert.equal(a.mustLeaveOffensive, true)
+  assert.equal(a.mayGoRegrouping, true)
+  assert.equal(a.mayUseBarrageMarker, true)
+  assert.equal(a.barrageMarkerReady, true)
+  assert.equal(b.mayGoOffensive, true)
+  assert.equal(b.mustLeaveOffensive, false)
+  assert.equal(b.mayUseBarrageMarker, false)
 })
