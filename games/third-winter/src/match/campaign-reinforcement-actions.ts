@@ -10,6 +10,7 @@ import { dueCampaignBreakoutReturns } from './campaign-breakout-returns.ts'
 import { consolidateCampaignUnits } from './campaign-consolidation.ts'
 import { exchangeCampaignFormationUnit } from './campaign-formation-exchange.ts'
 import { rebuildCampaignUnit } from './campaign-rebuild.ts'
+import { applyCampaignSpecialReplacement } from './campaign-special-replacement.ts'
 import { issueCampaignFixedSupply, rollCampaignSupply } from './campaign-supply-award.ts'
 import { placeCampaignSupply } from './campaign-supply-placement.ts'
 import { rollCampaignReplacements, rollCampaignSpecialReplacement } from './campaign-replacement-rolls.ts'
@@ -98,6 +99,7 @@ export function applyCampaignReinforcement(state: Readonly<CampaignReinforcement
   if (action.type === 'consolidate-campaign-units') return consolidateCampaignUnits(state, actor, action, context)
   if (action.type === 'exchange-campaign-formation-unit') return exchangeCampaignFormationUnit(state, actor, action, context)
   if (action.type === 'rebuild-campaign-unit') return rebuildCampaignUnit(state, actor, action, context)
+  if (action.type === 'apply-campaign-special-replacement') return applyCampaignSpecialReplacement(state, actor, action, context)
   if (state.segment !== 'scheduled') throw new Error('The scheduled reinforcement window must be open')
   const window = campaignReinforcementWindow(context.schedule, state.cursor)
   if (action.type === 'complete-scheduled-reinforcements') {

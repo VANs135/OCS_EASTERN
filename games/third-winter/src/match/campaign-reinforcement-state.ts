@@ -9,6 +9,7 @@ import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-ti
 import type { CampaignConsolidationBoard, CampaignConsolidationResult, ConsolidateCampaignUnits } from './campaign-consolidation.ts'
 import type { ExchangeCampaignFormationUnit } from './campaign-formation-exchange.ts'
 import type { CampaignRebuildBoard, CampaignRebuildResult, RebuildCampaignUnit } from './campaign-rebuild.ts'
+import type { ApplyCampaignSpecialReplacement, CampaignSpecialRebuildResult } from './campaign-special-replacement.ts'
 
 export interface CampaignSupplyPool {
   kind: 'axis-cities' | 'axis-hq' | 'soviet-supply'
@@ -106,6 +107,7 @@ export interface CampaignReinforcementWindow {
   lastConsolidation?: CampaignConsolidationResult
   lastFormationExchange?: Pick<ExchangeCampaignFormationUnit, 'fieldId' | 'replacementId'>
   lastRebuild?: CampaignRebuildResult
+  lastSpecialRebuild?: CampaignSpecialRebuildResult
   rolls: readonly CampaignReinforcementRoll[]
 }
 
@@ -144,3 +146,4 @@ export type CampaignReinforcementAction =
   | ConsolidateCampaignUnits
   | ExchangeCampaignFormationUnit
   | RebuildCampaignUnit
+  | ApplyCampaignSpecialReplacement

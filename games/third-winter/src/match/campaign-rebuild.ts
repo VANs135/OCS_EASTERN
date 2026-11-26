@@ -2,7 +2,7 @@ import { canAffordRepl, rebuildRejection, rebuildRestoredSteps, type RebuildCand
 import type { Side } from '@ocs-eastern/series/state-types'
 import { ttwPointRejection, ttwRebuildDestinationKinds, type TtwReplPoint, type TtwRebuildUnitFacts } from '../ttw/campaign/rebuild.ts'
 import { isCampaignRebuildWindow } from './campaign-reinforcement-flow.ts'
-import { emptyCampaignReplacementSpent, type CampaignCounter, type CampaignReinforcementContext, type CampaignReinforcementState, type CampaignReplacementSpent } from './campaign-reinforcement-state.ts'
+import { emptyCampaignReplacementSpent, type CampaignCounter, type CampaignReinforcementContext, type CampaignReinforcementState, type CampaignReplacementSpent, type CampaignSpecialReplacement } from './campaign-reinforcement-state.ts'
 
 /** TTW 1.7. Spend abstract replacement points to rebuild a dead-pile counter or restore a reduced one. */
 export type RebuildCampaignUnit = {
@@ -32,6 +32,9 @@ export interface CampaignRebuildBoard {
   destinations(state: Readonly<CampaignReinforcementState>, actor: Side, id: string): readonly CampaignRebuildDestination[]
   /** Per-unit rebuild cost in abstract points (rebuild table, G05). Undefined keeps the rebuild blocked. */
   costOf(state: Readonly<CampaignReinforcementState>, id: string, point: TtwReplPoint): Partial<Record<TtwReplPoint, number>> | undefined
+  /** TTW 1.7b: the SR category this dead-pile counter qualifies to rebuild for free, if any. Encodes the
+   * Arty single-step/regiment (not a whole division), Assault §1.6c, Flak, AA, HQ, Pontoon and Tiger facts. */
+  specialCategoryOf?(state: Readonly<CampaignReinforcementState>, id: string): CampaignSpecialReplacement | undefined
 }
 
 export interface CampaignRebuildResult {

@@ -52,3 +52,12 @@ export function ttwRebuildDestinationKinds(side: 'axis' | 'soviet', unit: Readon
   if (side === 'soviet') return ['rvgk']
   return unit.isAlert ? ['axis-hq', 'kessel-hq'] : ['axis-hq']
 }
+
+/** TTW 1.7b. SR categories that rebuild a dead-pile counter for free. Hedgehog needs fortification placement
+ * and Alert needs the off-map random pool; both await their own modules. Tiger save when no dead-pile Tiger is
+ * available also awaits a persistent replacement-record marker. */
+export const ttwSpecialUnitRebuildCategories: readonly string[] = ['artillery', 'assault', 'flak', 'aa', 'hq', 'pontoon', 'tiger']
+
+export function ttwSpecialRebuildsUnit(category: string): boolean {
+  return ttwSpecialUnitRebuildCategories.includes(category)
+}

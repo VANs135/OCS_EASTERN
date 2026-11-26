@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { emptyTtwReplacementHoldings, ttwPointRejection, ttwPointSavable, ttwRebuildDestinationKinds } from '../src/ttw/campaign/rebuild.ts'
+import { emptyTtwReplacementHoldings, ttwPointRejection, ttwPointSavable, ttwRebuildDestinationKinds, ttwSpecialRebuildsUnit } from '../src/ttw/campaign/rebuild.ts'
 
 const unit = (more = {}) => ({ isAircraft: false, nation: 'Ge', ar: 2, isGermanTiger: false, isAlert: false, ...more })
 
@@ -40,4 +40,10 @@ test('Axis ground rebuilds at an HQ (Alert also a Kessel HQ), Soviet ground at R
   assert.deepEqual(ttwRebuildDestinationKinds('soviet', unit()), ['rvgk'])
   assert.deepEqual(ttwRebuildDestinationKinds('axis', unit({ isAircraft: true })), ['airbase'])
   assert.deepEqual(ttwRebuildDestinationKinds('soviet', unit({ isAircraft: true })), ['airbase'])
+})
+
+test('SR unit-rebuild categories cover Arty/Assault/Flak/AA/HQ/Pontoon/Tiger; Hedgehog and Alert await their own modules (TTW 1.7b)', () => {
+  for (const category of ['artillery', 'assault', 'flak', 'aa', 'hq', 'pontoon', 'tiger']) assert.equal(ttwSpecialRebuildsUnit(category), true)
+  assert.equal(ttwSpecialRebuildsUnit('hedgehog'), false)
+  assert.equal(ttwSpecialRebuildsUnit('alert'), false)
 })

@@ -2,6 +2,7 @@ import type { DiceRoll, Side } from '@ocs-eastern/series/state-types'
 import { campaignConsolidationOptions } from '../match/campaign-consolidation.ts'
 import { campaignFormationExchangeOptions } from '../match/campaign-formation-exchange.ts'
 import { campaignRebuildOptions } from '../match/campaign-rebuild.ts'
+import { campaignSpecialReplacementOptions } from '../match/campaign-special-replacement.ts'
 import { scheduledCampaignReinforcements } from '../match/campaign-reinforcement-actions.ts'
 import { campaignReinforcementStep } from '../match/campaign-reinforcement-flow.ts'
 import type { CampaignBoardState, CampaignCounter, CampaignReinforcementContext, CampaignReinforcementState } from '../match/campaign-reinforcement-state.ts'
@@ -56,6 +57,7 @@ export function projectCampaignReinforcementActive(state: Readonly<CampaignReinf
     consolidation: campaignConsolidationOptions(state, viewer, context),
     formationExchange: campaignFormationExchangeOptions(state, viewer, context),
     rebuild: campaignRebuildOptions(state, viewer, context),
+    specialReplacement: campaignSpecialReplacementOptions(state, viewer, context),
     rolls: state.rolls.filter(({ side }) => side === viewer).map(({ check, dice }) => ({ check, dice: copyDice(dice) })),
   }
 }
