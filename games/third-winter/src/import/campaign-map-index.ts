@@ -8,7 +8,13 @@ interface SourceHex {
   seam_twin: string | null
   seam_primary: boolean | null
   terrains_present?: readonly string[]
+  city_hex?: boolean
+  city_name?: string | null
+  city_level?: string | null
 }
+
+/** 地图库的城市格集（按 city_name 归组，含 seam 规范化后的全部格）。 */
+export interface CampaignCitySite { city: string; level: string; hexes: readonly string[] }
 
 interface SourceEdge {
   edge_key: string
@@ -77,6 +83,18 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   const onMapHexes: ReadonlySet<string> = new Set([...byHex]
     .filter(([, hex]) => hex.on_map !== false)
     .map(([key]) => canonicalByHex.get(key)!))
+  const cityGroups = new Map<string, { level: string; hexes: Set<string> }>()
+  for (const [key, hex] of byHex) {
+    if (hex.city_hex !== true || !hex.city_name) continue
+    const site = cityGroups.get(hex.city_name) ?? { level: hex.city_level ?? '', hexes: new Set<string>() }
+    site.hexes.add(canonicalByHex.get(key)!)
+    if (!site.level && hex.city_level) site.level = hex.city_level
+    cityGroups.set(hex.city_name, site)
+  }
+  const cities: CampaignCitySite[] = [...cityGroups].map(([city, { level, hexes }]) =>
+    ({ city, level, hexes: [...hexes].sort() }))
+  const cityByHex = new Map<string, CampaignCitySite>()
+  for (const site of cities) for (const hex of site.hexes) cityByHex.set(hex, site)
   const danglingEdges: string[] = []
   const edgeGroups = new Map<string, Set<string>>()
   const sourceByPair = new Map<string, { endpoints: [string, string]; sourceEdges: SourceEdge[] }>()
@@ -127,6 +145,11 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   return {
     canonicalByHex,
     onMapHexes,
+    cities,
+    cityOf(hex: string): CampaignCitySite | undefined {
+      const key = canonicalByHex.get(campaignHexKey(hex))
+      return key ? cityByHex.get(key) : undefined
+    },
     terrainAt(hex: string): readonly Terrain[] | undefined {
       const key = canonicalByHex.get(campaignHexKey(hex))
       const terrains = key && byHex.get(key)?.terrains_present

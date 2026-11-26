@@ -27,6 +27,21 @@ test('campaign indexing aligns reciprocal seam twins without deciding disputed t
   assert.equal(diagnostics.riverState, 'pending')
 })
 
+test('city sites group canonical city hexes and separate villages (§2.4a 城市格集)', () => {
+  const hexes = { items: [
+    { hex_id: 'A1.01', seam_twin: null, seam_primary: null, city_hex: true, city_name: 'Kiev', city_level: 'Major City' },
+    { hex_id: 'C1.34', seam_twin: 'A1.02', seam_primary: false, city_hex: true, city_name: 'Kiev', city_level: 'Major City' },
+    { hex_id: 'A1.02', seam_twin: 'C1.34', seam_primary: true, city_hex: true, city_name: 'Kiev', city_level: 'Major City' },
+    { hex_id: 'A1.03', seam_twin: null, seam_primary: null, city_hex: true, city_name: 'Village X', city_level: 'Village' },
+    { hex_id: 'A1.04', seam_twin: null, seam_primary: null },
+  ] }
+  const { cities, cityOf } = indexTtwCampaignMap(hexes, { items: [] })
+  assert.deepEqual(cities, [{ city: 'Kiev', level: 'Major City', hexes: ['A1.1', 'A1.2'] },
+    { city: 'Village X', level: 'Village', hexes: ['A1.3'] }])
+  assert.deepEqual(cityOf('C1.34').hexes, ['A1.1', 'A1.2'])
+  assert.equal(cityOf('A1.04'), undefined)
+})
+
 test('a source seam group spanning two different pairs keeps the connections separate', () => {
   const hexes = { items: ['A1.1', 'A1.2', 'A1.3'].map((hex_id) => ({ hex_id })) }
   const edges = { items: [

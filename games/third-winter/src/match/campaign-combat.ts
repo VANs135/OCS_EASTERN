@@ -90,6 +90,8 @@ export interface CampaignCombatBoard {
   retreatDestroyed?(state: Readonly<CampaignTurnState>, id: string): boolean
   /** 撤退即毁结算（绑定层组合 applyCampaignCombatLosses：进死堆＋免费重建记录＋歼灭 VP）。 */
   destroyOnRetreat?(state: Readonly<CampaignTurnState>, ids: readonly string[]): CampaignTurnState
+  /** TTW §2.4a：城内轴心单位不得自愿撤退到城外；返回拒绝原因。 */
+  fortressExitRefusal?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): string | null
   /**
    * 进格夺取/控制结算（OCS 进格效应，镜像瓶中蝎 resolveScorpionEntry）：
    * 推进/突袭进格 afterCombat=true，撤退进格 false。由绑定层注入夺取判定；缺省不结算。
@@ -551,6 +553,8 @@ function retreatNeighbors(origin: string, path: readonly string[], side: Side, c
 
 function passableRetreatStep(state: Readonly<CampaignTurnState>, side: Side, from: string, to: string,
   ids: readonly string[], board: CampaignCombatBoard): boolean {
+  // TTW §2.4a：城内轴心单位不得自愿撤退出城（含以损失换取的撤退选项）。
+  if (ids.some((id) => board.fortressExitRefusal?.(state, id, from, to))) return false
   // TTW 1.4c：赫尔松渡口不可撤退；伏尔加仅完好/修复桥或冻结 Leg 可撤。
   const crossing = board.riverCrossing?.(state, from, to)
   if (crossing) {

@@ -18,6 +18,8 @@ export interface CampaignRailBoard {
   /** Includes source connectivity, control and applicable TTW facilities. Vehicle ZOC is checked separately. */
   detrainable?(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   trainbustingAt(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
+  /** TTW §2.4a：城内轴心单位不得自愿铁路出城；返回拒绝原因。 */
+  exitRefusal?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): string | null
   /** TTW §2.3b/c：轴心 Army/Army Group HQ 铁路特例——各计 1 RE 运量；Army HQ 起/止格不必可卸载。非该类 HQ 返回 undefined。 */
   hqRail?(state: Readonly<CampaignTurnState>, id: string): { railRe: number; waiveDetrainable: boolean } | undefined
 }
@@ -144,6 +146,7 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
   if (!Number.isSafeInteger(supplyTokens) || supplyTokens < 0 || (!counterIds.length && !supplyTokens) ||
     selected.size !== counterIds.length || flips.size !== moveFaceIds.length || moveFaceIds.some((id) => !selected.has(id))) return refuse('invalid-cargo')
   if (supplyTokens > unlockedSupply(state, side, from)) return refuse('rail-supply-unavailable')
+  for (const id of counterIds) if (rail?.exitRefusal?.(state, id, from, to)) return refuse('fortress-city-no-exit')
   const cargo: RailCargo[] = supplyTokens ? [{ kind: 'sp', amount: supplyTokens / tokensPerSp }] : []
   const passengers = []
   for (const id of counterIds) {

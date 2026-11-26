@@ -7,7 +7,9 @@ import { campaignEngineeringBoards, type CampaignEngineeringSources } from './ca
 import { campaignMovementProfiles, type CampaignMovementCatalog } from './campaign-movement-profiles.ts'
 import { campaignGeometryHooks, type CampaignGeometrySource } from './campaign-geometry.ts'
 import { campaignPostureHooks, type CampaignPostureSource } from './campaign-posture-boards.ts'
-import { campaignControlRecorder } from './campaign-control.ts'
+import { campaignControlRecorder, campaignCityControl } from './campaign-control.ts'
+import { campaignFortressBoards, type CampaignFortressSource } from './campaign-fortress-board.ts'
+import { settleCampaignFortressStatus } from './campaign-fortress.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
@@ -24,6 +26,8 @@ export interface CampaignSessionSources {
   specialHedgehog?: import('./campaign-special-hedgehog.ts').CampaignSpecialHedgehogBoard
   /** TTW §5.0a：VP/城市控制点格集（缺省不写控制点归属）。 */
   controlSites?: ReadonlySet<string>
+  /** TTW §2.4a 要塞数据面（城市格集/剧本要塞池/罗马尼亚边界）；缺省不提供 fortress board。 */
+  fortress?: Omit<CampaignFortressSource, 'map' | 'isCombatUnit'>
 }
 
 /** 组装各板片段。combat.losses 已含 HQ 分类钩子；destroyOnRetreat 复用同一损失面。 */
@@ -34,6 +38,21 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
   const posture = campaignPostureHooks(sources.posture)
   const losses: CampaignLossBoard = { ...sources.lossBoard, hqKindOf: hq.hqKindOf, isKesselHq: hq.isKesselHq }
   const engineering = sources.engineering ? campaignEngineeringBoards(sources.engineering) : undefined
+  const fortress = sources.fortress
+    ? campaignFortressBoards({ ...sources.fortress, map: sources.geometry.map, isCombatUnit: sources.geometry.isCombatUnit })
+    : undefined
+  const control = sources.controlSites ? campaignControlRecorder(sources.controlSites) : undefined
+  const afterMove = control || fortress
+    ? (state: Readonly<CampaignTurnState>, side: 'axis' | 'soviet', move: Parameters<ReturnType<typeof campaignControlRecorder>>[2]) => {
+      const recorded = control ? control(state, side, move) : state
+      if (!fortress) return recorded
+      // §2.4a：城市每格均苏控时要塞状态终止（控制点在本次移动后已更新）。
+      return settleCampaignFortressStatus(recorded, (hex) => {
+        const site = fortress.cityOf(recorded, hex)
+        return site ? campaignCityControl(recorded, site.hexes) === 'soviet' : false
+      })
+    }
+    : undefined
   return {
     combat: {
       losses,
@@ -41,10 +60,13 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
       destroyOnRetreat: campaignDestroyOnRetreat(losses),
       postureBenefitAt: posture.postureBenefitAt,
       frontOfHex: posture.frontOfHex,
+      ...(fortress ? { fortressExitRefusal: fortress.exitRefusal } : {}),
     },
     groundMovement: { railOnly: hq.railOnly, profileOf: movement.profileOf, moveProfile: movement.moveProfile,
-      ...(sources.controlSites ? { afterMove: campaignControlRecorder(sources.controlSites) } : {}) },
-    railTransport: { hqRail: hq.hqRail },
+      ...(fortress ? { exitRefusal: fortress.exitRefusal } : {}),
+      ...(afterMove ? { afterMove } : {}) },
+    railTransport: { hqRail: hq.hqRail, ...(fortress ? { exitRefusal: fortress.exitRefusal } : {}) },
+    ...(fortress ? { fortressBoard: fortress } : {}),
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
     rvgkAxisCombatUnit: (state: Readonly<CampaignTurnState>, id: string) =>

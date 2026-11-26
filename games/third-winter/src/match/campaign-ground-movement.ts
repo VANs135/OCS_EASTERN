@@ -120,6 +120,17 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
     !movers.some(({ stopAfter }) => stopAfter === undefined || stopAfter === path.length)) return refuse('invalid-route')
   const route = normalizeCampaignPath(board.map, path)
   if (!route) return refuse('outside-play-area')
+  // §2.4a：城内轴心地面单位不得自愿走出城市（按各 mover 自己的前进段逐步校验）。
+  for (const { id, stopAfter } of movers) {
+    const origin = position.friendly.get(id)?.hex
+    if (!origin) return refuse('invalid-route')
+    let from = origin
+    for (let step = 0; step < Math.min(stopAfter ?? route.length, route.length); step++) {
+      const refusal = config?.exitRefusal?.(state, id, from, route[step]!)
+      if (refusal) return refuse(refusal)
+      from = route[step]!
+    }
+  }
   const proposed = { ...state, counters: { ...state.counters } }
   let origin: string | undefined
   for (const mover of movers) {
