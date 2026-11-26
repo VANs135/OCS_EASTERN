@@ -1,4 +1,4 @@
-import { canAbsorbBreakdown, canDetachBreakdownSteps, isBreakdownCounter } from '@ocs-eastern/series/breakdown'
+import { breakdownAbsorbObligations, canAbsorbBreakdown, canDetachBreakdownSteps, isBreakdownCounter } from '@ocs-eastern/series/breakdown'
 import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { CampaignCounter } from './campaign-reinforcement-state.ts'
@@ -80,7 +80,7 @@ export function applyCampaignBreakdown(state: Readonly<CampaignTurnState>, actor
     : absorbCampaignBreakdown(state, actor, action, board)
 }
 
-/** OCS 20.0a：普通移动开始前的拆分窗口；最后一步留在母单位。 */
+/** OCS 20.0a：开始移动／战后推进／战后撤退三个创建时机；最后一步留在母单位。 */
 function detachCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side,
   action: Extract<CampaignBreakdownAction, { type: 'detach-campaign-breakdown' }>, board: CampaignBreakdownBoard): CampaignTurnState {
   const { cursor } = state
@@ -88,11 +88,17 @@ function detachCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side
   const parentHex = parent?.location.kind === 'map' ? board.resolveHex(parent.location.hex) : undefined
   const facts = parent && board.factsOf(state, action.parentId)
   const pool = parent && board.parentPools.get(parent.definition)
-  if (!('phasing' in cursor) || cursor.phase !== 'movement' || cursor.phasing !== actor ||
-    state.movementSegment !== 'movement' || !parent || parent.side !== actor || !parentHex || !facts || !pool ||
-    board.hasMoved(state, action.parentId) || !Array.isArray(action.definitions) || !action.definitions.length ||
+  const combat = state.combat
+  const atMoveStart = cursor.phase === 'movement' && cursor.phasing === actor &&
+    state.movementSegment === 'movement' && !board.hasMoved(state, action.parentId)
+  const atAdvance = combat?.step === 'advance' && combat.attacker === actor && combat.attackers.includes(action.parentId)
+  const atRetreat = combat?.step === 'defender-result' && combat.attackerRetreated === true &&
+    combat.attacker === actor && combat.attackers.includes(action.parentId)
+  if (!('phasing' in cursor) || !(atMoveStart || atAdvance || atRetreat) ||
+    !parent || parent.side !== actor || !parentHex || !facts || !pool ||
+    !Array.isArray(action.definitions) || !action.definitions.length ||
     !canDetachBreakdownSteps(facts, action.definitions.length)) {
-    throw new Error('Choose an eligible multi-step unit before it starts moving, leaving its last step intact')
+    throw new Error('Choose an eligible multi-step unit at move start, post-combat advance or retreat, leaving its last step intact')
   }
   const counters = { ...state.counters }
   const { occupiedIds, inUse } = stockPosition(state)
@@ -124,7 +130,7 @@ function detachCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side
   return settled
 }
 
-/** OCS 20.0b–d：同格同池且模式/标记一致才可吸收；算子回池（删除实例并记返回身份）。 */
+/** OCS 20.0b–d：段末义务窗内、同格同池且模式/标记一致才可吸收；算子回池（删除实例并记返回身份）。 */
 function absorbCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side,
   action: Extract<CampaignBreakdownAction, { type: 'absorb-campaign-breakdown' }>, board: CampaignBreakdownBoard): CampaignTurnState {
   const { cursor } = state
@@ -136,11 +142,10 @@ function absorbCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side
   const entry = detached && board.counters.get(detached.definition)
   const def = detached && board.definitionFacts(detached.definition)
   const pool = parent && board.parentPools.get(parent.definition)
-  if (!('phasing' in cursor) || cursor.phasing !== actor ||
-    (cursor.phase !== 'movement' && cursor.phase !== 'combat' && cursor.phase !== 'exploitation') ||
+  if (!('phasing' in cursor) || cursor.phasing !== actor || state.breakdownAbsorb?.side !== actor ||
     !parent || parent.side !== actor || !detached || detached.side !== actor || !parentHex || parentHex !== detachedHex ||
     !parentFacts || !entry || !def || !pool || entry.pool !== pool || !parentFacts.stepsLost) {
-    throw new Error('Absorb a matching breakdown from the same hex and pool')
+    throw new Error('Absorb a matching breakdown from the same hex and pool at segment end')
   }
   const detachedFacts: CampaignBreakdownFacts = { combat: true, combatClass: 'other', printedRe: 1, stepsLost: 0,
     actionRating: def.actionRating, ...counterFlags(detached) }
@@ -152,4 +157,34 @@ function absorbCampaignBreakdown(state: Readonly<CampaignTurnState>, actor: Side
   const returned = state.breakdownReturns?.[detached.definition] ?? []
   return { ...state, counters,
     breakdownReturns: { ...state.breakdownReturns, [detached.definition]: [...new Set([...returned, action.breakdownId])] } }
+}
+
+/** OCS 20.0d：段末减损母单位的强制吸收义务（同格同池且 20.0b/c 合格）。 */
+export function campaignBreakdownAbsorbObligations(state: Readonly<CampaignTurnState>, actor: Side,
+  board: CampaignBreakdownBoard): { parentId: string; breakdownIds: readonly string[] }[] {
+  const hexOf = (id: string) => {
+    const counter = state.counters[id]
+    return counter?.location.kind === 'map' ? board.resolveHex(counter.location.hex) : undefined
+  }
+  const factsOf = (id: string) => {
+    const counter = state.counters[id]
+    const facts = board.factsOf(state, id)
+    if (!counter || !facts) return undefined
+    return { ...facts, id }
+  }
+  const parents = Object.keys(state.counters).filter((id) => state.counters[id]?.side === actor && hexOf(id))
+    .map(factsOf).filter((unit): unit is NonNullable<typeof unit> => unit !== undefined)
+  const breakdowns = Object.keys(state.counters).filter((id) => {
+    const counter = state.counters[id]
+    return counter?.side === actor && board.counters.get(counter.definition) !== undefined && hexOf(id) !== undefined
+  }).map((id) => {
+    const counter = state.counters[id]!
+    const def = board.definitionFacts(counter.definition)!
+    return { combat: true, combatClass: 'other' as const, printedRe: 1, stepsLost: 0, actionRating: def.actionRating,
+      ...counterFlags(counter), id }
+  })
+  const samePool = (parentId: string, breakdownId: string) =>
+    board.parentPools.get(state.counters[parentId]!.definition) === board.counters.get(state.counters[breakdownId]!.definition)?.pool
+  return breakdownAbsorbObligations(parents, breakdowns,
+    (parentId, breakdownId) => hexOf(parentId) === hexOf(breakdownId) && samePool(parentId, breakdownId))
 }

@@ -99,6 +99,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   overrunMarch?: { remaining: Readonly<Record<string, number>>; enteredHex: boolean } | null
   /** TTW 1.4c：本阶段各伏尔加级河岸已推进 RE（跨阶段重置）。 */
   volgaAdvance?: { phase: string; re: Record<string, number> }
+  /** OCS 20.0d：段末强制吸收义务窗（开窗期间仅吸收可结清，段末推进被阻塞）。 */
+  breakdownAbsorb?: { side: Side } | null
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]

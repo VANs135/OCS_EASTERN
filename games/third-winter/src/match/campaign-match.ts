@@ -10,7 +10,7 @@ import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignBarrage } from './campaign-barrage.ts'
 import { applyCampaignCombat, resetCampaignCombatLedgers } from './campaign-combat.ts'
-import { applyCampaignBreakdown } from './campaign-breakdown.ts'
+import { applyCampaignBreakdown, campaignBreakdownAbsorbObligations } from './campaign-breakdown.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement, releaseCampaignCounters } from './campaign-ground-movement.ts'
@@ -61,6 +61,12 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
+  // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
+  if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
+    action.type === 'complete-campaign-exploitation' || action.type === 'complete-campaign-movement-phase') && context.breakdown &&
+    campaignBreakdownAbsorbObligations(state, actor, context.breakdown).length) {
+    return { ...state, breakdownAbsorb: { side: actor } }
+  }
   switch (action.type) {
     case 'determine-campaign-weather':
     case 'roll-campaign-event':
@@ -72,8 +78,9 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       return applyCampaignBreakout(state, actor, action, context.breakoutBoard)
     case 'move-campaign-ground':
     case 'hold-campaign-ground-zoc':
-    case 'complete-campaign-ground-movement':
       return applyCampaignGroundMovement(state, actor, action, context.groundMovement)
+    case 'complete-campaign-ground-movement':
+      return { ...applyCampaignGroundMovement(state, actor, action, context.groundMovement), breakdownAbsorb: null }
     case 'use-campaign-kherson-ferry':
       return applyCampaignKhersonFerry(state, actor, action, context.groundMovement)
     case 'transport-campaign-rail': {
@@ -100,14 +107,14 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       if (!blockers) throw new Error('Campaign movement barrage rules are not configured')
       if (blockers.length) throw new Error('Campaign movement barrage obligations are outstanding')
       const settled = closeCampaignPontoonPhase(state, actor, context.groundMovement)
-      return { ...resetCampaignCombatLedgers(settled), cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined, supplyPhase: undefined }
+      return { ...resetCampaignCombatLedgers(settled), cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined, supplyPhase: undefined, breakdownAbsorb: null }
     }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)
     case 'refit-campaign-aircraft':
       return refitCampaignAircraft(state, actor, action, context)
     case 'complete-campaign-exploitation':
-      return completeCampaignExploitation(state, actor, context)
+      return { ...completeCampaignExploitation(state, actor, context), breakdownAbsorb: null }
     case 'recover-campaign-stocks':
     case 'complete-campaign-stock-recovery':
     case 'choose-campaign-formation-trace':
@@ -117,7 +124,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     case 'complete-campaign-supply':
       return applyCampaignSupplyPhase(state, actor, action, context)
     case 'complete-campaign-late-segment':
-      return completeCampaignLateSegment(state, actor, action, context)
+      return { ...completeCampaignLateSegment(state, actor, action, context), breakdownAbsorb: null }
     case 'declare-campaign-barrage':
     case 'choose-campaign-barrage-terrain':
     case 'assign-campaign-barrage-loss':
