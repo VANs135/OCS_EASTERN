@@ -9,6 +9,7 @@ import { EXTENDER_FLIP_MA_FRACTION, EXTENDER_SEGMENTS, extenderConversionOptions
 import type { ExtenderTransportKind } from '@ocs-eastern/series/extender-conversion'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
+import { normalTruckExtenderRefusal } from '../ttw/campaign/special-truck-extender.ts'
 import type { CampaignGroundMap } from './campaign-ground-position.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
@@ -68,6 +69,8 @@ export function convertCampaignExtender(state: Readonly<CampaignTurnState>, side
   action: Extract<CampaignExtenderAction, { type: 'convert-campaign-extender' }>,
   board: CampaignExtenderBoard): CampaignTurnState {
   if (!extenderWindow(state, side)) throw new Error('Extender conversion needs your movement, reaction or exploitation segment')
+  const forbidden = normalTruckExtenderRefusal(side, action.kind)
+  if (forbidden) throw new Error(`Illegal extender conversion: ${forbidden}`)
   const hex = board.map.resolveHex(action.hex)
   if (!hex) throw new Error('Choose an on-map hex for the extender conversion')
   const entries = board.transports(state, side, hex)

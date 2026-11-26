@@ -67,9 +67,9 @@ test('conversion is limited to movement, reaction and exploitation (OCS 12.7a)',
   // the non-phasing side may only do it in its own reaction segment
   assert.throws(() => submit(game({ A: counter() }), { type: 'convert-campaign-extender', hex: '10', kind: 'truck', count: 1 },
     board(), 'soviet'), /movement, reaction or exploitation/)
-  const reaction = game({ A: counter({ side: 'soviet' }) })
+  const reaction = game({ A: counter({ side: 'soviet', definition: 'Sov Wagon 5/10' }) })
   reaction.state.cursor = { phase: 'reaction', phasing: 'axis', first: 'axis' }
-  const converted = submit(reaction, { type: 'convert-campaign-extender', hex: '10', kind: 'truck', count: 1 }, board(), 'soviet')
+  const converted = submit(reaction, { type: 'convert-campaign-extender', hex: '10', kind: 'wagon', count: 1 }, board(), 'soviet')
   assert.equal(converted.state.extenders[0].side, 'soviet')
 })
 
@@ -90,4 +90,15 @@ test('flipping an extender back yields five points at half its own MA (OCS 12.7d
   assert.equal(placed.location.hex, '10')
   assert.throws(() => submit(game({}, { extenders: [{ id: 'extender:wagon:1', side: 'soviet', hex: '10', kind: 'wagon', range: 10 }] }),
     { type: 'flip-campaign-extender', id: 'extender:wagon:1' }), /your own extender/)
+})
+
+test('the Soviets use STEs instead of normal truck extenders (TTW 3.6)', () => {
+  const sovietTurn = game({ A: counter({ side: 'soviet', definition: 'Sov Truck 5/45' }) })
+  sovietTurn.state.cursor = { phase: 'movement', phasing: 'soviet', first: 'axis' }
+  assert.throws(() => submit(sovietTurn, { type: 'convert-campaign-extender', hex: '10', kind: 'truck', count: 1 },
+    board(), 'soviet'), /soviet-normal-truck-extender-forbidden/)
+  // a leg (wagon) extender stays legal for the Soviets
+  const wagon = submit(game({ A: counter({ side: 'soviet', definition: 'Sov Wagon 5/10' }) }, { cursor: { phase: 'movement', phasing: 'soviet', first: 'axis' } }),
+    { type: 'convert-campaign-extender', hex: '10', kind: 'wagon', count: 1 }, board(), 'soviet')
+  assert.equal(wagon.state.extenders[0].range, 10)
 })
