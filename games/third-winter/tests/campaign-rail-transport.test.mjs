@@ -251,3 +251,21 @@ test('rail movement settles the scenario release: a German unit detraining withi
   const notLiberated = submit(truck, rail(['D16.03', 'D17.03', 'D18.03'], ['truck']), sovietConfig, 'soviet')
   assert.deepEqual(heldIds(notLiberated.state), ['tk'])
 })
+
+test('Axis Army HQ rails as 1 RE and need not detrain at a station; Army Group HQ still requires one (§2.3b/c)', () => {
+  const hqRail = (_, id) => id === 'armyHq' ? { railRe: 1, waiveDetrainable: true }
+    : id === 'agHq' ? { railRe: 1, waiveDetrainable: false } : undefined
+  const config = rules({ detrainable: () => false, hqRail })
+  const record = normal(beforeMovement({ armyHq: land('D12.03', { kind: 'hq', mode: 'combat', currentRe: undefined }),
+    agHq: land('D12.03', { kind: 'hq', mode: 'combat', currentRe: undefined }), foot: land('D12.03') }), config)
+  // ordinary freight and the non-waived Army Group HQ cannot board off-station
+  assert.throws(() => submit(record, rail(['D12.03', 'D13.03'], ['foot']), config), /rail-boarding-unavailable/)
+  assert.throws(() => submit(record, rail(['D12.03', 'D13.03'], ['agHq'], 0, ['agHq']), config), /rail-boarding-unavailable/)
+  // the Army HQ boards off-station and counts as 1 RE (equivalent 0.5; one-edge cost 0.25)
+  assert.deepEqual(projectCampaignRailLoading(record, 'axis', 'D12.03', config).counters, [{ id: 'armyHq', needsMoveFace: true, equivalent: 0.5 }])
+  const order = rail(['D12.03', 'D13.03'], ['armyHq'], 0, ['armyHq'])
+  assert.equal(projectCampaignRailTransport(record, 'axis', order, config).cost, 0.25)
+  const moved = submit(record, order, config)
+  assert.equal(moved.state.counters.armyHq.location.hex, 'D13.3')
+  assert.equal(moved.state.counters.armyHq.mode, 'move')
+})

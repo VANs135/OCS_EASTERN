@@ -18,6 +18,8 @@ export interface CampaignRailBoard {
   /** Includes source connectivity, control and applicable TTW facilities. Vehicle ZOC is checked separately. */
   detrainable?(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   trainbustingAt(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
+  /** TTW §2.3b/c：轴心 Army/Army Group HQ 铁路特例——各计 1 RE 运量；Army HQ 起/止格不必可卸载。非该类 HQ 返回 undefined。 */
+  hqRail?(state: Readonly<CampaignTurnState>, id: string): { railRe: number; waiveDetrainable: boolean } | undefined
 }
 
 export interface TransportCampaignRail {
@@ -78,11 +80,12 @@ function boardingChoice(state: Readonly<CampaignTurnState>, id: string, from: st
     cargo = { kind: 'transportPoint', size }
   } else {
     const { moveMa, moveMobility } = current.profile
-    const re = counter.currentRe
+    const hq = rail.hqRail?.(state, id)
+    const re = hq ? hq.railRe : counter.currentRe
     if (!current.profile.combat || re === undefined || !Number.isFinite(re) || re <= 0 || !Number.isFinite(moveMa) || moveMa < 0) return undefined
     cargo = { kind: 'unit', re, mobility: moveMobility, moveMa }
   }
-  return { cargo, needsMoveFace, repair, face: mode.face, preLoadMp: approach?.spent ?? 0 }
+  return { cargo, needsMoveFace, repair, face: mode.face, preLoadMp: approach?.spent ?? 0, waiveDetrainable: rail.hqRail?.(state, id)?.waiveDetrainable ?? false }
 }
 
 function unlockedSupply(state: Readonly<CampaignTurnState>, side: Side, hex: string) {
@@ -117,7 +120,7 @@ export function campaignRailLoading(state: Readonly<CampaignTurnState>, side: Si
   }
   const counters = [...window.position.friendly.keys()].flatMap((id) => {
     const choice = boardingChoice(state, id, from, window)
-    return choice && (detrainable || choice.repair) ? [{ id, needsMoveFace: choice.needsMoveFace, equivalent: transportEquivalentOf(choice.cargo) }] : []
+    return choice && (detrainable || choice.repair || choice.waiveDetrainable) ? [{ id, needsMoveFace: choice.needsMoveFace, equivalent: transportEquivalentOf(choice.cargo) }] : []
   })
   return { ok: true as const, from, remainingCapacity: window.remainingCapacity, counters,
     supplyTokens: detrainable ? unlockedSupply(state, side, from) : 0 }
@@ -151,7 +154,7 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
     passengers.push({ id, ...choice, mode })
     cargo.push(choice.cargo)
   }
-  if (supplyTokens || passengers.some(({ repair }) => !repair)) {
+  if (supplyTokens || passengers.some(({ repair, waiveDetrainable }) => !repair && !waiveDetrainable)) {
     if (!window.detrainable(from)) return refuse('rail-boarding-unavailable')
     if (!window.detrainable(to)) return refuse('rail-unloading-unavailable')
   }
