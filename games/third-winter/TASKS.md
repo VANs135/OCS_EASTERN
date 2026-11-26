@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，复用斯摩棱斯克通规模式合法性层：核实通用表格（CRT/炮击）已经 series 复用同一 v4.3 权威（G15），无需再接；将斯摩棱斯克 `src/engine/rules/modes.ts` 的通规 5.0–5.10 合法性层（模式切换/预备释放/阶段可动性/朝向翻转/状态不变量/ZOC·运输·工程·刺猬堆叠·战略结束补给派生/数值改写）移植进 `packages/series/src/modes.ts`，作品/剧本中立、专规闸门改注入式（`operationalLimit`），不内置斯摩棱斯克 2.3e/1.5/4.1a；修正已释放预备折回基础面与 MA 倍率。保留旧 API，门禁全绿（series 新增 5 例）。提交 `32c92db` 已 push。反应/进击移动窗接通待下一步（扩展计数器 released/exploit 表示＋阶段路由）。
+
 - [x] 2026-11-26，批次 10 姿态子机制（§3.3c–e）：纠正"守势"术语为 Regrouping 二分；新建 `ttw/front-posture.ts` 规则层（3/9 回合计时、最多 2 进攻、Regrouping 战斗修改与守势炮击规格、弹幕标记仅进攻）；战斗环接入免防御补给＋战斗步 2 后免费守势炮击＋AR 修正＋攻击补给 2SP/回合上限；新增 `set-campaign-front-posture` 动作（增援阶段开始/末窗口）与 `campaignMustLeaveOffensiveFronts` 义务查询。合成 9 项用例（规则层 3＋战斗 3＋动作 3）；门禁 445 全绿。提交 `f7e09b7`/`9d2fb2e`/`44d3367` 已 push。边界/编属/指挥半径与弹幕标记计时待后续。
 
 - [x] 2026-11-26，批次 6 子机制：G15 战斗/炮击表实值导入。核实通规 v4.3 实值表已随库提交（ocs-v43-crt/barrage/facility.json，PDF 抽取脚本产物），新建 `import/campaign-tables.ts` 结构校验导入（不改写表值）；合成 3 项用例对实值全格做 crtLookup→parseCombatResult 可用性遍历、炮击列成本与掷骰码校验、畸形表拒绝；门禁 436 条全绿。提交 `b7dfbc5` 已 push。绑定层经 loadCampaignTables 注入实值随 session 接通。
