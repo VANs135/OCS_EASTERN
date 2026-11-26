@@ -161,6 +161,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-rvgk.ts').CampaignRvgkAction
   | import('./campaign-kg.ts').CampaignKgAction
   | import('./campaign-luftflotte.ts').CampaignLuftflotteAction
+  | import('./campaign-luftflotte-placement.ts').CampaignLuftflottePlacementAction
   | import('./campaign-kessel.ts').CampaignKesselAction
   | import('./campaign-axis-hq.ts').CampaignAxisHqAction
 
@@ -190,6 +191,7 @@ export interface CampaignTurnContext {
   combat?: CampaignCombatBoard
   hqRecovery?: CampaignHqRecoveryBoard
   kesselPlacement?: import('./campaign-kessel-placement.ts').CampaignKesselPlacementBoard
+  luftflottePlacement?: import('./campaign-luftflotte-placement.ts').CampaignLuftflottePlacementBoard
   breakdown?: CampaignBreakdownBoard
   remnantRebuild?: CampaignRemnantRebuildBoard
   stePlacement?: CampaignStePlacement
