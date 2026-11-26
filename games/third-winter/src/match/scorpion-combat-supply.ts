@@ -1,3 +1,4 @@
+import { defensiveCombatSupplyCost } from '@ocs-eastern/series/combat'
 import { spendInternalStocks } from '@ocs-eastern/series/internal-stocks'
 import type { DeployedCounter } from '../import/scorpion-deployment.ts'
 import { remainingSteps } from './scorpion-losses.ts'
@@ -61,7 +62,7 @@ function payDefendingStack(ledger: PaymentLedger, stack: readonly DeployedCounte
 }
 
 function defensiveSupplyCost(units: readonly DeployedCounter[]) {
-  return units.reduce((total, unit) => total + unit.printedRe - unit.stepsLost, 0) <= 1 ? 1 : 2
+  return defensiveCombatSupplyCost(units.reduce((total, unit) => total + unit.printedRe - unit.stepsLost, 0))
 }
 
 function requireParticipants(participants: readonly string[], internal: readonly string[]) {

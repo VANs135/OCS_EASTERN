@@ -1,3 +1,4 @@
+import { combatResultObligations, exploitMarkerEligibility } from '@ocs-eastern/series/combat'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHexDistance } from '../import/hex-id.ts'
 import { combatRating } from '../ttw/scorpion/combat-terrain.ts'
@@ -32,16 +33,12 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   const ignore = action.ignoreDefenderOption === true
   if (ignore && (attacker || !combat.defenderMayIgnore)) throw new Error('This side cannot ignore its combat option')
   const available = ids.reduce((total, id) => total + remainingSteps(state.units[id]!), 0)
-  const mandatory = Math.min(available, result.loss)
-  const options = ignore ? 0 : result.option
-  if (!Number.isSafeInteger(action.optionLosses) || action.optionLosses < 0 ||
-    action.optionLosses > Math.min(options, available - mandatory)) throw new Error('Invalid combat option loss allocation')
-  const losses = mandatory + action.optionLosses
-  const allocations = validateCombatLossOrder(state, ids, leader, action.lossOrder, losses)
+  const obligations = combatResultObligations(result, available, { ignoreOption: ignore, optionLosses: action.optionLosses })
+  const allocations = validateCombatLossOrder(state, ids, leader, action.lossOrder, obligations.totalLosses)
   let settled = applyScorpionCombatLosses(state, allocations, assets, policy.supplyRail, action.remnants ?? [])
   if (settled.victory) return { ...settled, combat: null, overrunMarch: null }
-  const unmet = options - action.optionLosses
-  const retreat = available > losses ? unmet : 0
+  const unmet = obligations.unmetOptions
+  const retreat = obligations.retreatDistance
   if (combat.kind === 'overrun' && attacker && action.retreats.some(({ units }) => units.some((id) => !ids.includes(id)))) {
     throw new Error('Only overrun participants can retreat with the attacking stack')
   }
@@ -53,15 +50,17 @@ export function resolveScorpionCombat(state: Readonly<ScorpionInPlay>, actor: Si
   if (attacker) {
     const threshold = combat.roll.exploit
     const origins = [...new Set(ids.map((id) => state.units[id]!.hex))]
-    if (combat.kind !== 'overrun' && threshold !== null && unmet === 0 && state.cursor.phase === 'combat' && origins.length <= 2 &&
-      (origins.length === 1 || scorpionHexDistance(origins[0]!, origins[1]!) === 1)) {
+    const granted = exploitMarkerEligibility({
+      threshold, overrun: combat.kind === 'overrun', combatPhase: state.cursor.phase === 'combat',
+      unmetOptions: unmet, origins, adjacent: (a, b) => scorpionHexDistance(a, b) === 1,
+      attackers: ids.flatMap((id) => {
+        const unit = settled.units[id]
+        return unit ? [{ id, rating: combatRating(unit), disorganized: unit.disorganized === true }] : []
+      }),
+    })
+    if (granted.length) {
       const units = { ...settled.units }
-      for (const id of ids) {
-        const unit = units[id]
-        if (unit && !unit.disorganized && combatRating(unit) >= threshold) {
-          units[id] = { ...unit, exploit: true, exploitRating: threshold }
-        }
-      }
+      for (const id of granted) units[id] = { ...units[id]!, exploit: true, exploitRating: threshold! }
       settled = { ...settled, units }
     }
     return { ...settled, combat: { ...combat, step: 'defender-result', defenderMayIgnore: unmet > 0,

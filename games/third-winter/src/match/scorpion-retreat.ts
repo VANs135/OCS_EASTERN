@@ -1,3 +1,4 @@
+import { retreatStepEffects } from '@ocs-eastern/series/combat'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import { scorpionModeFace } from '../import/scorpion-mode-face.ts'
@@ -254,12 +255,16 @@ function retreatStep(state: Readonly<ScorpionInPlay>, side: Side, route: Retreat
     throw new Error('Retreat crosses an illegal hex or an enemy combat unit')
   }
   const units = { ...state.units }
-  const enteredZoc = zocAffectsAction('retreat', rawZoc.has(to), false) && moving.some((id) => units[id]!.combat)
-  const dg = enteredZoc ? moving.filter((id) => units[id]!.combat && units[id]!.disorganized) : []
+  const effects = retreatStepEffects({
+    enteredRawEnemyZoc: zocAffectsAction('retreat', rawZoc.has(to), false),
+    secondRetreatHex: index === 1,
+    units: moving.map((id) => ({ id, combat: units[id]!.combat, disorganized: units[id]!.disorganized === true })),
+  })
+  const dg = effects.zocLossCandidates
   if (dg.length && (!loss || !dg.includes(loss))) throw new ScorpionRetreatLossChoice(route.origin, to, index, dg, route.group)
   if (loss !== undefined && !dg.length) throw new Error('Retreat includes an unnecessary ZOC loss')
   for (const id of moving) units[id] = { ...units[id]!, hex: to }
-  if (enteredZoc || (index === 1 && moving.some((id) => units[id]!.combat))) disorganizeScorpionHex(units, to, side)
+  if (effects.disorganizeHex) disorganizeScorpionHex(units, to, side)
   // OCS 9.12f. The 9.14 entry uses movement timing, even though the retreat follows combat.
   const captured = resolveScorpionEntry({ ...state, units }, side, to, moving, assets, false, policy, route.path.slice(index + 1))
   if (!loss) return captured
