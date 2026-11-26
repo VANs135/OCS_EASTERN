@@ -5,6 +5,7 @@ import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker } from '../ttw/front-posture.ts'
+import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -64,6 +65,14 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   }
   if (action.type === 'set-campaign-front-posture') return applyCampaignFrontPosture(state, actor, action)
   if (action.type === 'spend-campaign-barrage-marker') return applyCampaignBarrageMarker(state, actor, action, context)
+  if (action.type === 'fuel-campaign-formation' || action.type === 'fuel-campaign-headquarters') {
+    if (!context.groundMovement) throw new Error('Campaign fuel requires a movement board')
+    return buyCampaignFuel(state, actor, action, context.groundMovement.map, context.organicFormation)
+  }
+  if (action.type === 'fuel-campaign-unit') {
+    if (!context.groundMovement) throw new Error('Campaign fuel requires a movement board')
+    return fuelCampaignUnit(state, actor, action, context.groundMovement.map)
+  }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
   if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||

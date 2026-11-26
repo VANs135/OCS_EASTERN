@@ -107,6 +107,10 @@ export interface CampaignTurnState extends CampaignBoardState {
   frontAttackSupply?: { turn: number; spent: Readonly<Record<string, number>> }
   /** TTW §3.4b：各 Front 弹幕标记的恢复回合（缺省视为初始 Ready）；turn≥readyTurn 即 Ready。 */
   frontBarrageMarkers?: Readonly<Record<string, { readyTurn: number }>>
+  /** 通规 §12.5c-A：编队燃料标记（持续到本方清理阶段）。 */
+  formationFuel?: readonly import('./campaign-fuel.ts').CampaignFormationFuel[]
+  /** 通规 §12.5c-B/12.5e：HQ 燃料标记（持续到本方清理阶段；used 锁定本阶段投递位置）。 */
+  headquartersFuel?: readonly import('./campaign-fuel.ts').CampaignHeadquartersFuel[]
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -138,6 +142,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
   | SetCampaignFrontPosture
   | SpendCampaignBarrageMarker
+  | import('./campaign-fuel.ts').CampaignFuelAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -180,4 +185,6 @@ export interface CampaignTurnContext {
   roundEnd?: (cleaned: Readonly<CampaignTurnState>) => CampaignRoundEnd | undefined
   /** TTW §3.4a：弹幕标记目标格几何校验（邻接苏军战斗单位＋已编属 HQ 指挥半径内 throw）；绑定层注入。 */
   barrageMarkerTarget?: (state: Readonly<CampaignTurnState>, front: string, hex: string) => boolean
+  /** 通规 §12.5c-A：编队燃料的编队归属判定（绑定层注入）。 */
+  organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined
 }
