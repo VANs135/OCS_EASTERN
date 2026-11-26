@@ -16,6 +16,8 @@ import type { AttackTerrain, CombatClass } from '../ttw/combat-terrain.ts'
 import { armyGroupDestroyedCombatDrm, khersonAttackEligible, volgaAttackEligible, volgaFerryAttackFactor,
   volgaRetreatEligible, VOLGA_ADVANCE_RE_LIMIT } from '../ttw/combat-special.ts'
 import type { VolgaCombatCrossing } from '../ttw/combat-special.ts'
+import { ttwPostureCombatModifiers, TTW_DEFENSIVE_BARRAGE_COLUMN } from '../ttw/front-posture.ts'
+import { rollGroundBarrage, type BarrageTable } from '@ocs-eastern/series/tables/barrage'
 import type { Mobility } from '@ocs-eastern/series/ground-map'
 import { applyCampaignCombatLosses } from './campaign-combat-losses.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
@@ -90,6 +92,12 @@ export interface CampaignCombatBoard {
    */
   resolveEntry?(state: Readonly<CampaignTurnState>, side: Side, hex: string, ids: readonly string[],
     afterCombat: boolean): CampaignTurnState
+  /** TTW §3.3d B：该格该方单位是否享受 Regrouping 收益（边界内＋指挥半径内已编属 Army HQ 的 trace 补给）。 */
+  postureBenefitAt?(state: Readonly<CampaignTurnState>, hex: string, side: Side): boolean
+  /** 该格所属方面军（用于攻击补给 2SP/回合上限记账）。 */
+  frontOfHex?(hex: string): string | undefined
+  /** 守势炮击所用炮击表（§3.3d B，12-16 列、无修正）。 */
+  barrage?: BarrageTable
 }
 
 export interface CampaignRetreatPlan {
@@ -114,6 +122,8 @@ export interface CampaignCombat {
   defenderMayIgnore?: boolean
   attackerRetreated?: boolean
   overrun?: boolean
+  /** TTW §3.3d B：战斗步 2 后对攻击堆的免费守势炮击结果。 */
+  defensiveBarrage?: { code: string; loss: number; disorganize: boolean }
 }
 
 export type CampaignCombatAction =
@@ -282,7 +292,48 @@ function payAttackSupply(state: Readonly<CampaignTurnState>, actor: Side,
       throw new Error('Each attacker requires one token per surviving step or its own internal stocks')
     }
   }
-  return spendCampaignSupply({ ...state, counters }, actor, sources, spending)
+  // TTW §3.3d B：Regrouping 方面军每回合攻击补给上限 2 SP（按方面军记账，跨回合重置）。
+  const benefitHex = hexOf(state, action.attackers[0]!, board)
+  const front = benefitHex ? board.frontOfHex?.(benefitHex) : undefined
+  const thisSpend = [...spending.values()].reduce((sum, tokens) => sum + tokens, 0)
+  let frontAttackSupply = state.frontAttackSupply
+  if (benefitHex && front && thisSpend > 0 && board.postureBenefitAt?.(state, benefitHex, actor) === true) {
+    const cap = ttwPostureCombatModifiers(true).attackSupplyCap ?? 2
+    const sameTurn = state.frontAttackSupply?.turn === state.turn
+    const prev = sameTurn ? (state.frontAttackSupply!.spent[front] ?? 0) : 0
+    if (prev + thisSpend > cap) throw new Error('A regrouping front may spend at most 2 SP on attack supply per turn')
+    frontAttackSupply = { turn: state.turn, spent: { ...(sameTurn ? state.frontAttackSupply!.spent : {}), [front]: prev + thisSpend } }
+  }
+  const paid = spendCampaignSupply({ ...state, counters }, actor, sources, spending)
+  return frontAttackSupply === state.frontAttackSupply ? paid : { ...paid, frontAttackSupply }
+}
+
+/** TTW §3.3d B：战斗步 2 后对攻击堆免费守势炮击（12-16 列、无修正、无补给成本、不要求炮兵在射程）。 */
+function resolveDefensiveBarrage(state: Readonly<CampaignTurnState>, combat: CampaignCombat, board: CampaignCombatBoard):
+  { state: CampaignTurnState; record?: { code: string; loss: number; disorganize: boolean } } {
+  if (!board.barrage) return { state }
+  const column = board.barrage.columns.indexOf(TTW_DEFENSIVE_BARRAGE_COLUMN)
+  if (column < 0) throw new Error('The barrage table lacks the 12-16 defensive barrage column')
+  let rng = state.rng
+  const roll = rollGroundBarrage(board.barrage, column, { density: 2, terrain: 'Open', hedgehog: 0, spotter: true },
+    () => { const r = rollDie(rng); rng = r.rng; return r.value })
+  const remaining = new Map(combat.attackers.map((id) => [id, board.losses.stepsOf(state, id) ?? 0]))
+  const loss = Math.min(roll.loss, [...remaining.values()].reduce((sum, steps) => sum + steps, 0))
+  // §9.11c 末：炮击损失自由选择，不适用领队优先的战斗损失分配。
+  const allocations = new Map<string, number>()
+  let left = loss
+  for (const id of combat.attackers) {
+    if (left <= 0) break
+    const take = Math.min(left, remaining.get(id) ?? 0)
+    if (take > 0) { allocations.set(id, take); left -= take }
+  }
+  let settled = applyCampaignCombatLosses({ ...state, rng }, allocations, board.losses)
+  if (roll.disorganize) {
+    const counters = { ...settled.counters }
+    for (const id of combat.attackers) if (counters[id]) counters[id] = { ...counters[id]!, disorganized: true }
+    settled = { ...settled, counters }
+  }
+  return { state: settled, record: { code: roll.code, loss, disorganize: roll.disorganize } }
 }
 
 function defendCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
@@ -292,6 +343,13 @@ function defendCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
   const internal = action.internalUnitIds ?? []
   if (new Set(internal).size !== internal.length || internal.some((id) => !combat.defenders.includes(id))) {
     throw new Error('Internal stocks belong only to their individual participants')
+  }
+  // TTW §3.3d B：Regrouping 收益单位免付防御补给，且轴心攻击时战斗步 2 后受免费守势炮击。
+  if (board.postureBenefitAt?.(state, combat.target, actor) === true) {
+    if (action.payments.length || internal.length) throw new Error('Regrouping units do not pay for defensive combat supply')
+    const barrage = resolveDefensiveBarrage(state, combat, board)
+    return { ...barrage.state, combat: { ...combat, defenseSupplied: true, step: 'attacker-rating',
+      ...(barrage.record ? { defensiveBarrage: barrage.record } : {}) } }
   }
   const stack = combat.defenders.map((id) => state.counters[id]!)
   const cost = defensiveCombatSupplyCost(stack.reduce((sum, counter) => sum + (counter.currentRe ?? 1), 0))
@@ -370,8 +428,13 @@ function chooseCampaignCombatTerrain(state: Readonly<CampaignTurnState>, actor: 
   const crossing = (id: string) => board.riverAt?.(hexOf(state, id, board)!, combat.target) !== undefined
   const special = (id: string, attacking: boolean) => board.specialArModifier?.(state, id,
     { attacking, targetHex: combat.target, crossingRiver: crossing(id) }) ?? 0
-  const modifier = modeRating(state, combat.attackerLeader, board) + special(combat.attackerLeader, true) -
-    modeRating(state, combat.defenderLeader, board) - special(combat.defenderLeader, false) +
+  // TTW §3.3d B：Regrouping 收益单位进攻 AR-2、防御 AR+1（作用于领队 printed AR）。
+  const posture = (hex: string | undefined, side: Side) =>
+    ttwPostureCombatModifiers(hex !== undefined && board.postureBenefitAt?.(state, hex, side) === true)
+  const attPosture = posture(hexOf(state, combat.attackerLeader, board), combat.attacker)
+  const defPosture = posture(hexOf(state, combat.defenderLeader, board), combat.attacker === 'axis' ? 'soviet' : 'axis')
+  const modifier = modeRating(state, combat.attackerLeader, board) + special(combat.attackerLeader, true) + attPosture.attackerAr -
+    modeRating(state, combat.defenderLeader, board) - special(combat.defenderLeader, false) - defPosture.defenderAr +
     armyGroupDestroyedCombatDrm(combat.attacker === 'axis', board.armyGroupDestroyed?.(state) === true)
   let rng = state.rng
   const result = rollRegularCombat(board.table, combatTerrainCategory(action.terrain), attack, defend, modifier, combat.hedgehog, {

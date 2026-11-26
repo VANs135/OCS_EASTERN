@@ -101,6 +101,10 @@ export interface CampaignTurnState extends CampaignBoardState {
   volgaAdvance?: { phase: string; re: Record<string, number> }
   /** OCS 20.0d：段末强制吸收义务窗（开窗期间仅吸收可结清，段末推进被阻塞）。 */
   breakdownAbsorb?: { side: Side } | null
+  /** TTW §3.3：各 Front HQ 姿态与进入回合（§3.3e 计时）。 */
+  frontPostures?: Readonly<Record<string, import('../ttw/front-posture.ts').TtwFrontPostureState>>
+  /** TTW §3.3d B：每方面军每回合攻击补给已用 SP（turn 不匹配即视为 0）。 */
+  frontAttackSupply?: { turn: number; spent: Readonly<Record<string, number>> }
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
