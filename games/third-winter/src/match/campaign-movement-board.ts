@@ -37,6 +37,9 @@ export interface CampaignGroundMovementBoard {
   traceSupply?(state: Readonly<CampaignTurnState>, side: Side): ReturnType<typeof campaignTraceSupply>
   /** Check stacking, Reserve with hedgehogs, and any TTW obligations at the end of this segment. */
   endBlockers?(state: Readonly<CampaignTurnState>, side: Side): readonly string[] | undefined
+  /** Scenario release rules settled once a ground move lands, e.g. TTW Scenario 9. Returns the counters to unhold. */
+  releases?(settled: Readonly<CampaignTurnState>, side: Side,
+    move: { path: readonly string[]; movers: readonly { id: string; combat: boolean }[] }): readonly string[]
 }
 
 type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost' | 'traceSupply' | 'inTrace'> & {
@@ -68,6 +71,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
   }
   return { map: inputs.map, railNetwork: inputs.railNetwork, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    releases: inputs.releases,
     inTrace: inputs.inTrace ?? ((state, id, hex) => {
       const side = state.counters[id]?.side
       const trace = side && traceSupply?.(state, side)

@@ -62,7 +62,7 @@ type OpenRailPosition = Extract<ReturnType<typeof railPosition>, { ok: true }>
 function boardingChoice(state: Readonly<CampaignTurnState>, id: string, from: string, { rail, ground, position }: OpenRailPosition) {
   const current = position.friendly.get(id)
   const repair = current?.profile.combat === true && ground.railNetwork?.isRepairUnit?.(state, id) === true
-  if (current?.hex !== from || (!repair && !rail.ordinaryCargo(state, id)) || state.groundMovement?.railRepairRides?.[id] || position.locked.has(id) ||
+  if (current?.hex !== from || state.counters[id]?.held || (!repair && !rail.ordinaryCargo(state, id)) || state.groundMovement?.railRepairRides?.[id] || position.locked.has(id) ||
     position.ferryPontoons.has(id) || position.engineeringPontoons.has(id)) return undefined
   const counter = state.counters[id]!
   const mode = campaignCounterGroundMode(counter, current.profile.inCombatMode)

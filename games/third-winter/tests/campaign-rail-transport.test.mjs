@@ -217,3 +217,14 @@ test('active conversion needs a combat-face repair unit and obeys raw ZOC and ea
   const held = submit(threatened, { type: 'hold-campaign-ground-zoc', counterId: 'guard' }, config)
   assert.equal(projectCampaignGroundRoute(held, 'axis', one, config).reason, 'rail-conversion-enemy-zoc')
 })
+
+test('a counter held by a scenario release rule can neither board a train nor march', () => {
+  const config = rules()
+  const record = normal(beforeMovement({ foot: land('D12.03', { mode: 'combat' }),
+    corps: land('D12.03', { held: 'ttw-scenario-9:29th-tank-corps' }) }, { axis: { 'D12.3': 3 }, soviet: {} }), config)
+  assert.deepEqual(projectCampaignRailLoading(record, 'axis', 'D12.03', config).counters.map(({ id }) => id), ['foot'])
+  assert.throws(() => submit(record, rail(['D12.03', 'D13.03'], ['corps']), config), /counter-ineligible-for-rail/)
+  assert.throws(() => submit(record, march('corps', 'D13.03'), config), /counter-held/)
+  assert.deepEqual(projectCampaignMatch(record, 'axis', config).movement.heldIds, ['corps'])
+  assert.ok(!projectCampaignMatch(record, 'axis', config).movement.availableIds.includes('corps'))
+})

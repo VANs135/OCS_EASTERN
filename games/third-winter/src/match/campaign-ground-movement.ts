@@ -58,6 +58,7 @@ function inspect(state: Readonly<CampaignTurnState>, side: Side, board?: Campaig
 function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { id, mode }: CampaignGroundMover) {
   const current = position.friendly.get(id)
   if (!current) return refuse('choose-friendly-counter')
+  if (state.counters[id]?.held) return refuse('counter-held')
   if (position.stopped.has(id) || position.locked.has(id)) return refuse('counter-cannot-spend-mp')
   if (position.ferryPontoons.has(id)) return refuse('pontoon-has-active-ferry')
   if (position.engineeringPontoons.has(id)) return refuse('pontoon-committed-to-engineering')
@@ -125,18 +126,35 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
       stepsLeft, railWork: work.size ? [...work.entries()] : undefined,
       ownBridgeDeparture: formerPontoonBridge(state, proposed, id, hex, profile) })
   }
-  return planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
+  const march = planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
+  // The route and the kind of each mover are kept for the scenario rules that settle after the move.
+  return march.ok ? { ...march, route, movers: members.map(({ id, combat }) => ({ id, combat })) } : march
+}
+
+/** Drop the scenario hold of the released counters. A release lasts for the rest of the game. */
+export function releaseCampaignCounters(state: Readonly<CampaignTurnState>, released: readonly string[]) {
+  if (!released.length) return state
+  const counters = { ...state.counters }
+  for (const id of released) {
+    if (!counters[id]?.held) continue
+    const counter = { ...counters[id]! }
+    delete counter.held
+    counters[id] = counter
+  }
+  return { ...state, counters }
 }
 
 export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>, side: Side, config?: CampaignGroundMovementBoard) {
   if (!movementOpen(state, side) || state.groundMovement?.interruption) return null
   const inspected = inspect(state, side, config)
-  if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], endBlockers: null, crossedReByHexside: {} }
+  if (!inspected.ok) return { configured: false, availableIds: [], zocHoldIds: [], heldIds: [], endBlockers: null, crossedReByHexside: {} }
   const { position } = inspected
-  const uncommitted = [...position.friendly].filter(([id]) => !position.stopped.has(id) && !position.locked.has(id))
+  const heldIds = [...position.friendly.keys()].filter((id) => Boolean(state.counters[id]?.held))
+  const held = new Set(heldIds)
+  const uncommitted = [...position.friendly].filter(([id]) => !position.stopped.has(id) && !position.locked.has(id) && !held.has(id))
   const availableIds = uncommitted.flatMap(([id]) => position.ferryPontoons.has(id) || position.engineeringPontoons.has(id) ? [] : [id])
   const zocHoldIds = uncommitted.flatMap(([id, { hex, profile }]) => profile.combat && position.enemyZoc.has(hex) ? [id] : [])
-  return { configured: true, availableIds, zocHoldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null,
+  return { configured: true, availableIds, zocHoldIds, heldIds, endBlockers: config?.endBlockers?.(state, side)?.slice() ?? null,
     crossedReByHexside: { ...state.groundMovement?.crossedReByHexside } }
 }
 
@@ -168,7 +186,7 @@ export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, 
   if (action.type === 'move-campaign-ground') {
     const planned = planMove(state, side, action, config)
     if (!planned.ok) throw new Error(`Campaign ground movement: ${planned.reason}`)
-    return planned.settled
+    return releaseCampaignCounters(planned.settled, config?.releases?.(planned.settled, side, { path: planned.route, movers: planned.movers }) ?? [])
   }
   if (action.type === 'complete-campaign-ground-movement') {
     const inspected = inspect(state, side, config)

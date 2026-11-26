@@ -59,6 +59,8 @@ export interface CampaignCounter {
   exploiting?: boolean
   fueled?: boolean
   mode?: 'combat' | 'move' | 'reserve' | 'strat'
+  /** Scenario release rule, e.g. TTW Scenario 9. The counter may not move while a reason is present. */
+  held?: string
   outOfSupply?: boolean
   transportPoints?: number
   specialTruckExtender?: { range: number }
