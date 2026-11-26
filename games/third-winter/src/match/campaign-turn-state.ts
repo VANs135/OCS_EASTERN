@@ -119,6 +119,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   luftflotteAirliftUsed?: boolean
   /** TTW §2.3a B：本回合已获益免费移动的 Kessel HQ（每回合仅一个）。 */
   kesselFreeMove?: { turn: number; kesselId: string }
+  /** TTW §2.3c D：各 Army Group HQ 最近一次放 SP 的回合（每 HQ 每回合一次）。 */
+  armyGroupSpPlaced?: Record<string, number>
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -155,6 +157,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-kg.ts').CampaignKgAction
   | import('./campaign-luftflotte.ts').CampaignLuftflotteAction
   | import('./campaign-kessel.ts').CampaignKesselAction
+  | import('./campaign-axis-hq.ts').CampaignAxisHqAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -210,4 +213,6 @@ export interface CampaignTurnContext {
   luftflotteFacts?: (state: Readonly<CampaignTurnState>, targetHex: string) => { hqHex: string; friendlyHex: boolean; airBase: boolean } | undefined
   /** TTW §2.3a B：Kessel 免费移动盘面（资格/步事实/东西向，绑定层注入）。 */
   kesselBoard?: import('./campaign-kessel.ts').CampaignKesselBoard
+  /** TTW §2.3c D：Army Group HQ 放 SP 事实（识别/战斗模式/移动初同格 SP/throw 半径，绑定层注入）。 */
+  axisHqFacts?: (state: Readonly<CampaignTurnState>, id: string) => import('./campaign-axis-hq.ts').CampaignAxisHqFacts | undefined
 }

@@ -10,6 +10,7 @@ import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
 import { createCampaignKg, dissolveCampaignKg } from './campaign-kg.ts'
 import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
 import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
+import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -100,6 +101,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'kessel-campaign-free-move') {
     if (!context.groundMovement || !context.kesselBoard) throw new Error('Campaign Kessel free move requires a movement board and Kessel facts')
     return applyCampaignKesselFreeMove(state, actor, action, context.groundMovement.map, context.kesselBoard)
+  }
+  if (action.type === 'army-group-place-sp') {
+    if (!context.groundMovement || !context.axisHqFacts) throw new Error('Campaign Army Group SP placement requires a movement board and HQ facts')
+    return applyCampaignArmyGroupSp(state, actor, action, context.groundMovement.map, context.axisHqFacts)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
