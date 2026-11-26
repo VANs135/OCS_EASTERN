@@ -13,7 +13,10 @@ import { zocAffectsAction } from '@ocs-eastern/series/zoc'
 import type { Terrain } from '../import/scorpion-map.ts'
 import { combatStrengthFromFacts, combatTerrainCategory } from '../ttw/combat-terrain.ts'
 import type { AttackTerrain, CombatClass } from '../ttw/combat-terrain.ts'
-import { armyGroupDestroyedCombatDrm } from '../ttw/combat-special.ts'
+import { armyGroupDestroyedCombatDrm, khersonAttackEligible, volgaAttackEligible, volgaFerryAttackFactor,
+  volgaRetreatEligible, VOLGA_ADVANCE_RE_LIMIT } from '../ttw/combat-special.ts'
+import type { VolgaCombatCrossing } from '../ttw/combat-special.ts'
+import type { Mobility } from '@ocs-eastern/series/ground-map'
 import { applyCampaignCombatLosses } from './campaign-combat-losses.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
 import { campaignCounterGroundMode, campaignGroundPosition } from './campaign-ground-position.ts'
@@ -34,6 +37,15 @@ export interface CampaignCombatProfile {
   /** TTW 1.6d 苏军炮兵师 */
   artilleryDivision: boolean
   attackCapable: boolean
+  /** 移动侧机动类型（Leg/Track/…）；跨伏尔加级河攻击/撤退资格用（1.4c）。 */
+  mobility?: Mobility
+}
+
+/** 1.4c 跨伏尔加级河/赫尔松渡口边事实；bank 为推进计入的河岸标识。 */
+export interface CampaignRiverCrossing {
+  kind: 'volga' | 'kherson'
+  crossing: VolgaCombatCrossing
+  bank: string
 }
 
 export interface CampaignCombatBoard {
@@ -46,6 +58,8 @@ export interface CampaignCombatBoard {
   terrainAt(hex: string): readonly Terrain[] | undefined
   /** 跨河岸进攻时的河流类别；undefined＝该边无河 */
   riverAt?(from: string, to: string): 'minor-river' | 'major-river' | undefined
+  /** 1.4c 跨河事实；无此钩子则不启用伏尔加/赫尔松限制。 */
+  riverCrossing?(state: Readonly<CampaignTurnState>, from: string, to: string): CampaignRiverCrossing | null
   hedgehogAt(state: Readonly<CampaignTurnState>, hex: string): number
   canUseSupply(state: Readonly<CampaignTurnState>, side: Side, unitId: string, key: string, hqId?: string): boolean
   /** 撤退/推进逐格通行性（含天气）；null＝不可通行 */
@@ -168,6 +182,7 @@ function declareCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
       (cursor.phase === 'exploitation' && !board.exploitEligible(state, id))) {
       throw new Error('Each attacker must be eligible, unused and able to enter the target hex')
     }
+    if (profile && !crossingAttackEligible(state, board, id, hex, target, profile)) throw new Error('Unit cannot attack across this river crossing')
   }
   const units = payAttackSupply(state, actor, action, board)
   const all = combatUnits(state, board)
@@ -211,6 +226,7 @@ function declareCampaignOverrun(state: Readonly<CampaignTurnState>, actor: Side,
       board.hasMoved?.(state, id) === true || mp === undefined || mp < 3 || cost === null || cost > 3) {
       throw new Error('Choose eligible stacked attackers with at least 3 MP and an entry costing at most 3')
     }
+    if (profile && !crossingAttackEligible(state, board, id, hex, target, profile)) throw new Error('Unit cannot attack across this river crossing')
     remaining[id] = mp - 3
   }
   const units = payAttackSupply(state, actor, action, board)
@@ -330,10 +346,13 @@ function chooseCampaignCombatTerrain(state: Readonly<CampaignTurnState>, actor: 
     const counter = state.counters[id]!
     const profile = board.combatProfile(state, id)!
     const mode = modeOf(state, id, board)
+    // TTW 1.4c：跨渡轮攻击力 ×¼（完好/修复桥不享渡轮减力）。
+    const crossingFact = board.riverCrossing?.(state, hexOf(state, id, board)!, combat.target)
+    const ferry = attacking && crossingFact?.kind === 'volga' ? volgaFerryAttackFactor(crossingFact.crossing) : 1
     return combatStrengthFromFacts({ attacking, terrain, frozen, supplied, enemyAntiTank, combatClass: profile.combatClass,
       strength: profile.strength, printedRe: profile.printedRe, stepsLost: counter.stepsLost ?? 0, antiTank: profile.antiTank,
       outOfSupply: counter.outOfSupply === true, artilleryDivision: profile.artilleryDivision,
-      attackFactor: mode.attackFactor, defenseFactor: mode.defenseFactor })
+      attackFactor: mode.attackFactor, defenseFactor: mode.defenseFactor }) * ferry
   }
   const attack = combat.attackers.reduce((sum, id) => sum + strengthOf(id, true, attackingTerrain[hexOf(state, id, board)!]!, true, antiTank), 0)
   const defend = combat.defenders.reduce((sum, id) => sum + strengthOf(id, false, action.terrain, combat.defenseSupplied === true, 0), 0)
@@ -422,7 +441,18 @@ function advanceCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
   }
   const counters = { ...state.counters }
   for (const id of action.unitIds) counters[id] = { ...counters[id]!, location: { kind: 'map', hex: combat.target } }
+  // TTW 1.4c：战后推进每条伏尔加级河岸每阶段 ≤3 RE（跨阶段重置）。
+  const ledger = state.volgaAdvance?.phase === state.cursor.phase ? { ...state.volgaAdvance.re } : {}
+  for (const id of action.unitIds) {
+    const crossing = board.riverCrossing?.(state, hexOf(state, id, board)!, combat.target)
+    if (crossing?.kind !== 'volga') continue
+    const re = board.combatProfile(state, id)?.printedRe ?? 0
+    const used = ledger[crossing.bank] ?? 0
+    if (used + re > VOLGA_ADVANCE_RE_LIMIT) throw new Error('Volga bank advance exceeds 3 RE this phase')
+    ledger[crossing.bank] = used + re
+  }
   const advanced = { ...state, counters, combat: null,
+    ...(Object.keys(ledger).length ? { volgaAdvance: { phase: state.cursor.phase, re: ledger } } : {}),
     ...(combat.overrun && state.overrunMarch ? { overrunMarch: { ...state.overrunMarch, enteredHex: true } } : {}) }
   if (board.stackingReAt(advanced, combat.target) > CAMPAIGN_STACKING_LIMIT_RE) throw new Error('Position exceeds stacking limit')
   return advanced
@@ -440,8 +470,27 @@ function retreatNeighbors(origin: string, path: readonly string[], side: Side, c
 
 function passableRetreatStep(state: Readonly<CampaignTurnState>, side: Side, from: string, to: string,
   ids: readonly string[], board: CampaignCombatBoard): boolean {
+  // TTW 1.4c：赫尔松渡口不可撤退；伏尔加仅完好/修复桥或冻结 Leg 可撤。
+  const crossing = board.riverCrossing?.(state, from, to)
+  if (crossing) {
+    if (crossing.kind === 'kherson') return false
+    for (const id of ids) {
+      const mobility = board.combatProfile(state, id)?.mobility
+      if (mobility === undefined || !volgaRetreatEligible(crossing.crossing, mobility)) return false
+    }
+  }
   return ids.every((id) => board.stepCost(state, id, from, to) !== null) &&
     !combatUnits(state, board).some(([unitId, counter]) => counter.side !== side && hexOf(state, unitId, board) === to)
+}
+
+/** TTW 1.4c：跨伏尔加级河/赫尔松渡口攻击资格。 */
+function crossingAttackEligible(state: Readonly<CampaignTurnState>, board: CampaignCombatBoard, id: string,
+  from: string, to: string, profile: CampaignCombatProfile): boolean {
+  const crossing = board.riverCrossing?.(state, from, to)
+  if (!crossing) return true
+  if (profile.mobility === undefined) throw new Error('Combat profile mobility is required for a river crossing')
+  return crossing.kind === 'volga' ? volgaAttackEligible(crossing.crossing, profile.mobility)
+    : khersonAttackEligible(profile.mobility)
 }
 
 function validateRetreatRoute(route: CampaignRetreatPlan & { origin: string }, side: Side, distance: number,

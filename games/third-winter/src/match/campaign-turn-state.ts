@@ -97,6 +97,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   breakdownReturns?: Readonly<Record<string, readonly string[]>>
   /** 突袭移动账本（OCS 8.0）：余量 MP 与是否已进格；null＝已结束。 */
   overrunMarch?: { remaining: Readonly<Record<string, number>>; enteredHex: boolean } | null
+  /** TTW 1.4c：本阶段各伏尔加级河岸已推进 RE（跨阶段重置）。 */
+  volgaAdvance?: { phase: string; re: Record<string, number> }
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
