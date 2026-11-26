@@ -95,3 +95,19 @@ export function clearCampaignCleanupFuel(state: Readonly<CampaignTurnState>, sid
   const headquartersFuel = (state.headquartersFuel ?? []).filter((f) => f.side !== side)
   return { ...state, formationFuel, headquartersFuel }
 }
+
+/** UI 只读投影（与 campaignGroundMovementOptions 同款）：可用燃料来源＋各在图算子燃料状态。
+ *  三法适用性由 UI 选中单位后经 series/fuel `fuelMethodAvailability` 判定；本投影不替代结算入口。 */
+export function campaignFuelOptions(state: Readonly<CampaignTurnState>, side: Side, map: CampaignGroundMap,
+  organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined) {
+  if (!fuelWindowOpen(state, side)) return null
+  const sources = campaignPhysicalSupply(state, side, map, organicFormation)
+  const counters = Object.entries(state.counters)
+    .filter(([, c]) => c.side === side && c.location.kind === 'map')
+    .map(([id, c]) => ({ id, hex: (c.location as { hex: string }).hex, isHq: c.kind === 'hq',
+      fueled: c.fueled === true, bulkCovered: campaignHasBulkFuel(state, id),
+      formation: organicFormation?.(state, id) ?? null }))
+  return { configured: true as const,
+    sources: [...sources.entries()].map(([key, e]) => ({ key, hex: e.hex, tokens: e.tokens, kind: e.source.kind })),
+    counters }
+}

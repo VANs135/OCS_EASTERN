@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import {
-  buyCampaignFuel, campaignHasBulkFuel, campaignUnitFuelReady, clearCampaignCleanupFuel, clearCampaignPhaseFuel,
-  fuelCampaignUnit,
+  buyCampaignFuel, campaignFuelOptions, campaignHasBulkFuel, campaignUnitFuelReady, clearCampaignCleanupFuel,
+  clearCampaignPhaseFuel, fuelCampaignUnit,
 } from '../src/match/campaign-fuel.ts'
 
 // 通规 §12.5：战役燃料绑定——单单位法/编队法/HQ 法、fuelReady、换段与清理清除。
@@ -54,4 +54,19 @@ test('phase change clears single-unit fuel; cleanup clears bulk markers (§12.5c
   const cleaned = clearCampaignCleanupFuel(phaseChanged, 'soviet')
   assert.equal(cleaned.formationFuel.length, 0)
   assert.equal(campaignUnitFuelReady(cleaned, 'u2'), false)
+})
+
+test('fuel options projection exposes sources and per-counter status for the UI', () => {
+  const { record, context } = start({ counters: { u1: land('u1', 'A3.1'), u2: land('u2', 'A3.1') } })
+  const fueled = submit(record, context, { type: 'fuel-campaign-unit', unitId: 'u1', sourceKey: 'dump:A3.1' })
+  const options = campaignFuelOptions(fueled.state, 'soviet', map, context.organicFormation)
+  assert.equal(options.configured, true)
+  assert.deepEqual(options.sources, [{ key: 'dump:A3.1', hex: 'A3.1', tokens: 7, kind: 'dump' }])
+  const u1 = options.counters.find((c) => c.id === 'u1')
+  const u2 = options.counters.find((c) => c.id === 'u2')
+  assert.equal(u1.fueled, true)
+  assert.equal(u2.fueled, false)
+  assert.equal(u2.formation, 'F1')
+  // 非行动方/非移动段窗口关闭。
+  assert.equal(campaignFuelOptions(fueled.state, 'axis', map), null)
 })
