@@ -43,6 +43,9 @@ export interface CampaignGroundMovementBoard {
     move: { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[] }): readonly string[]
   /** TTW §2.3b/c：轴心 Army/Army Group HQ 仅可铁路移动，不得地面 march。该类 HQ 返回 true。 */
   railOnly?(state: Readonly<CampaignTurnState>, id: string): boolean
+  /** TTW §5.0a：移动后的控制点沉降（如最后穿越 VP/城市格的战斗单位归属）。 */
+  afterMove?(state: Readonly<CampaignTurnState>, side: Side,
+    move: { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[] }): Readonly<CampaignTurnState>
 }
 
 type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost' | 'traceSupply' | 'inTrace'> & {
@@ -76,6 +79,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
     entryRequiresResolution: inputs.entryRequiresResolution, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
     releases: inputs.releases,
     railOnly: inputs.railOnly,
+    afterMove: inputs.afterMove,
     inTrace: inputs.inTrace ?? ((state, id, hex) => {
       const side = state.counters[id]?.side
       const trace = side && traceSupply?.(state, side)

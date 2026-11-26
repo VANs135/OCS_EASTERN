@@ -7,6 +7,7 @@ import { campaignEngineeringBoards, type CampaignEngineeringSources } from './ca
 import { campaignMovementProfiles, type CampaignMovementCatalog } from './campaign-movement-profiles.ts'
 import { campaignGeometryHooks, type CampaignGeometrySource } from './campaign-geometry.ts'
 import { campaignPostureHooks, type CampaignPostureSource } from './campaign-posture-boards.ts'
+import { campaignControlRecorder } from './campaign-control.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
@@ -21,6 +22,8 @@ export interface CampaignSessionSources {
   engineering?: CampaignEngineeringSources
   /** TTW §1.7b "HH" 的 trace 判定（缺省不提供 specialHedgehog board）。 */
   specialHedgehog?: import('./campaign-special-hedgehog.ts').CampaignSpecialHedgehogBoard
+  /** TTW §5.0a：VP/城市控制点格集（缺省不写控制点归属）。 */
+  controlSites?: ReadonlySet<string>
 }
 
 /** 组装各板片段。combat.losses 已含 HQ 分类钩子；destroyOnRetreat 复用同一损失面。 */
@@ -39,7 +42,8 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
       postureBenefitAt: posture.postureBenefitAt,
       frontOfHex: posture.frontOfHex,
     },
-    groundMovement: { railOnly: hq.railOnly, profileOf: movement.profileOf, moveProfile: movement.moveProfile },
+    groundMovement: { railOnly: hq.railOnly, profileOf: movement.profileOf, moveProfile: movement.moveProfile,
+      ...(sources.controlSites ? { afterMove: campaignControlRecorder(sources.controlSites) } : {}) },
     railTransport: { hqRail: hq.hqRail },
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
