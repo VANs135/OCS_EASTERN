@@ -90,7 +90,7 @@ export function applyCampaignHqSupplyCarry(state: Readonly<CampaignTurnState>, s
   if (carried < action.tokens) throw new Error('The HQ carries fewer tokens than that')
   dumps[hex] = (dumps[hex] ?? 0) + action.tokens
   return { ...state, supplyDumps: { ...state.supplyDumps, axis: dumps },
-    counters: { ...state.counters, [action.hqId]: { ...counter, carriedSupplyTokens: carried - action.tokens || undefined } } }
+    counters: { ...state.counters, [action.hqId]: { ...counter, carriedSupplyTokens: carried - action.tokens } } }
 }
 
 /** §2.3c D：Army Group HQ 战斗模式每回合一次放 1 SP 到 throw 内任意格。 */

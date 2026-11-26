@@ -38,7 +38,7 @@ test('an Army Group HQ loads at most one SP from the dump it stands on (TTW 2.3c
 test('the HQ drops the carried SP into the hex it stands on (TTW 2.3c D)', () => {
   const loaded = act(game(), { type: 'load-campaign-hq-supply', hqId: 'AG', tokens: 4 })
   const dropped = act(loaded, { type: 'unload-campaign-hq-supply', hqId: 'AG', tokens: 4 })
-  assert.equal(dropped.state.counters.AG.carriedSupplyTokens, undefined)
+  assert.equal(dropped.state.counters.AG.carriedSupplyTokens, 0)
   assert.equal(dropped.state.supplyDumps.axis['10'], 8)
   // cannot drop more than is carried
   assert.throws(() => act(loaded, { type: 'unload-campaign-hq-supply', hqId: 'AG', tokens: 8 }), /fewer tokens/)
@@ -51,6 +51,8 @@ test('carried tokens are a physical supply source that pays like a dump at the H
   assert.equal(sources.get(key).tokens, 4)
   assert.equal(sources.get(key).hex, '10')
   const paid = spendCampaignSupply(loaded.state, 'axis', sources, new Map([[key, 4]]))
-  assert.equal(paid.counters.AG.carriedSupplyTokens, undefined)
+  assert.equal(paid.counters.AG.carriedSupplyTokens, 0)
   assert.equal(paid.supplyDumps.axis['10'], 4)
+  // the exhausted source stays visible (zero tokens, like transport) so already-paid RE coverage can still feed
+  assert.equal(campaignPhysicalSupply(paid, 'axis', map).get(key).tokens, 0)
 })

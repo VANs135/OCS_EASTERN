@@ -19,7 +19,7 @@ export function campaignPhysicalSupply(state: Readonly<CampaignTurnState>, side:
     if (counter.side !== side) continue
     if (counter.location.kind !== 'map') continue
     const carried = counter.carriedSupplyTokens
-    if (carried !== undefined && Number.isSafeInteger(carried) && carried > 0) {
+    if (carried !== undefined && Number.isSafeInteger(carried) && carried >= 0) {
       const hex = map.resolveHex(counter.location.hex)
       if (hex) sources.set(`carried:${id}`, { source: { kind: 'carried', id }, hex, tokens: carried })
     }
@@ -54,8 +54,8 @@ export function spendCampaignSupply(state: Readonly<CampaignTurnState>, side: Si
       counters[id] = { ...counters[id]!, transportCargoTokens: entry.tokens - tokens }
     } else {
       const { id } = entry.source
-      const left = entry.tokens - tokens
-      counters[id] = left ? { ...counters[id]!, carriedSupplyTokens: left } : { ...counters[id]!, carriedSupplyTokens: undefined }
+      // 保留 0 token 的条目，与 transport 一致：feeding.reBySource 已付款但未用完的 RE 余量要靠该源键继续生效。
+      counters[id] = { ...counters[id]!, carriedSupplyTokens: entry.tokens - tokens }
     }
   }
   return { ...state, counters, supplyDumps: { ...state.supplyDumps, [side]: dumps } }
