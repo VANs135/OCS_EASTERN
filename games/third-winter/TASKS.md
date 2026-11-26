@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，《通规专规补全方案》批次 1–13 规则层全部交付并 push；绑定层起步。规则层：姿态/方面军 HQ/边界/口袋 HQ/轴心 HQ/航空队 HQ（批次 10）、RVGK/STE/KG（批次 11）、胜利/罗马尼亚投降（批次 12）、通规 §12.5 燃料移植进 `packages/series/fuel.ts`（批次 13，复用斯摩棱斯克、可选闸门注入）。绑定层（均经正常命令入口结算＋只读 UI 投影）：战役燃料 `campaign-fuel.ts`（单单位/编队/HQ 法、fuelReady、换段/清理清除、`campaignFuelOptions`）、姿态指定＋`campaignFrontPostureOptions`、RVGK 盒 `campaign-rvgk.ts`（入盒≤20/释放≤5/强制出盒≤3、`campaignRvgkOptions`）、KG 战斗群 `campaign-kg.ts`（创建/解散/成员派生/空标记回池、`campaignKgOptions`）；STE 绑定＋投影批次 8 已有。立绑定层通则：每机制留 `*Options` 只读投影供极简 UI。门禁 480 全绿。待决：释放预备永久摘标记需补朝向数据模型（5.7b，权威注释与代码张力已记录）；姿态战斗钩子注入待边界几何 Q07。剩余绑定：HQ 免费加油 12.5e、KG/RVGK 免费加油钩子、HQ 位移/空运窗、RVGK 标记铁路/最低编成计数/盒内 trace、事件效果、VP 计分入口。
+
 - [x] 2026-11-26，批次 6 子机制：§3.4 弹幕标记计时。新增 `spend-campaign-barrage-marker`（仅苏军空/海军炮击环节＋进攻姿态＋Ready），用后入轨 9 回合（复用 `barrageMarkerRecoveryTurn`），`campaignBarrageMarkerReady` 查询，目标几何经 `barrageMarkerTarget` 注入；合成 3 例；门禁 451 全绿。提交 `3275eb6` 已 push。#23 各机制（突袭返回移动/残部/HQ 恢复消费/守势炮击/弹幕标记/推进 3RE 记账）至此结清；真实进格夺取判定属绑定层与批次 12。
 
 - [x] 2026-11-26，接通反应/进击移动窗与预备释放（通规 6.3a/7.0a/11.0a/5.7b，复用 series 模式合法性层）：计数器增 `released` 表示、`campaignCounterGroundMode` 纳入 exploit/released；`movementOpen` 按阶段路由（移动＝阶段玩家、反应＝非阶段玩家释放预备、进击＝阶段玩家进击/释放预备），`movementUnit` 用实际阶段 MA 倍率＋`canMoveInPhase` 逐单位资格；新增 `release-campaign-reserve` 动作（仅反应/进击）；换段/换阶段清除释放时点事实（`clearCampaignReserveRelease` 接 late-turn/exploitation 完成）；模式切换仍限移动阶段。合成 3 例；门禁 448 全绿。提交 `a9e0b1e` 已 push。#23 余弹幕标记计时（§3.4 绑定）与真实进格夺取判定（绑定层/批次 12）。
