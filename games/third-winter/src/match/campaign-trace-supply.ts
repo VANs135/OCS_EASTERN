@@ -1,7 +1,7 @@
 import type { Mobility, StepCost } from '@ocs-eastern/series/ground-map'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { supplyNetwork } from '@ocs-eastern/series/supply-network'
-import type { SupplyNetworkBoard, SupplyNetworkPosition } from '@ocs-eastern/series/supply-network'
+import type { SupplyHeadquarter, SupplyNetworkBoard, SupplyNetworkPosition } from '@ocs-eastern/series/supply-network'
 import { ttwRailGauge } from '../ttw/campaign/rail-gauge.ts'
 import { campaignGroundPosition } from './campaign-ground-position.ts'
 import type { CampaignGroundMap, CampaignGroundProfiles } from './campaign-ground-position.ts'
@@ -17,6 +17,8 @@ export interface CampaignSupplyFacts extends Pick<SupplyNetworkPosition, 'source
   railCanTrace?: SupplyNetworkBoard['railCanTrace']
   /** Work-specific restrictions in addition to current gauge on a normalized network. */
   railTraceBlocked?(from: string, to: string): boolean
+  /** TTW §2.3a A：在图轴心 Kessel HQ 的 selfContained 补给源（仅轴心并入）。 */
+  kesselHeadquarters?: readonly SupplyHeadquarter[]
 }
 
 export interface CampaignSupplyBoard {
@@ -32,7 +34,8 @@ export function campaignTraceSupply(state: Readonly<CampaignTurnState>, side: Si
   if (!ground || (!railNetwork && !facts.railCanTrace)) return undefined
   const sources = [...facts.sources].map((hex) => map.resolveHex(hex))
   const controlled = [...facts.controlled].map((hex) => map.resolveHex(hex))
-  const headquarters = facts.headquarters.map((hq) => ({ ...hq, hex: map.resolveHex(hq.hex) }))
+  const headquarters = [...facts.headquarters, ...(side === 'axis' ? facts.kesselHeadquarters ?? [] : [])]
+    .map((hq) => ({ ...hq, hex: map.resolveHex(hq.hex) }))
   const extenders = (facts.extenders ?? []).filter((unit) => side !== 'soviet' || unit.mobility !== 'truck')
     .map((unit) => ({ ...unit, hex: map.resolveHex(unit.hex) }))
   if (side === 'soviet') {
