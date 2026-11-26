@@ -86,6 +86,10 @@ export interface CampaignCombatBoard {
     context: { attacking: boolean; targetHex: string; crossingRiver: boolean }): number
   /** TTW 2.3c G：Army Group South HQ 被毁待重建 */
   armyGroupDestroyed?(state: Readonly<CampaignTurnState>): boolean
+  /** TTW §2.3b D：被迫撤退即毁的单位（轴心 Army HQ）。返回 true 者撤退开始时即毁，不进撤退路径。 */
+  retreatDestroyed?(state: Readonly<CampaignTurnState>, id: string): boolean
+  /** 撤退即毁结算（绑定层组合 applyCampaignCombatLosses：进死堆＋免费重建记录＋歼灭 VP）。 */
+  destroyOnRetreat?(state: Readonly<CampaignTurnState>, ids: readonly string[]): CampaignTurnState
   /**
    * 进格夺取/控制结算（OCS 进格效应，镜像瓶中蝎 resolveScorpionEntry）：
    * 推进/突袭进格 afterCombat=true，撤退进格 false。由绑定层注入夺取判定；缺省不结算。
@@ -587,7 +591,14 @@ function validateRetreatRoute(route: CampaignRetreatPlan & { origin: string }, s
 function executeCampaignRetreat(state: Readonly<CampaignTurnState>, side: Side, involved: readonly string[],
   distance: number, plans: readonly CampaignRetreatPlan[], combat: CampaignCombat, board: CampaignCombatBoard): CampaignTurnState {
   if (distance === 0 && !plans.length) return state
+  // TTW §2.3b D：被迫撤退即毁的单位（轴心 Army HQ）撤退开始时即毁，不进撤退路径；撤退计划须排除它们。
+  const destroyed = involved.filter((id) => board.retreatDestroyed?.(state, id) === true)
+  if (destroyed.length) {
+    if (!board.destroyOnRetreat) throw new Error('Retreat-destroy settlement is not configured')
+    state = board.destroyOnRetreat(state, destroyed)
+  }
   const expected = involved.filter((id) => hexOf(state, id, board) !== undefined)
+  if (!expected.length) return state
   const all = plans.flatMap((plan) => plan.units)
   if (!distance || !all.length || new Set(all).size !== all.length || expected.some((id) => !all.includes(id))) {
     throw new Error('Give a retreat route for every surviving participant')

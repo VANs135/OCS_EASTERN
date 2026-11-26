@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
+import { applyCampaignCombatLosses } from '../src/match/campaign-combat-losses.ts'
+import { ARMY_HQ_DESTROYED_VP } from '../src/ttw/combat-special.ts'
 
 const hexes = ['A1.1', 'A2.1', 'A3.1', 'A4.1', 'A5.1', 'A6.1']
 const map = {
@@ -178,4 +180,26 @@ test('a multi-step defender takes mandatory losses in place (OCS 9.11)', () => {
   assert.equal(r.state.counters.def.currentRe, 1)
   assert.equal(r.state.counters.def.stepsLost, 2)
   assert.deepEqual(r.state.counters.def.location, { kind: 'map', hex: 'A3.1' })
+})
+
+test('an Axis Army HQ forced to retreat is destroyed instead, with free rebuild and VP (§2.3b D/E)', () => {
+  const hqStepsOf = (state, id) => { const c = state.counters[id]; return c?.location.kind === 'map' ? (c.currentRe ?? 1) : undefined }
+  const lossBoard = { stepsOf: hqStepsOf, reAfterLoss: (s, id, l) => s.counters[id].currentRe - l,
+    hqKindOf: (s, id) => s.counters[id].kind === 'hq' ? 'army' : undefined }
+  const { record, context } = start({ hq: unit('axis', 'A2.1', 'army-hq', { kind: 'hq' }), def: unit('soviet', 'A3.1', 'def') },
+    { table: makeTable('Ao1 DL1o2') })
+  context.combat = { ...context.combat,
+    losses: { stepsOf: hqStepsOf, reAfterLoss: (s, id, l) => s.counters[id].currentRe - l,
+      hqKindOf: (s, id) => s.counters[id].kind === 'hq' ? 'army' : undefined },
+    retreatDestroyed: (state, id) => state.counters[id]?.kind === 'hq' && state.counters[id].side === 'axis',
+    destroyOnRetreat: (state, ids) => applyCampaignCombatLosses(state, new Map(ids.map((id) => [id, hqStepsOf(state, id)])), lossBoard) }
+  let r = toTerrain(record, context, { atk: 'hq' })
+  r = submit(r, context, terrain(), 'soviet')
+  r = submit(r, context, resolve({ retreats: [] }))
+  assert.deepEqual(r.state.counters.hq.location, { kind: 'dead-pile' })
+  assert.equal(r.state.sovietVp, ARMY_HQ_DESTROYED_VP)
+  assert.equal(r.state.hqRecoveries.length, 1)
+  assert.equal(r.state.hqRecoveries[0].kind, 'army')
+  assert.equal(r.state.hqRecoveries[0].result, 'free-rebuild')
+  assert.equal(r.state.combat.attackerRetreated, true)
 })
