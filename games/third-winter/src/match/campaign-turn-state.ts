@@ -25,6 +25,7 @@ import type { CampaignBarrage, CampaignBarrageAction, CampaignBarrageBoard, Camp
 import type { CampaignHqRecovery } from './campaign-combat-losses.ts'
 import type { CampaignCombat, CampaignCombatAction, CampaignCombatBoard } from './campaign-combat.ts'
 import type { CampaignHqRecoveryBoard, PlaceCampaignHqRecovery } from './campaign-hq-recovery.ts'
+import type { CampaignBreakdownAction, CampaignBreakdownBoard } from './campaign-breakdown.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
@@ -91,6 +92,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   combatTargets?: readonly string[]
   /** 本阶段已参战的攻击单位（每单位一次）。 */
   combatAttackers?: readonly string[]
+  /** 已回池拆分算子的物理身份（按定义），供复用以维持池数量上限。 */
+  breakdownReturns?: Readonly<Record<string, readonly string[]>>
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -117,6 +120,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry | TransportCampaignRail
   | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction | CampaignCombatAction
+  | CampaignBreakdownAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
 
 export interface CampaignTurnContext {
@@ -129,6 +133,7 @@ export interface CampaignTurnContext {
   barrage?: CampaignBarrageBoard
   combat?: CampaignCombatBoard
   hqRecovery?: CampaignHqRecoveryBoard
+  breakdown?: CampaignBreakdownBoard
   stePlacement?: CampaignStePlacement
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard

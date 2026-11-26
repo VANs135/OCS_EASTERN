@@ -10,6 +10,7 @@ import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignBarrage } from './campaign-barrage.ts'
 import { applyCampaignCombat } from './campaign-combat.ts'
+import { applyCampaignBreakdown } from './campaign-breakdown.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement, releaseCampaignCounters } from './campaign-ground-movement.ts'
@@ -128,6 +129,9 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     case 'resolve-campaign-combat':
     case 'advance-campaign-combat':
       return applyCampaignCombat(state, actor, action, context.combat)
+    case 'detach-campaign-breakdown':
+    case 'absorb-campaign-breakdown':
+      return applyCampaignBreakdown(state, actor, action, context.breakdown)
     case 'complete-campaign-cleanup':
       return completeCampaignCleanup(state, actor, context)
     case 'complete-campaign-refit': {
