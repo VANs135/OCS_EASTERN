@@ -5,14 +5,25 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
-export interface CampaignPassage { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[] }
+export interface CampaignPassage { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[];
+  placements?: readonly { id: string; hex: string }[] }
 
-/** 地面移动后的控制沉降钩子：有战斗单位随行时，把经过的控制点写到该方名下。 */
+/** 地面移动后的控制沉降钩子：只有战斗单位实际走过的那一段路径才写归属（按各自实际落点裁剪）。 */
 export function campaignControlRecorder(sites: ReadonlySet<string>) {
   return (state: Readonly<CampaignTurnState>, side: Side, move: CampaignPassage): CampaignTurnState => {
-    if (!move.movers.some((mover) => mover.combat)) return state
-    const touched = move.path.filter((hex) => sites.has(hex))
-    if (!touched.length) return state
+    const touched = new Set<string>()
+    for (const mover of move.movers) {
+      if (!mover.combat) continue
+      // 落点是裁剪依据：提前停步、MP 耗尽或中断的单位只记到它真正到达的格（路径含环时取最后一次出现）。
+      const placed = move.placements?.find(({ id }) => id === mover.id)?.hex
+      const counter = state.counters[mover.id]
+      const end = placed ?? (counter?.location.kind === 'map' ? counter.location.hex : undefined)
+      if (end === undefined) continue
+      const last = move.path.lastIndexOf(end)
+      if (last < 0) continue
+      for (const hex of move.path.slice(0, last + 1)) if (sites.has(hex)) touched.add(hex)
+    }
+    if (!touched.size) return state
     const hexControl = { ...state.hexControl }
     for (const hex of touched) hexControl[hex] = side
     return { ...state, hexControl }

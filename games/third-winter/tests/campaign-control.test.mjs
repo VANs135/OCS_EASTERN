@@ -13,7 +13,7 @@ const groundProfile = { combat: true, attackCapable: true, inCombatMode: true, o
   moveMa: 4, moveMobility: 'leg', drawMobility: 'leg', singleTransportPoint: false }
 function context() {
   return { reinforcement, groundMovement: createCampaignOrdinaryMovementBoard({
-    map, profileOf: (state, id) => ({ ...groundProfile, combat: state.counters[id].definition !== 'supply' }),
+    map, profileOf: (state, id) => ({ ...groundProfile, combat: !['supply', 'truck'].includes(state.counters[id].definition) }),
     moveProfile: () => ({ ma: 3, mobility: 'leg', fuelReady: true }), terrainAt: () => ['Open'],
     crossingAt: () => ({ barrier: 'none', routes: [] }), entryRequiresResolution: () => false,
     inTrace: () => true, afterMove: campaignControlRecorder(sites),
@@ -36,10 +36,18 @@ test('a combat unit moving through a control site claims it, a supply unit does 
   const nonCombat = submit(game({ wagon: unit('4', { definition: 'supply', kind: 'transport' }) }),
     { type: 'move-campaign-ground', movers: [{ id: 'wagon' }], path: ['5', '6'] })
   assert.equal(nonCombat.state.hexControl, undefined)
+  // a combat unit that stops after the first step does not claim the hexes the rest of the stack walks through
+  const split = submit(game({ march: unit('4'),
+    truck: unit('4', { definition: 'truck', kind: 'transport' }) }),
+  { type: 'move-campaign-ground', movers: [{ id: 'march', stopAfter: 1 }, { id: 'truck' }], path: ['5', '6'] })
+  assert.equal(split.state.hexControl['5'], 'axis')
+  assert.equal(split.state.hexControl['6'], undefined)
+  assert.equal(split.state.counters.truck.location.hex, '6')
 })
 
 test('the last side through a site takes it, and a city needs every hex on one side (§5.0a)', () => {
-  const record = campaignControlRecorder(sites)(game({}).state, 'soviet', { path: ['5', '6'], movers: [{ id: 'x', combat: true, stepsLeft: 2 }] })
+  const record = campaignControlRecorder(sites)(game({}).state, 'soviet',
+    { path: ['5', '6'], movers: [{ id: 'x', combat: true, stepsLeft: 2 }], placements: [{ id: 'x', hex: '6' }] })
   assert.equal(record.hexControl['5'], 'soviet')
   const state = { ...record, hexControl: { ...record.hexControl, '4': 'axis' } }
   assert.equal(campaignCityControl(state, ['5', '4']), null)
