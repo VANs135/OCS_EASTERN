@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 10 姿态子机制（§3.3c–e）：纠正"守势"术语为 Regrouping 二分；新建 `ttw/front-posture.ts` 规则层（3/9 回合计时、最多 2 进攻、Regrouping 战斗修改与守势炮击规格、弹幕标记仅进攻）；战斗环接入免防御补给＋战斗步 2 后免费守势炮击＋AR 修正＋攻击补给 2SP/回合上限；新增 `set-campaign-front-posture` 动作（增援阶段开始/末窗口）与 `campaignMustLeaveOffensiveFronts` 义务查询。合成 9 项用例（规则层 3＋战斗 3＋动作 3）；门禁 445 全绿。提交 `f7e09b7`/`9d2fb2e`/`44d3367` 已 push。边界/编属/指挥半径与弹幕标记计时待后续。
+
 - [x] 2026-11-26，批次 6 子机制：G15 战斗/炮击表实值导入。核实通规 v4.3 实值表已随库提交（ocs-v43-crt/barrage/facility.json，PDF 抽取脚本产物），新建 `import/campaign-tables.ts` 结构校验导入（不改写表值）；合成 3 项用例对实值全格做 crtLookup→parseCombatResult 可用性遍历、炮击列成本与掷骰码校验、畸形表拒绝；门禁 436 条全绿。提交 `b7dfbc5` 已 push。绑定层经 loadCampaignTables 注入实值随 session 接通。
 
 - [x] 2026-11-26，批次 6 子机制：进格夺取钩子。战斗环增 `resolveEntry`（镜像瓶中蝎 resolveScorpionEntry），推进/突袭进格 afterCombat=true、撤退进格 false，绑定层注入夺取/控制结算；合成 2 项用例以 series capturedAmount 验证调用时机与补给点夺取记账；门禁 433 条全绿。提交 `d841d45` 已 push。真实夺取判定随绑定层与批次 12 控制点接通。
