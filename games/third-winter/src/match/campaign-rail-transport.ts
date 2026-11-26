@@ -146,7 +146,13 @@ function planRailTransport(state: Readonly<CampaignTurnState>, side: Side, actio
   if (!Number.isSafeInteger(supplyTokens) || supplyTokens < 0 || (!counterIds.length && !supplyTokens) ||
     selected.size !== counterIds.length || flips.size !== moveFaceIds.length || moveFaceIds.some((id) => !selected.has(id))) return refuse('invalid-cargo')
   if (supplyTokens > unlockedSupply(state, side, from)) return refuse('rail-supply-unavailable')
-  for (const id of counterIds) if (rail?.exitRefusal?.(state, id, from, to)) return refuse('fortress-city-no-exit')
+  for (const id of counterIds) {
+    let stepFrom = from
+    for (const hex of path.slice(1)) {
+      if (rail?.exitRefusal?.(state, id, stepFrom, hex)) return refuse('fortress-city-no-exit')
+      stepFrom = hex
+    }
+  }
   const cargo: RailCargo[] = supplyTokens ? [{ kind: 'sp', amount: supplyTokens / tokensPerSp }] : []
   const passengers = []
   for (const id of counterIds) {
