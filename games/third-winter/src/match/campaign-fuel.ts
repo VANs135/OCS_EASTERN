@@ -5,17 +5,29 @@
 import { bulkFuelCost, singleUnitFuelCost } from '@ocs-eastern/series/ground-logistics'
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide } from '@ocs-eastern/series/turn'
+import { campaignHexesWithin } from '../ttw/campaign/hex-range.ts'
 import type { CampaignGroundMap } from './campaign-ground-position.ts'
 import { campaignPhysicalSupply, spendCampaignSupply } from './campaign-supply-ledger.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignFormationFuel = { side: Side; formation: string; recipients: readonly string[] }
-export type CampaignHeadquartersFuel = { side: Side; id: string; used?: { turn: number; phasing: Side; phase: string; hex: string } }
+export type CampaignHeadquartersFuel = { side: Side; id: string; used?: { turn: number; phasing: Side; phase: string; hex: string }
+  /** 12.5e：投递格内获得燃料的独立单位。 */
+  recipients?: readonly string[] }
 export type CampaignFuelPayment = { key: string; tokens: number }
 export type CampaignFuelAction =
   | { type: 'fuel-campaign-formation'; formation: string; headquartersId?: string; payments: readonly CampaignFuelPayment[] }
-  | { type: 'fuel-campaign-headquarters'; headquartersId: string; payments: readonly CampaignFuelPayment[] }
+  | { type: 'fuel-campaign-headquarters'; headquartersId: string; payments: readonly CampaignFuelPayment[]
+    /** 12.5e：HQ 法投到 throw 内一格，覆盖该格独立单位；缺省只覆盖 HQ 自己。 */
+    deliveryHex?: string }
   | { type: 'fuel-campaign-unit'; unitId: string; sourceKey: string }
+
+export interface CampaignHeadquartersFuelHooks {
+  /** 12.5e：HQ 的 throw 半径（格）。 */
+  throwRange?(state: Readonly<CampaignTurnState>, id: string): number | undefined
+  /** 通规 3.2f：该单位是否为独立单位（绑定层按编队归属与印值判定）。 */
+  independent?(state: Readonly<CampaignTurnState>, id: string): boolean
+}
 
 function fuelWindowOpen(state: Readonly<CampaignTurnState>, side: Side): boolean {
   const cursor = state.cursor
@@ -33,7 +45,8 @@ const totalTokens = (payments: readonly CampaignFuelPayment[]) => payments.reduc
 /** 12.5c-A/B：编队法/HQ 法付 1 SP（bulkFuelCost tokens），落编队/HQ 燃料标记。 */
 export function buyCampaignFuel(state: Readonly<CampaignTurnState>, side: Side,
   action: Extract<CampaignFuelAction, { type: 'fuel-campaign-formation' | 'fuel-campaign-headquarters' }>,
-  map: CampaignGroundMap, organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined): CampaignTurnState {
+  map: CampaignGroundMap, organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined,
+  hooks?: CampaignHeadquartersFuelHooks): CampaignTurnState {
   if (!fuelWindowOpen(state, side)) throw new Error('Fuel is paid in the active movement segment')
   if (totalTokens(action.payments) !== bulkFuelCost) throw new Error('Bulk fuel costs 1 SP')
   const sources = campaignPhysicalSupply(state, side, map, organicFormation)
@@ -41,8 +54,25 @@ export function buyCampaignFuel(state: Readonly<CampaignTurnState>, side: Side,
   if (action.headquartersId !== undefined && (!hq || hq.kind !== 'hq' || hq.side !== side)) throw new Error('Choose a friendly HQ')
   if (action.type === 'fuel-campaign-headquarters') {
     if (!hq || state.headquartersFuel?.some(({ id }) => id === action.headquartersId)) throw new Error('Choose an unfueled friendly HQ')
+    let recipients: string[] = []
+    if (action.deliveryHex !== undefined) {
+      if (hq.location.kind !== 'map') throw new Error('The HQ must be on the map to throw fuel')
+      const radius = hooks?.throwRange?.(state, action.headquartersId)
+      if (radius === undefined) throw new Error('The HQ throw range is unavailable')
+      const delivery = map.resolveHex(action.deliveryHex)
+      const reach = campaignHexesWithin(map, map.resolveHex(hq.location.hex) ?? hq.location.hex, radius)
+      if (!delivery || !reach.includes(delivery)) throw new Error('Fuel is delivered within the HQ throw range')
+      const moved = new Set(state.groundMovement?.moved ?? [])
+      recipients = Object.entries(state.counters)
+        .filter(([id, c]) => c.side === side && c.location.kind === 'map' && map.resolveHex(c.location.hex) === delivery &&
+          hooks?.independent?.(state, id) === true)
+        .map(([id]) => id)
+      const early = recipients.find((id) => moved.has(id))
+      if (early) throw new Error('12.5e：独立单位必须先确定投递位置再移动')
+    }
     const paid = spendCampaignSupply(state, side, sources, spendingOf(action.payments))
-    return { ...paid, headquartersFuel: [...(state.headquartersFuel ?? []), { side, id: action.headquartersId }] }
+    return { ...paid, headquartersFuel: [...(state.headquartersFuel ?? []),
+      { side, id: action.headquartersId, ...(recipients.length ? { recipients } : {}) }] }
   }
   if (!action.formation || state.formationFuel?.some((f) => f.formation === action.formation && f.side === side)) {
     throw new Error('Choose a formation without an active formation fuel marker')
@@ -73,7 +103,7 @@ export function fuelCampaignUnit(state: Readonly<CampaignTurnState>, side: Side,
 
 export function campaignHasBulkFuel(state: Pick<CampaignTurnState, 'formationFuel' | 'headquartersFuel'>, unitId: string): boolean {
   return state.formationFuel?.some(({ recipients }) => recipients.includes(unitId)) === true ||
-    state.headquartersFuel?.some(({ id }) => id === unitId) === true
+    state.headquartersFuel?.some(({ id, recipients }) => id === unitId || recipients?.includes(unitId) === true) === true
 }
 /** moveProfile 的 fuelReady 口径：已单单位加油或受编队/HQ 标记覆盖。 */
 export function campaignUnitFuelReady(state: Readonly<CampaignTurnState>, unitId: string): boolean {

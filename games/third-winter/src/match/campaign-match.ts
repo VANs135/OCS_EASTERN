@@ -78,7 +78,8 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'spend-campaign-barrage-marker') return applyCampaignBarrageMarker(state, actor, action, context)
   if (action.type === 'fuel-campaign-formation' || action.type === 'fuel-campaign-headquarters') {
     if (!context.groundMovement) throw new Error('Campaign fuel requires a movement board')
-    return buyCampaignFuel(state, actor, action, context.groundMovement.map, context.organicFormation)
+    return buyCampaignFuel(state, actor, action, context.groundMovement.map, context.organicFormation,
+      { throwRange: context.hqThrowRange, independent: context.hqFuelIndependent })
   }
   if (action.type === 'fuel-campaign-unit') {
     if (!context.groundMovement) throw new Error('Campaign fuel requires a movement board')

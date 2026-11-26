@@ -253,6 +253,10 @@ export interface CampaignTurnContext {
   kesselBoard?: import('./campaign-kessel.ts').CampaignKesselBoard
   /** TTW §2.3c D：Army Group HQ 放 SP 事实（识别/战斗模式/移动初同格 SP/throw 半径，绑定层注入）。 */
   axisHqFacts?: (state: Readonly<CampaignTurnState>, id: string) => import('./campaign-axis-hq.ts').CampaignAxisHqFacts | undefined
+  /** OCS 12.5e：HQ 法燃料的 throw 半径（绑定层注入；缺省则无法投到独立单位）。 */
+  hqThrowRange?: (state: Readonly<CampaignTurnState>, id: string) => number | undefined
+  /** 通规 3.2f：该单位是否为独立单位（HQ 法覆盖判定，绑定层注入）。 */
+  hqFuelIndependent?: (state: Readonly<CampaignTurnState>, id: string) => boolean
   /** OCS 16.0b–c / 13.8d：工事劳动盘面（地图/工人事实/付款可达/上限，绑定层注入）。 */
   hedgehogWork?: import('./campaign-hedgehogs.ts').CampaignHedgehogBoard
   /** TTW §2.4a：要塞宣告盘面（城市归属/敌近/池中要塞/罗马尼亚境内，绑定层注入）。 */
