@@ -3,6 +3,7 @@ import test from 'node:test'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignKesselPlacementOptions, scheduleCampaignKesselReturn, KESSEL_RETURN_TURNS } from '../src/match/campaign-kessel-placement.ts'
+import { applyCampaignCombatLosses } from '../src/match/campaign-combat-losses.ts'
 
 const friendlyCombatAt = (s, hex) => Object.values(s.counters).some((c) =>
   c.side === 'axis' && c.kind === 'land' && c.location.kind === 'map' && c.location.hex === hex && c.mode === 'combat')
@@ -66,4 +67,19 @@ test('destruction schedules a return from the dead pile; UI projection separates
   assert.deepEqual(back.state.counters.kessel.location, { kind: 'map', hex: '10' })
   // Soviet side gets no Axis Kessel projection
   assert.equal(campaignKesselPlacementOptions(game().state, 'soviet', board), null)
+})
+
+test('a destroyed Kessel HQ goes to the dead pile and schedules a three-turn return, no VP (§2.3a)', () => {
+  const record = game({ kind: 'map', hex: '10' }, 2)
+  record.state.counters.kessel = { ...record.state.counters.kessel, currentRe: 1 }
+  const lossBoard = {
+    stepsOf: (s, id) => s.counters[id].location.kind === 'map' ? (s.counters[id].currentRe ?? 1) : undefined,
+    reAfterLoss: (s, id, l) => s.counters[id].currentRe - l,
+    isKesselHq: (s, id) => id === 'kessel',
+  }
+  const next = applyCampaignCombatLosses(record.state, new Map([['kessel', 1]]), lossBoard)
+  assert.deepEqual(next.counters.kessel.location, { kind: 'dead-pile' })
+  assert.equal(next.kesselReturn.kessel, 2 + KESSEL_RETURN_TURNS)
+  assert.equal(next.sovietVp ?? 0, 0)
+  assert.equal(next.hqRecoveries.length, 0)
 })

@@ -1,5 +1,6 @@
 import { rollDie } from '@ocs-eastern/series/rng'
 import { ARMY_GROUP_HQ_DESTROYED_VP, ARMY_HQ_DESTROYED_VP, corpsHqRecoveryRoll, remnantGenerationEligible } from '../ttw/combat-special.ts'
+import { KESSEL_RETURN_TURNS } from './campaign-kessel-placement.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 /** TTW 2.4d 残部自动生成事实（绑定层组合 remnantDestinations 与池库存）。 */
@@ -20,6 +21,8 @@ export interface CampaignLossBoard {
   reAfterLoss(state: Readonly<CampaignTurnState>, id: string, losses: number): number | undefined
   /** TTW HQ 类别：歼灭 VP 与免费重建/恢复掷骰（2.3b E/c G/d、5.0a） */
   hqKindOf?(state: Readonly<CampaignTurnState>, id: string): 'army' | 'army-group' | 'corps' | undefined
+  /** TTW 2.3a：Kessel HQ 被毁调度三回合返回（不计歼灭 VP）。 */
+  isKesselHq?(state: Readonly<CampaignTurnState>, id: string): boolean
   /** TTW 2.4d 残部生成（可选；缺省＝不生成）。 */
   remnant?: CampaignRemnantGeneration
 }
@@ -55,6 +58,7 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
   let vp = state.sovietVp ?? 0
   let rng = state.rng
   const recoveries = [...(state.hqRecoveries ?? [])]
+  const kesselReturn = { ...(state.kesselReturn ?? {}) }
   for (const [id, steps] of allocation) {
     const counter = Object.hasOwn(counters, id) ? counters[id] : undefined
     const remaining = counter?.location.kind === 'map' ? board.stepsOf(state, id) : undefined
@@ -81,6 +85,8 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
         die: rolled.value, turn: state.turn, availableTurn: nextAxisReinforcementTurn(state) })
     }
     counters[id] = { ...counter, location: { kind: 'dead-pile' }, currentRe: 0, outOfSupply: false }
+    // TTW 2.3a：Kessel HQ 被毁调度三回合返回（离图池/死堆期满后再放置），不计歼灭 VP。
+    if (counter.kind === 'hq' && board.isKesselHq?.(state, id)) kesselReturn[id] = state.turn + KESSEL_RETURN_TURNS
     // TTW 2.4d：16-4-3 步兵师战斗损失最后一步 ⇒ 池有余且落点合法时自动生成残部营，继承指示物与模式。
     const remnant = board.remnant
     if (remnant && counter.location.kind === 'map' && remnant.isParentDivision(state, id)) {
@@ -93,5 +99,5 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
       }
     }
   }
-  return { ...state, counters, rng, sovietVp: vp, hqRecoveries: recoveries }
+  return { ...state, counters, rng, sovietVp: vp, hqRecoveries: recoveries, kesselReturn }
 }
