@@ -9,6 +9,7 @@ import type { CampaignGroundMap } from './campaign-ground-position.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignAxisHqAction = { type: 'army-group-place-sp'; hqId: string; targetHex: string }
+  | { type: 'declare-campaign-army-group-drm'; hqId: string; drm: 1 | -1 }
 export interface CampaignAxisHqFacts {
   isArmyGroupHq: boolean
   combatMode: boolean
@@ -28,9 +29,37 @@ export function campaignAxisHqOptions(state: Readonly<CampaignTurnState>, side: 
   return { groups }
 }
 
+/** §2.3c E：掷骰前任一战斗宣布 Army Group HQ 的 +1/−1 DRM（每游戏回合一次）。 */
+export function applyCampaignArmyGroupDrm(state: Readonly<CampaignTurnState>, side: Side,
+  action: Extract<CampaignAxisHqAction, { type: 'declare-campaign-army-group-drm' }>, map: CampaignGroundMap,
+  facts: (state: Readonly<CampaignTurnState>, id: string) => CampaignAxisHqFacts | undefined): CampaignTurnState {
+  if (side !== 'axis') throw new Error('Only the Axis player may declare the Army Group HQ DRM')
+  if (action.drm !== 1 && action.drm !== -1) throw new Error('The Army Group HQ DRM is +1 or -1')
+  const combat = state.combat
+  if (!combat || combat.roll !== undefined) throw new Error('Declare the Army Group DRM before the combat dice are thrown')
+  if (combat.armyGroupDrm !== undefined) throw new Error('This combat already carries an Army Group HQ DRM')
+  if (state.armyGroupDrmTurn === state.turn) throw new Error('An Army Group HQ DRM was already used this game turn')
+  const counter = state.counters[action.hqId]
+  const info = facts(state, action.hqId)
+  if (!counter || counter.side !== 'axis' || counter.location.kind !== 'map' || !info?.isArmyGroupHq) {
+    throw new Error('Choose an on-map Axis Army Group HQ')
+  }
+  const hqHex = map.resolveHex(info.hqHex)
+  if (!hqHex) throw new Error('The Army Group HQ has no resolvable hex')
+  // 至少一个参战轴心单位在该 HQ 的 throw 半径内（几何口径与 §2.3c D 放 SP 一致）。
+  const axisUnits = [...combat.attackers, ...combat.defenders].filter((id) => state.counters[id]?.side === 'axis')
+  const reach = campaignHexesWithin(map, hqHex, info.throwRadius)
+  const inThrow = axisUnits.some((id) => {
+    const at = state.counters[id]?.location
+    return at?.kind === 'map' && reach.includes(map.resolveHex(at.hex) ?? at.hex)
+  })
+  if (!inThrow) throw new Error('No Axis unit in this combat is within the Army Group HQ throw range')
+  return { ...state, combat: { ...combat, armyGroupDrm: action.drm }, armyGroupDrmTurn: state.turn }
+}
+
 /** §2.3c D：Army Group HQ 战斗模式每回合一次放 1 SP 到 throw 内任意格。 */
 export function applyCampaignArmyGroupSp(state: Readonly<CampaignTurnState>, side: Side,
-  action: CampaignAxisHqAction, map: CampaignGroundMap,
+  action: Extract<CampaignAxisHqAction, { type: 'army-group-place-sp' }>, map: CampaignGroundMap,
   facts: (state: Readonly<CampaignTurnState>, id: string) => CampaignAxisHqFacts | undefined): CampaignTurnState {
   const cursor = state.cursor
   if (!('phasing' in cursor) || cursor.phase !== 'movement' || cursor.phasing !== 'axis' || side !== 'axis' ||

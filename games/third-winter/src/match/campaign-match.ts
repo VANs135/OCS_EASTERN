@@ -12,7 +12,7 @@ import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
 import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
 import { moveCampaignLuftflotte } from './campaign-luftflotte-placement.ts'
 import { moveCampaignRvgkMarker } from './campaign-rvgk-marker.ts'
-import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
+import { applyCampaignArmyGroupDrm, applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
 import { workCampaignHedgehog } from './campaign-hedgehogs.ts'
 import { declareCampaignFortress } from './campaign-fortress.ts'
 import { workCampaignAirfield } from './campaign-airfield.ts'
@@ -118,6 +118,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'army-group-place-sp') {
     if (!context.groundMovement || !context.axisHqFacts) throw new Error('Campaign Army Group SP placement requires a movement board and HQ facts')
     return applyCampaignArmyGroupSp(state, actor, action, context.groundMovement.map, context.axisHqFacts)
+  }
+  if (action.type === 'declare-campaign-army-group-drm') {
+    if (!context.groundMovement || !context.axisHqFacts) throw new Error('Campaign Army Group DRM requires a movement board and HQ facts')
+    return applyCampaignArmyGroupDrm(state, actor, action, context.groundMovement.map, context.axisHqFacts)
   }
   if (action.type === 'work-campaign-hedgehog') {
     if (!context.hedgehogWork) throw new Error('Campaign hedgehog work requires a hedgehog board')

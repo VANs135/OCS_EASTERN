@@ -128,6 +128,8 @@ export interface CampaignCombat {
   overrun?: boolean
   /** TTW §3.3d B：战斗步 2 后对攻击堆的免费守势炮击结果。 */
   defensiveBarrage?: { code: string; loss: number; disorganize: boolean }
+  /** TTW §2.3c E：本场战斗掷骰前宣布的 Army Group HQ +1/−1 DRM。 */
+  armyGroupDrm?: number
 }
 
 export type CampaignCombatAction =
@@ -439,7 +441,8 @@ function chooseCampaignCombatTerrain(state: Readonly<CampaignTurnState>, actor: 
   const defPosture = posture(hexOf(state, combat.defenderLeader, board), combat.attacker === 'axis' ? 'soviet' : 'axis')
   const modifier = modeRating(state, combat.attackerLeader, board) + special(combat.attackerLeader, true) + attPosture.attackerAr -
     modeRating(state, combat.defenderLeader, board) - special(combat.defenderLeader, false) - defPosture.defenderAr +
-    armyGroupDestroyedCombatDrm(combat.attacker === 'axis', board.armyGroupDestroyed?.(state) === true)
+    armyGroupDestroyedCombatDrm(combat.attacker === 'axis', board.armyGroupDestroyed?.(state) === true) +
+    (combat.armyGroupDrm ?? 0)
   let rng = state.rng
   const result = rollRegularCombat(board.table, combatTerrainCategory(action.terrain), attack, defend, modifier, combat.hedgehog, {
     surprise: () => { const a = rollDie(rng); const b = rollDie(a.rng); rng = b.rng; return [a.value, b.value] as const },

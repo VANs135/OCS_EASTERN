@@ -125,6 +125,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   kesselReturn?: Readonly<Record<string, number>>
   /** TTW §2.3c D：各 Army Group HQ 最近一次放 SP 的回合（每 HQ 每回合一次）。 */
   armyGroupSpPlaced?: Record<string, number>
+  /** TTW §2.3c E：Army Group HQ 战斗 DRM 已用的游戏回合（每游戏回合全局一次）。 */
+  armyGroupDrmTurn?: number
   /** OCS 16.0b–c：在图工事标记（hex→归属/等级；null＝已缩减为空）。 */
   hedgehogs?: Readonly<Record<string, import('./campaign-hedgehogs.ts').CampaignHedgehog | null>>
   /** OCS 16.0b：各格本回合是否已建造/缩减（每格每操作每回合一次）。 */
