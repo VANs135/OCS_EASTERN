@@ -4,6 +4,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { CampaignOpeningSession, CampaignOpeningContext } from '../match/campaign-opening-session.ts'
 import { projectCampaignMatch } from './campaign-match-view.ts'
 import { projectCampaignSeat } from './campaign-reinforcement-view.ts'
+import { emptyCampaignReplacementHoldings } from '../match/campaign-reinforcement-state.ts'
 
 function visibleDraws(draws: readonly SetupDrawRecord[], viewer: Side) {
   return draws.filter(({ side }) => side === viewer).map(({ stepId, pool, counterId }) => ({ stepId, pool, counterId }))
@@ -16,7 +17,8 @@ export function projectCampaignSession(record: Readonly<CampaignOpeningSession>,
   const { setup } = state
   const own = projectCampaignSeat({ counters: setup.counters, rng: setup.rng,
     supplyDumps: state.opening.supplyDumps ?? { axis: {}, soviet: {} },
-    withdrawalSupplyDebt: state.opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } }, viewer)
+    withdrawalSupplyDebt: state.opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 },
+    replacementHoldings: emptyCampaignReplacementHoldings() }, viewer)
   return { kind: 'setup' as const, revision, viewer, ...setupDecision(setup, context.setupPlan, viewer, context.setupRules),
     turn: state.opening.turn, date: state.opening.when.date, phasing: null, own, setupDraws: visibleDraws(setup.draws, viewer) }
 }

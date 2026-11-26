@@ -4,16 +4,17 @@ import { returnCampaignBreakout } from './campaign-breakout-returns.ts'
 import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
 import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignReinforcementState } from './campaign-reinforcement-state.ts'
+import { emptyCampaignReplacementSpent } from './campaign-reinforcement-state.ts'
 import type { CampaignReinforcementPhaseAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 import { beginCampaignPontoonPhase } from './campaign-pontoon-phase.ts'
 import { beginCampaignKhersonFerryPhase } from './campaign-kherson-ferry.ts'
 
 /** Give the ordinary reinforcement kernel a view of the current board and its own window. */
 export function campaignReinforcementAtCursor(state: Readonly<CampaignTurnState>): CampaignReinforcementState | null {
-  const { cursor, reinforcement, turn, when, rng, counters, supplyDumps, withdrawalSupplyDebt } = state
+  const { cursor, reinforcement, turn, when, rng, counters, supplyDumps, withdrawalSupplyDebt, replacementHoldings } = state
   if (cursor.phase !== 'reinforcement' || reinforcement?.stage !== 'ordinary') return null
   return { ...reinforcement.window, cursor: { turn, phasing: cursor.phasing, phase: cursor.phase },
-    when, rng, counters, supplyDumps, withdrawalSupplyDebt }
+    when, rng, counters, supplyDumps, withdrawalSupplyDebt, replacementHoldings }
 }
 
 function requireClearBoundary(state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing', context: CampaignTurnContext) {
@@ -35,7 +36,13 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
     if (reinforcement.stage !== 'ordinary' || reinforcement.window.segment !== 'rebuild-consolidate') {
       throw new Error('The rebuild and consolidation window is not active')
     }
-    return { ...state, reinforcement: { stage: 'closing', window: reinforcement.window } }
+    // TTW 1.7a. Bank the unspent Pax/Ally; Air/Eq/SR expire with the window.
+    const award = reinforcement.window.replacementAward
+    const spent = reinforcement.window.replacementSpent ?? emptyCampaignReplacementSpent()
+    const holdings = state.replacementHoldings[actor]
+    const banked = { pax: holdings.pax + (award?.pax ?? 0) - spent.pax, ally: holdings.ally + (award?.ally ?? 0) - spent.ally }
+    return { ...state, replacementHoldings: { ...state.replacementHoldings, [actor]: banked },
+      reinforcement: { stage: 'closing', window: reinforcement.window } }
   }
   if (action.type === 'complete-campaign-reinforcement') {
     if (reinforcement.stage !== 'closing') throw new Error('Campaign reinforcement closing is not active')
@@ -49,6 +56,6 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
   if (!active) throw new Error('Ordinary campaign reinforcement is not open')
   const updated = action.type === 'return-campaign-breakout' ? returnCampaignBreakout(active, actor, action, context.breakoutReturns)
     : applyCampaignReinforcement(active, actor, action, context.reinforcement)
-  const { rng, counters, supplyDumps, withdrawalSupplyDebt, cursor: _cursor, when: _when, ...window } = updated
-  return { ...state, rng, counters, supplyDumps, withdrawalSupplyDebt, reinforcement: { stage: 'ordinary', window } }
+  const { rng, counters, supplyDumps, withdrawalSupplyDebt, replacementHoldings, cursor: _cursor, when: _when, ...window } = updated
+  return { ...state, rng, counters, supplyDumps, withdrawalSupplyDebt, replacementHoldings, reinforcement: { stage: 'ordinary', window } }
 }

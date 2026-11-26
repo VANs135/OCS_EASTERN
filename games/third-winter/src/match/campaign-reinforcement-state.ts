@@ -1,5 +1,6 @@
 import type { InternalStocks } from '@ocs-eastern/series/internal-stocks'
 import type { ReinforcementSegment } from '@ocs-eastern/series/reinforcement'
+import { emptyTtwReplacementHoldings, type TtwReplacementHoldings } from '../ttw/campaign/rebuild.ts'
 import type { DiceRoll, RngState, Side } from '@ocs-eastern/series/state-types'
 import type { Phase } from '@ocs-eastern/series/turn'
 import type { CampaignArrivalSite } from '../ttw/campaign/arrival-sites.ts'
@@ -7,6 +8,7 @@ import type { CampaignReinforcementSchedule } from '../ttw/campaign/reinforcemen
 import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-timing.ts'
 import type { CampaignConsolidationBoard, CampaignConsolidationResult, ConsolidateCampaignUnits } from './campaign-consolidation.ts'
 import type { ExchangeCampaignFormationUnit } from './campaign-formation-exchange.ts'
+import type { CampaignRebuildBoard, CampaignRebuildResult, RebuildCampaignUnit } from './campaign-rebuild.ts'
 
 export interface CampaignSupplyPool {
   kind: 'axis-cities' | 'axis-hq' | 'soviet-supply'
@@ -74,16 +76,36 @@ export interface CampaignBoardState {
   supplyDumps: Readonly<Record<Side, Readonly<Record<string, number>>>>
   /** TTW 1.7c. Debit these tokens from the next supply award for each side. */
   withdrawalSupplyDebt: Readonly<Record<Side, number>>
+  /** TTW 1.7a: Pax/Ally banked from earlier reinforcement phases; Air/Eq/SR never persist. */
+  replacementHoldings: Readonly<Record<Side, TtwReplacementHoldings>>
 }
+
+/** Abstract points spent in the current rebuild ring; the remainder of Pax/Ally banks at ring end. */
+export interface CampaignReplacementSpent {
+  pax: number
+  air: number
+  /** AR values of the Eq points consumed, one entry per point. */
+  eq: readonly number[]
+  ally: number
+}
+
+export const emptyCampaignReplacementSpent = (): CampaignReplacementSpent => ({ pax: 0, air: 0, eq: [], ally: 0 })
+
+export const emptyCampaignReplacementHoldings = (): Record<Side, TtwReplacementHoldings> => ({
+  axis: emptyTtwReplacementHoldings(),
+  soviet: emptyTtwReplacementHoldings(),
+})
 
 export interface CampaignReinforcementWindow {
   settledOrders: readonly string[]
   segment: ReinforcementSegment
   supplyAward?: CampaignSupplyAward
   replacementAward?: CampaignReplacementAward
+  replacementSpent?: CampaignReplacementSpent
   specialReplacements?: readonly CampaignSpecialReplacement[]
   lastConsolidation?: CampaignConsolidationResult
   lastFormationExchange?: Pick<ExchangeCampaignFormationUnit, 'fieldId' | 'replacementId'>
+  lastRebuild?: CampaignRebuildResult
   rolls: readonly CampaignReinforcementRoll[]
 }
 
@@ -108,6 +130,7 @@ export interface CampaignReinforcementContext {
   replacementTable?(state: Readonly<CampaignReinforcementState>, diceTotal: number): CampaignReplacementAward | undefined
   specialReplacementTable?(state: Readonly<CampaignReinforcementState>, face: number): readonly CampaignSpecialReplacement[] | undefined
   consolidation?: CampaignConsolidationBoard
+  rebuild?: CampaignRebuildBoard
 }
 
 export type CampaignReinforcementAction =
@@ -120,3 +143,4 @@ export type CampaignReinforcementAction =
   | { type: 'roll-campaign-special-replacement' }
   | ConsolidateCampaignUnits
   | ExchangeCampaignFormationUnit
+  | RebuildCampaignUnit

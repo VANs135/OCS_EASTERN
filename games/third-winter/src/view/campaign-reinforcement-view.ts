@@ -1,6 +1,7 @@
 import type { DiceRoll, Side } from '@ocs-eastern/series/state-types'
 import { campaignConsolidationOptions } from '../match/campaign-consolidation.ts'
 import { campaignFormationExchangeOptions } from '../match/campaign-formation-exchange.ts'
+import { campaignRebuildOptions } from '../match/campaign-rebuild.ts'
 import { scheduledCampaignReinforcements } from '../match/campaign-reinforcement-actions.ts'
 import { campaignReinforcementStep } from '../match/campaign-reinforcement-flow.ts'
 import type { CampaignBoardState, CampaignCounter, CampaignReinforcementContext, CampaignReinforcementState } from '../match/campaign-reinforcement-state.ts'
@@ -22,7 +23,8 @@ function ownCounter(id: string, { definition, kind, location, active, currentRe,
 export function projectCampaignSeat(state: Readonly<CampaignBoardState>, viewer: Side) {
   const counters = Object.entries(state.counters).flatMap(([id, counter]) =>
     counter.side === viewer ? [ownCounter(id, counter)] : [])
-  return { counters, supplyDumps: { ...state.supplyDumps[viewer] }, withdrawalSupplyDebt: state.withdrawalSupplyDebt[viewer] }
+  return { counters, supplyDumps: { ...state.supplyDumps[viewer] }, withdrawalSupplyDebt: state.withdrawalSupplyDebt[viewer],
+    replacementHoldings: { ...state.replacementHoldings[viewer] } }
 }
 
 /** The caller supplies the authenticated or local seat. The authoritative record stays outside the projection. */
@@ -53,6 +55,7 @@ export function projectCampaignReinforcementActive(state: Readonly<CampaignReinf
     specialReplacements: state.specialReplacements?.slice(),
     consolidation: campaignConsolidationOptions(state, viewer, context),
     formationExchange: campaignFormationExchangeOptions(state, viewer, context),
+    rebuild: campaignRebuildOptions(state, viewer, context),
     rolls: state.rolls.filter(({ side }) => side === viewer).map(({ check, dice }) => ({ check, dice: copyDice(dice) })),
   }
 }

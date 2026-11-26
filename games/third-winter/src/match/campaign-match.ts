@@ -21,12 +21,13 @@ import { applyCampaignReinforcementPhase } from './campaign-reinforcement-phase.
 import { applyCampaignSupplyPhase } from './campaign-supply-phase.ts'
 import { applyCampaignSte } from './campaign-special-truck-extender.ts'
 import type { CampaignTurnAction, CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
+import { emptyCampaignReplacementHoldings } from './campaign-reinforcement-state.ts'
 
 export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, Side>
 
 export type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
   Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' |
-  'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting'>>
+  'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting' | 'replacementHoldings'>>
 
 /** Use a normalized board after scenario setup, or a small board for single-mechanism tests. */
 export function openCampaignMatch(opening: CampaignMatchOpening, seed: number | RngState): CampaignMatch {
@@ -42,7 +43,8 @@ export function openCampaignMatch(opening: CampaignMatchOpening, seed: number | 
   return { revision: 0, receipts: [], state: { ...opening, opening: prescribed, cursor: { phase: 'pre-turn', segment: 'weather' },
     rng, weather: null, weatherHistory: { ...(opening.weatherHistory ?? initialWeatherHistory) },
     preTurnRolls: [], breakoutRolls: [], ferries: opening.ferries ?? [], supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
-    withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 } } }
+    withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 },
+    replacementHoldings: opening.replacementHoldings ?? emptyCampaignReplacementHoldings() } }
 }
 
 export function submitCampaignMatch(record: Readonly<CampaignMatch>, actor: Side,

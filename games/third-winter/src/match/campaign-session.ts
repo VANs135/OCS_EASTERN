@@ -6,6 +6,7 @@ import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-ti
 import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
 import { newCampaignReinforcementWindow } from './campaign-reinforcement-flow.ts'
 import type { CampaignCounter, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementState } from './campaign-reinforcement-state.ts'
+import { emptyCampaignReplacementHoldings } from './campaign-reinforcement-state.ts'
 
 export type CampaignSession = MatchRecord<CampaignReinforcementState, CampaignReinforcementAction, Side>
 
@@ -14,6 +15,7 @@ interface CampaignReinforcementOpening {
   rng?: RngState
   withdrawalSupplyDebt?: Readonly<Record<Side, number>>
   supplyDumps?: CampaignReinforcementState['supplyDumps']
+  replacementHoldings?: CampaignReinforcementState['replacementHoldings']
 }
 
 /** Isolated ordinary reinforcement window for mechanism-level use. */
@@ -23,7 +25,8 @@ export function openCampaignReinforcementSession(turn: number, phasing: Side,
   return { revision: 0, receipts: [], state: { cursor: { turn, phasing, phase: 'reinforcement' },
     when: opening.when, rng: opening.rng ?? createRngState(0), counters, ...newCampaignReinforcementWindow(),
     withdrawalSupplyDebt: opening.withdrawalSupplyDebt ?? { axis: 0, soviet: 0 },
-    supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} } } }
+    supplyDumps: opening.supplyDumps ?? { axis: {}, soviet: {} },
+    replacementHoldings: opening.replacementHoldings ?? emptyCampaignReplacementHoldings() } }
 }
 
 export function submitCampaignSession(record: Readonly<CampaignSession>, actor: Side,
