@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { createCampaignOrdinaryMovementBoard } from '../src/match/campaign-movement-board.ts'
+import { campaignGroundMovementOptions } from '../src/match/campaign-ground-movement.ts'
 import { kirovogradReleaseRule } from '../src/match/kirovograd-release.ts'
 import { newCampaignReinforcementWindow } from '../src/match/campaign-reinforcement-flow.ts'
 import { campaignMapInPlayArea } from '../src/ttw/campaign/play-area.ts'
@@ -268,4 +269,13 @@ test('Axis Army HQ rails as 1 RE and need not detrain at a station; Army Group H
   const moved = submit(record, order, config)
   assert.equal(moved.state.counters.armyHq.location.hex, 'D13.3')
   assert.equal(moved.state.counters.armyHq.mode, 'move')
+})
+
+test('Axis Army/Army Group HQ cannot ground march — rail only (§2.3b/c)', () => {
+  const config = rules({}, { railOnly: (_, id) => id === 'armyHq' || id === 'agHq' })
+  const record = normal(beforeMovement({ armyHq: land('D12.03', { kind: 'hq', mode: 'move' }), foot: land('D12.03') }), config)
+  assert.throws(() => submit(record, march('armyHq', 'D13.03'), config), /hq-rail-only/)
+  assert.ok(!campaignGroundMovementOptions(record.state, 'axis', config.groundMovement).availableIds.includes('armyHq'))
+  // an ordinary unit still marches
+  assert.equal(submit(record, march('foot', 'D13.03'), config).state.counters.foot.location.hex, 'D13.3')
 })

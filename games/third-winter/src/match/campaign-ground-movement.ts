@@ -93,6 +93,7 @@ function proposeMode(state: Readonly<CampaignTurnState>, position: Position, { i
 
 function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<CampaignTurnState>, id: string, combatFace: boolean,
   side: Side, phase: MovementSegmentPhase) {
+  if (board.railOnly?.(proposed, id)) return refuse('hq-rail-only')
   const profile = board.moveProfile(proposed, id)
   if (!profile || !Number.isFinite(profile.ma) || profile.ma <= 0) return refuse('no-movement-allowance')
   if (!profile.fuelReady) return refuse('needs-fuel')
@@ -204,7 +205,7 @@ export function campaignGroundMovementOptions(state: Readonly<CampaignTurnState>
   const phase = movementSegmentPhase(state, side)!
   const activeSide = 'phasing' in state.cursor ? state.cursor.phasing : side
   const availableIds = uncommitted.flatMap(([id, { profile }]) => {
-    if (position.ferryPontoons.has(id) || position.engineeringPontoons.has(id)) return []
+    if (position.ferryPontoons.has(id) || position.engineeringPontoons.has(id) || config?.railOnly?.(state, id)) return []
     const mode = campaignCounterGroundMode(state.counters[id]!, profile.inCombatMode)
     return canMoveInPhase({ state: mode, side, activeSide }, phase).ok ? [id] : []
   })

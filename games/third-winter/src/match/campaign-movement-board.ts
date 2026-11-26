@@ -41,6 +41,8 @@ export interface CampaignGroundMovementBoard {
    * `stepsLeft` is how far each mover actually advanced along `path`, so a mover that stops early is not credited with the rest. */
   releases?(settled: Readonly<CampaignTurnState>, side: Side,
     move: { path: readonly string[]; movers: readonly { id: string; combat: boolean; stepsLeft: number }[] }): readonly string[]
+  /** TTW §2.3b/c：轴心 Army/Army Group HQ 仅可铁路移动，不得地面 march。该类 HQ 返回 true。 */
+  railOnly?(state: Readonly<CampaignTurnState>, id: string): boolean
 }
 
 type OrdinaryBoardInputs = Omit<CampaignGroundMovementBoard, 'cost' | 'traceSupply' | 'inTrace'> & {
@@ -73,6 +75,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
   return { map: inputs.map, railNetwork: inputs.railNetwork, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
     entryRequiresResolution: inputs.entryRequiresResolution, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
     releases: inputs.releases,
+    railOnly: inputs.railOnly,
     inTrace: inputs.inTrace ?? ((state, id, hex) => {
       const side = state.counters[id]?.side
       const trace = side && traceSupply?.(state, side)
