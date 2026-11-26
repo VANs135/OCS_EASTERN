@@ -130,6 +130,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   /** OCS 16.0b：各格本回合是否已建造/缩减（每格每操作每回合一次）。 */
   hedgehogBuiltAt?: Readonly<Record<string, number>>
   hedgehogReducedAt?: Readonly<Record<string, number>>
+  /** TTW §2.4a：已宣告要塞城市（城市名＋城市连通格＋宣告回合）。 */
+  fortresses?: readonly import('./campaign-fortress.ts').CampaignFortress[]
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -171,6 +173,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-kessel.ts').CampaignKesselAction
   | import('./campaign-axis-hq.ts').CampaignAxisHqAction
   | import('./campaign-hedgehogs.ts').CampaignHedgehogAction
+  | import('./campaign-fortress.ts').CampaignFortressAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -235,4 +238,6 @@ export interface CampaignTurnContext {
   axisHqFacts?: (state: Readonly<CampaignTurnState>, id: string) => import('./campaign-axis-hq.ts').CampaignAxisHqFacts | undefined
   /** OCS 16.0b–c / 13.8d：工事劳动盘面（地图/工人事实/付款可达/上限，绑定层注入）。 */
   hedgehogWork?: import('./campaign-hedgehogs.ts').CampaignHedgehogBoard
+  /** TTW §2.4a：要塞宣告盘面（城市归属/敌近/池中要塞/罗马尼亚境内，绑定层注入）。 */
+  fortressBoard?: import('./campaign-fortress.ts').CampaignFortressBoard
 }
