@@ -35,6 +35,15 @@ export function campaignAirBases(state: Readonly<CampaignTurnState>, side: Side)
   return (state.airBases ?? []).filter((base) => base.side === side).map(({ hex, level }) => ({ hex, level }))
 }
 
+/** refit/整备板 bases 的合并口径：剧本印刷机场在前，本局施工/夺占机场按同格覆盖。 */
+export function campaignOperatingBases(state: Readonly<CampaignTurnState>, side: Side,
+  printed: readonly { hex: string; level: number }[] = []): readonly { hex: string; level: number }[] {
+  const levels = new Map<string, number>()
+  for (const base of printed) levels.set(base.hex, base.level)
+  for (const base of state.airBases ?? []) if (base.side === side) levels.set(base.hex, base.level)
+  return [...levels].map(([hex, level]) => ({ hex, level }))
+}
+
 /** OCS 15.2–4 / 13.8d / TTW §2.2h：机场/跑道施工（单一状态写入入口）。 */
 export function workCampaignAirfield(state: Readonly<CampaignTurnState>, side: Side,
   action: CampaignAirfieldAction, board: CampaignAirfieldBoard): CampaignTurnState {

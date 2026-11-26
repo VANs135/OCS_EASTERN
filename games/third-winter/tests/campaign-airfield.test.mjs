@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
-import { settleCampaignAirstripCapture } from '../src/match/campaign-airfield.ts'
+import { settleCampaignAirstripCapture, campaignOperatingBases } from '../src/match/campaign-airfield.ts'
 
 const map = { resolveHex: (h) => h }
 const board = (patch = {}) => ({ map,
@@ -79,4 +79,13 @@ test('payments must be exact and reachable (OCS 15.2)', () => {
   assert.throws(() => work(game(), { operation: 'build', hex: '10', unitIds: ['A'], payments: [{ hex: '10', tokens: 1 }] }), /exactly 4/)
   const unreachable = board({ canPay: () => false })
   assert.throws(() => work(game(), { operation: 'build', hex: '10', unitIds: ['A'], payments: [{ hex: '10', tokens: 4 }] }, unreachable), /reach/)
+})
+
+test('the refit base list merges printed airfields with the ones built this game', () => {
+  const state = { airBases: [{ hex: '10', side: 'axis', level: 2 }, { hex: '11', side: 'axis', level: 0, strip: 's' },
+    { hex: '12', side: 'soviet', level: 1 }] }
+  const merged = campaignOperatingBases(state, 'axis', [{ hex: '10', level: 1 }, { hex: '13', level: 3 }])
+    .sort((a, b) => a.hex.localeCompare(b.hex))
+  assert.deepEqual(merged, [{ hex: '10', level: 2 }, { hex: '11', level: 0 }, { hex: '13', level: 3 }])
+  assert.deepEqual(campaignOperatingBases(state, 'soviet'), [{ hex: '12', level: 1 }])
 })
