@@ -2,6 +2,8 @@
 // 重建入盒已在 campaign-rebuild.ts / campaign-special-replacement.ts（location.box）。本模块接标记几何、
 // 在图入盒（增援阶段≤20 格战略可达）、移动段首释放（≤5 格）、敌逼强制出盒（≤5 格触发、放≤3 格）与 UI 投影。
 // 战略可达/满编/最低编成维持/独立单位编组等盘面事实由调用方注入（数据驱动），不脑补。
+// 欠出盒义务经 campaignRvgkExitObligations 派生，装配层应并入 groundMovement.endBlockers（如 `rvgk-forced-exit:<box>`），
+// 使移动段不能在义务未履行时结束。
 
 import {
   RVGK_ENTER_DISTANCE, RVGK_FORCED_EXIT_DISTANCE, RVGK_FORCED_EXIT_PLACE_RADIUS, RVGK_RELEASE_DISTANCE,
@@ -15,6 +17,7 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 export type CampaignRvgkAction =
   | { type: 'enter-campaign-rvgk'; counterId: string; box: RvgkBox }
   | { type: 'release-campaign-rvgk'; counterId: string; box: RvgkBox; hex: string }
+  | { type: 'force-exit-campaign-rvgk'; box: RvgkBox; axisCombatHex: string; placements: Readonly<Record<string, string>> }
 
 const markerHex = (state: Readonly<CampaignTurnState>, box: RvgkBox) => state.rvgkMarkers?.[box]
 const within = (map: CampaignGroundMap, center: string | undefined, radius: number, hex: string) =>
@@ -87,4 +90,43 @@ export function forceExitCampaignRvgk(state: Readonly<CampaignTurnState>, map: C
     counters[id] = { ...counter, location: { kind: 'map', hex } }
   }
   return { ...state, counters }
+}
+
+/** §3.5d A：仍欠强制出盒的盒——轴心战斗单位在标记≤5 格且盒内尚有苏军单位（供移动段末阻塞）。 */
+export function campaignRvgkExitObligations(state: Readonly<CampaignTurnState>, map: CampaignGroundMap,
+  isAxisCombatUnit: (state: Readonly<CampaignTurnState>, id: string) => boolean):
+  { box: RvgkBox; axisCombatHex: string }[] {
+  const boxes: RvgkBox[] = ['rvgk-1', 'rvgk-2']
+  const axisHexes = Object.entries(state.counters)
+    .filter(([id, counter]) => counter.side === 'axis' && counter.location.kind === 'map' && isAxisCombatUnit(state, id))
+    .map(([, counter]) => map.resolveHex((counter.location as { hex: string }).hex) ?? (counter.location as { hex: string }).hex)
+  const obligations: { box: RvgkBox; axisCombatHex: string }[] = []
+  for (const box of boxes) {
+    if (!Object.values(state.counters).some((counter) =>
+      counter.side === 'soviet' && counter.location.kind === 'box' && counter.location.box === box)) continue
+    const marker = markerHex(state, box)
+    if (marker === undefined) continue
+    const hit = axisHexes.find((hex) => within(map, marker, RVGK_FORCED_EXIT_DISTANCE, hex))
+    if (hit) obligations.push({ box, axisCombatHex: hit })
+  }
+  return obligations
+}
+
+/** §3.5d A：苏军把被逼近盒内的单位放到标记≤3 格（单一状态写入入口）。 */
+export function applyForceExitCampaignRvgk(state: Readonly<CampaignTurnState>, side: Side,
+  action: Extract<CampaignRvgkAction, { type: 'force-exit-campaign-rvgk' }>, map: CampaignGroundMap,
+  isAxisCombatUnit: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  if (side !== 'soviet') throw new Error('Only the Soviet player places the forced-exit units')
+  const marker = markerHex(state, action.box)
+  if (!marker || !Object.values(state.counters).some((counter) =>
+    counter.side === 'soviet' && counter.location.kind === 'box' && counter.location.box === action.box)) {
+    throw new Error('The named RVGK box holds no Soviet counters')
+  }
+  const axisHex = map.resolveHex(action.axisCombatHex)
+  const axisUnit = Object.entries(state.counters).find(([id, counter]) => counter.side === 'axis' &&
+    counter.location.kind === 'map' && map.resolveHex(counter.location.hex) === axisHex && isAxisCombatUnit(state, id))
+  if (!axisHex || !axisUnit || !within(map, marker, RVGK_FORCED_EXIT_DISTANCE, axisHex)) {
+    throw new Error('The forcing Axis combat unit is not within five hexes of the RVGK marker')
+  }
+  return forceExitCampaignRvgk(state, map, action.box, axisHex, action.placements)
 }

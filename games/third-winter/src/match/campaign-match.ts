@@ -6,7 +6,7 @@ import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
 import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker, turnsInPosture } from '../ttw/front-posture.ts'
 import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
-import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
+import { applyForceExitCampaignRvgk, enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
 import { createCampaignKg, dissolveCampaignKg, rollCampaignKgReaction, placeCampaignKg2T } from './campaign-kg.ts'
 import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
 import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
@@ -93,6 +93,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     const facts = context.rvgkReleaseFacts?.(state, action.counterId)
     if (!facts) throw new Error('RVGK release facts are unavailable')
     return releaseCampaignRvgk(state, actor, action, context.groundMovement.map, facts)
+  }
+  if (action.type === 'force-exit-campaign-rvgk') {
+    if (!context.groundMovement || !context.rvgkAxisCombatUnit) throw new Error('Campaign RVGK forced exit requires a movement board and combat-unit facts')
+    return applyForceExitCampaignRvgk(state, actor, action, context.groundMovement.map, context.rvgkAxisCombatUnit)
   }
   if (action.type === 'create-campaign-kg') {
     if (!context.groundMovement) throw new Error('Campaign KG requires a movement board')

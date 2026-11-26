@@ -8,6 +8,7 @@ import { campaignMovementProfiles, type CampaignMovementCatalog } from './campai
 import { campaignGeometryHooks, type CampaignGeometrySource } from './campaign-geometry.ts'
 import { campaignPostureHooks, type CampaignPostureSource } from './campaign-posture-boards.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
+import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export interface CampaignSessionSources {
   hqCatalog: CampaignHqCatalog
@@ -42,6 +43,8 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
     railTransport: { hqRail: hq.hqRail },
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
+    rvgkAxisCombatUnit: (state: Readonly<CampaignTurnState>, id: string) =>
+      state.counters[id]?.side === 'axis' && sources.geometry.isCombatUnit(state, id),
     ...(engineering ? { hedgehogWork: engineering.hedgehogWork, airfieldWork: engineering.airfieldWork } : {}),
     ...(sources.specialHedgehog ? { specialHedgehog: sources.specialHedgehog } : {}),
   }

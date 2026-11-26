@@ -238,6 +238,8 @@ export interface CampaignTurnContext {
   organicFormation?: (state: Readonly<CampaignTurnState>, id: string) => string | undefined
   /** TTW §3.5c：RVGK 入盒的战略可达判定（绑定层注入）。 */
   rvgkStratReachable?: (state: Readonly<CampaignTurnState>, id: string) => boolean
+  /** TTW §3.5d A：轴心战斗单位判定（强制出盒触发/校验，绑定层注入）。 */
+  rvgkAxisCombatUnit?: (state: Readonly<CampaignTurnState>, id: string) => boolean
   /** TTW §3.5d B：RVGK 释放的盘面事实（满编/最低编成维持/本回合入盒/独立单位编组，绑定层注入）。 */
   rvgkReleaseFacts?: (state: Readonly<CampaignTurnState>, id: string) =>
     { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number; truckOrTrackMa: boolean } | undefined
