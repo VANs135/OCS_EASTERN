@@ -13,6 +13,7 @@ import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
 import { moveCampaignLuftflotte } from './campaign-luftflotte-placement.ts'
 import { moveCampaignRvgkMarker } from './campaign-rvgk-marker.ts'
 import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
+import { workCampaignHedgehog } from './campaign-hedgehogs.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -114,6 +115,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'army-group-place-sp') {
     if (!context.groundMovement || !context.axisHqFacts) throw new Error('Campaign Army Group SP placement requires a movement board and HQ facts')
     return applyCampaignArmyGroupSp(state, actor, action, context.groundMovement.map, context.axisHqFacts)
+  }
+  if (action.type === 'work-campaign-hedgehog') {
+    if (!context.hedgehogWork) throw new Error('Campaign hedgehog work requires a hedgehog board')
+    return workCampaignHedgehog(state, actor, action, context.hedgehogWork)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。

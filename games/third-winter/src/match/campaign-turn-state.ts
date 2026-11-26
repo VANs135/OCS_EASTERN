@@ -125,6 +125,11 @@ export interface CampaignTurnState extends CampaignBoardState {
   kesselReturn?: Readonly<Record<string, number>>
   /** TTW §2.3c D：各 Army Group HQ 最近一次放 SP 的回合（每 HQ 每回合一次）。 */
   armyGroupSpPlaced?: Record<string, number>
+  /** OCS 16.0b–c：在图工事标记（hex→归属/等级；null＝已缩减为空）。 */
+  hedgehogs?: Readonly<Record<string, import('./campaign-hedgehogs.ts').CampaignHedgehog | null>>
+  /** OCS 16.0b：各格本回合是否已建造/缩减（每格每操作每回合一次）。 */
+  hedgehogBuiltAt?: Readonly<Record<string, number>>
+  hedgehogReducedAt?: Readonly<Record<string, number>>
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -165,6 +170,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-luftflotte-placement.ts').CampaignLuftflottePlacementAction
   | import('./campaign-kessel.ts').CampaignKesselAction
   | import('./campaign-axis-hq.ts').CampaignAxisHqAction
+  | import('./campaign-hedgehogs.ts').CampaignHedgehogAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -227,4 +233,6 @@ export interface CampaignTurnContext {
   kesselBoard?: import('./campaign-kessel.ts').CampaignKesselBoard
   /** TTW §2.3c D：Army Group HQ 放 SP 事实（识别/战斗模式/移动初同格 SP/throw 半径，绑定层注入）。 */
   axisHqFacts?: (state: Readonly<CampaignTurnState>, id: string) => import('./campaign-axis-hq.ts').CampaignAxisHqFacts | undefined
+  /** OCS 16.0b–c / 13.8d：工事劳动盘面（地图/工人事实/付款可达/上限，绑定层注入）。 */
+  hedgehogWork?: import('./campaign-hedgehogs.ts').CampaignHedgehogBoard
 }
