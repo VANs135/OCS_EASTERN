@@ -9,6 +9,7 @@ import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.t
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignBarrage } from './campaign-barrage.ts'
+import { applyCampaignCombat } from './campaign-combat.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
 import { applyCampaignGroundMovement, releaseCampaignCounters } from './campaign-ground-movement.ts'
@@ -120,6 +121,13 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     case 'choose-campaign-barrage-terrain':
     case 'assign-campaign-barrage-loss':
       return applyCampaignBarrage(state, actor, action, context.barrage)
+    case 'declare-campaign-combat':
+    case 'defend-campaign-combat':
+    case 'select-campaign-combat-rating':
+    case 'choose-campaign-combat-terrain':
+    case 'resolve-campaign-combat':
+    case 'advance-campaign-combat':
+      return applyCampaignCombat(state, actor, action, context.combat)
     case 'complete-campaign-cleanup':
       return completeCampaignCleanup(state, actor, context)
     case 'complete-campaign-refit': {

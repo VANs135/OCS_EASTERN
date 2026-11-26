@@ -23,6 +23,7 @@ import type { CampaignSupplyPhaseBoard } from './campaign-supply-stock.ts'
 import type { CampaignLateSegment, CompleteCampaignLateSegment } from './campaign-late-turn.ts'
 import type { CampaignBarrage, CampaignBarrageAction, CampaignBarrageBoard, CampaignBarrageRecord } from './campaign-barrage.ts'
 import type { CampaignHqRecovery } from './campaign-combat-losses.ts'
+import type { CampaignCombat, CampaignCombatAction, CampaignCombatBoard } from './campaign-combat.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
@@ -83,6 +84,12 @@ export interface CampaignTurnState extends CampaignBoardState {
   sovietVp?: number
   /** 被毁 HQ 的免费重建/恢复记录，增援环消费（TTW 2.3b E/c G/d）。 */
   hqRecoveries?: readonly CampaignHqRecovery[]
+  /** 进行中的地面战斗（OCS 9.0）；null＝已结算。 */
+  combat?: CampaignCombat | null
+  /** 本阶段已发起战斗的目标格（每格一次）。 */
+  combatTargets?: readonly string[]
+  /** 本阶段已参战的攻击单位（每单位一次）。 */
+  combatAttackers?: readonly string[]
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -108,7 +115,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
 
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry | TransportCampaignRail
-  | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction
+  | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction | CampaignCombatAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
 
 export interface CampaignTurnContext {
@@ -119,6 +126,7 @@ export interface CampaignTurnContext {
   railCleanup?: CampaignRailCleanupBoard
   supplyPhase?: CampaignSupplyPhaseBoard
   barrage?: CampaignBarrageBoard
+  combat?: CampaignCombatBoard
   stePlacement?: CampaignStePlacement
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
