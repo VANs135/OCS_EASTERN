@@ -84,6 +84,12 @@ export interface CampaignCombatBoard {
     context: { attacking: boolean; targetHex: string; crossingRiver: boolean }): number
   /** TTW 2.3c G：Army Group South HQ 被毁待重建 */
   armyGroupDestroyed?(state: Readonly<CampaignTurnState>): boolean
+  /**
+   * 进格夺取/控制结算（OCS 进格效应，镜像瓶中蝎 resolveScorpionEntry）：
+   * 推进/突袭进格 afterCombat=true，撤退进格 false。由绑定层注入夺取判定；缺省不结算。
+   */
+  resolveEntry?(state: Readonly<CampaignTurnState>, side: Side, hex: string, ids: readonly string[],
+    afterCombat: boolean): CampaignTurnState
 }
 
 export interface CampaignRetreatPlan {
@@ -460,7 +466,7 @@ function advanceCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
     ...(Object.keys(ledger).length ? { volgaAdvance: { phase: state.cursor.phase, re: ledger } } : {}),
     ...(combat.overrun && state.overrunMarch ? { overrunMarch: { ...state.overrunMarch, enteredHex: true } } : {}) }
   if (board.stackingReAt(advanced, combat.target) > CAMPAIGN_STACKING_LIMIT_RE) throw new Error('Position exceeds stacking limit')
-  return advanced
+  return board.resolveEntry?.(advanced, actor, combat.target, action.unitIds, true) ?? advanced
 }
 
 /* ── 撤退（OCS 9.12） ─────────────────────────────────────────── */
@@ -571,6 +577,6 @@ function retreatStep(state: Readonly<CampaignTurnState>, side: Side, route: Camp
     }
   }
   const moved = { ...state, counters }
-  if (!loss) return moved
-  return applyCampaignCombatLosses(moved, new Map([[loss, 1]]), board.losses)
+  const settled = loss ? applyCampaignCombatLosses(moved, new Map([[loss, 1]]), board.losses) : moved
+  return board.resolveEntry?.(settled, side, to, moving, false) ?? settled
 }
