@@ -137,6 +137,10 @@ export interface CampaignTurnState extends CampaignBoardState {
   /** OCS 15.2：各格本回合是否已施工/降级（每格每操作每回合一次）。 */
   airfieldBuiltAt?: Readonly<Record<string, number>>
   airfieldReducedAt?: Readonly<Record<string, number>>
+  /** OCS 12.7a：在图延补器（翻转普通运输点数产生；throw 半径 20/10）。 */
+  extenders?: readonly import('./campaign-extender.ts').CampaignExtender[]
+  /** OCS 12.7a：延补器编号计数器（同格多枚唯一）。 */
+  extenderSerial?: number
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -180,6 +184,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-hedgehogs.ts').CampaignHedgehogAction
   | import('./campaign-fortress.ts').CampaignFortressAction
   | import('./campaign-airfield.ts').CampaignAirfieldAction
+  | import('./campaign-extender.ts').CampaignExtenderAction
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -248,4 +253,6 @@ export interface CampaignTurnContext {
   fortressBoard?: import('./campaign-fortress.ts').CampaignFortressBoard
   /** OCS 15.2–4：机场施工盘面（地图/工人/跑道池/付款可达，绑定层注入）。 */
   airfieldWork?: import('./campaign-airfield.ts').CampaignAirfieldBoard
+  /** OCS 12.7a/d/e、5.7f：延补转换盘面（同格运输点数/落盘钩子，绑定层注入）。 */
+  extenderWork?: import('./campaign-extender.ts').CampaignExtenderBoard
 }
