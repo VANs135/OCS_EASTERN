@@ -15,6 +15,7 @@ import { moveCampaignRvgkMarker } from './campaign-rvgk-marker.ts'
 import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
 import { workCampaignHedgehog } from './campaign-hedgehogs.ts'
 import { declareCampaignFortress } from './campaign-fortress.ts'
+import { workCampaignAirfield } from './campaign-airfield.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -124,6 +125,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'declare-campaign-fortress') {
     if (!context.fortressBoard) throw new Error('Campaign fortress declaration requires a fortress board')
     return declareCampaignFortress(state, actor, action, context.fortressBoard)
+  }
+  if (action.type === 'work-campaign-airfield') {
+    if (!context.airfieldWork) throw new Error('Campaign airfield work requires an airfield board')
+    return workCampaignAirfield(state, actor, action, context.airfieldWork)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
