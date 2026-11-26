@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 6 子机制：§3.4 弹幕标记计时。新增 `spend-campaign-barrage-marker`（仅苏军空/海军炮击环节＋进攻姿态＋Ready），用后入轨 9 回合（复用 `barrageMarkerRecoveryTurn`），`campaignBarrageMarkerReady` 查询，目标几何经 `barrageMarkerTarget` 注入；合成 3 例；门禁 451 全绿。提交 `3275eb6` 已 push。#23 各机制（突袭返回移动/残部/HQ 恢复消费/守势炮击/弹幕标记/推进 3RE 记账）至此结清；真实进格夺取判定属绑定层与批次 12。
+
 - [x] 2026-11-26，接通反应/进击移动窗与预备释放（通规 6.3a/7.0a/11.0a/5.7b，复用 series 模式合法性层）：计数器增 `released` 表示、`campaignCounterGroundMode` 纳入 exploit/released；`movementOpen` 按阶段路由（移动＝阶段玩家、反应＝非阶段玩家释放预备、进击＝阶段玩家进击/释放预备），`movementUnit` 用实际阶段 MA 倍率＋`canMoveInPhase` 逐单位资格；新增 `release-campaign-reserve` 动作（仅反应/进击）；换段/换阶段清除释放时点事实（`clearCampaignReserveRelease` 接 late-turn/exploitation 完成）；模式切换仍限移动阶段。合成 3 例；门禁 448 全绿。提交 `a9e0b1e` 已 push。#23 余弹幕标记计时（§3.4 绑定）与真实进格夺取判定（绑定层/批次 12）。
 
 - [x] 2026-11-26，复用斯摩棱斯克通规模式合法性层：核实通用表格（CRT/炮击）已经 series 复用同一 v4.3 权威（G15），无需再接；将斯摩棱斯克 `src/engine/rules/modes.ts` 的通规 5.0–5.10 合法性层（模式切换/预备释放/阶段可动性/朝向翻转/状态不变量/ZOC·运输·工程·刺猬堆叠·战略结束补给派生/数值改写）移植进 `packages/series/src/modes.ts`，作品/剧本中立、专规闸门改注入式（`operationalLimit`），不内置斯摩棱斯克 2.3e/1.5/4.1a；修正已释放预备折回基础面与 MA 倍率。保留旧 API，门禁全绿（series 新增 5 例）。提交 `32c92db` 已 push。反应/进击移动窗接通待下一步（扩展计数器 released/exploit 表示＋阶段路由）。
