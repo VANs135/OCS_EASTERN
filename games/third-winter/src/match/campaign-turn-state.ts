@@ -162,6 +162,7 @@ export type CampaignPreTurnAction =
 export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | ReturnCampaignBreakout | PlaceCampaignHqRecovery
   | RebuildCampaignFromRemnant
   | import('./campaign-kessel-placement.ts').CampaignKesselPlacementAction
+  | import('./campaign-special-hedgehog.ts').PlaceCampaignSpecialHedgehog
   | { type: 'complete-campaign-reinforcement-opening' }
   | { type: 'complete-campaign-rebuilds' }
   | { type: 'complete-campaign-reinforcement' }
@@ -185,6 +186,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | import('./campaign-fortress.ts').CampaignFortressAction
   | import('./campaign-airfield.ts').CampaignAirfieldAction
   | import('./campaign-extender.ts').CampaignExtenderAction
+  | import('./campaign-special-hedgehog.ts').PlaceCampaignSpecialHedgehog
 
 /** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
 export interface SpendCampaignBarrageMarker {
@@ -255,4 +257,6 @@ export interface CampaignTurnContext {
   airfieldWork?: import('./campaign-airfield.ts').CampaignAirfieldBoard
   /** OCS 12.7a/d/e、5.7f：延补转换盘面（同格运输点数/落盘钩子，绑定层注入）。 */
   extenderWork?: import('./campaign-extender.ts').CampaignExtenderBoard
+  /** TTW §1.7b：特殊替换 "HH" 的 trace 盘面（绑定层注入）。 */
+  specialHedgehog?: import('./campaign-special-hedgehog.ts').CampaignSpecialHedgehogBoard
 }

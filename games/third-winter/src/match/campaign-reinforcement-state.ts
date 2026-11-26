@@ -110,6 +110,8 @@ export interface CampaignReinforcementWindow {
   lastFormationExchange?: Pick<ExchangeCampaignFormationUnit, 'fieldId' | 'replacementId'>
   lastRebuild?: CampaignRebuildResult
   lastSpecialRebuild?: CampaignSpecialRebuildResult
+  /** TTW §1.7b：最近一次 "HH" 落成的工事格。 */
+  lastSpecialHedgehog?: import('./campaign-special-hedgehog.ts').CampaignSpecialHedgehogResult
   rolls: readonly CampaignReinforcementRoll[]
 }
 

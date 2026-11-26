@@ -18,6 +18,8 @@ export interface CampaignSessionSources {
   lossBoard: Pick<CampaignLossBoard, 'stepsOf' | 'reAfterLoss'> & Partial<Pick<CampaignLossBoard, 'remnant'>>
   /** 工事/机场施工数据面（工程能力/RE/池/付款可达）；缺省不提供这两块 board。 */
   engineering?: CampaignEngineeringSources
+  /** TTW §1.7b "HH" 的 trace 判定（缺省不提供 specialHedgehog board）。 */
+  specialHedgehog?: import('./campaign-special-hedgehog.ts').CampaignSpecialHedgehogBoard
 }
 
 /** 组装各板片段。combat.losses 已含 HQ 分类钩子；destroyOnRetreat 复用同一损失面。 */
@@ -41,5 +43,6 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
     ...(engineering ? { hedgehogWork: engineering.hedgehogWork, airfieldWork: engineering.airfieldWork } : {}),
+    ...(sources.specialHedgehog ? { specialHedgehog: sources.specialHedgehog } : {}),
   }
 }

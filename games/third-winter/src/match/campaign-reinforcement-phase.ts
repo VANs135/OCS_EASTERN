@@ -2,6 +2,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { returnCampaignBreakout } from './campaign-breakout-returns.ts'
 import { applyCampaignReinforcement } from './campaign-reinforcement-actions.ts'
+import { placeCampaignSpecialHedgehog } from './campaign-special-hedgehog.ts'
 import { placeCampaignHqRecovery } from './campaign-hq-recovery.ts'
 import { placeCampaignKessel, removeCampaignKessel } from './campaign-kessel-placement.ts'
 import { rebuildCampaignFromRemnant } from './campaign-remnants.ts'
@@ -55,6 +56,10 @@ export function applyCampaignReinforcementPhase(state: Readonly<CampaignTurnStat
     return beginCampaignKhersonFerryPhase(engineering, actor, context.groundMovement?.map)
   }
 
+  if (action.type === 'place-campaign-special-hedgehog') {
+    if (!context.specialHedgehog) throw new Error('Campaign special replacement hedgehogs require a trace board')
+    return placeCampaignSpecialHedgehog(state, actor, action, context.specialHedgehog)
+  }
   if (action.type === 'place-campaign-hq-recovery') return placeCampaignHqRecovery(state, actor, action, context.hqRecovery)
   if (action.type === 'rebuild-campaign-from-remnant') return rebuildCampaignFromRemnant(state, actor, action, context.remnantRebuild)
   if (action.type === 'place-campaign-kessel') return placeCampaignKessel(state, actor, action, context.kesselPlacement)
