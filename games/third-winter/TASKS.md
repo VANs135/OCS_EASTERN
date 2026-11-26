@@ -19,6 +19,8 @@
 
 ## 已通过核验
 
+- [x] 2026-11-26，批次 6 子机制：§2.4d 残部生成与重建闭环。共享损失入口 `applyCampaignCombatLosses` 增可选 `remnant` 钩子：16-4-3 步兵师战斗损失最后一步（非损耗/突围）且池有余、落点合法时自动生成残部营——落点经 `remnantDestinations`（恰 2 格以西、开放 Leg 路径、EZOC 可被友军抵消、堆叠 ≤10），继承被毁师指示物与模式。新建 `campaign-remnants.ts`：轴心增援重建窗口花 1 Pax、残部与 Corps/Army HQ 同格时移除残部并重建一步 16-4-3 于残部格，残部删除即回池。合成 4 项用例覆盖生成/继承/池尽/无落点/非母师/非最后一步/重建/同格/Pax/窗口/死堆校验；门禁 419 条全绿。提交 `d26a9bd` 已 push。
+
 - [x] 2026-11-26，批次 6b 核心：全景拆分与吸收。新建 `match/campaign-breakdown.ts`，复用 series `breakdown.ts` 判定。detach 于普通移动开始前窗口：母单位须多步 other 战斗算子且最后一步留存、未开始移动；拆分算子须属母单位显式池（§1.6e 国籍/例外以池分配编码）、1 步、AR≤母单位、池 copies 上限（null＝不限量）；继承模式/DG/进击/断补/内部补给；堆叠上限 10。absorb 须同格同池、模式与标记一致（series 含拆分 AR≥母单位），回池删除物理实例并记 `breakdownReturns` 供身份复用。合成 4 项用例覆盖拆分/吸收/池上限/错池/最后一步/AR/移动门/模式一致/身份复用；门禁 415 条全绿。提交 `33a30e9` 已 push。编成重建（§13.9）、撤退/推进拆组、残部回池（§2.4d）待接。
 
 - [x] 2026-11-26，批次 6 子机制：被毁 HQ 免费重建/Corps 恢复的增援环消费（TTW §2.3b E/c G/d）。新建 `campaign-hq-recovery.ts`，于轴心增援「重建与整编」窗口消费 `hqRecoveries` 的 free-rebuild 记录：集团军 HQ 落任意集团军 HQ 格、集团军群 HQ 落任意友方大/小城市格、军 HQ 掷骰 1–3 落任意集团军/集团军群 HQ 格、4–6 留死堆不免费重建；落点与满步事实由绑定层注入。被毁时按先手顺序记 `availableTurn`（下一个轴心增援回合），未到期拒绝。以 turn 级分支接 `applyCampaignReinforcementPhase`（先例 `complete-campaign-rebuilds`），不改动增援投影。合成 5 项用例覆盖三类落点、非法格、死堆结果、时序、窗口/错方/原子性；门禁 411 条全绿。提交 `3948edb` 已 push。
