@@ -15,7 +15,7 @@ function start({ counters = {}, phase = 'reinforcement', segment } = {}) {
   const opened = openCampaignMatch({ when: { scenarioId: '01', date: '1943-10-05' }, turn: 10, counters, supplyDumps: {} }, 5)
   const record = { ...opened, state: { ...opened.state, cursor: { phase, phasing: 'soviet', first: 'axis' },
     movementSegment: segment, rvgkMarkers: { 'rvgk-1': '0', 'rvgk-2': '0' } } }
-  const releaseFacts = { fullStrength: true, minimumsMaintained: true, enteredThisTurn: false, independent: false, withTankArmyHq: false, independentRe: 0 }
+  const releaseFacts = { fullStrength: true, minimumsMaintained: true, enteredThisTurn: false, independent: false, withTankArmyHq: false, independentRe: 0, truckOrTrackMa: false }
   const context = { reinforcement: { schedule: new Map(), bindings: new Map(), resolveHex: map.resolveHex, arrivalSites: () => [] },
     groundMovement: { map }, rvgkStratReachable: () => true, rvgkReleaseFacts: () => releaseFacts }
   return { record, context }
@@ -37,8 +37,18 @@ test('release places units within 5 hexes at the movement phase start, gated by 
   const released = submit(record, context, { type: 'release-campaign-rvgk', counterId: 'u1', box: 'rvgk-1', hex: '3' })
   assert.deepEqual(released.state.counters.u1.location, { kind: 'map', hex: '3' })
   assert.throws(() => submit(record, context, { type: 'release-campaign-rvgk', counterId: 'u1', box: 'rvgk-1', hex: '8' }), /within 5 hexes/)
-  const notFull = { ...context, rvgkReleaseFacts: () => ({ fullStrength: false, minimumsMaintained: true, enteredThisTurn: false, independent: false, withTankArmyHq: false, independentRe: 0 }) }
+  const notFull = { ...context, rvgkReleaseFacts: () => ({ fullStrength: false, minimumsMaintained: true, enteredThisTurn: false, independent: false, withTankArmyHq: false, independentRe: 0, truckOrTrackMa: false }) }
   assert.throws(() => submit(record, notFull, { type: 'release-campaign-rvgk', counterId: 'u1', box: 'rvgk-1', hex: '3' }), /minimums, strength or independent/)
+})
+
+test('released Truck/Track MA units are fueled for free this phase; Leg units are not (§3.5d B)', () => {
+  const { record, context } = start({ counters: { tank: inBox('tank'), foot: inBox('foot') }, phase: 'movement', segment: 'movement' })
+  const truckFacts = { ...context, rvgkReleaseFacts: (_s, id) => ({ fullStrength: true, minimumsMaintained: true, enteredThisTurn: false,
+    independent: false, withTankArmyHq: false, independentRe: 0, truckOrTrackMa: id === 'tank' }) }
+  const released = submit(record, truckFacts, { type: 'release-campaign-rvgk', counterId: 'tank', box: 'rvgk-1', hex: '3' })
+  assert.equal(released.state.counters.tank.fueled, true)
+  const foot = submit(released, truckFacts, { type: 'release-campaign-rvgk', counterId: 'foot', box: 'rvgk-1', hex: '4' })
+  assert.notEqual(foot.state.counters.foot.fueled, true)
 })
 
 test('forced exit triggers within 5 hexes and places within 3; UI projection lists box sections (§3.5d A)', () => {

@@ -54,7 +54,7 @@ export function enterCampaignRvgk(state: Readonly<CampaignTurnState>, side: Side
 /** §3.5d B：苏军移动阶段开始释放——距标记≤5 格、维持最低编成、满编、本回合未入盒；独立单位随坦克集团军 HQ。 */
 export function releaseCampaignRvgk(state: Readonly<CampaignTurnState>, side: Side,
   action: Extract<CampaignRvgkAction, { type: 'release-campaign-rvgk' }>, map: CampaignGroundMap,
-  facts: { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number }): CampaignTurnState {
+  facts: { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number; truckOrTrackMa: boolean }): CampaignTurnState {
   const cursor = state.cursor
   if (!('phasing' in cursor) || cursor.phase !== 'movement' || cursor.phasing !== 'soviet' || side !== 'soviet' ||
     state.movementSegment !== 'movement') throw new Error('RVGK release is at the start of the Soviet movement phase')
@@ -69,7 +69,9 @@ export function releaseCampaignRvgk(state: Readonly<CampaignTurnState>, side: Si
   if (!rvgkReleaseEligible({ sovietMovementStart: true, within5: true, ...facts })) {
     throw new Error('The release does not meet the RVGK minimums, strength or independent-unit conditions')
   }
-  return { ...state, counters: { ...state.counters, [action.counterId]: { ...counter, location: { kind: 'map', hex: target } } } }
+  // §3.5d B：释放的卡车/履带 MA 单位按单单位法免费加油（只本阶段有效，换段由 clearCampaignPhaseFuel 清）。
+  const released = { ...counter, location: { kind: 'map' as const, hex: target }, ...(facts.truckOrTrackMa ? { fueled: true } : {}) }
+  return { ...state, counters: { ...state.counters, [action.counterId]: released } }
 }
 
 /** §3.5d A：轴心战斗单位进入标记≤5 格 → 盒内全部单位立即放到标记≤3 格（placements 由调用方按盘面给出）。 */

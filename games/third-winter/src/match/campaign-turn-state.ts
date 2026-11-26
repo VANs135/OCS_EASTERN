@@ -206,7 +206,7 @@ export interface CampaignTurnContext {
   rvgkStratReachable?: (state: Readonly<CampaignTurnState>, id: string) => boolean
   /** TTW §3.5d B：RVGK 释放的盘面事实（满编/最低编成维持/本回合入盒/独立单位编组，绑定层注入）。 */
   rvgkReleaseFacts?: (state: Readonly<CampaignTurnState>, id: string) =>
-    { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number } | undefined
+    { fullStrength: boolean; minimumsMaintained: boolean; enteredThisTurn: boolean; independent: boolean; withTankArmyHq: boolean; independentRe: number; truckOrTrackMa: boolean } | undefined
   /** TTW §2.4e：KG 合格单位判定（德军＋卡车/履带 MA，绑定层注入）。 */
   kgEligible?: (state: Readonly<CampaignTurnState>, id: string) => boolean
   /** TTW §2.2b：Luftflotte 空运的 HQ 当前格与目标格分类（绑定层注入）。 */
