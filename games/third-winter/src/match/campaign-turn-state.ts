@@ -105,6 +105,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   frontPostures?: Readonly<Record<string, import('../ttw/front-posture.ts').TtwFrontPostureState>>
   /** TTW §3.3d B：每方面军每回合攻击补给已用 SP（turn 不匹配即视为 0）。 */
   frontAttackSupply?: { turn: number; spent: Readonly<Record<string, number>> }
+  /** TTW §3.4b：各 Front 弹幕标记的恢复回合（缺省视为初始 Ready）；turn≥readyTurn 即 Ready。 */
+  frontBarrageMarkers?: Readonly<Record<string, { readyTurn: number }>>
   trainbusting?: readonly TrainbustingMarker[]
   refittedBases?: readonly string[]
   preTurnRolls: readonly CampaignPreTurnRoll[]
@@ -135,6 +137,14 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | CampaignBreakdownAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
   | SetCampaignFrontPosture
+  | SpendCampaignBarrageMarker
+
+/** TTW §3.4a：空/海军炮击环节花费弹幕标记（须进攻姿态＋Ready）。 */
+export interface SpendCampaignBarrageMarker {
+  type: 'spend-campaign-barrage-marker'
+  front: string
+  targetHex: string
+}
 
 /** TTW §3.3c/d：姿态指定窗口——进攻在苏军增援阶段开始、regrouping 在阶段末。 */
 export interface SetCampaignFrontPosture {
@@ -168,4 +178,6 @@ export interface CampaignTurnContext {
   lateSegmentEndBlockers?: (state: Readonly<CampaignTurnState>, actor: Side, segment: CampaignLateSegment) => readonly string[] | undefined
   cleanupEndBlockers?: (state: Readonly<CampaignTurnState>, side: Side) => readonly string[] | undefined
   roundEnd?: (cleaned: Readonly<CampaignTurnState>) => CampaignRoundEnd | undefined
+  /** TTW §3.4a：弹幕标记目标格几何校验（邻接苏军战斗单位＋已编属 HQ 指挥半径内 throw）；绑定层注入。 */
+  barrageMarkerTarget?: (state: Readonly<CampaignTurnState>, front: string, hex: string) => boolean
 }

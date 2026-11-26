@@ -4,7 +4,8 @@ import { createRngState, verifyRngState } from '@ocs-eastern/series/rng'
 import type { RngState, Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { initialWeatherHistory } from '../ttw/campaign/weather.ts'
-import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive } from '../ttw/front-posture.ts'
+import { canAddOffensive, canDesignateRegrouping, mustLeaveOffensive, mayUseBarrageMarker } from '../ttw/front-posture.ts'
+import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
@@ -62,6 +63,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
   }
   if (action.type === 'set-campaign-front-posture') return applyCampaignFrontPosture(state, actor, action)
+  if (action.type === 'spend-campaign-barrage-marker') return applyCampaignBarrageMarker(state, actor, action, context)
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
   if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
@@ -180,4 +182,28 @@ function applyCampaignFrontPosture(state: Readonly<CampaignTurnState>, actor: Si
 /** §3.3e：进攻满 9 回合必须转 regrouping 的方面军清单（增援阶段末义务预检用）。 */
 export function campaignMustLeaveOffensiveFronts(state: Readonly<CampaignTurnState>): readonly string[] {
   return Object.entries(state.frontPostures ?? {}).filter(([, f]) => mustLeaveOffensive(f, state.turn)).map(([front]) => front)
+}
+
+/** §3.4b：弹幕标记是否 Ready（turn≥恢复回合；缺省初始 Ready）。 */
+export function campaignBarrageMarkerReady(state: Readonly<CampaignTurnState>, front: string): boolean {
+  return state.turn >= (state.frontBarrageMarkers?.[front]?.readyTurn ?? 0)
+}
+
+/** §3.4a：空/海军炮击环节花费弹幕标记（进攻姿态＋Ready）；用后入轨 9 回合（§3.4b）。 */
+function applyCampaignBarrageMarker(state: Readonly<CampaignTurnState>, actor: Side,
+  action: Extract<CampaignTurnAction, { type: 'spend-campaign-barrage-marker' }>, context: CampaignTurnContext): CampaignTurnState {
+  const cursor = state.cursor
+  if (!('phasing' in cursor) || cursor.phase !== 'movement' || state.movementSegment !== 'barrage' ||
+    cursor.phasing !== 'soviet' || actor !== 'soviet') {
+    throw new Error('Barrage markers are spent only in the Soviet air/naval barrage segment')
+  }
+  if (!mayUseBarrageMarker(state.frontPostures?.[action.front])) {
+    throw new Error('Only a front in offensive posture may use its barrage marker')
+  }
+  if (!campaignBarrageMarkerReady(state, action.front)) throw new Error('This barrage marker is not ready')
+  if (context.barrageMarkerTarget && !context.barrageMarkerTarget(state, action.front, action.targetHex)) {
+    throw new Error('The barrage marker target must be adjacent to a Soviet combat unit and within an assigned HQ throw range')
+  }
+  return { ...state, frontBarrageMarkers: { ...state.frontBarrageMarkers,
+    [action.front]: { readyTurn: barrageMarkerRecoveryTurn(state.turn) } } }
 }
