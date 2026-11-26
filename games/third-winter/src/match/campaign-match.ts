@@ -9,7 +9,7 @@ import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.t
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignBarrage } from './campaign-barrage.ts'
-import { applyCampaignCombat } from './campaign-combat.ts'
+import { applyCampaignCombat, resetCampaignCombatLedgers } from './campaign-combat.ts'
 import { applyCampaignBreakdown } from './campaign-breakdown.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
 import { completeCampaignExploitation } from './campaign-exploitation-phase.ts'
@@ -100,7 +100,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       if (!blockers) throw new Error('Campaign movement barrage rules are not configured')
       if (blockers.length) throw new Error('Campaign movement barrage obligations are outstanding')
       const settled = closeCampaignPontoonPhase(state, actor, context.groundMovement)
-      return { ...settled, cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined, supplyPhase: undefined }
+      return { ...resetCampaignCombatLedgers(settled), cursor: advancePlayerTurn(cursor, actor)!, movementSegment: undefined, khersonFerryPhase: undefined, supplyPhase: undefined }
     }
     case 'consolidate-campaign-aircraft':
       return consolidateCampaignAircraft(state, actor, action, context)

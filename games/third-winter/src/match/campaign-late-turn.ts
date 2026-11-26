@@ -1,5 +1,6 @@
 import type { Side } from '@ocs-eastern/series/state-types'
 import { actingSide, advancePlayerTurn } from '@ocs-eastern/series/turn'
+import { resetCampaignCombatLedgers } from './campaign-combat.ts'
 import type { CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignLateSegment = 'movement' | 'shooting' | 'ground-combat'
@@ -29,5 +30,5 @@ export function completeCampaignLateSegment(state: Readonly<CampaignTurnState>, 
   if (blockers.length) throw new Error('Campaign segment obligations are outstanding')
   if (next) return { ...state, lateTurnSegment: next }
   const advanced = advancePlayerTurn(cursor, actor)!
-  return { ...state, cursor: advanced, lateTurnSegment: advanced.phase === 'combat' ? 'shooting' : 'movement' }
+  return { ...resetCampaignCombatLedgers(state), cursor: advanced, lateTurnSegment: advanced.phase === 'combat' ? 'shooting' : 'movement' }
 }

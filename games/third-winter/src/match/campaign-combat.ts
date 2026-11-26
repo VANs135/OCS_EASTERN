@@ -28,6 +28,11 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 /** OCS 4.8 地面堆叠上限（RE）。 */
 export const CAMPAIGN_STACKING_LIMIT_RE = 10
 
+/** 阶段/玩家回合边界清空战斗账本：每阶段每格一次攻击、突袭返回移动窗口、伏尔加推进账本。 */
+export function resetCampaignCombatLedgers(state: Readonly<CampaignTurnState>): CampaignTurnState {
+  return { ...state, combatTargets: [], combatAttackers: [], overrunMarch: null, volgaAdvance: undefined }
+}
+
 export interface CampaignCombatProfile {
   strength: number
   combatClass: CombatClass

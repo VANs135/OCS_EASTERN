@@ -2,6 +2,7 @@ import { cleanupUnitMarkers, removeExpiredTrainbusting } from '@ocs-eastern/seri
 import type { Side } from '@ocs-eastern/series/state-types'
 import { advancePlayerTurn } from '@ocs-eastern/series/turn'
 import { readyCampaignSte } from './campaign-special-truck-extender.ts'
+import { resetCampaignCombatLedgers } from './campaign-combat.ts'
 import type { CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignRoundEnd = { kind: 'continue'; date: string } | { kind: 'ended' }
@@ -18,8 +19,8 @@ export function completeCampaignCleanup(state: Readonly<CampaignTurnState>, side
     const markers = cleanupUnitMarkers(unit, side)
     if (markers) counters[id] = { ...unit, ...markers }
   }
-  const settled = readyCampaignSte({ ...state, counters, trainbusting: removeExpiredTrainbusting(state.trainbusting, side),
-    groundMovement: undefined, cleanup: undefined, reinforcement: undefined })
+  const settled = resetCampaignCombatLedgers(readyCampaignSte({ ...state, counters, trainbusting: removeExpiredTrainbusting(state.trainbusting, side),
+    groundMovement: undefined, cleanup: undefined, reinforcement: undefined }))
   const next = advancePlayerTurn(cursor, side)
   if (next) return { ...settled, cursor: next }
 

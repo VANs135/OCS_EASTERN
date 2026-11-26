@@ -111,6 +111,12 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
     const { hex, profile } = position.friendly.get(id)!
     const prepared = movementUnit(board, proposed, id, profile.inCombatMode)
     if (!prepared.ok) return prepared
+    // OCS 8.1 突袭返回移动：仅突袭参与方可续走， allowance 取突袭余量 MP。
+    const march = state.overrunMarch
+    if (march?.enteredHex) {
+      if (!Object.hasOwn(march.remaining, id)) return refuse('overrun-march-pending')
+      prepared.unit.allowance = march.remaining[id]!
+    }
     const stepsLeft = stopAfter ?? route.length
     if (new Set(railWork.map(({ step }) => step)).size !== railWork.length) return refuse('invalid-rail-work')
     const work = new Map<number, readonly string[]>()
@@ -127,8 +133,19 @@ function planMove(state: Readonly<CampaignTurnState>, side: Side, action: MoveCa
       ownBridgeDeparture: formerPontoonBridge(state, proposed, id, hex, profile) })
   }
   const march = planCampaignGroundMarch(proposed, side, board, { movers: members, path: route, started: false })
+  if (!march.ok) return march
+  let settled = march.settled
+  if (state.overrunMarch?.enteredHex) {
+    const remaining = { ...state.overrunMarch.remaining }
+    for (const placement of march.placements) {
+      if (Object.hasOwn(remaining, placement.id)) remaining[placement.id] = remaining[placement.id]! - placement.spent
+    }
+    settled = { ...settled, overrunMarch: { remaining, enteredHex: true },
+      groundMovement: { ...settled.groundMovement, zocLocks: settled.groundMovement?.zocLocks ?? [],
+        moved: [...new Set([...(settled.groundMovement?.moved ?? []), ...members.map(({ id }) => id)])] } }
+  }
   // The route and the kind of each mover are kept for the scenario rules that settle after the move.
-  return march.ok ? { ...march, route, movers: members.map(({ id, combat, stepsLeft }) => ({ id, combat, stepsLeft })) } : march
+  return { ...march, settled, route, movers: members.map(({ id, combat, stepsLeft }) => ({ id, combat, stepsLeft })) }
 }
 
 /** Drop the scenario hold of the released counters. A release lasts for the rest of the game. */
@@ -174,6 +191,10 @@ export function campaignGroundDestinations(state: Readonly<CampaignTurnState>, s
   const proposed = { ...state, counters: { ...state.counters, [id]: choice.counter } }
   const prepared = movementUnit(board, proposed, id, choice.profile.inCombatMode)
   if (!prepared.ok) return prepared
+  if (state.overrunMarch?.enteredHex) {
+    if (!Object.hasOwn(state.overrunMarch.remaining, id)) return refuse('overrun-march-pending')
+    prepared.unit.allowance = state.overrunMarch.remaining[id]!
+  }
   const spent = state.groundMovement?.railRepairRides?.[id]?.spent ?? 0
   if (spent >= prepared.unit.allowance) return refuse('no-movement-allowance')
   const destinations = campaignMarchDestinations(proposed, side, board, { id, combat: choice.profile.combat, unit: prepared.unit,
@@ -196,7 +217,7 @@ export function applyCampaignGroundMovement(state: Readonly<CampaignTurnState>, 
     if (blockers.length) throw new Error(`Campaign ground movement: ${blockers.join(', ')}`)
     // A German unit may have come within range by rail, breakout or ferry earlier in the segment; settle proximity at its end.
     const settled = releaseCampaignCounters(state, config?.releases?.(state, side, { path: [], movers: [] }) ?? [])
-    return { ...settled, movementSegment: 'barrage' }
+    return { ...settled, movementSegment: 'barrage', overrunMarch: null }
   }
   const options = campaignGroundMovementOptions(state, side, config)
   if (!options?.zocHoldIds.includes(action.counterId)) throw new Error('Campaign ground movement: cannot-hold-zoc')
