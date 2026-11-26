@@ -27,6 +27,34 @@ export function barrageDensity(units: readonly { re: number; formation?: string 
   return total
 }
 
+/**
+ * OCS 10.0 齐射强度合计：多 RE 独立炮兵按实际发射 RE 占印刷 RE 的比例折算强度，
+ * 再乘模式炮击系数；每门炮本阶段已发射 RE 从可用额中扣除。
+ * 非独立 RE 炮兵每阶段只能发射一次（可用额恒 1）。
+ * 资格（射程、阶段、模式）由调用方先行裁定；这里只算强度与发射额。
+ * 来源：第三冬瓶中蝎已验收实现 scorpion-barrage.ts prepareBarrage。
+ */
+export function barrageVolleyStrength(batteries: readonly {
+  id: string
+  strength: number
+  printedRe: number
+  independentRe: boolean
+  remainingSteps: number
+  usedRe: number
+  barrageFactor: number
+  firingRe?: number
+}[]): { strength: number; batteries: readonly { id: string; re: number }[] } {
+  let strength = 0
+  const fired = batteries.map((battery) => {
+    const remaining = (battery.independentRe ? battery.remainingSteps : 1) - battery.usedRe
+    const firing = battery.firingRe ?? remaining
+    if (!Number.isSafeInteger(firing) || firing < 1 || firing > remaining) throw new Error('Select eligible unused artillery RE')
+    strength += battery.strength * firing / (battery.independentRe ? battery.printedRe : 1) * battery.barrageFactor
+    return { id: battery.id, re: firing }
+  })
+  return { strength, batteries: fired }
+}
+
 interface GroundBarrageFacts {
   density: number
   terrain: CrtTerrain

@@ -4,7 +4,7 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import { scorpionHedgehogLevel } from './scorpion-hedgehogs.ts'
 import { scorpionRolls } from './scorpion-reroll.ts'
 import type { ScorpionRoll } from './scorpion-reroll.ts'
-import { barrageColumn, barrageDensity, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
+import { barrageColumn, barrageDensity, barrageVolleyStrength, rollGroundBarrage } from '@ocs-eastern/series/tables/barrage'
 import type { BarrageTable, rollFacilityBarrage } from '@ocs-eastern/series/tables/barrage'
 import { actingSide } from '@ocs-eastern/series/turn'
 import { scorpionHexDistance, scorpionHexId } from '../import/hex-id.ts'
@@ -184,8 +184,7 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
   if (!volley.batteries.length || new Set(volley.batteries.map(({ unitId }) => unitId)).size !== volley.batteries.length) {
     throw new Error('Select one or more distinct artillery counters')
   }
-  let strength = 0
-  const batteries = volley.batteries.map(({ unitId, re }) => {
+  const facts = volley.batteries.map(({ unitId, re }) => {
     const unit = Object.hasOwn(state.units, unitId) ? state.units[unitId] : undefined
     const face = unit?.artillery
     const mode = unit && groundModeEffect(scorpionGroundMode(unit))
@@ -197,12 +196,12 @@ function prepareBarrage(state: Readonly<ScorpionInPlay>, actor: Side, volley: Vo
     }
     const used = fired.filter((battery) => battery.unitId === unitId)
       .reduce((total, battery) => total + battery.re, 0)
-    const remaining = (face.independentRe ? remainingSteps(unit) : 1) - used
-    const firing = re ?? remaining
-    if (!Number.isSafeInteger(firing) || firing < 1 || firing > remaining) throw new Error('Select eligible unused artillery RE')
-    strength += face.strength * firing / (face.independentRe ? unit.printedRe : 1) * mode.barrageFactor
-    return { unitId, re: firing }
+    return { id: unitId, strength: face.strength, printedRe: unit.printedRe, independentRe: Boolean(face.independentRe),
+      remainingSteps: remainingSteps(unit), usedRe: used, barrageFactor: mode.barrageFactor, firingRe: re }
   })
+  const settledVolley = barrageVolleyStrength(facts)
+  const strength = settledVolley.strength
+  const batteries = settledVolley.batteries.map(({ id, re }) => ({ unitId: id, re }))
   const { initialColumn, cost } = barrageColumn(table, strength)
   const hedgehog = hedgehogAt?.(target) ?? 0
   if (!Number.isInteger(hedgehog) || hedgehog < 0 || hedgehog > 4) throw new Error('Invalid hedgehog level')
