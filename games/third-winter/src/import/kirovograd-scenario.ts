@@ -1,11 +1,13 @@
 import type { Side } from '@ocs-eastern/series/state-types'
-import { kirovogradDates, kirovogradOpening, kirovogradRadiusCenters, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
+import { kirovogradAircraftThrough, kirovogradCityName, kirovogradDates, kirovogradOpening, kirovogradRadiusCenters,
+  kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../ttw/campaign/play-area.ts'
 import { indexTtwCampaignMap } from './campaign-map-index.ts'
 import { prepareCampaignReinforcements } from './campaign-reinforcements.ts'
 import { resolveCampaignReference } from './campaign-reference.ts'
 import { prepareCampaignSetup } from './campaign-setup.ts'
 import { campaignTerrain } from './campaign-terrain.ts'
+import { campaignHexKey } from './hex-id.ts'
 import { loadThirdWinterV2Units } from './unit-v2.ts'
 import { readCounterPoolRows } from './counter-pool-rows.ts'
 
@@ -17,6 +19,22 @@ function record(value: unknown): Record<string, unknown> {
 function rows(value: unknown) {
   if (!Array.isArray(value)) throw new Error('Missing Kirovograd scenario rows')
   return value.map(record)
+}
+
+/** The scenario names its city. The map database must print that name on exactly one hex. */
+function cityHex(hexTable: unknown, name: string) {
+  const items = record(hexTable).items
+  if (!Array.isArray(items)) throw new Error('Missing campaign hex table')
+  const found: string[] = []
+  for (const value of items) {
+    const hex = record(value)
+    if (hex.city_name === name) {
+      if (typeof hex.hex_id !== 'string') throw new Error(`Invalid printed hex for ${name}`)
+      found.push(campaignHexKey(hex.hex_id))
+    }
+  }
+  if (found.length !== 1) throw new Error(`Expected one ${name} hex in the map database, found ${found.length}`)
+  return found[0]!
 }
 
 /** Prepare the current scenario files without making player setup choices or changing sources. */
@@ -33,6 +51,8 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
   const setupOrder: readonly Side[] = [meta.setup_order, meta.setup_order === 'axis' ? 'soviet' : 'axis']
   const geometry = indexTtwCampaignMap(hexes, edges)
   const map = campaignMapInPlayArea(geometry, ttwCampaignPlayArea(kirovogradScenario)!)
+  const kirovogradHex = cityHex(hexes, kirovogradCityName)
+  if (!map.resolveHex(kirovogradHex)) throw new Error(`Kirovograd city hex outside scenario area: ${kirovogradHex}`)
   const terrain = campaignTerrain(map)
   const setup = prepareCampaignSetup(data, catalog.aliases, geometry, map)
   const reinforcement = prepareCampaignReinforcements(arrivals, catalog.aliases, geometry, map)
@@ -65,7 +85,7 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
     if (definitions.length !== 1 || !definition?.source.side) throw new Error(`Unresolved Kirovograd aircraft at row ${index + 1}`)
     const side = definition.source.side
     return { id: `09-air:${index + 1}`, definition: definition.key, side, entry: 'scenario-off-map' as const,
-      reduced: entry.reduced === true, availableThrough: side === 'axis' ? 5 : 3 }
+      reduced: entry.reduced === true, availableThrough: kirovogradAircraftThrough[side] }
   })
 
   const alertPool = readCounterPoolRows(record(data.pools).alert, (ref) => {
@@ -87,6 +107,6 @@ export async function loadKirovogradScenario(read: (...parts: string[]) => Promi
     if (terrain.riverStatus(from, to) === 'auto_pending_visual') provisionalRivers.add(key)
   }
   return { map, terrain, opening: kirovogradOpening, dates: kirovogradDates, setupOrder, catalog, setup, placements, supplyDumps, otherMarkers,
-    aircraft, alertPool, reinforcement, victory, diagnostics: { missingTerrain, unresolvedCrossings: [...unresolvedCrossings],
+    aircraft, alertPool, reinforcement, victory, kirovogradHex, diagnostics: { missingTerrain, unresolvedCrossings: [...unresolvedCrossings],
       provisionalRivers: [...provisionalRivers] } }
 }

@@ -3,12 +3,13 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { loadKirovogradScenario } from '../import/kirovograd-scenario.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
 import type { Definition } from '../import/unit-catalog.ts'
-import { kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
+import { kirovogradScenario, kirovogradTankCorps, kirovogradTankCorpsHold } from '../ttw/campaign/kirovograd.ts'
 import type { CampaignOpeningContext } from './campaign-opening-session.ts'
 import type { CampaignMatchOpening } from './campaign-match.ts'
 import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignTurnContext } from './campaign-turn-state.ts'
 import { kirovogradSetupTransports } from './kirovograd-setup-transports.ts'
+import { kirovogradReleaseRule } from './kirovograd-release.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
@@ -42,8 +43,11 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     counters[id] = counter
   }
   for (const row of data.setup.counters) {
-    add(row.id, { ...groundCounter(data.catalog.definitions.get(row.definition), row.side, row.stepsLost, row.face),
-      location: { kind: 'map', hex: row.hex } })
+    const definition = data.catalog.definitions.get(row.definition)
+    // Scenario Book p.64. The 29th Tank Corps starts unable to move.
+    const corps = definition?.source.org?.parentFmt === kirovogradTankCorps.formation
+    add(row.id, { ...groundCounter(definition, row.side, row.stepsLost, row.face), location: { kind: 'map', hex: row.hex },
+      ...(corps ? { held: kirovogradTankCorpsHold } : {}) })
   }
   for (const aircraft of data.aircraft) {
     add(aircraft.id, { definition: aircraft.definition, kind: 'aircraft', side: aircraft.side,
@@ -114,5 +118,6 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps }
   return { opening, context, markerSetup: transports.pendingMarkers,
-    aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })) }
+    aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
+    movement: { releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }
 }

@@ -6,13 +6,15 @@ import { openCampaignSession, submitCampaignSessionCommand } from '../src/match/
 import { openCampaignReinforcementSession, submitCampaignSession } from '../src/match/campaign-session.ts'
 import { projectCampaignSession } from '../src/view/campaign-opening-session-view.ts'
 import { scheduledCampaignReinforcements } from '../src/match/campaign-reinforcement-actions.ts'
+import { kirovogradTankCorpsHold } from '../src/ttw/campaign/kirovograd.ts'
 
 function data() {
   const land = (id, side, re) => ({ id, name: id, side, re, faces: { combat: null, move: null } })
   const transport = (id, name, side, points) => ({ ...land(id, side, 0), name,
     faces: { combat: { maColor: 'black', stats: { transport: points, move: 45 } }, move: null } })
   const catalog = unitCatalog([
-    { kind: 'land', file: 'synthetic', rows: [land('first', 'axis', 4), land('second', 'soviet', 2), land('alert', 'axis', 1)] },
+    { kind: 'land', file: 'synthetic', rows: [land('first', 'axis', 4), land('second', 'soviet', 2), land('alert', 'axis', 1),
+      { ...land('corps', 'soviet', 3), org: { parentFmt: '29.Tk', airGroup: null } }] },
     { kind: 'aircraft', file: 'synthetic-air', rows: [land('air', 'soviet', 0)] },
     { kind: 'transport', file: 'synthetic-transport', rows: [transport('at', 'Axis Truck 2/45', 'axis', 2),
       transport('st2', 'Sov Truck 2/45', 'soviet', 2), transport('st1', 'Sov Truck', 'soviet', 1)] },
@@ -22,11 +24,12 @@ function data() {
     date: turn === 1 ? '1944-01-05' : '1944-01-08', sourceDate: null, sourceChannel: 'reinforce hex', note: null,
     definition: 'land:id:first', counterKind: 'land', status: 'classified',
     operation: { kind: 'arrival', channel: { kind: 'fixed-hex', hex: 'D13.23', printedHex: 'D13.23' } } }))
-  return { map, catalog, setupOrder: ['axis', 'soviet'], dates: ['1944-01-05'], opening: {
+  return { map, catalog, kirovogradHex: 'D12.30', setupOrder: ['axis', 'soviet'], dates: ['1944-01-05'], opening: {
     weather: { ground: 'freeze', flight: 'limited' }, first: 'soviet' },
   setup: { counters: [
     { id: 'initial-axis', definition: 'land:id:first', side: 'axis', kind: 'land', hex: 'D10.30', face: null, stepsLost: 2 },
     { id: 'initial-soviet', definition: 'land:id:second', side: 'soviet', kind: 'land', hex: 'D14.30', face: null },
+    { id: 'initial-corps', definition: 'land:id:corps', side: 'soviet', kind: 'land', hex: 'D12.30', face: null },
   ], drawOrders: [{ row: 1, side: 'axis', pool: 'alert', hex: 'D5.23', count: 1 },
     { row: 2, side: 'axis', pool: 'alert', hex: 'D5.23', count: 1 }],
   unresolvedSetup: [], unresolvedLosses: [], missingSetupHexes: [], outsideSetupArea: [], unresolvedDraws: [], pendingMarkerRows: [] },
@@ -45,7 +48,10 @@ const send = (record, actor, action, context) => submitCampaignSessionCommand(re
 
 test('scenario opening binds losses, ordinary truck capacity, pool identities and independent arrival instances', () => {
   const input = data()
-  const { opening, context, markerSetup, aircraftAvailability } = prepareKirovogradOpening(input)
+  const { opening, context, markerSetup, aircraftAvailability, movement } = prepareKirovogradOpening(input)
+  assert.equal(opening.counters['initial-corps'].held, kirovogradTankCorpsHold)
+  assert.equal(opening.counters['initial-soviet'].held, undefined)
+  assert.equal(typeof movement.releases, 'function')
   assert.equal(opening.counters['initial-axis'].stepsLost, 2)
   assert.equal(opening.counters['initial-axis'].currentRe, 2)
   assert.equal(opening.counters['initial-axis'].mode, 'combat')
