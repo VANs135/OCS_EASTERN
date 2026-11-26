@@ -11,6 +11,7 @@ import { createCampaignKg, dissolveCampaignKg, rollCampaignKgReaction, placeCamp
 import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
 import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
 import { moveCampaignLuftflotte } from './campaign-luftflotte-placement.ts'
+import { moveCampaignRvgkMarker } from './campaign-rvgk-marker.ts'
 import { applyCampaignArmyGroupSp } from './campaign-axis-hq.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
@@ -109,6 +110,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     return applyCampaignKesselFreeMove(state, actor, action, context.groundMovement.map, context.kesselBoard)
   }
   if (action.type === 'move-campaign-luftflotte') return moveCampaignLuftflotte(state, actor, action, context.luftflottePlacement)
+  if (action.type === 'move-campaign-rvgk-marker') return moveCampaignRvgkMarker(state, actor, action, context.rvgkMarker)
   if (action.type === 'army-group-place-sp') {
     if (!context.groundMovement || !context.axisHqFacts) throw new Error('Campaign Army Group SP placement requires a movement board and HQ facts')
     return applyCampaignArmyGroupSp(state, actor, action, context.groundMovement.map, context.axisHqFacts)

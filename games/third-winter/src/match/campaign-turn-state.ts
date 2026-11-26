@@ -159,6 +159,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | SpendCampaignBarrageMarker
   | import('./campaign-fuel.ts').CampaignFuelAction
   | import('./campaign-rvgk.ts').CampaignRvgkAction
+  | import('./campaign-rvgk-marker.ts').CampaignRvgkMarkerAction
   | import('./campaign-kg.ts').CampaignKgAction
   | import('./campaign-luftflotte.ts').CampaignLuftflotteAction
   | import('./campaign-luftflotte-placement.ts').CampaignLuftflottePlacementAction
@@ -192,6 +193,7 @@ export interface CampaignTurnContext {
   hqRecovery?: CampaignHqRecoveryBoard
   kesselPlacement?: import('./campaign-kessel-placement.ts').CampaignKesselPlacementBoard
   luftflottePlacement?: import('./campaign-luftflotte-placement.ts').CampaignLuftflottePlacementBoard
+  rvgkMarker?: import('./campaign-rvgk-marker.ts').CampaignRvgkMarkerBoard
   breakdown?: CampaignBreakdownBoard
   remnantRebuild?: CampaignRemnantRebuildBoard
   stePlacement?: CampaignStePlacement
