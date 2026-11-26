@@ -9,6 +9,7 @@ import { buyCampaignFuel, fuelCampaignUnit } from './campaign-fuel.ts'
 import { enterCampaignRvgk, releaseCampaignRvgk } from './campaign-rvgk.ts'
 import { createCampaignKg, dissolveCampaignKg } from './campaign-kg.ts'
 import { applyCampaignLuftflotteAirlift } from './campaign-luftflotte.ts'
+import { applyCampaignKesselFreeMove } from './campaign-kessel.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -95,6 +96,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     if (!context.groundMovement) throw new Error('Campaign Luftflotte airlift requires a movement board')
     if (!context.luftflotteFacts) throw new Error('Luftflotte airlift facts are unavailable')
     return applyCampaignLuftflotteAirlift(state, actor, action, context.groundMovement.map, context.luftflotteFacts)
+  }
+  if (action.type === 'kessel-campaign-free-move') {
+    if (!context.groundMovement || !context.kesselBoard) throw new Error('Campaign Kessel free move requires a movement board and Kessel facts')
+    return applyCampaignKesselFreeMove(state, actor, action, context.groundMovement.map, context.kesselBoard)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
