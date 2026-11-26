@@ -3,6 +3,7 @@ import type { CampaignGroundMap } from './campaign-ground-position.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignSupplySource = { kind: 'dump'; hex: string } | { kind: 'transport'; id: string }
+  | { kind: 'carried'; id: string }
 type OrganicFormation = (state: Readonly<CampaignTurnState>, id: string) => string | undefined
 interface SupplyEntry { source: CampaignSupplySource; hex: string; tokens: number; formation?: string }
 
@@ -15,7 +16,14 @@ export function campaignPhysicalSupply(state: Readonly<CampaignTurnState>, side:
     }
   }
   for (const [id, counter] of Object.entries(state.counters)) {
-    if (counter.side !== side || counter.kind !== 'transport' || counter.specialTruckExtender || counter.location.kind !== 'map') continue
+    if (counter.side !== side) continue
+    if (counter.location.kind !== 'map') continue
+    const carried = counter.carriedSupplyTokens
+    if (carried !== undefined && Number.isSafeInteger(carried) && carried > 0) {
+      const hex = map.resolveHex(counter.location.hex)
+      if (hex) sources.set(`carried:${id}`, { source: { kind: 'carried', id }, hex, tokens: carried })
+    }
+    if (counter.kind !== 'transport' || counter.specialTruckExtender) continue
     const hex = map.resolveHex(counter.location.hex)
     const tokens = counter.transportCargoTokens
     if (hex && tokens !== undefined && Number.isSafeInteger(tokens) && tokens >= 0) {
@@ -26,7 +34,8 @@ export function campaignPhysicalSupply(state: Readonly<CampaignTurnState>, side:
 }
 
 export function campaignSupplySourceKey(resolveHex: CampaignGroundMap['resolveHex'], source: CampaignSupplySource) {
-  return source.kind === 'dump' ? `dump:${resolveHex(source.hex) ?? ''}` : `transport:${source.id}`
+  if (source.kind === 'dump') return `dump:${resolveHex(source.hex) ?? ''}`
+  return source.kind === 'transport' ? `transport:${source.id}` : `carried:${source.id}`
 }
 
 export function spendCampaignSupply(state: Readonly<CampaignTurnState>, side: Side, sources: ReadonlyMap<string, SupplyEntry>,
@@ -40,9 +49,13 @@ export function spendCampaignSupply(state: Readonly<CampaignTurnState>, side: Si
     if (entry.source.kind === 'dump') {
       dumps[entry.hex] = entry.tokens - tokens
       if (dumps[entry.hex] === 0) delete dumps[entry.hex]
-    } else {
+    } else if (entry.source.kind === 'transport') {
       const { id } = entry.source
       counters[id] = { ...counters[id]!, transportCargoTokens: entry.tokens - tokens }
+    } else {
+      const { id } = entry.source
+      const left = entry.tokens - tokens
+      counters[id] = left ? { ...counters[id]!, carriedSupplyTokens: left } : { ...counters[id]!, carriedSupplyTokens: undefined }
     }
   }
   return { ...state, counters, supplyDumps: { ...state.supplyDumps, [side]: dumps } }

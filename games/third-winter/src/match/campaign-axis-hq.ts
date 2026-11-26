@@ -10,6 +10,8 @@ import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignAxisHqAction = { type: 'army-group-place-sp'; hqId: string; targetHex: string }
   | { type: 'declare-campaign-army-group-drm'; hqId: string; drm: 1 | -1 }
+  | { type: 'load-campaign-hq-supply'; hqId: string; tokens: number }
+  | { type: 'unload-campaign-hq-supply'; hqId: string; tokens: number }
 export interface CampaignAxisHqFacts {
   isArmyGroupHq: boolean
   combatMode: boolean
@@ -25,7 +27,8 @@ export function campaignAxisHqOptions(state: Readonly<CampaignTurnState>, side: 
   if (side !== 'axis') return null
   const groups = Object.entries(state.counters)
     .filter(([id, c]) => c.side === 'axis' && c.location.kind === 'map' && facts(state, id)?.isArmyGroupHq)
-    .map(([id, c]) => ({ id, hex: (c.location as { hex: string }).hex, placedThisTurn: state.armyGroupSpPlaced?.[id] === state.turn }))
+    .map(([id, c]) => ({ id, hex: (c.location as { hex: string }).hex, placedThisTurn: state.armyGroupSpPlaced?.[id] === state.turn,
+      carriedTokens: c.carriedSupplyTokens ?? 0 }))
   return { groups }
 }
 
@@ -55,6 +58,39 @@ export function applyCampaignArmyGroupDrm(state: Readonly<CampaignTurnState>, si
   })
   if (!inThrow) throw new Error('No Axis unit in this combat is within the Army Group HQ throw range')
   return { ...state, combat: { ...combat, armyGroupDrm: action.drm }, armyGroupDrmTurn: state.turn }
+}
+
+/** §2.3c D：Army Group HQ 可携 1 SP 随行——在本方移动阶段于当前格装上或卸下（≤4 token）。 */
+export function applyCampaignHqSupplyCarry(state: Readonly<CampaignTurnState>, side: Side,
+  action: Extract<CampaignAxisHqAction, { type: 'load-campaign-hq-supply' | 'unload-campaign-hq-supply' }>,
+  map: CampaignGroundMap, facts: (state: Readonly<CampaignTurnState>, id: string) => CampaignAxisHqFacts | undefined): CampaignTurnState {
+  if (side !== 'axis') throw new Error('Only the Axis player carries supply on an Army Group HQ')
+  const cursor = state.cursor
+  if (!('phasing' in cursor) || cursor.phase !== 'movement' || cursor.phasing !== 'axis' || state.movementSegment !== 'movement') {
+    throw new Error('Army Group HQ supply carry happens in the Axis movement phase')
+  }
+  const counter = state.counters[action.hqId]
+  const info = facts(state, action.hqId)
+  if (!counter || counter.side !== 'axis' || counter.location.kind !== 'map' || !info?.isArmyGroupHq) {
+    throw new Error('Choose an on-map Axis Army Group HQ')
+  }
+  if (!Number.isSafeInteger(action.tokens) || action.tokens < 1) throw new Error('Carry a positive whole number of tokens')
+  const hex = map.resolveHex(counter.location.hex)
+  if (!hex) throw new Error('The Army Group HQ has no resolvable hex')
+  const carried = counter.carriedSupplyTokens ?? 0
+  const dumps = { ...state.supplyDumps.axis }
+  if (action.type === 'load-campaign-hq-supply') {
+    if (carried + action.tokens > 4) throw new Error('An Army Group HQ carries at most one SP (four tokens)')
+    if ((dumps[hex] ?? 0) < action.tokens) throw new Error('The HQ hex holds no dump to load from')
+    dumps[hex] = dumps[hex]! - action.tokens
+    if (dumps[hex] === 0) delete dumps[hex]
+    return { ...state, supplyDumps: { ...state.supplyDumps, axis: dumps },
+      counters: { ...state.counters, [action.hqId]: { ...counter, carriedSupplyTokens: carried + action.tokens } } }
+  }
+  if (carried < action.tokens) throw new Error('The HQ carries fewer tokens than that')
+  dumps[hex] = (dumps[hex] ?? 0) + action.tokens
+  return { ...state, supplyDumps: { ...state.supplyDumps, axis: dumps },
+    counters: { ...state.counters, [action.hqId]: { ...counter, carriedSupplyTokens: carried - action.tokens || undefined } } }
 }
 
 /** §2.3c D：Army Group HQ 战斗模式每回合一次放 1 SP 到 throw 内任意格。 */

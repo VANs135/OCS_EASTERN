@@ -70,6 +70,8 @@ export interface CampaignCounter {
   transportPoints?: number
   specialTruckExtender?: { range: number }
   transportCargoTokens?: number
+  /** TTW §2.3c D：Army Group HQ 随行携带的补给 token（≤1 SP＝4 token）。 */
+  carriedSupplyTokens?: number
   internalStocks?: InternalStocks
 }
 
