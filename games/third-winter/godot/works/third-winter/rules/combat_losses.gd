@@ -81,7 +81,15 @@ static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictio
 		var placed_remnant := false
 		if str(unit.get("side", "")) == "axis" and not current.get("units", {}).has(id):
 			## TTW 2.4d：合格轴心师打光即生成残部；非师级 / 非合格单位留在死人堆，不进残部。
-			var place_res: Dictionary = Remnants.place(current, id, unit, choices.get(id, null), data)
+			var requested: Variant = choices.get(id, null)
+			if requested == null:
+				var candidates: Array = Remnants.destinations(current, unit, data)
+				if candidates.size() > 1:
+					var choice_failure := Result.failure("remnant_choice", "请为该师选择残部落点")
+					choice_failure["pending"] = {"kind": "combat-remnant", "divisionId": id,
+						"hex": str(unit.get("hex", "")), "candidates": candidates}
+					return choice_failure
+			var place_res: Dictionary = Remnants.place(current, id, unit, requested, data)
 			if not place_res.ok:
 				return place_res
 			current = place_res.value.state

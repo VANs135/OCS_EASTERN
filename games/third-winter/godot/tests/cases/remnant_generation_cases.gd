@@ -119,6 +119,35 @@ static func _reject_paths(ctx: Dictionary, bundle: Dictionary, fixture: Dictiona
 	_reject_pax_short(ctx, bundle, remnant_id, rebuild_base)
 	_reject_wrong_seat(ctx, bundle, remnant_id, rebuild_base)
 	_reject_wrong_phase(ctx, bundle, remnant_id, rebuild_base)
+	_pending_choice(ctx, bundle, division_id, loss_base)
+
+
+## 未指定落点且候选多于一个：战损不落地，返回待决描述并附候选格；按候选提交可成功。
+static func _pending_choice(ctx: Dictionary, bundle: Dictionary, division_id: String, loss_base: Dictionary) -> void:
+	var expect: Callable = ctx.expect
+	var state: Dictionary = loss_base.duplicate(true)
+	if not state.units.has(division_id):
+		expect.call(false, "待决落点用例缺少合格师")
+		return
+	var division: Dictionary = state.units[division_id]
+	var candidates: Array = Remnants.destinations(state, division, bundle)
+	var remaining: int = int(division.get("printedRe", 0)) - int(division.get("stepsLost", 0))
+	var allocation: Dictionary = {}
+	allocation[division_id] = remaining
+	var res: Dictionary = CombatLosses.apply_losses(state, allocation, bundle, null, [])
+	if candidates.size() <= 1:
+		expect.call(false, "待决落点用例需要多候选师（当前 %d 个候选）" % candidates.size())
+		return
+	expect.call(not res.ok and str(res.get("errorCode", "")) == "remnant_choice",
+		"未指定落点时挂起残部选择")
+	var pending: Dictionary = res.get("pending", {})
+	expect.call(str(pending.get("kind", "")) == "combat-remnant"
+		and _same(pending.get("candidates", []), candidates), "待决描述带全部候选格")
+	var chosen := str(candidates[1])
+	var retry: Dictionary = CombatLosses.apply_losses(state, allocation, bundle, null,
+		[{"divisionId": division_id, "hex": chosen}])
+	expect.call(retry.ok and retry.value.get("remnants", []).size() == 1,
+		"按候选格提交残部可落地 · " + chosen)
 
 
 static func _reject_bad_hex(ctx: Dictionary, bundle: Dictionary, division_id: String, loss_base: Dictionary) -> void:

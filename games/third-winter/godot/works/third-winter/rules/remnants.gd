@@ -154,6 +154,24 @@ static func place_remnant(state: Dictionary, division_id: String, division: Dict
 	return place(state, division_id, division, requested, data)
 
 
+## 公开落点候选（TS `placeScorpionRemnant` 内部的 destinations）：只有合格师才有名单，
+## 供战斗结算的待决选择与侧栏直接展示，不再在规则层里私藏。
+static func destinations(state: Dictionary, division: Dictionary, data: Dictionary) -> Array:
+	if _remnant_key(state.get("units", {}), division, data) == "":
+		return []
+	return _destinations(state, str(division.get("hex", "")), data)
+
+
+## 与 TS `scorpionRemnantDestinations(state, from, assets)` 同签名的纯坐标入口。
+static func destinations_from(state: Dictionary, from_hex: String, data: Dictionary) -> Array:
+	return _destinations(state, from_hex, data)
+
+
+## 某师是否能在盘面生成残部（TS isParentDivision + 未用残部算子）。
+static func can_place(state: Dictionary, division: Dictionary, data: Dictionary) -> bool:
+	return _remnant_key(state.get("units", {}), division, data) != ""
+
+
 ## src/match/scorpion-remnants.ts `isParentDivision` — Ge-prefixed Axis infantry division,
 ## RE 4, combat face 16/AR 4/MA 3. The GDScript catalog row carries the printed record; the
 ## combat stats live on the deployed counter (strength / actionRating / allowance).
