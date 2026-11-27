@@ -11,6 +11,7 @@ const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-poc
 const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
+const SupplyTrace := preload("res://works/third-winter/rules/supply_trace.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 var _checks := 0
@@ -27,9 +28,9 @@ func _initialize() -> void:
 	else:
 		_expect(false, "读取 Godot 对照向量")
 	var args := OS.get_cmdline_user_args()
-	if args.size() >= 2 and args.size() <= 4:
+	if args.size() >= 2 and args.size() <= 5:
 		_test_scorpion_opening(args[0], args[1], "" if args.size() < 3 else args[2],
-			"" if args.size() < 4 else args[3])
+			"" if args.size() < 4 else args[3], "" if args.size() < 5 else args[4])
 	elif not args.is_empty():
 		_expect(false, "实库检查需要同时传入 08 初设数据和对照向量路径")
 	print("Godot 迁移基础检查 %d/%d 通过" % [_checks - _failures, _checks])
@@ -117,7 +118,7 @@ func _test_pool() -> void:
 	_expect(PoolDraw.draw_without_replacement(state, pool, 2).get("errorCode") == "invalid_pool_count", "拒绝超出库存")
 
 
-func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "", terrain_path: String = "") -> void:
+func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "", terrain_path: String = "", trace_path: String = "") -> void:
 	var bundle := ScorpionData.read(bundle_path)
 	var vector := JsonFile.read(vector_path)
 	_expect(bundle.ok, bundle.get("errorMessage", "08 初设数据有效"))
@@ -133,7 +134,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_pat
 	_expect(ScorpionOpening.create_record(bad_facts, baseline.seed).get("errorCode") == "invalid_alert_pool", "08 开局拒绝重复 Alert 库存")
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
-		_test_scorpion_views(bundle.value, baseline, supply_path, terrain_path)
+		_test_scorpion_views(bundle.value, baseline, supply_path, terrain_path, trace_path)
 		_test_native_bridge(bundle_path, baseline)
 
 
@@ -229,7 +230,7 @@ const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unit
 	"route", "roster", "stack", "ended", "transportStock", "breakdownStock"]
 
 
-func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "", terrain_path: String = "") -> void:
+func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "", terrain_path: String = "", trace_path: String = "") -> void:
 	var opened := LocalSession.open(bundle, float(vector.seed))
 	_expect(opened.ok, "08 原生会话开局")
 	if not opened.ok:
@@ -255,6 +256,8 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 		_test_supply_position(session.state(), bundle, supply_path)
 	if terrain_path != "":
 		_test_terrain_cost(bundle, terrain_path)
+	if trace_path != "":
+		_test_supply_trace(session.state(), bundle, trace_path)
 	# The next oracle command closes the Aircraft Refit Phase and opens the reinforcement window.
 	# The playing projection is not migrated yet, so this compares the record state only.
 	var refit_step: Dictionary = {}
@@ -317,6 +320,46 @@ func _test_supply_position(state: Dictionary, bundle: Dictionary, path: String) 
 		var actual: Dictionary = SupplyPosition.position(units, rail_control, side, bundle)
 		var difference := _first_difference(actual, fixture.position[side], "")
 		_expect(difference.is_empty(), "08 %s 补给态势" % side + ("" if difference.is_empty() else " · " + difference))
+
+
+## The native trace must reproduce every per-hex option list and, once coverage is prepared,
+## the same covered set the TypeScript network reports after prepareTraceCoverage.
+func _test_supply_trace(state: Dictionary, bundle: Dictionary, path: String) -> void:
+	var read := JsonFile.read(path)
+	_expect(read.ok, read.get("errorMessage", "08 补给 trace 对照有效"))
+	if not read.ok:
+		return
+	var fixture: Dictionary = read.value.document
+	_expect(str(bundle.fingerprint) == str(fixture.fingerprint), "08 补给 trace 对照与初设指纹一致")
+	var graph: Dictionary = bundle.view.mapGraph
+	var units: Dictionary = state.get("units", {})
+	var rail_control: Dictionary = state.get("railControl", {})
+	var hexes: Array = fixture.hexes
+	for side: String in ["axis", "soviet"]:
+		var facts: Dictionary = SupplyPosition.position(units, rail_control, side, bundle)
+		_expect(str(facts.weather) == str(fixture.sides[side].weather), "08 %s trace 天候" % side)
+		var network: RefCounted = SupplyTrace.network(graph, facts, side, str(fixture.sides[side].weather))
+		for mobility: String in fixture.mobilities:
+			var expected: Dictionary = fixture.sides[side].trace[mobility]
+			var samples: Array = []
+			for hex: String in hexes:
+				var actual: Array = SupplyTrace.options_of(network, hex, mobility)
+				if JSON.stringify(actual) == JSON.stringify(expected.get(hex, [])):
+					continue
+				if samples.size() < 3:
+					samples.append(" · %s 原生 %s ≠ TS %s" % [hex, JSON.stringify(actual), JSON.stringify(expected.get(hex, []))])
+			_expect(samples.is_empty(), "08 %s %s trace 选项逐格一致 (%d 格)%s" % [side, mobility, hexes.size(), "".join(samples)])
+			network.prepare_trace_coverage(mobility)
+			var covered := {}
+			for hex: String in fixture.sides[side].covered[mobility]:
+				covered[hex] = true
+			var missed: Array = []
+			for hex: String in hexes:
+				if network.has_trace(hex, mobility) == covered.has(hex):
+					continue
+				if missed.size() < 3:
+					missed.append(" · %s 原生 %s" % [hex, str(network.has_trace(hex, mobility))])
+			_expect(missed.is_empty(), "08 %s %s 覆盖集一致 (%d 格)%s" % [side, mobility, covered.size(), "".join(missed)])
 
 
 ## Every printed hexside, both directions, all three mobilities, freeze and thaw: the native

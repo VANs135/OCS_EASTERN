@@ -139,7 +139,8 @@
 - [x] 补给态势层已原生。`supply_position.gd` 复现 `scorpion-supply-position.ts`：§4.5a ZOC 投射（攻方能/战斗面/未断补/非预备）、印刷控制点归属、双方补给源、可卸货设施与 HQ/延补队；地图拓扑（1045 条格边、76 条铁路边轨距）入包。与 TS 态势对照逐字段一致，无头 806 项通过。
 - [x] 原生迁移自审：运输面额改为按印刷 `moveProfile` 分桶（此前读盘上 `mobility`/`allowance`，换面或延补队后会错桶），阶段推进改为保留 cursor 附加字段（`simulcast`）。新增两条回归，无头 808 项通过。遗留：拆分回池身份、解冻堆叠豁免、对局阶段视图。
 - [x] 格边取费已原生。`scripts/rules/series/ground_terrain.gd` 复现 OCS 6.2 的地形/格边选择，`works/third-winter/rules/terrain_cost.gd` 复现 TTW TEC 三列代价、次要/主要河流格边、路线取费与封冻取小；数据包新增 `view.mapGraph.terrains`（374 格）。`08-terrain.json` 覆盖 1045 条印刷边双向 × 三种机动 × 封冻/解冻共 12540 条 trace 取费，另 6270 条干地单列，逐条与 TS 一致（无头 813 项通过）。图算法（铁路连通、延补队、HQ 投送）仍未迁。
-- [ ] 增援阶段（`place-arrival`、`place-supply`、`finish-scheduled-arrivals`、`complete-reinforcement`）与之后的移动链路；先移植补给 trace 的图算法（`supply-network`）与油费账本。再接续档。
+- [x] 补给 trace 图算法已原生。`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 OCS 12.3/12.6/12.7：稳定堆有界 Dijkstra、反向覆盖、铁路连通生长（断环不自封源）、延补队接力、5 MP 抽补、HQ 投送（末段格边不耗 MP）、Kessel 自足；`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费。顺带修掉两处前置缺陷：HQ 事实补齐 `mobility`/`dropRange` 整块透传、`sources` 保持印刷顺序。`08-trace.json` 覆盖双方 374 格 × 两套机动的选项列表与覆盖集（轴心 236 格、苏军 151 格），差异 0（无头 825 项通过）。
+- [ ] 增援阶段（`place-arrival`、`place-supply`、`finish-scheduled-arrivals`、`complete-reinforcement`）与之后的移动链路；`arrivalDestinations` 本身不依赖 trace（只占位/敌源/边缘替代），`alertDestinations` 才用到 `hasTrace`。再接续档。
 - [ ] 在同一 Godot 会话上交付单人 SOLO、双人 PVP、多人 PVP、单人 PVE 和多人 PVE。多人 PVP 验证同阵营权限分工、并发提交与待答重连。
 - [ ] 提供 Linux 无头 AI 和可选 LLM 指挥接口。用测试控制器和模型替身验收落子和失败恢复，外部团队负责训练。 [Godot 项目约束](../../docs/Godot项目约束.md)
 - [ ] 用原生 Godot 独立导出核对平移缩放、格号命中、叠堆、状态标记、高 DPI、安装和断线续局。

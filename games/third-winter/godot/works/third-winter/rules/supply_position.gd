@@ -56,8 +56,13 @@ static func position(units: Dictionary, rail_control: Dictionary, side: String, 
 	for row: Dictionary in friendly:
 		var hq: Variant = row.unit.get("headquarters")
 		if hq is Dictionary:
-			headquarters.append({"id": row.id, "hex": row.unit.hex, "throwRange": hq.get("throwRange"),
-				"kessel": hq.get("kessel") == true})
+			# The trace needs the printed throw profile, so the whole counter block is carried
+			# through with the id and hex, exactly like `{ id, hex, ...unit.headquarters }`.
+			var facts: Dictionary = hq.duplicate()
+			facts["id"] = row.id
+			facts["hex"] = row.unit.hex
+			facts["kessel"] = hq.get("kessel") == true
+			headquarters.append(facts)
 	var extenders := []
 	for unit_id: String in units:
 		var unit: Dictionary = units[unit_id]
@@ -96,10 +101,13 @@ static func position(units: Dictionary, rail_control: Dictionary, side: String, 
 		if not enemy_combat.has(hex):
 			controlled[hex] = true
 	var listed: Array = data.view.supplySources.get(side, [])
+	var source_order := []
 	for hex: String in listed:
-		if controlled.has(hex):
+		if controlled.has(hex) and not sources.has(hex):
 			sources[hex] = true
-	return {"sources": _sorted(sources), "controlled": _sorted(controlled),
+			source_order.append(hex)
+	# Sources keep the printed order: the trace lists options by source insertion order.
+	return {"sources": source_order, "controlled": _sorted(controlled),
 		"enemyCombat": _sorted(enemy_combat), "unnegatedEnemyZoc": _sorted(unnegated),
 		"detrainableFacilities": _sorted(detrainable), "headquarters": headquarters,
 		"extenders": extenders, "weather": str(data.view.firstTurn.ground)}

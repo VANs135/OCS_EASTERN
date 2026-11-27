@@ -20,11 +20,13 @@ const sorted = (set) => [...set].sort()
 const position = (side) => {
   const facts = scorpionSupplyPosition(state, map, side)
   return {
-    sources: sorted(facts.sources), controlled: sorted(facts.controlled),
+    // Sources keep the Set insertion order: the trace lists options in that order.
+    sources: [...facts.sources], controlled: sorted(facts.controlled),
     enemyCombat: sorted(facts.enemyCombat), unnegatedEnemyZoc: sorted(facts.unnegatedEnemyZoc),
     detrainableFacilities: sorted(facts.detrainableFacilities),
-    headquarters: facts.headquarters.map(({ id, hex, throwRange, kessel }) => ({
-      id, hex, throwRange: throwRange ?? null, kessel: kessel === true })),
+    // The trace reads the printed throw profile, so the whole counter block is exported.
+    headquarters: facts.headquarters.map((hq) => ({
+      ...hq, throwRange: hq.throwRange ?? null, kessel: hq.kessel === true })),
     extenders: facts.extenders.map(({ hex, range, mobility }) => ({ hex, range, mobility })),
     weather: facts.weather,
   }
