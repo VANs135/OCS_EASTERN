@@ -2,14 +2,16 @@ extends RefCounted
 
 ## OCS v4.3 §9.7–9.13 战斗结算与进击（src/match/scorpion-combat-result.ts、series/tables/ground-combat.ts）。
 ## 掷骰行＝2d6 + 攻方 AR − 守方 AR − 刺猬等级；先算 odds 取列，再按 surprise/shift 移位。
-## 本轮明确不实现：continue-combat-retreat、撤退路径合法性、残部生成、突袭（overrun）、
-## 进格夺取（补给堆/运输队/刺猬/机场）。触发这些分支时返回明确 Result.failure，不伪造结果。
+## 撤退与 continue-combat-retreat 由 retreat.gd 承接（路径合法性、ZOC/DG/被迫损、续跑进度）。
+## 本轮明确不实现：残部生成候选、突袭（overrun）、进格夺取结算（补给堆/运输队/刺猬/机场）；
+## 触发这些分支时返回明确 Result.failure 或待决描述，不伪造结果。
 
 const Result := preload("res://scripts/core/result.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const CombatTerrain := preload("res://works/third-winter/rules/combat_terrain.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
+const Retreat := preload("res://works/third-winter/rules/retreat.gd")
 
 
 ## 掷一局正规战斗。dice 注入 { surprise: [d1,d2], shift: n, combat: [c1,c2] }。
@@ -116,11 +118,19 @@ static func resolve(state: Dictionary, actor: String, action: Dictionary, data: 
 		ended["overrunMarch"] = null
 		return Result.success({"state": ended, "outcome": "victory"})
 	var unmet: int = obligations.value.unmetOptions
-	var retreat: int = obligations.value.retreatDistance
+	var retreat_distance: int = obligations.value.retreatDistance
 	var retreats: Array = action.get("retreats", [])
-	if retreat > 0 or retreats.size() > 0:
-		return Result.failure("combat_retreat_unimplemented",
-			"撤退合法性与路径本轮未实现；该结果需要撤退 %d 格" % retreat)
+	var retreat_res: Dictionary = Retreat.retreat(settled_state, actor, ids, retreat_distance, retreats, combat, data, board)
+	if not retreat_res.ok:
+		return retreat_res
+	settled_state = retreat_res.value.state
+	if settled_state.get("victory") != null:
+		var ended := settled_state.duplicate(true)
+		ended.erase("combat")
+		ended.erase("overrunMarch")
+		ended.erase("capture")
+		return Result.success({"state": ended, "outcome": "victory", "victory": settled_state.get("victory")})
+	var pending: Variant = retreat_res.value.pending
 	if attacker:
 		var threshold: Variant = combat.get("roll", {}).get("exploit")
 		var origins: Array = []
@@ -147,11 +157,19 @@ static func resolve(state: Dictionary, actor: String, action: Dictionary, data: 
 		var next_combat: Dictionary = combat.duplicate(true)
 		next_combat["step"] = "defender-result"
 		next_combat["defenderMayIgnore"] = unmet > 0
-		next_combat["attackerRetreated"] = retreat > 0
+		next_combat["attackerRetreated"] = retreat_distance > 0
+		if pending != null:
+			next_combat["retreat"] = pending
 		var next := settled_state.duplicate(true)
 		next["units"] = units
 		next["combat"] = next_combat
 		return Result.success({"state": next, "granted": granted})
+	if pending != null:
+		var pending_combat: Dictionary = combat.duplicate(true)
+		pending_combat["retreat"] = pending
+		var pending_next: Dictionary = settled_state.duplicate(true)
+		pending_next["combat"] = pending_combat
+		return Result.success({"state": pending_next})
 	# 守方窗口：目标格已无本方战斗单位且攻方未撤退时，进入进击步骤。
 	var empty := true
 	for id: String in settled_state.get("units", {}):
@@ -168,7 +186,63 @@ static func resolve(state: Dictionary, actor: String, action: Dictionary, data: 
 	if advance:
 		next_combat = combat.duplicate(true)
 		next_combat["step"] = "advance"
-	var next_state := settled_state.duplicate(true)
+	var next_state: Dictionary = settled_state.duplicate(true)
+	next_state["combat"] = next_combat
+	return Result.success({"state": next_state, "advanced": advance})
+
+
+## continue-combat-retreat：续跑挂起的撤退路线（continueScorpionRetreatResult 口径）。
+## action: { routes?: ContinueCombatRetreat['routes'] }。返回 Result.success({ state, pending? })。
+static func continue_retreat(state: Dictionary, actor: String, action: Dictionary, data: Dictionary,
+		board: Variant = null) -> Dictionary:
+	var combat: Variant = state.get("combat")
+	if combat == null:
+		return Result.failure("combat_missing", "当前没有进行中的战斗")
+	var retreat: Variant = combat.get("retreat")
+	if retreat == null or str(retreat.get("side", "")) != actor:
+		return Result.failure("combat_retreat_actor", "须由挂起撤退的一方继续撤退")
+	var resume_res: Dictionary = Retreat.resume(state, retreat, action.get("routes"), combat, data, board)
+	if not resume_res.ok:
+		return resume_res
+	var settled: Dictionary = resume_res.value.state
+	if settled.get("victory") != null:
+		var ended: Dictionary = settled.duplicate(true)
+		ended.erase("combat")
+		ended.erase("overrunMarch")
+		ended.erase("capture")
+		return Result.success({"state": ended, "outcome": "victory", "victory": settled.get("victory")})
+	var pending: Variant = resume_res.value.pending
+	var resolved: Dictionary = combat.duplicate(true)
+	resolved.erase("retreat")
+	if pending != null:
+		resolved["retreat"] = pending
+		var next_pending: Dictionary = settled.duplicate(true)
+		next_pending["combat"] = resolved
+		return Result.success({"state": next_pending})
+	if str(resolved.get("step", "")) == "attacker-result":
+		resolved["step"] = "defender-result"
+		resolved["defenderMayIgnore"] = true
+		resolved["attackerRetreated"] = true
+		var next_attacker: Dictionary = settled.duplicate(true)
+		next_attacker["combat"] = resolved
+		return Result.success({"state": next_attacker})
+	# 守方撤退收尾：损失在挂起前已结算；此处只重放进击/收尾判定。
+	var empty := true
+	for id: String in settled.get("units", {}):
+		var unit: Dictionary = settled.units[id]
+		if str(unit.get("side", "")) == actor and unit.get("combat") == true \
+				and str(unit.get("hex", "")) == str(resolved.get("target", "")):
+			empty = false
+			break
+	if resolved.get("kind") == "overrun":
+		return Result.failure("overrun_unimplemented", "突袭追击本轮未实现")
+	var advance: bool = empty and resolved.get("attackerRetreated", false) != true \
+			and _has_survivor(settled, resolved.get("attackers", []))
+	var next_combat: Variant = null
+	if advance:
+		next_combat = resolved.duplicate(true)
+		next_combat["step"] = "advance"
+	var next_state: Dictionary = settled.duplicate(true)
 	next_state["combat"] = next_combat
 	return Result.success({"state": next_state, "advanced": advance})
 
