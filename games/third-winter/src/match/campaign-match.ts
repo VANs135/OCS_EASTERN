@@ -23,6 +23,7 @@ import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.t
 import { refitCampaignAircraft } from './campaign-aircraft-refit.ts'
 import { applyCampaignBreakout } from './campaign-breakout.ts'
 import { applyCampaignBarrage } from './campaign-barrage.ts'
+import { applyCampaignAirMission, campaignAirMissionBlockers, completeCampaignAirStrike } from './campaign-air-strike.ts'
 import { applyCampaignCombat, resetCampaignCombatLedgers } from './campaign-combat.ts'
 import { applyCampaignBreakdown, campaignBreakdownAbsorbObligations } from './campaign-breakdown.ts'
 import { completeCampaignCleanup } from './campaign-cleanup-phase.ts'
@@ -73,6 +74,10 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   action: CampaignTurnAction, context: CampaignTurnContext): CampaignTurnState {
   if (action.type === 'resolve-campaign-bridge-demolition' || action.type === 'resume-campaign-ground-march') {
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
+  }
+  if (action.type === 'launch-campaign-air-strike' || action.type === 'resolve-campaign-air-flak' ||
+    action.type === 'choose-campaign-air-flak-loss' || action.type === 'complete-campaign-air-strike') {
+    return applyCampaignAirMission(state, actor, action, context.airMission)
   }
   if (action.type === 'set-campaign-front-posture') return applyCampaignFrontPosture(state, actor, action)
   if (action.type === 'spend-campaign-barrage-marker') return applyCampaignBarrageMarker(state, actor, action, context)
@@ -153,6 +158,11 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
   if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
+    action.type === 'complete-campaign-exploitation' || action.type === 'complete-campaign-movement-phase') &&
+    campaignAirMissionBlockers(state).length) {
+    throw new Error('Resolve the current air strike before ending the segment')
+  }
+  if ((action.type === 'complete-campaign-ground-movement' || action.type === 'complete-campaign-late-segment' ||
     action.type === 'complete-campaign-exploitation' || action.type === 'complete-campaign-movement-phase') && context.breakdown &&
     campaignBreakdownAbsorbObligations(state, actor, context.breakdown).length) {
     return { ...state, breakdownAbsorb: { side: actor } }
@@ -218,8 +228,11 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
       return { ...completeCampaignLateSegment(state, actor, action, context), breakdownAbsorb: null }
     case 'declare-campaign-barrage':
     case 'choose-campaign-barrage-terrain':
-    case 'assign-campaign-barrage-loss':
-      return applyCampaignBarrage(state, actor, action, context.barrage)
+    case 'assign-campaign-barrage-loss': {
+      const settled = applyCampaignBarrage(state, actor, action, context.barrage)
+      return settled.airMission && !settled.barrage
+        ? completeCampaignAirStrike(settled, settled.airMission.side, context.airMission) : settled
+    }
     case 'declare-campaign-combat':
     case 'declare-campaign-overrun':
     case 'defend-campaign-combat':

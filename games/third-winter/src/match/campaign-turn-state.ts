@@ -30,6 +30,7 @@ import type { CampaignRemnantRebuildBoard, RebuildCampaignFromRemnant } from './
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
 import type { CampaignScenarioVictory } from './campaign-victory.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
+import type { CampaignAirMission, CampaignAirMissionAction, CampaignAirMissionBoard, CampaignAirMissionRecord } from './campaign-air-strike.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
   | { segment: 'weather' }
@@ -159,6 +160,9 @@ export interface CampaignTurnState extends CampaignBoardState {
   hedgehogReducedAt?: Readonly<Record<string, number>>
   /** TTW §2.4a：已宣告要塞城市（城市名＋城市连通格＋宣告回合）。 */
   fortresses?: readonly import('./campaign-fortress.ts').CampaignFortress[]
+  /** OCS 14.2f：进行中的空军任务；null＝无任务。 */
+  airMission?: CampaignAirMission | null
+  airHistory?: readonly CampaignAirMissionRecord[]
   /** OCS 15.2：在图机场/跑道（同格唯一；level 0 且带 strip＝跑道）。 */
   airBases?: readonly import('./campaign-airfield.ts').CampaignAirBase[]
   /** OCS 15.2：各格本回合是否已施工/降级（每格每操作每回合一次）。 */
@@ -197,6 +201,7 @@ export type CampaignReinforcementPhaseAction = CampaignReinforcementAction | Ret
 export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPhaseAction | CampaignBreakoutAction | ConsolidateCampaignAircraft
   | CampaignGroundMovementAction | CampaignMarchResponse | CampaignPontoonAction | UseCampaignKhersonFerry | TransportCampaignRail
   | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction | CampaignCombatAction
+  | CampaignAirMissionAction
   | CampaignBreakdownAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
   | SetCampaignFrontPosture
@@ -249,6 +254,7 @@ export interface CampaignTurnContext {
   breakoutReturns?: CampaignBreakoutReturnBoard
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
   aircraftRefit?: CampaignRefitBoard
+  airMission?: CampaignAirMissionBoard
   thawTiming?: CampaignThawTiming
   /** The work-specific stage rules certify resolution of applicable opening and closing obligations. */
   reinforcementBlockers?: (state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing') => readonly string[]

@@ -48,6 +48,8 @@ export interface CampaignBarrage {
   initialColumn: number
   cost: number
   hedgehog: number
+  /** OCS 14.7: an air strike uses the barrage table but has no artillery battery or supply cost. */
+  air?: { missionId: string; kind: 'barrage' | 'hip-shoot' | 'trainbusting'; hipShoot: boolean; tankBuster: boolean; shortRange: boolean }
   roll?: ReturnType<typeof rollGroundBarrage>
   lossesDue?: number
 }
@@ -164,7 +166,7 @@ function chooseCampaignBarrageTerrain(state: Readonly<CampaignTurnState>, actor:
   const density = barrageDensity(defenders.map((id) => ({
     re: state.counters[id]!.currentRe ?? board.printedReOf(state, id) ?? 1, formation: board.formationOf?.(state, id),
   })))
-  const spotter = hasCampaignBarrageSpotter(state, actor === 'axis' ? 'soviet' : 'axis', barrage.target, board)
+  const spotter = barrage.air ? false : hasCampaignBarrageSpotter(state, actor === 'axis' ? 'soviet' : 'axis', barrage.target, board)
   let rng = state.rng
   const roll = rollGroundBarrage(board.table, barrage.initialColumn, {
     density, hedgehog: barrage.hedgehog, terrain: combatTerrainCategory(action.terrain), spotter,

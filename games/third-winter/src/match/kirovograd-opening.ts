@@ -129,6 +129,12 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
       ...kirovogradReinforcementSupply(data) },
     scenarioVictory: turnRules.scenarioVictory ?? kirovogradScenarioVictory({ map: data.map,
       definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }),
+    // p.62: Scenario 9 aircraft refit off-map without spending supply points.
+    aircraftRefit: turnRules.aircraftRefit ?? {
+      bases: () => [],
+      offMapBoxes: (_state, side) => data.aircraft.some((aircraft) => aircraft.side === side)
+        ? [`09:${side}:air`] : [],
+    },
     roundEnd: turnRules.roundEnd ?? ((cleaned) => {
       if (cleaned.when.scenarioId !== kirovogradScenario) return undefined
       return cleaned.turn >= kirovogradDates.length ? { kind: 'ended' as const }

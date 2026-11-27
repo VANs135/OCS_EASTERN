@@ -6,13 +6,15 @@ import { campaignPhysicalSupply, campaignSupplySourceKey, spendCampaignSupply } 
 import type { CampaignSupplySource } from './campaign-supply-ledger.ts'
 import type { CampaignTurnContext, CampaignTurnState } from './campaign-turn-state.ts'
 
-type Base = { kind: 'map'; hex: string } | { kind: 'romania'; box: string }
+type Base = { kind: 'map'; hex: string } | { kind: 'romania'; box: string } | { kind: 'off-map'; box: string }
 export type RefitCampaignAircraft = { type: 'refit-campaign-aircraft'; base: Base; unitIds: readonly string[]; source?: CampaignSupplySource }
 
 export interface CampaignRefitBoard {
   /** Friendly operating bases. Level zero only for an authorized airstrip. */
   bases(state: Readonly<CampaignTurnState>, side: Side): readonly { hex: string; level: number }[]
   romaniaBox?(state: Readonly<CampaignTurnState>): string | undefined
+  /** Scenario 9: aircraft sit in off-map boxes and refit without SP. */
+  offMapBoxes?(state: Readonly<CampaignTurnState>, side: Side): readonly string[]
 }
 
 function refitOpen(state: Readonly<CampaignTurnState>, side: Side) {
@@ -53,6 +55,15 @@ function inspectRefit(state: Readonly<CampaignTurnState>, side: Side, context: C
       choices.push({ base, key, inactiveIds, limit: inactiveIds.length, payments: [] })
     }
   }
+  for (const offMap of config?.offMapBoxes?.(state, side) ?? []) {
+    const base = { kind: 'off-map' as const, box: offMap }
+    const key = baseKey(base)
+    if (state.refittedBases?.includes(key)) continue
+    const aircraft = own.filter(([, { location }]) => location.kind === 'box' && location.box === offMap)
+    const inactiveIds = aircraft.filter(([, unit]) => unit.active === false &&
+      (unit.availableThrough === undefined || state.turn <= unit.availableThrough)).map(([id]) => id)
+    if (inactiveIds.length) choices.push({ base, key, inactiveIds, limit: inactiveIds.length, payments: [] })
+  }
   return { sources, choices }
 }
 
@@ -75,7 +86,7 @@ export function refitCampaignAircraft(state: Readonly<CampaignTurnState>, side: 
     const key = action.source && campaignSupplySourceKey(resolveHex, action.source)
     if (!key || !choice.payments.some((source) => campaignSupplySourceKey(resolveHex, source) === key)) throw new Error('Choose a reachable refit supply source')
     paid = spendCampaignSupply(state, side, sources, new Map([[key, 1]]))
-  } else if (action.source) throw new Error('Romania air box refit is free')
+  } else if (action.source) throw new Error(base.kind === 'romania' ? 'Romania air box refit is free' : 'Off-map air box refit is free')
   const counters = { ...paid.counters }
   for (const id of selected) counters[id] = { ...counters[id]!, active: true }
   return { ...paid, counters, refittedBases: [...(state.refittedBases ?? []), choice.key] }

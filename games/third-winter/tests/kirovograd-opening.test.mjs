@@ -63,6 +63,8 @@ test('scenario opening binds losses, ordinary truck capacity, pool identities an
   assert.equal(opening.counters['air-1'].stepsLost, 1)
   assert.equal(opening.counters['air-1'].availableThrough, 3)
   assert.deepEqual(aircraftAvailability, [{ id: 'air-1', availableThrough: 3 }])
+  assert.deepEqual(context.turn.aircraftRefit.offMapBoxes(undefined, 'soviet'), ['09:soviet:air'])
+  assert.deepEqual(context.turn.aircraftRefit.offMapBoxes(undefined, 'axis'), [])
   assert.deepEqual(markerSetup, [input.otherMarkers[2]])
   const trucks = Object.values(opening.counters).filter(({ kind }) => kind === 'transport')
   assert.equal(trucks.length, 3)
