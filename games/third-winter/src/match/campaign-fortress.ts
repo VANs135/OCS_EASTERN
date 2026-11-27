@@ -76,7 +76,7 @@ export function declareCampaignFortress(state: Readonly<CampaignTurnState>, side
     fortresses: [...(state.fortresses ?? []), { city: site.city, hexes: [...site.hexes], sinceTurn: state.turn }] }
 }
 
-/** §2.4a：城内轴心地面单位不得自愿移动/撤退到城外（含后续入城者）。 */
+/** §2.4a：城内轴心地面单位不得自愿移动/推进/撤退到城外（含后续入城者）。 */
 export function fortressExitRefusal(state: Readonly<CampaignTurnState>, from: string, to: string): string | null {
   const resolvedFrom = from, resolvedTo = to
   return (state.fortresses ?? []).some(({ hexes }) => hexes.includes(resolvedFrom) && !hexes.includes(resolvedTo))

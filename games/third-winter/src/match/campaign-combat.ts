@@ -90,7 +90,7 @@ export interface CampaignCombatBoard {
   retreatDestroyed?(state: Readonly<CampaignTurnState>, id: string): boolean
   /** 撤退即毁结算（绑定层组合 applyCampaignCombatLosses：进死堆＋免费重建记录＋歼灭 VP）。 */
   destroyOnRetreat?(state: Readonly<CampaignTurnState>, ids: readonly string[]): CampaignTurnState
-  /** TTW §2.4a：城内轴心单位不得自愿撤退到城外；返回拒绝原因。 */
+  /** TTW §2.4a：城内轴心单位不得自愿推进/撤退到城外；返回拒绝原因。 */
   fortressExitRefusal?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): string | null
   /**
    * 进格夺取/控制结算（OCS 进格效应，镜像瓶中蝎 resolveScorpionEntry）：
@@ -521,6 +521,11 @@ function advanceCampaignCombat(state: Readonly<CampaignTurnState>, actor: Side,
     if (action.unitIds.length !== survivors.length || survivors.some((id) => !action.unitIds.includes(id))) {
       throw new Error('All surviving overrun participants must advance')
     }
+  }
+  // §2.4a：城内轴心单位可推进到相连城市格，但绝不推进到非城市格。
+  for (const id of action.unitIds) {
+    const refusal = board.fortressExitRefusal?.(state, id, hexOf(state, id, board)!, combat.target)
+    if (refusal) throw new Error(refusal)
   }
   const counters = { ...state.counters }
   for (const id of action.unitIds) counters[id] = { ...counters[id]!, location: { kind: 'map', hex: combat.target } }

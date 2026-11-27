@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 import { applyCampaignCombatLosses } from '../src/match/campaign-combat-losses.ts'
+import { fortressExitRefusal } from '../src/match/campaign-fortress.ts'
 import { ARMY_HQ_DESTROYED_VP } from '../src/ttw/combat-special.ts'
 
 const hexes = ['A1.1', 'A2.1', 'A3.1', 'A4.1', 'A5.1', 'A6.1']
@@ -79,6 +80,23 @@ test('a regular attack settles the defender loss, grants an exploit marker and a
   assert.deepEqual(r.state.counters.atk.location, { kind: 'map', hex: 'A3.1' })
   assert.equal(r.state.combat, null)
   assert.deepEqual(r.state.combatTargets, ['A3.1'])
+})
+
+test('a fortress-city unit cannot advance out of the city after combat (§2.4a)', () => {
+  const base = start({ atk: unit('axis', 'A2.1', 'atk'), def: unit('soviet', 'A3.1', 'def') })
+  const record = { ...base.record, state: { ...base.record.state,
+    fortresses: [{ city: 'Kiev', hexes: ['A2.1'], sinceTurn: 2 }] } }
+  const context = { ...base.context, combat: { ...base.context.combat,
+    fortressExitRefusal: (state, id, from, to) => state.counters[id]?.side === 'axis'
+      ? fortressExitRefusal(state, from, to) : null } }
+  let r = toTerrain(record, context)
+  r = submit(r, context, terrain(), 'soviet')
+  r = submit(r, context, resolve())
+  r = submit(r, context, resolve({ lossOrder: ['def'] }), 'soviet')
+  assert.equal(r.state.combat.step, 'advance')
+  assert.throws(() => submit(r, context, { type: 'advance-campaign-combat', unitIds: ['atk'] }),
+    /fortress-city-no-exit/)
+  assert.deepEqual(r.state.counters.atk.location, { kind: 'map', hex: 'A2.1' })
 })
 
 test('an attacker option becomes a retreat and the defender may ignore its option (OCS 9.10c/9.12)', () => {

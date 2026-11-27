@@ -25,7 +25,7 @@ export interface CampaignFortressSource {
 }
 
 export interface CampaignFortressHooks extends CampaignFortressBoard {
-  /** §2.4a 城内轴心地面单位不得自愿走出城市（含后续入城者）；返回拒绝原因或 null。 */
+  /** §2.4a 城内轴心地面单位不得自愿走出城市（含后续入城者，覆盖移动/推进/撤退）；返回拒绝原因或 null。 */
   exitRefusal(state: Readonly<CampaignTurnState>, id: string, from: string, to: string): string | null
 }
 
