@@ -8,7 +8,7 @@ import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { scorpionArtillery } from '../src/import/scorpion-artillery.ts'
 import { prepareScorpionOpening } from '../src/match/scorpion-setup.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
-import { scorpionTransportStock } from '../src/match/scorpion-transport-points.ts'
+import { scorpionTransportStock, transportPoints } from '../src/match/scorpion-transport-points.ts'
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionFirstTurn } from '../src/match/scorpion-session.ts'
 import { scorpionDates } from '../src/ttw/scorpion/weather.ts'
@@ -98,6 +98,9 @@ const definitions = Object.fromEntries([...definitionIds].map((id) => {
     railOnly: source.railOnly ?? null,
     mustBeCity: source.mustBeCity ?? null,
     hqKind: source.hqKind ?? null,
+    // Printed aircraft ranges: the combat face is the normal range, the move face the reduced one.
+    range: typeof source.faces.combat?.stats?.range === 'number' ? source.faces.combat.stats.range : null,
+    rangeMove: typeof source.faces.move?.stats?.range === 'number' ? source.faces.move.stats.range : null,
     faces: {
       combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
 }))
@@ -154,8 +157,18 @@ for (const hex of map.hexes.keys()) {
 const arrivalCatalog = arrivalCatalogSource.map(({ id, side, turn, destinations, definition, face,
   stepsLost, organicTruck, optionalForce }) =>
   ({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }))
+// Captured transports deploy one-point counters of the captor's nation. The TS engine resolves
+// them through the catalog alias ("Ge Truck" / "Sov Wagon"), so ship the same alias lookup and the
+// deployed template the native side clones.
+const capturedTransports = Object.fromEntries(
+  ['Ge Truck', 'Ge Wagon', 'Sov Truck', 'Sov Wagon'].flatMap((ref) => {
+    const match = catalog.aliases.get(ref)?.[0]
+    if (!match || match.kind !== 'transport' || !transportPoints(match)) return []
+    const { hex, ...body } = deployScorpionGroundCounter(match, hexIds[0], 0)
+    return [[ref, body]]
+  }))
 const view = {
-  catalog: { definitions, markers, counters, faces },
+  catalog: { definitions, markers, counters, faces, capturedTransports },
   dates: [...scorpionDates],
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },

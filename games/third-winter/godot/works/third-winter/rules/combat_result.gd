@@ -12,6 +12,7 @@ const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const CombatTerrain := preload("res://works/third-winter/rules/combat_terrain.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const Retreat := preload("res://works/third-winter/rules/retreat.gd")
+const Capture := preload("res://works/third-winter/rules/capture.gd")
 
 
 ## 掷一局正规战斗。rolls 为 CombatRolls（绑本局 rng），按 TS 顺序抽 surprise(2d6)→shift(1d6)→combat(2d6)。
@@ -291,23 +292,14 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 	for stack: Dictionary in illegal:
 		if str(stack.get("hex", "")) == str(combat.get("target", "")):
 			return Result.failure("stacking_limit", "进击后目标格超出堆叠上限（%d/10 RE）" % int(stack.get("re", 0)))
-	# 进格夺取：目标格留有敌方补给堆/运输队/刺猬/机场时，本轮不伪造夺取结算。
-	var opposite: String = "soviet" if side == "axis" else "axis"
+	# 进格夺取（resolveScorpionEntry 口径，afterCombat=true）：地面控制、补给堆、刺猬、
+	# 机场与运输队窗口；飞机与 Extender 位移、运输队分配仍在 capture.gd 里显式拒绝。
 	var target := str(combat.get("target", ""))
-	var dump: Variant = advanced.get("dumps", {}).get("%s:hex:%s" % [opposite, target])
-	var transports := 0
-	for id: String in advanced.get("units", {}):
-		var unit: Dictionary = advanced.units[id]
-		if str(unit.get("side", "")) == opposite and unit.get("combat") != true and str(unit.get("hex", "")) == target:
-			transports += 1
-	var hedgehog: Variant = advanced.get("hedgehogs", {}).get(target)
-	if (dump != null and int(dump.get("tokens", 0)) > 0) or transports > 0 or hedgehog != null:
-		return Result.failure("capture_unimplemented", "进格夺取（补给堆/运输队/刺猬）本轮未实现")
-	var rail_control: Dictionary = advanced.get("railControl", {}).duplicate(true)
-	if (data.get("deployment", {}).get("controlSites", []) as Array).has(target) \
-			and str(rail_control.get(target, "")) != side:
-		rail_control[target] = side
-	advanced["railControl"] = rail_control
+	var entry_res: Dictionary = Capture.resolve_entry(advanced, side, target, entrants, data, true)
+	if not entry_res.ok:
+		return entry_res
+	advanced = entry_res.value
+	advanced["combat"] = null
 	return Result.success({"state": advanced, "entrants": entrants})
 
 

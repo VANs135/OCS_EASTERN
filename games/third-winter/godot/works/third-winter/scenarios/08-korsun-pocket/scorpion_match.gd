@@ -16,6 +16,7 @@ const Combat := preload("res://works/third-winter/rules/combat.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const Barrage := preload("res://works/third-winter/rules/barrage.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
+const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 
 
@@ -24,6 +25,12 @@ static func submit(record: Dictionary, seat: String, command: Dictionary, data: 
 
 
 static func _apply(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	# TS 会话级守卫：夺取窗口未结算时，除 settle-capture 外一切命令都被挡住。
+	if state.get("kind") == "playing" and state.get("capture") != null \
+			and str(action.get("type", "")) != "settle-capture":
+		return Result.failure("capture_pending", "须先结算待决的进格夺取")
+	if action.get("type") == "settle-capture":
+		return Capture.settle(state, actor, action, data)
 	if action.get("type") in ["base-aircraft", "place-setup-alert", "choose-setup-loss", "confirm-setup"]:
 		if not data.has("deployment"):
 			return Result.failure("deployment_data_unavailable", "请重新生成包含部署数据的 08 数据包")

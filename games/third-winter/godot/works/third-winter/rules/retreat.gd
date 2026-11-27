@@ -7,7 +7,7 @@ extends RefCounted
 ## 已知缺口（以 Result.failure + 待决描述返回，不伪造结果）：
 ## - 折断（breakdown）分队随撤退 detachment 落地；
 ## - 残部落点选择（DG 单位被迫损一步后生成残部的候选格）；
-## - 进格夺取（敌方补给堆 / 机场 / 刺猬 / 运输队 /  extender）；
+## - 进格夺取的飞机/Extender/运输队分配（窗口本身已按 capture.gd 掷骰挂起）；
 ## - Kessel 司令部离场返还。
 
 const Result := preload("res://scripts/core/result.gd")
@@ -16,6 +16,7 @@ const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
+const Capture := preload("res://works/third-winter/rules/capture.gd")
 
 
 ## scorpionRetreatPathOptions：当前路径末端相邻、未被战斗开始时敌方占用、非敌方补给源且
@@ -324,11 +325,14 @@ static func _retreat_step(state: Dictionary, side: String, route: Dictionary, in
 	next["units"] = next_units
 	if disorganize_hex:
 		_disorganize_hex(next_units, to, side)
-	# 进格夺取：本轮未落地，挂起待决（resolveScorpionEntry 口径）。
-	var capture: Variant = _capture_at(next, side, to)
-	if capture != null:
-		next["capture"] = capture
-		return Result.success({"state": next})
+	# 进格夺取（resolveScorpionEntry 口径）：地面控制、补给堆、刺猬、机场与运输队窗口。
+	# 9.14 的口径是移动时机，即使这一步属于战斗后撤退。
+	var route_path: Array = route.get("path", [])
+	var entry_res: Dictionary = Capture.resolve_entry(next, side, to, moving, data, false,
+		route_path.slice(index + 1))
+	if not entry_res.ok:
+		return entry_res
+	next = entry_res.value
 	if loss == null:
 		return Result.success({"state": next})
 	# ZOC 被迫损一步；残部落点随损失一并登记（apply_losses 口径）。
@@ -346,31 +350,6 @@ static func _retreat_step(state: Dictionary, side: String, route: Dictionary, in
 			return pending
 		return applied
 	return Result.success({"state": applied.value.state})
-
-
-## 进格夺取探测（scorpionCaptureAt 口径）；无可夺取物返回 null。
-static func _capture_at(state: Dictionary, side: String, hex_id: String) -> Variant:
-	var enemy := "soviet" if side == "axis" else "axis"
-	var dump: Variant = state.get("dumps", {}).get("%s:hex:%s" % [enemy, hex_id])
-	if dump != null and int(dump.get("tokens", 0)) > 0:
-		return {"hex": hex_id, "captor": side, "owner": enemy, "kind": "dump"}
-	for id: String in state.get("units", {}):
-		var unit: Dictionary = state.units[id]
-		if str(unit.get("side", "")) == enemy and unit.get("combat") != true and str(unit.get("hex", "")) == hex_id:
-			return {"hex": hex_id, "captor": side, "owner": enemy, "kind": "transport"}
-	var hedgehog: Variant = state.get("hedgehogs", {}).get(hex_id)
-	if hedgehog != null and hedgehog is Dictionary and str(hedgehog.get("side", "")) == enemy:
-		return {"hex": hex_id, "captor": side, "owner": enemy, "kind": "hedgehog"}
-	for base: Dictionary in state.get("airBases", []):
-		if str(base.get("side", "")) == enemy and str(base.get("hex", "")) == hex_id:
-			return {"hex": hex_id, "captor": side, "owner": enemy, "kind": "air-base"}
-	for piece: Dictionary in state.get("pieces", []):
-		if str(piece.get("kind", "")) != "aircraft" or str(piece.get("side", "")) != enemy:
-			continue
-		var location: Dictionary = piece.get("location", {})
-		if str(location.get("kind", "")) == "hex" and str(location.get("hex", "")) == hex_id:
-			return {"hex": hex_id, "captor": side, "owner": enemy, "kind": "aircraft"}
-	return null
 
 
 ## DG：本格本方战斗单位转失序，解除预备 / 进击标记；有机卡车解除预备。

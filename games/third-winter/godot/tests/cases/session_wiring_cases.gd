@@ -63,10 +63,13 @@ static func _continue_retreat(ctx: Dictionary, fixture: Dictionary, bundle: Dict
 	var guarded := _submit(pending, bundle, "continue-combat-retreat", {})
 	expect.call(not guarded.ok and guarded.get("errorCode") == "capture_pending",
 		"continue-combat-retreat 经会话入口被夺取守卫拒绝")
-	var wrong_seat := _submit(pending, bundle, "continue-combat-retreat", {}, "soviet")
+	# 夺取窗口待决时守卫优先；把窗口清掉后再验席位与缺战斗两条。
+	var no_capture: Dictionary = pending.duplicate(true)
+	no_capture.erase("capture")
+	var wrong_seat := _submit(no_capture, bundle, "continue-combat-retreat", {}, "soviet")
 	expect.call(not wrong_seat.ok and wrong_seat.get("errorCode") == "combat_retreat_actor",
 		"continue-combat-retreat 只认挂起撤退的一方")
-	var bare: Dictionary = pending.duplicate(true)
+	var bare: Dictionary = no_capture.duplicate(true)
 	bare.erase("combat")
 	var none := _submit(bare, bundle, "continue-combat-retreat", {})
 	expect.call(not none.ok and none.get("errorCode") == "combat_missing",
