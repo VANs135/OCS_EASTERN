@@ -234,7 +234,7 @@ static func _project_phase(record: Dictionary, selection: Dictionary, data: Dict
 
 static func _closable_phase(phase: String) -> bool:
 	return phase == "movement" or phase == "supply" or phase == "reaction" or phase == "combat" \
-		or phase == "exploitation"
+		or phase == "exploitation" or phase == "cleanup"
 
 
 static func _phase_actions(state: Dictionary, actor: String, revision: int, data: Dictionary) -> Array:

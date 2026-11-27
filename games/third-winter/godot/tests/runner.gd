@@ -424,7 +424,23 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	# each close advances the cursor, clears the movement books and leaves the cleanup rollover refused.
 	after_supply = _phase_close(after_supply, data, "complete-combat", "exploitation")
 	after_supply = _phase_close(after_supply, data, "complete-exploitation", "cleanup")
-	_reject_scorpion(after_supply, data, "soviet", {"type": "complete-cleanup"}, "unsupported_action")
+	after_supply = _cleanup_close(after_supply, data)
+
+
+## Cleanup hands the round to the other side without rolling weather; the round rollover past the
+## second side is still refused.
+func _cleanup_close(record: Dictionary, data: Dictionary) -> Dictionary:
+	var wrote := ScorpionMatch.submit(record.duplicate(true), PhaseFlow.acting_side(record.state.cursor),
+		{"id": "phase-cleanup", "expectedRevision": record.revision,
+			"action": {"type": "complete-cleanup"}}, data)
+	_expect(wrote.ok, "08 原生清理收尾 %s" % wrote.get("errorMessage", ""))
+	if not wrote.ok:
+		return record
+	var state: Dictionary = wrote.value.record.state
+	_expect(str(state.cursor.phase) == "aircraft-refit" and str(state.cursor.phasing) == "axis" \
+		and str(state.cursor.first) == "soviet", "08 原生清理收尾把回合交给轴心")
+	_expect(state.moved.is_empty() and state.combatTargets.is_empty(), "08 原生清理收尾清空账本")
+	return wrote.value.record
 
 
 ## Submits one phase-closing command and asserts the cursor moved to the named phase with clean books.
