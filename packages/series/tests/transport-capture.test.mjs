@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { buildTransportCaptureGroup, planTransportSplit, transportCaptureClass,
-  transportDisplacementCandidates } from '../src/transport-capture.ts'
+  transportDisplacementCandidates, validateTransportCaptureChoice } from '../src/transport-capture.ts'
 
 test('9.14c groups by MA and rounds after summing the whole group', () => {
   assert.equal(transportCaptureClass(11), 'trucks')
@@ -30,6 +30,26 @@ test('9.14c split chooses the closest subset and reports when the table is not e
     { id: 'b', points: 1, tokens: 0 },
   ])
   assert.equal(planTransportSplit(exact).exact, true)
+})
+
+test('9.14c owner choice is validated against the group totals without silently rounding', () => {
+  const group = buildTransportCaptureGroup('trucks', 3, [
+    { id: 'a', points: 1, tokens: 1 },
+    { id: 'b', points: 1, tokens: 1 },
+    { id: 'c', points: 1, tokens: 1 },
+  ])
+  const exact = validateTransportCaptureChoice(group, ['a'])
+  assert.equal(exact.exact, true)
+  assert.equal(exact.capturedPoints, group.capturedPoints)
+  assert.deepEqual(exact.displacedIds, ['b', 'c'])
+
+  const closest = validateTransportCaptureChoice(group, ['a', 'b'])
+  assert.equal(closest.exact, false)
+  assert.equal(closest.capturedPoints, 2)
+  assert.deepEqual(closest.displacedIds, ['c'])
+
+  assert.throws(() => validateTransportCaptureChoice(group, ['a', 'a']), /duplicate/)
+  assert.throws(() => validateTransportCaptureChoice(group, ['x']), /unknown/)
 })
 
 test('9.14c displacement candidates ignore terrain and enemy units, only distance and map membership', () => {

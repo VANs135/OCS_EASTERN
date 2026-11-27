@@ -68,6 +68,14 @@ export interface TransportSplitPlan {
 }
 
 /**
+ * 9.14c 原主选择的校验结果。
+ *
+ * 与 `planTransportSplit` 的分工：本函数不替玩家选，只把玩家勾选的算子汇总成点/T，
+ * 与组级表值对照；`exact=false` 表示整算子拼不出表值，调用方须如实报告差额。
+ */
+export type TransportCaptureChoice = TransportSplitPlan
+
+/**
  * 9.14c 的默认算子级分配。
  *
  * 规则要求原主在组内决定哪些算子被夺取；此函数只给默认方案，调用方仍可替换。
@@ -119,8 +127,34 @@ export function planTransportSplit(group: TransportCaptureGroup): TransportSplit
   }
 }
 
-/** 9.14c 位移候选：图内、非原格、格距不超过上限；敌情/地形不参与过滤。 */
-export function transportDisplacementCandidates(from: string, hexes: readonly string[],
+/**
+ * 9.14c 原主选择的校验。
+ *
+ * 不替玩家选，也不擅自把差额抹平；只汇总玩家勾选的算子点数/装载 T，与组级表值对照。
+ * `exact=false` 仍需由调用方如实报告，不能静默当成精确夺取。
+ */
+export function validateTransportCaptureChoice(group: TransportCaptureGroup,
+  capturedIds: readonly string[]): TransportCaptureChoice {
+  const chosen = new Set(capturedIds)
+  if (chosen.size !== capturedIds.length) throw new Error('Transport capture choice contains duplicate counters')
+  let capturedPoints = 0
+  let capturedTokens = 0
+  for (const id of chosen) {
+    const item = group.items.find((candidate) => candidate.id === id)
+    if (!item) throw new Error(`Transport capture choice contains an unknown counter: ${id}`)
+    capturedPoints += item.points
+    capturedTokens += item.tokens
+  }
+  return {
+    capturedIds: [...chosen],
+    displacedIds: group.items.filter((item) => !chosen.has(item.id)).map((item) => item.id),
+    capturedPoints,
+    capturedTokens,
+    exact: capturedPoints === group.capturedPoints && capturedTokens === group.capturedTokens,
+  }
+}
+
+/** 9.14c 位移候选：图内、非原格、格距不超过上限；敌情/地形不参与过滤。 */export function transportDisplacementCandidates(from: string, hexes: readonly string[],
   distance: (a: string, b: string) => number, kind: TransportCaptureClass): string[] {
   const limit = transportDisplacementMaxHexes(kind)
   return hexes.filter((hex) => hex !== from && Number.isFinite(distance(from, hex)) && distance(from, hex) <= limit)
