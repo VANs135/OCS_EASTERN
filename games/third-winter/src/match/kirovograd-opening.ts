@@ -17,6 +17,7 @@ import { kirovogradRailBoard } from './kirovograd-rail-board.ts'
 import { kirovogradEdgeSupplySources } from './kirovograd-supply.ts'
 import { kirovogradAirStrikeBoard } from './kirovograd-air-strike-board.ts'
 import { kirovogradInitialRailGauge, kirovogradRailNetwork } from './kirovograd-initial-gauge.ts'
+import { kirovogradOpeningSovietSide } from './kirovograd-initial-front.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -124,11 +125,16 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
   // Scenario 9 has no printed gauge table. The Soviet railhead markers bound the
   // converted line: rail east of a marker is broad, everything else is standard.
+  // The opening deployment supplies the missing front-side mask so an eastward
+  // trace cannot run through a German ring into German-held rail.
+  const onSovietSide = kirovogradOpeningSovietSide({
+    map: data.map, counters: data.setup.counters, definitions: data.catalog.definitions,
+  })
   const initialRailGauge = data.terrain?.railAt
-    ? kirovogradInitialRailGauge({ map: data.map, railAt: data.terrain.railAt, railheads: data.otherMarkers })
+    ? kirovogradInitialRailGauge({ map: data.map, railAt: data.terrain.railAt, railheads: data.otherMarkers, onSovietSide })
     : undefined
   const railNetwork = initialRailGauge
-    ? kirovogradRailNetwork({ map: data.map, railAt: data.terrain!.railAt, railheads: data.otherMarkers })
+    ? kirovogradRailNetwork({ map: data.map, railAt: data.terrain!.railAt, railheads: data.otherMarkers, onSovietSide })
     : undefined
   // Reuse the scenario's loaded barrage table and the actual air unit definitions
   // to assemble the 09 air-strike board without a second table source.

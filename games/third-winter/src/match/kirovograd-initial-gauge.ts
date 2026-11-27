@@ -31,8 +31,10 @@ export function kirovogradInitialRailGauge(input: {
   map: KirovogradRailMap
   railAt(hex: string, to: string): RailAt
   railheads: readonly KirovogradRailhead[]
+  /** Optional opening-front check; rails outside the Soviet side never enter the broad component. */
+  onSovietSide?: (hex: string) => boolean
 }): Record<string, TtwRailGauge> | undefined {
-  const { map, railAt } = input
+  const { map, railAt, onSovietSide } = input
   const available = map.availableHexes
   if (!available?.size) return undefined
   const railheads = input.railheads.filter((marker) => marker.ref === 'Railhead' && marker.side === 'soviet')
@@ -64,13 +66,13 @@ export function kirovogradInitialRailGauge(input: {
       blocked.add(edgeKey(hex, to))
     }
   }
-  const seen = new Set(railheadHexes)
-  const pending = [...railheadHexes]
+  const seen = new Set(railheadHexes.filter((hex) => !onSovietSide || onSovietSide(hex)))
+  const pending = [...seen]
   while (pending.length) {
     const from = pending.pop()!
     for (const to of map.neighbors(from)) {
       const key = edgeKey(from, to)
-      if (!railEdges.has(key) || blocked.has(key)) continue
+      if (!railEdges.has(key) || blocked.has(key) || (onSovietSide && !onSovietSide(to))) continue
       broad.add(key)
       if (!seen.has(to)) {
         seen.add(to)
@@ -89,6 +91,7 @@ export function kirovogradRailNetwork(input: {
   map: KirovogradRailMap
   railAt(hex: string, to: string): RailAt
   railheads: readonly KirovogradRailhead[]
+  onSovietSide?: (hex: string) => boolean
 }): CampaignRailNetwork | undefined {
   const gauges = kirovogradInitialRailGauge(input)
   if (!gauges) return undefined

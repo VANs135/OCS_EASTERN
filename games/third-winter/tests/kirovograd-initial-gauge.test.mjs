@@ -35,6 +35,15 @@ test('Scenario 9 rail network reads gauge and exposes the printed railheads', ()
   assert.equal(network.edge('D10.1', 'D16.1'), undefined)
 })
 
+test('the opening front can stop the eastward trace before German-held rail', () => {
+  const sideGauge = kirovogradInitialRailGauge({ map, railAt: (from, to) => railSet.has(`${from}|${to}`), railheads,
+    onSovietSide: (hex) => Number(hex.slice(1, hex.indexOf('.'))) <= 14 })
+  assert.equal(sideGauge['D13.1|D14.1'], 'broad')
+  assert.equal(sideGauge['D14.1|D14.2'], 'broad')
+  assert.equal(sideGauge['D14.1|D15.1'], 'standard')
+  assert.equal(sideGauge['D14.2|D15.2'], 'standard')
+})
+
 test('railheads must be on the map and need actual rail edges', () => {
   assert.throws(() => kirovogradInitialRailGauge({ map, railAt: () => false,
     railheads: [{ ref: 'Railhead', side: 'soviet', hex: 'D9.99' }] }), /railhead is outside/)
