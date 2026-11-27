@@ -16,12 +16,12 @@ const map = campaignMapInPlayArea(indexTtwCampaignMap({ items: hexes.map((hex_id
 const land = (hex, props = {}) => ({ kind: 'land', definition: 'infantry', side: 'axis', mode: 'move', currentRe: 1,
   location: { kind: 'map', hex }, ...props })
 
-function rules(rail = {}, ground = {}) {
+function rules(rail = {}, ground = {}, gameMap = map) {
   const { network, ...railRules } = rail
   return {
-    reinforcement: { schedule: new Map(), bindings: new Map(), resolveHex: map.resolveHex, arrivalSites: () => [] },
+    reinforcement: { schedule: new Map(), bindings: new Map(), resolveHex: gameMap.resolveHex, arrivalSites: () => [] },
     reinforcementBlockers: () => [], movementBarrageBlockers: () => [],
-    groundMovement: createCampaignOrdinaryMovementBoard({ map, terrainAt: () => ['Open'], crossingAt: () => ({ barrier: 'none', routes: [] }),
+    groundMovement: createCampaignOrdinaryMovementBoard({ map: gameMap, terrainAt: () => ['Open'], crossingAt: () => ({ barrier: 'none', routes: [] }),
       railNetwork: { edge: () => ({ gauge: 'standard', multiTrack: true }), isRepairUnit: (_, id) => ['engineer', 'rider'].includes(id), ...network },
       profileOf: (state, id) => ({ combat: state.counters[id].kind !== 'transport', attackCapable: true,
         inCombatMode: state.counters[id].mode === 'combat', outOfSupply: false, moveMa: 4, moveMobility: 'leg',
@@ -143,6 +143,12 @@ test('compatible-gauge rail freight is independent of the ground-movement bridge
   assert.equal(projectCampaignGroundRoute(blown, 'soviet', across, config).reason, 'insufficient-mp')
 })
 
+const branchHexes = ['D12.03', 'D13.03', 'D14.03', 'D13.04', 'D13.05']
+const branchMap = campaignMapInPlayArea(indexTtwCampaignMap({ items: branchHexes.map((hex_id) => ({ hex_id })) }, {
+  items: [['D12.03', 'D13.03'], ['D13.03', 'D14.03'], ['D13.03', 'D13.04'], ['D13.04', 'D13.05']]
+    .map(([hex_a, hex_b], i) => ({ edge_key: `b${i}`, hex_a, hex_b })),
+}), { kind: 'all-map' })
+
 const keyOf = (a, b) => [a, b].sort().join('|')
 const engineerMove = (id, hex, connections) => ({ type: 'move-campaign-ground',
   movers: [{ id, railWork: [{ step: 1, connections }] }], path: [hex] })
@@ -220,6 +226,15 @@ test('active conversion needs a combat-face repair unit and obeys raw ZOC and ea
     enemy: land('D17.03', { side: 'soviet', mode: 'combat' }) }), config)
   const held = submit(threatened, { type: 'hold-campaign-ground-zoc', counterId: 'guard' }, config)
   assert.equal(projectCampaignGroundRoute(held, 'axis', one, config).reason, 'rail-conversion-enemy-zoc')
+})
+
+test('rail conversion changes the whole entered hex, not just the selected approach edge', () => {
+  const config = rules({ network: { edge: () => ({ gauge: 'broad', multiTrack: false }) } }, {}, branchMap)
+  const record = normal(beforeMovement({ engineer: land('D12.03', { mode: 'combat' }) }), config)
+  const moved = submit(record, engineerMove('engineer', 'D13.03', ['D14.03']), config)
+  assert.equal(moved.state.groundMovement.railConversionCount.engineer, 1)
+  assert.deepEqual(Object.keys(moved.state.railGaugeByEdge).sort(),
+    ['D12.3|D13.3', 'D13.3|D13.4', 'D13.3|D14.3'])
 })
 
 test('a counter held by a scenario release rule can neither board a train nor march', () => {
