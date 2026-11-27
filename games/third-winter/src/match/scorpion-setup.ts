@@ -59,7 +59,7 @@ export type ScorpionSetupAction =
   | { type: 'choose-setup-loss'; id: string }
   | { type: 'confirm-setup' }
 
-export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: ScorpionSetupAssets, seed: number): ScorpionSetup {
+export function prepareScorpionOpening(data: ScorpionSetupData, { map, catalog }: ScorpionSetupAssets) {
   const { units, lossChoices } = scorpionGroundDeployment(data.units, catalog.aliases, map)
   const pieces = scorpionSetupBoxPieces(data, catalog.aliases)
   const pool = data.pools.alert.flatMap(({ ref, count }) => {
@@ -75,7 +75,6 @@ export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: S
     }))
   })
   if (pool.length < 2 || new Set(pool.map(({ id }) => id)).size !== pool.length) throw new Error('Invalid setup Alert pool')
-  const picked = drawWithoutReplacement(createRngState(seed), pool, 2)
   const dumps = Object.fromEntries(scorpionOpeningDumps.map(({ hex, side, tokens }) => {
     if (!map.hexes.has(hex)) throw new Error(`Missing opening dump hex ${hex}`)
     return [`${side}:hex:${hex}`, { side, tokens, location: 'on-map' as const }]
@@ -83,8 +82,14 @@ export function createScorpionSetup(data: ScorpionSetupData, { map, catalog }: S
   for (const { hex } of scorpionOpeningAirBases) {
     if (!map.hexes.has(hex)) throw new Error(`Missing opening air base ${hex}`)
   }
-  return { seat: 'axis', rng: picked.rng, units, pieces, lossChoices, drawnAlerts: picked.draws.map(({ item }) => item),
-    availableAlerts: picked.remaining, dumps }
+  return { units, pieces, lossChoices, pool, dumps }
+}
+
+export function createScorpionSetup(data: ScorpionSetupData, assets: ScorpionSetupAssets, seed: number): ScorpionSetup {
+  const { pool, ...opening } = prepareScorpionOpening(data, assets)
+  const picked = drawWithoutReplacement(createRngState(seed), pool, 2)
+  return { seat: 'axis', rng: picked.rng, ...opening, drawnAlerts: picked.draws.map(({ item }) => item),
+    availableAlerts: picked.remaining }
 }
 
 /** A null result hands the final confirmed position to the first player turn. */

@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm test",
+    "check": "npm run typecheck && npm test && npm run check:godot-vectors",
+    "check:godot-vectors": "node --experimental-strip-types scripts/godot-core-vectors.mjs --check",
     "audit:data": "node --experimental-strip-types scripts/audit-data.mjs",
     "audit:campaign": "node --experimental-strip-types scripts/audit-campaign.mjs",
     "audit:scenario-import": "node --experimental-strip-types scripts/audit-scenario-import.mjs",

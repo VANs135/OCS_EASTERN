@@ -1,6 +1,8 @@
 # EASTERN OCS · Godot 客户端
 
-这是 `D:\OCS\OCS_EASTERN` 仓库内的正式 Godot 客户端目录。规则、命令校验、回合推进和存档全部由仓库内的 Node/TypeScript 引擎完成；Godot 不复制任何规则。
+这是 `D:\OCS\OCS_EASTERN` 仓库内的正式 Godot 客户端目录。地图入口在迁移期间仍由 Node/TypeScript 引擎结算。原生 GDScript 的随机数、命令回执、08 初设与双方部署命令可通过无头测试验证到首回合飞机整备。
+
+工程分层、作品包接入和迁移阶段见 [Godot 纯 GDScript 架构方案](../../../docs/Godot纯GDScript架构方案.md)。三层规则、五种模式、Linux 无头 AI、LLM 指挥和 Android 适配的开发要求见 [Godot 项目约束](../../../docs/Godot项目约束.md)。
 
 正式入口现在是 `menu.tscn`：主页面选择游戏模式，再进入剧本选择；只有 **08 瓶中蝎** 接通 Godot 地图。地图侧栏显示“剧本 · 模式”，并提供“← 返回主页面”。当前桥接复用 **08 瓶中蝎** 桌面控制器（`openLocalScorpion`），所以画面是 Scorpion 地图/初设，不是 09 基洛沃格勒战役。09 的 `campaign-match` 桥接尚未建立；规则补全不影响这个显示层。
 
@@ -67,6 +69,26 @@ Godot 4.7（games/third-winter/godot）
 
 Godot AI 插件不再随仓库 vendored。需要编辑期 AI 时，单独把 4.4.2 插件放进 `addons/godot_ai` 并在编辑器启用；游戏运行不依赖它。
 
+## 原生迁移回归
+
+从仓库根目录运行。`godot` 指向 Godot 4.7.2 标准版的命令行程序。随机数、命令回执和库存测试使用随仓库提交的向量。
+
+```powershell
+npm run check:godot-vectors --workspace=@ocs-eastern/third-winter
+godot --headless --path games/third-winter/godot --script res://tests/runner.gd
+```
+
+08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案和控制点。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执和首回合飞机整备入口。移动、交互投影和续档的原生对照仍待接入。
+
+```powershell
+$ttwData = 'D:\war game\OCS各作数据库\OCS第三个冬天'
+node --experimental-strip-types games/third-winter/scripts/godot-scorpion-opening-data.mjs $ttwData
+node --experimental-strip-types games/third-winter/scripts/godot-scorpion-vector.mjs $ttwData
+godot --headless --path games/third-winter/godot --script res://tests/runner.gd -- `
+    (Resolve-Path 'dist/godot/08-opening-data.json').Path `
+    (Resolve-Path 'dist/godot/08-scorpion.json').Path
+```
+
 ## 已实现
 
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
@@ -88,8 +110,7 @@ Godot AI 插件不再随仓库 vendored。需要编辑期 AI 时，单独把 4.4
 
 ## 下一步
 
-1. 把 01/09 的战役桥接接到同一 `AppState` 入口，再谈脚本选择后的正式开局。
-2. 接入联机房间协议与 PVE AI 控制方；在此之前保持入口占位，不伪造可用。
-3. 为 `combatDecision`、`airDecision`、`supplyDecision` 做专用应答面板，而不是只依赖通用按钮。
-4. 增加堆叠分页、辅助卡页签和存档恢复模式/剧本。
-5. 做 Windows 导出并把 Node 运行时、`dist` 和资料目录一起纳入安装包。
+1. 将已验证的 08 部署命令接入原生会话和按席位投影，继续迁移至地面移动。以现有 TypeScript 交互序列验证菜单、落子和续档。
+2. 补齐 08 其余规则机制，再接 09 战役回归与 01 全景盘面。
+3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
+4. 验证 Windows 独立导出以及 Linux 无头会话。
