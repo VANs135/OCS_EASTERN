@@ -280,6 +280,60 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 	_expect(session.revision() == int(refit_step.view.revision), "08 原生 complete-refit 修订 %d" % int(refit_step.view.revision))
 	var expected: Dictionary = vector.records.get(str(int(refit_step.view.revision)), {}).get("state", {})
 	_compare_state(session.state(), expected, "08 原生增援窗口状态")
+	_test_reinforcement_commands(session.record(), vector, bundle, int(refit_step.view.revision))
+
+
+## Replays the oracle's reinforcement receipts through the native match and compares the whole
+## reinforcement ledger: arrivals on the map, deployed counters, deliveries, pax and the dice.
+func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: Dictionary, from: int) -> void:
+	var steps := 0
+	var index := from + 1
+	while true:
+		var expected: Dictionary = vector.records.get(str(index), {})
+		if expected.is_empty():
+			break
+		var receipts: Array = expected.get("receipts", [])
+		if receipts.size() != index:
+			break
+		var receipt: Dictionary = receipts[index - 1]
+		var action: Dictionary = receipt.action
+		if not str(action.get("type")) in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
+				"complete-reinforcement", "place-alert", "pass-alert"]:
+			break
+		var wrote := ScorpionMatch.submit(record.duplicate(true), str(receipt.side), {"id": "rein-%d" % index,
+			"expectedRevision": record.revision, "action": action}, data)
+		_expect(wrote.ok, "08 原生增援命令 %d · %s %s" % [index, str(action.get("type")),
+			wrote.get("errorMessage", "")])
+		if not wrote.ok:
+			return
+		record = wrote.value.record
+		_compare_reinforcement(record.state, expected.state, "08 原生增援修订 %d" % index)
+		steps += 1
+		if str(action.get("type")) == "complete-reinforcement":
+			break
+		index += 1
+	_expect(steps >= 5, "08 原生增援走完抵达、交付与收尾 (%d 步)" % steps)
+
+
+func _compare_reinforcement(actual: Dictionary, expected: Dictionary, label: String) -> void:
+	if expected.is_empty():
+		_expect(false, label + " · oracle 缺少该修订的增援账本")
+		return
+	var fields := ["cursor", "window", "arrival", "arrivalsOnMap", "dumps", "pax", "availableAlerts",
+		"placedAlerts", "victory", "rng"]
+	var left := {}
+	var right := {}
+	for field: String in fields:
+		left[field] = actual.get(field)
+		right[field] = expected.get(field)
+	var ids: Array = []
+	for placed: Dictionary in expected.get("arrivalsOnMap", []):
+		var id := str(placed.arrival.id)
+		ids.append(id)
+		left["unit:" + id] = actual.get("units", {}).get(id)
+		right["unit:" + id] = expected.get("units", {}).get(id)
+	var difference := _first_difference(left, right, "")
+	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
 
 
 ## Review check: transport stock counts by printed denominations, so a mobility/allowance edit on a

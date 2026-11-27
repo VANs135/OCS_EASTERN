@@ -27,4 +27,10 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		if not stacked.ok:
 			return stacked
 		return Reinforcement.enter(state, actor, data)
+	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
+	if action.get("type") in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
+			"complete-reinforcement"]:
+		if state.kind != "playing":
+			return Result.failure("match_not_started", "请先开始 08 对局")
+		return Reinforcement.apply(state, actor, action, data)
 	return Result.failure("unsupported_action", "该机制尚未接入原生 08 对局")

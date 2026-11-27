@@ -28,10 +28,25 @@ const alertProfiles = Object.fromEntries([...new Set(opening.pool.map(({ definit
 }))
 const deployment = { airBases: scorpionOpeningAirBases, alertProfiles,
   controlSites: [...scorpionControlSites(map)], frontControl: scorpionOpeningFrontControl(map) }
+// Printed reinforcement catalog and the counter template each entry deploys. The template is the
+// exact `deployScorpionGroundCounter` output with the hex stripped, so the native session clones a
+// counter instead of re-deriving ground profiles. Only the catalog is read, so a first-turn cursor
+// is enough to open the board.
+const arrivalCatalogSource = data.board.reinforcements({
+  kind: 'playing', units: opening.units, pieces: opening.pieces, dumps: opening.dumps, airBases: [],
+  cursor: { turn: 1, first: 'soviet', phasing: 'soviet', phase: 'aircraft-refit', retention: 'soviet' },
+}).catalog
+const counterIds = [...new Set([...arrivalCatalogSource.map(({ definition }) => definition),
+  ...opening.pool.map(({ definition }) => definition)])]
+const counters = Object.fromEntries(counterIds.map((id) => {
+  const { hex, ...counter } = deployScorpionGroundCounter(catalog.definitions.get(id), hexIds[0], 0)
+  return [id, counter]
+}))
 // Projection needs the printed name and counter face of every referenced definition, and the marker
 // faces drawn on the map. Exporting the slice keeps GDScript away from the raw catalog format.
 const definitionIds = new Set([...Object.values(opening.units).map((unit) => unit.definition),
   ...opening.pieces.map((piece) => piece.definition), ...opening.pool.map(({ definition }) => definition),
+  ...counterIds,
   // Kessel slots and remnants are drawn from the card even when no counter is on the map.
   'hq:id:4150', 'hq:id:4151', 'land:id:3999', 'land:id:4499'])
 const definitions = Object.fromEntries([...definitionIds].map((id) => {
@@ -95,16 +110,12 @@ for (const hex of map.hexes.keys()) {
     if (edge.rail) mapGraph.railGauge[edgeKeyOf(hex, near)] = gauge(hex, near)
   }
 }
-// Printed reinforcement catalog: the native board resolves entry hexes without any oracle call.
-// Only the catalog is read here, so a first-turn cursor is enough to open the board.
-const arrivalCatalog = data.board.reinforcements({
-  kind: 'playing', units: opening.units, pieces: opening.pieces, dumps: opening.dumps, airBases: [],
-  cursor: { turn: 1, first: 'soviet', phasing: 'soviet', phase: 'aircraft-refit', retention: 'soviet' },
-}).catalog
-  .map(({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }) =>
-    ({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }))
+// The catalog is the printed record; `counters` holds the deployed template each entry clones.
+const arrivalCatalog = arrivalCatalogSource.map(({ id, side, turn, destinations, definition, face,
+  stepsLost, organicTruck, optionalForce }) =>
+  ({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }))
 const view = {
-  catalog: { definitions, markers },
+  catalog: { definitions, markers, counters },
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
   airstrips, transportRows, breakdownRows, arrivals: arrivalCatalog,

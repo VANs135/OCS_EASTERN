@@ -46,6 +46,11 @@ func state() -> Dictionary:
 	return _record.state
 
 
+## The command log itself, for tests that replay oracle receipts into the same match.
+func record() -> Dictionary:
+	return _record
+
+
 func view() -> Dictionary:
 	return _shown
 
