@@ -11,6 +11,7 @@ import type { CampaignTurnContext } from './campaign-turn-state.ts'
 import { kirovogradSetupTransports } from './kirovograd-setup-transports.ts'
 import { kirovogradReleaseRule } from './kirovograd-release.ts'
 import { kirovogradScenarioVictory } from './kirovograd-scenario-victory.ts'
+import { campaignControlRecorder } from './campaign-control.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
@@ -111,7 +112,17 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     },
     place: (counter, hex) => ({ ...counter, location: { kind: 'map', hex } }),
   }
+  // The city starts Axis-held; the shared recorder adds the one-time liberation event when a Soviet combat unit passes through.
+  const city = data.map.resolveHex(data.kirovogradHex) ?? data.kirovogradHex
+  const recordCity = campaignControlRecorder(new Set([city]))
+  const baseMovement = turnRules.groundMovement
+  const groundMovement = baseMovement ? { ...baseMovement, afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
+    move: Parameters<typeof recordCity>[2]) => {
+      const recorded = recordCity(state, side, move)
+      return baseMovement.afterMove ? baseMovement.afterMove(recorded, side, move) : recorded
+    } } : undefined
   const context: CampaignOpeningContext = { setupPlan, setupRules, turn: { ...turnRules,
+    ...(groundMovement ? { groundMovement } : {}),
     reinforcement: { ...turnRules.reinforcement, schedule: data.reinforcement.schedule, bindings,
       resolveHex: (hex) => data.map.resolveHex(hex), arrivalSites: turnRules.reinforcement?.arrivalSites ?? (() => []),
       ...kirovogradReinforcementSupply(data) },
@@ -124,7 +135,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     }),
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
-    opening: data.opening, counters, supplyDumps: data.supplyDumps }
+    opening: data.opening, counters, supplyDumps: data.supplyDumps, hexControl: { [city]: 'axis' } }
   return { opening, context, markerSetup: transports.pendingMarkers,
     aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
     movement: { releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }

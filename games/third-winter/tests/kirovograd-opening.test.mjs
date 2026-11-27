@@ -49,6 +49,9 @@ const send = (record, actor, action, context) => submitCampaignSessionCommand(re
 test('scenario opening binds losses, ordinary truck capacity, pool identities and independent arrival instances', () => {
   const input = data()
   const { opening, context, markerSetup, aircraftAvailability, movement } = prepareKirovogradOpening(input)
+  assert.deepEqual(opening.hexControl, { 'D12.30': 'axis' })
+  assert.equal(typeof context.turn.scenarioVictory, 'function')
+  assert.equal(typeof context.turn.roundEnd, 'function')
   assert.equal(opening.counters['initial-corps'].held, kirovogradTankCorpsHold)
   assert.equal(opening.counters['initial-soviet'].held, undefined)
   assert.equal(typeof movement.releases, 'function')
