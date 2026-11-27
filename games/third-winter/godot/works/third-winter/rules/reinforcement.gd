@@ -28,23 +28,23 @@ static func enter(state: Dictionary, actor: String, data: Dictionary) -> Diction
 
 
 ## Mirrors packages/series/turn.ts advancePlayerTurn; null at the end of the second side's turn.
+## Keeps every other cursor field (retention, turn, simulcast) like the TypeScript spread.
 static func advance(cursor: Dictionary, actor: String) -> Dictionary:
 	var side: String = str(cursor.phasing)
-	if cursor.phase == "reaction" and side == "axis":
-		side = "soviet"
-	elif cursor.phase == "reaction":
-		side = "axis"
+	if cursor.phase == "reaction":
+		side = "soviet" if side == "axis" else "axis"
 	if side != actor:
 		return {}
+	var next := cursor.duplicate(true)
 	var index: int = PHASES.find(str(cursor.phase)) + 1
 	if index < PHASES.size():
-		return {"turn": cursor.turn, "first": cursor.first, "phasing": cursor.phasing,
-			"phase": PHASES[index], "retention": cursor.retention}
+		next.phase = PHASES[index]
+		return next
 	if cursor.phasing != cursor.first:
 		return {}
-	return {"turn": cursor.turn, "first": cursor.first,
-		"phasing": "soviet" if cursor.phasing == "axis" else "axis",
-		"phase": PHASES[0], "retention": cursor.retention}
+	next.phasing = "soviet" if cursor.phasing == "axis" else "axis"
+	next.phase = PHASES[0]
+	return next
 
 
 static func _fixed_supply(data: Dictionary, side: String, turn: int) -> Dictionary:

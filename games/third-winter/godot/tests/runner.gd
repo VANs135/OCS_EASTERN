@@ -10,6 +10,7 @@ const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-p
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
+const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 var _checks := 0
 var _failures := 0
@@ -235,6 +236,7 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 		return
 	var session: RefCounted = opened.value
 	_compare_view(session.view(), vector.bootstrap, "08 开局视图")
+	_test_transport_buckets(bundle)
 	var compared := 0
 	for step: Dictionary in vector.steps:
 		if session.state().kind != "setup":
@@ -269,6 +271,32 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 	_expect(session.revision() == int(refit_step.view.revision), "08 原生 complete-refit 修订 %d" % int(refit_step.view.revision))
 	var expected: Dictionary = vector.records.get(str(int(refit_step.view.revision)), {}).get("state", {})
 	_compare_state(session.state(), expected, "08 原生增援窗口状态")
+
+
+## Review check: transport stock counts by printed denominations, so a mobility/allowance edit on a
+## deployed counter must not move counts between rows (src/match/scorpion-transport-points.ts).
+func _test_transport_buckets(bundle: Dictionary) -> void:
+	var units: Dictionary = bundle.opening.units.duplicate(true)
+	var base: Array = ScorpionView.transport_stock(units, "soviet", bundle)
+	var used := 0
+	for row: Dictionary in base:
+		used += int(row.inUse)
+	_expect(used > 0, "08 苏军运输面额有在盘计数")
+	var mutated := units.duplicate(true)
+	var target := ""
+	for id: String in mutated:
+		var unit: Dictionary = mutated[id]
+		var definition: Dictionary = bundle.view.catalog.definitions.get(unit.get("definition"), {})
+		if unit.get("combat") != true and unit.get("organicTruck") == null \
+				and definition.get("kind") == "transport" and definition.get("moveProfile") is Dictionary:
+			target = id
+			break
+	if target == "":
+		return
+	mutated[target].mobility = "bogus"
+	mutated[target].allowance = 999
+	_compare(ScorpionView.transport_stock(mutated, "soviet", bundle), base,
+		"运输面额按印面计数，不随盘上字段漂移")
 
 
 ## The native supply position must reproduce every set the TypeScript trace consumes before the

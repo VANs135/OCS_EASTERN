@@ -535,13 +535,18 @@ static func transport_stock(units: Dictionary, side: String, data: Dictionary) -
 		if unit.get("side") != side or unit.get("combat") == true or unit.get("organicTruck") != null:
 			continue
 		var definition: Dictionary = data.view.catalog.definitions.get(unit.get("definition"), {})
-		if definition.get("kind") != "transport":
+		# TTW 13.2c — bucket by the printed counter, not by the deployed fields the board may have
+		# changed (mode swaps, extenders). Track-mobility and organic-truck counters are not stock.
+		if definition.get("kind") != "transport" or definition.get("abilities", []).has("organic_truck"):
+			continue
+		var profile: Variant = definition.get("moveProfile")
+		if not profile is Dictionary or str(profile.get("mobility")) == "track":
 			continue
 		var points: Variant = definition.get("transport")
 		if points == null:
 			continue
 		for row: Dictionary in rows:
-			if row.mobility == unit.get("mobility") and row.allowance == unit.get("allowance") \
+			if row.mobility == profile.get("mobility") and row.allowance == profile.get("allowance") \
 					and row.points == int(points):
 				row.inUse += 1
 				break

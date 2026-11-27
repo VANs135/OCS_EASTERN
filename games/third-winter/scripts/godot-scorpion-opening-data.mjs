@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadLocalScorpion } from '../desktop/local/data.mjs'
 import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
+import { scorpionGroundProfile } from '../src/import/ground-profile.ts'
 import { prepareScorpionOpening } from '../src/match/scorpion-setup.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
 import { scorpionTransportStock } from '../src/match/scorpion-transport-points.ts'
@@ -37,9 +38,12 @@ const definitions = Object.fromEntries([...definitionIds].map((id) => {
   const definition = catalog.definitions.get(id)
   if (!definition) throw new Error(`Missing catalog definition ${id}`)
   const source = definition.source
+  const profile = scorpionGroundProfile(definition, 'combat')
   return [id, { name: source.name, side: source.side, kind: definition.kind, re: source.re,
     abilities: source.abilities ?? [],
     transport: typeof source.faces.combat?.stats?.transport === 'number' ? source.faces.combat.stats.transport : null,
+    // Printed combat-face profile, so transport stock buckets by printed values rather than unit fields.
+    moveProfile: profile ? { mobility: profile.mobility, allowance: profile.allowance } : null,
     faces: {
       combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
 }))
