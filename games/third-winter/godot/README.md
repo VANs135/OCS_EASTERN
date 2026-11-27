@@ -86,16 +86,20 @@ npm run check:godot-vectors --workspace=@ocs-eastern/third-winter
 godot --headless --path games/third-winter/godot --script res://tests/runner.gd
 ```
 
-08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案、控制点以及视图所需的算子名/面/标记素材。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执，并用同一交互序列驱动原生会话逐视图对照修订 0–30 的地图与侧栏投影。移动、交互投影和续档的原生对照仍待接入。
+08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案、控制点、地图拓扑以及视图所需的算子名/面/标记素材。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执，并用同一交互序列驱动原生会话逐视图对照修订 0–30 的地图与侧栏投影；再结算 `complete-refit` 并核对增援窗口状态。移动、交互投影和续档的原生对照仍待接入。
 
 ```powershell
 $ttwData = 'D:\war game\OCS各作数据库\OCS第三个冬天'
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-opening-data.mjs $ttwData
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-vector.mjs $ttwData
+node --experimental-strip-types games/third-winter/scripts/godot-scorpion-supply.mjs $ttwData
 godot --headless --path games/third-winter/godot --script res://tests/runner.gd -- `
     (Resolve-Path 'dist/godot/08-opening-data.json').Path `
-    (Resolve-Path 'dist/godot/08-scorpion.json').Path
+    (Resolve-Path 'dist/godot/08-scorpion.json').Path `
+    (Resolve-Path 'dist/godot/08-supply.json').Path
 ```
+
+第三个参数可选：给出补给态势对照时额外核对双方 ZOC 与补给态势字典。
 
 视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
 
@@ -103,6 +107,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 - 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠、回合轨、盒区清单、辅助卡、炮击标记、印刷运输面额与拆分库存；无头测试用 TS 交互序列逐步对照。
 - 飞机整备收束：`works/third-winter/rules/stacking.gd` 与 `reinforcement.gd` 结算 `complete-refit`——先查 10 RE 堆叠，再推进到增援阶段并按剧本固定补给表开出增援窗口。该阶段只有记录状态对照，视图仍未迁。
+- 补给态势：`works/third-winter/rules/supply_position.gd` 复现敌方 ZOC、控制点归属、补给源、可卸货设施与 HQ/延补队；地图邻接与格边轨距随数据包导出，用 `08-supply.json` 与 TypeScript 逐字段对照。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
@@ -123,7 +128,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 增援阶段与对局投影：`place-arrival` 等需要先移植补给网络（`scorpion-supply-position`）与油费账本（`scorpion-sp-payment`），再补增援/移动阶段的视图与逐修订对照。
+1. 补给 trace 与增援阶段：移植 `packages/series/supply-network` 与地形取费，先出 `arrivalDestinations` 与 `place-arrival`，再补 `place-supply`（油费账本）与 `finish-scheduled-arrivals`；同时准备增援/移动阶段的视图。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。

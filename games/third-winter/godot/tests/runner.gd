@@ -9,6 +9,7 @@ const ScorpionData := preload("res://scripts/data/scorpion_opening_data.gd")
 const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-pocket/opening.gd")
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
+const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 
 var _checks := 0
 var _failures := 0
@@ -26,6 +27,8 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() == 2:
 		_test_scorpion_opening(args[0], args[1])
+	elif args.size() == 3:
+		_test_scorpion_opening(args[0], args[1], args[2])
 	elif not args.is_empty():
 		_expect(false, "实库检查需要同时传入 08 初设数据和对照向量路径")
 	print("Godot 迁移基础检查 %d/%d 通过" % [_checks - _failures, _checks])
@@ -113,7 +116,7 @@ func _test_pool() -> void:
 	_expect(PoolDraw.draw_without_replacement(state, pool, 2).get("errorCode") == "invalid_pool_count", "拒绝超出库存")
 
 
-func _test_scorpion_opening(bundle_path: String, vector_path: String) -> void:
+func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "") -> void:
 	var bundle := ScorpionData.read(bundle_path)
 	var vector := JsonFile.read(vector_path)
 	_expect(bundle.ok, bundle.get("errorMessage", "08 初设数据有效"))
@@ -129,7 +132,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String) -> void:
 	_expect(ScorpionOpening.create_record(bad_facts, baseline.seed).get("errorCode") == "invalid_alert_pool", "08 开局拒绝重复 Alert 库存")
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
-		_test_scorpion_views(bundle.value, baseline)
+		_test_scorpion_views(bundle.value, baseline, supply_path)
 		_test_native_bridge(bundle_path, baseline)
 
 
@@ -225,7 +228,7 @@ const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unit
 	"route", "roster", "stack", "ended", "transportStock", "breakdownStock"]
 
 
-func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
+func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "") -> void:
 	var opened := LocalSession.open(bundle, float(vector.seed))
 	_expect(opened.ok, "08 原生会话开局")
 	if not opened.ok:
@@ -246,6 +249,8 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
 		else:
 			_expect(int(step.view.revision) == session.revision(), "08 原生开局在修订 %d 结束" % session.revision())
 	_expect(compared > 30, "08 原生会话走完整个开局命令序列")
+	if supply_path != "":
+		_test_supply_position(session.state(), bundle, supply_path)
 	# The next oracle command closes the Aircraft Refit Phase and opens the reinforcement window.
 	# The playing projection is not migrated yet, so this compares the record state only.
 	var refit_step: Dictionary = {}
@@ -264,6 +269,24 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
 	_expect(session.revision() == int(refit_step.view.revision), "08 原生 complete-refit 修订 %d" % int(refit_step.view.revision))
 	var expected: Dictionary = vector.records.get(str(int(refit_step.view.revision)), {}).get("state", {})
 	_compare_state(session.state(), expected, "08 原生增援窗口状态")
+
+
+## The native supply position must reproduce every set the TypeScript trace consumes before the
+## trace itself can be ported. The fixture is derived from the same opening state.
+func _test_supply_position(state: Dictionary, bundle: Dictionary, path: String) -> void:
+	var read := JsonFile.read(path)
+	_expect(read.ok, read.get("errorMessage", "08 补给态势对照有效"))
+	if not read.ok:
+		return
+	var fixture: Dictionary = read.value.document
+	_expect(str(bundle.fingerprint) == str(fixture.fingerprint), "08 补给态势对照与初设指纹一致")
+	var units: Dictionary = state.get("units", {})
+	var rail_control: Dictionary = state.get("railControl", {})
+	for side: String in ["axis", "soviet"]:
+		_compare(SupplyPosition.enemy_zoc(units, side, bundle), fixture.zoc[side], "08 %s 敌方 ZOC" % side)
+		var actual: Dictionary = SupplyPosition.position(units, rail_control, side, bundle)
+		var difference := _first_difference(actual, fixture.position[side], "")
+		_expect(difference.is_empty(), "08 %s 补给态势" % side + ("" if difference.is_empty() else " · " + difference))
 
 
 func _state_slice(state: Dictionary) -> Dictionary:

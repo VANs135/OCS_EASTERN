@@ -136,7 +136,8 @@
 - [x] 原生会话已接地图入口。`native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由配置开关启用，08 开局不再启动 Node。无头 797 项通过，窗口截图核对 3111×1969 地图、43 个盒区与开局算子/动作。
 - [x] 开局视图已补盒区清单、回合轨、辅助卡、苏军辅助卡炮击标记、印刷运输面额与拆分库存，逐步对照通过。
 - [x] 飞机整备收束已原生结算。`complete-refit` 按 OCS §4.8a 检查 10 RE 堆叠，推进到增援阶段并按剧本固定补给表（苏军第 1 回合 2 SP／`s22.02`）开出增援窗口；原生修订与 `cursor`/`window` 状态和 TS oracle 一致，无头 800 项通过。
-- [ ] 增援阶段（`place-arrival`、`place-supply`、`finish-scheduled-arrivals`、`complete-reinforcement`）与之后的移动链路；先移植补给网络与油费账本。再接续档。
+- [x] 补给态势层已原生。`supply_position.gd` 复现 `scorpion-supply-position.ts`：§4.5a ZOC 投射（攻方能/战斗面/未断补/非预备）、印刷控制点归属、双方补给源、可卸货设施与 HQ/延补队；地图拓扑（1045 条格边、76 条铁路边轨距）入包。与 TS 态势对照逐字段一致，无头 806 项通过。
+- [ ] 增援阶段（`place-arrival`、`place-supply`、`finish-scheduled-arrivals`、`complete-reinforcement`）与之后的移动链路；先移植补给 trace（`supply-network` 与地形取费）与油费账本。再接续档。
 - [ ] 在同一 Godot 会话上交付单人 SOLO、双人 PVP、多人 PVP、单人 PVE 和多人 PVE。多人 PVP 验证同阵营权限分工、并发提交与待答重连。
 - [ ] 提供 Linux 无头 AI 和可选 LLM 指挥接口。用测试控制器和模型替身验收落子和失败恢复，外部团队负责训练。 [Godot 项目约束](../../docs/Godot项目约束.md)
 - [ ] 用原生 Godot 独立导出核对平移缩放、格号命中、叠堆、状态标记、高 DPI、安装和断线续局。

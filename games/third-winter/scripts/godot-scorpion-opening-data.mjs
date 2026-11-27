@@ -9,7 +9,8 @@ import { scorpionTransportStock } from '../src/match/scorpion-transport-points.t
 import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionFirstTurn } from '../src/match/scorpion-session.ts'
 import { scorpionDates } from '../src/ttw/scorpion/weather.ts'
-import { scorpionControlSites, scorpionOpeningFrontControl } from '../src/ttw/scorpion/initial-map.ts'
+import { scorpionControlSites, scorpionOpeningFrontControl,
+  scorpionInitialRailGauge, scorpionSupplySources } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionOpeningAirBases } from '../src/ttw/scorpion/setup-stores.ts'
 
 const dist = fileURLToPath(new URL('../../../dist/', import.meta.url))
@@ -73,12 +74,30 @@ const breakdownRows = data.assets.breakdowns
   ? [...data.assets.breakdowns.counters].map(([definition, { pool, copies }]) => ({
     definition, side: catalog.definitions.get(definition)?.source.side ?? null, pool, copies }))
   : []
+// Undirected topology for the native supply layer: adjacency, printed edges, cities and rail gauges.
+// Keys are normalised so GDScript needs no direction bookkeeping.
+const edgeKeyOf = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+const gauge = scorpionInitialRailGauge(map)
+const mapGraph = { neighbors: {}, cities: {}, edges: {}, railGauge: {} }
+for (const hex of map.hexes.keys()) {
+  mapGraph.neighbors[hex] = [...map.neighbors(hex)]
+  const city = map.hexes.get(hex).city
+  if (city) mapGraph.cities[hex] = city
+  for (const near of map.neighbors(hex)) {
+    const edge = map.edge(hex, near)
+    if (!edge) continue
+    mapGraph.edges[edgeKeyOf(hex, near)] = edge
+    if (edge.rail) mapGraph.railGauge[edgeKeyOf(hex, near)] = gauge(hex, near)
+  }
+}
 const view = {
   catalog: { definitions, markers },
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
   airstrips, transportRows, breakdownRows,
   fixedSupply: scorpionFixedSupply.map(({ side, turn, sp, destinations }) => ({ side, turn, sp, destinations })),
+  mapGraph,
+  supplySources: { axis: [...scorpionSupplySources.axis], soviet: [...scorpionSupplySources.soviet] },
   model: { ...data.model, map: basename(data.model.map),
     aid: { ...data.model.aid, asset: basename(data.model.aid.asset) },
     cards: data.model.cards.map(({ path, ...card }) => ({ ...card, asset: basename(card.asset) })) },
