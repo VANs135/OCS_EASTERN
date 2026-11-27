@@ -302,6 +302,8 @@ func _view_slice(view: Dictionary) -> Dictionary:
 	slice.actions = actions
 	var frame: Dictionary = view.get("frame", {})
 	slice.frame = {
+		"trackers": frame.get("trackers", []), "inventories": frame.get("inventories", []),
+		"aidCounters": frame.get("aidCounters", []), "auxiliaryCards": frame.get("auxiliaryCards", {}),
 		"mapStacks": frame.get("mapStacks", []), "selectedUnits": frame.get("selectedUnits", []),
 		"targets": frame.get("targets", []), "route": frame.get("route", []),
 		"selectedHex": frame.get("selectedHex"),

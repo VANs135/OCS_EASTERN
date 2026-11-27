@@ -166,7 +166,7 @@ static func _choice(choices: Array, label: String, actions: Array) -> void:
 
 ## Projection consumed by the map and the sidebar. Frame boxes, auxiliary cards and the turn track
 ## are still served by the TypeScript bridge and are not produced here yet.
-static func project(record: Dictionary, selection: Dictionary, data: Dictionary) -> Dictionary:
+static func project(record: Dictionary, selection: Dictionary, data: Dictionary, viewer: String = "axis") -> Dictionary:
 	var state: Dictionary = record.state
 	if state.kind != "setup":
 		return {}
@@ -205,7 +205,11 @@ static func project(record: Dictionary, selection: Dictionary, data: Dictionary)
 			"actionTypes": choice.actions.map(func(step: Dictionary) -> String: return step.type),
 		})
 	var stacks := map_stacks(state, data)
-	var frame := {"mapStacks": stacks, "selectedUnits": unit_ids, "targets": [], "route": []}
+	var frame := {
+		"trackers": trackers(data), "inventories": inventories(state, data, viewer),
+		"aidCounters": aid_counters(data), "auxiliaryCards": auxiliary_cards(state, data, viewer),
+		"mapStacks": stacks, "selectedUnits": unit_ids, "targets": [], "route": [],
+	}
 	# The placeable counter has no printed hex, so the marker is absent rather than null.
 	if picked_hex != null:
 		var layout := HexLayout.layout(str(picked_hex))
@@ -285,7 +289,7 @@ static func map_stacks(state: Dictionary, data: Dictionary) -> Array:
 		push.call({"id": piece.id, "hex": piece.location.hex, "asset": face,
 			"label": definition.get("name", piece.id), "badges": badges})
 	for airbase: Dictionary in data.deployment.airBases:
-		var marker: String = data.view.catalog.markers.get("Airbase Strength %d" % airbase.level, "")
+		var marker := _marker_asset(data, "Airbase Strength %d" % airbase.level)
 		if marker.is_empty():
 			continue
 		push.call({"id": "airfield:%s:%s" % [airbase.side, airbase.hex], "hex": airbase.hex, "asset": marker,
@@ -309,6 +313,195 @@ static func map_stacks(state: Dictionary, data: Dictionary) -> Array:
 	return result
 
 
+## Printed record track and counter boxes, mirroring scorpion-boxes.ts for the opening.
+static func trackers(data: Dictionary) -> Array:
+	var first: Dictionary = data.view.firstTurn
+	var freeze: bool = str(first.ground) == "freeze"
+	var trackers := [
+		{"cell": 10 + int(first.number), "id": "turn", "asset": _marker_asset(data, "Turn"),
+			"label": "第 %d 回合　%s" % [int(first.number), str(first.date)]},
+		{"cell": 21 if freeze else 22, "id": "ground", "asset": _marker_asset(data, "Ground"),
+			"label": "冻结" if freeze else "解冻"},
+	]
+	var flights := {"none": [23, "禁飞"], "limited": [24, "飞行受限"], "normal": [25, "正常飞行"]}
+	var flight: Array = flights.get(str(first.flight), [25, "正常飞行"])
+	trackers.append({"cell": int(flight[0]), "id": "flight", "asset": _marker_asset(data, "Flight"),
+		"label": str(flight[1])})
+	var vp := int(first.vp)
+	trackers.append({"cell": 33 + clampi(vp, -5, 20), "id": "vp",
+		"asset": _marker_asset(data, "Soviet VPs Tracker"), "label": "苏军净胜利分 %d" % vp})
+	return trackers
+
+
+static func inventories(state: Dictionary, data: Dictionary, viewer: String) -> Array:
+	var opening: Dictionary = state.opening
+	var cells := {"axis": {"dead": 19, "air": 20}, "soviet": {"dead": 27, "air": 26}}
+	var names := {"axis": "轴心国", "soviet": "苏联"}
+	var boxes: Array = []
+	for side: String in ["axis", "soviet"]:
+		for kind: String in ["dead-pile", "off-map-air"]:
+			var hidden: bool = kind == "off-map-air" and viewer != side
+			var counters: Array = []
+			if not hidden:
+				for piece: Dictionary in opening.pieces:
+					if piece.side != side or piece.location.kind != kind:
+						continue
+					var definition := _definition(data, piece.definition)
+					var faces: Dictionary = definition.get("faces", {})
+					var asset: Variant = faces.get("move") if piece.get("reduced") else faces.get("combat")
+					var counter := {"id": piece.id, "asset": asset, "label": definition.get("name", piece.id)}
+					if kind == "off-map-air" and piece.get("active") == false:
+						counter.badges = [{"text": "停", "label": "非激活"}]
+					counters.append(counter)
+			var cell: int = int(cells[side].dead) if kind == "dead-pile" else int(cells[side].air)
+			var label: String = "%s死人堆" % names[side] if kind == "dead-pile" else "%s地图外空军" % names[side]
+			boxes.append({"cell": cell, "label": label, "counters": counters, "hidden": hidden})
+	return boxes
+
+
+## Soviet aid card keeps the two army-group artillery markers on their ready slots.
+static func aid_counters(data: Dictionary) -> Array:
+	var refs := ["1st Ukr Arty Ready", "2nd Ukr Arty Ready"]
+	var ids := ["first-ukrainian", "second-ukrainian"]
+	var slots := [[907.0, 943.0], [947.0, 943.0]]
+	var counters: Array = []
+	for index in 2:
+		counters.append({"id": "artillery:%s" % ids[index],
+			"label": "第 %d 乌克兰方面军炮击标记 · 就绪" % (index + 1),
+			"asset": _marker_asset(data, refs[index]),
+			"x": slots[index][0], "y": slots[index][1], "size": 35.0})
+	return counters
+
+
+static func auxiliary_cards(state: Dictionary, data: Dictionary, viewer: String) -> Dictionary:
+	var boxes: Array = inventories(state, data, viewer)
+	return {
+		"axis-off-map": _axis_card(state, data),
+		"soviet-off-map": _reserve_card("soviet", state, data),
+		"turn-weather": _turn_card(data),
+		"axis-dead": _dead_card(boxes, 19),
+		"soviet-dead": _dead_card(boxes, 27),
+		"rail-sea-cap": {"counters": [], "captions": [
+			{"x": 28.0, "y": 276.0, "text": "瓶中蝎：双方铁路运力 0，海运运力 0"}]},
+	}
+
+
+static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
+	var card := _reserve_card("axis", state, data)
+	var strips: Array = data.view.get("airstrips", [])
+	for index in strips.size():
+		var strip: Dictionary = strips[index]
+		card.counters.append({"id": "airstrip:%s" % str(strip.definition), "asset": strip.get("asset", ""),
+			"label": "可用简易跑道 %d" % (index + 1), "x": 183.0 + index * 75.0, "y": 438.0, "size": 54.0})
+	# TTW S08 p.55 — the 1st Corps is in the setup snapshot, the 4th Corps starts available.
+	var slots := ["hq:id:4150", "hq:id:4151"]
+	for index in slots.size():
+		var definition: String = slots[index]
+		var source := _definition(data, definition)
+		if not (source.get("abilities", []) as Array).has("kessel_supply"):
+			continue
+		var on_map := false
+		for id: String in state.opening.units:
+			if state.opening.units[id].definition == definition:
+				on_map = true
+		var dead := false
+		for piece: Dictionary in state.opening.pieces:
+			if piece.definition == definition and piece.location.kind == "dead-pile":
+				dead = true
+		if not on_map and not dead:
+			card.counters.append({"id": "kessel-box:%s" % definition,
+				"asset": source.get("faces", {}).get("combat"),
+				"label": "%s · 可放置" % str(source.get("name", definition)),
+				"x": 219.0 + 74.0 * index, "y": 729.0, "size": 54.0})
+	for index in state.opening.get("availableAlerts", []).size():
+		var alert: Dictionary = state.opening.availableAlerts[index]
+		var source := _definition(data, alert.definition)
+		card.counters.append({"id": "alert-pool:%s" % str(alert.id),
+			"asset": source.get("faces", {}).get("combat"), "label": str(source.get("name", alert.definition)),
+			"x": 418.0 + 75.0 * (index % 4), "y": 595.0 + floor(index / 4.0) * 75.0, "size": 55.0})
+	var remnants := ["land:id:3999", "land:id:4499"]
+	for index in remnants.size():
+		var definition: String = remnants[index]
+		var in_units := false
+		for id: String in state.opening.units:
+			if state.opening.units[id].definition == definition:
+				in_units = true
+		if in_units:
+			continue
+		var asset: Variant = _definition(data, definition).get("faces", {}).get("combat")
+		if asset == null:
+			continue
+		card.counters.append({"id": "remnant-pool:%s" % definition, "asset": asset,
+			"label": "可用德军残部营", "x": 183.0 + index * 75.0, "y": 317.0, "size": 54.0})
+	return card
+
+
+static func _reserve_card(side: String, state: Dictionary, data: Dictionary) -> Dictionary:
+	var used: Dictionary = {}
+	for id: String in state.opening.units:
+		var unit: Dictionary = state.opening.units[id]
+		if unit.side == side and unit.get("reserve") != null:
+			used[unit.hex] = true
+	var count: int = max(0, 6 - used.size())
+	var axis: bool = side == "axis"
+	var card := {"counters": [], "captions": []}
+	for index in count:
+		card.counters.append({"id": "reserve:%s:%d" % [side, index], "label": "可用预备标记",
+			"asset": _marker_asset(data, "Axis Reserve" if axis else "Sov Reserve"),
+			"x": (256.0 if axis else 196.0) + index * 93.0, "y": 852.0 if axis else 1176.0, "size": 50.0})
+	var label := "剩余预备标记 %d" % count
+	card.counters.append({"id": "reserve-count:%s" % side, "label": label,
+		"asset": _marker_asset(data, "Axis Reserves Tracker" if axis else "Soviet Reserves Tracker"),
+		"x": 915.0, "y": 852.0 if axis else 1176.0, "size": 57.0,
+		"badges": [{"label": label, "text": str(count)}]})
+	return card
+
+
+static func _turn_card(data: Dictionary) -> Dictionary:
+	var first: Dictionary = data.view.firstTurn
+	var date: String = str(first.date)
+	var freeze: bool = str(first.ground) == "freeze"
+	var card := {"counters": [], "captions": []}
+	card.counters.append({"id": "track-year", "label": date.substr(0, 4),
+		"asset": _marker_asset(data, "Year", "move"), "x": 107.0, "y": 120.0, "size": 50.0})
+	card.counters.append({"id": "track-month", "label": date.substr(0, 7),
+		"asset": _marker_asset(data, "Month"), "x": 606.0 if int(date.substr(5, 2)) == 1 else 696.0,
+		"y": 113.0, "size": 42.0})
+	card.counters.append({"id": "track-turn", "label": "第 %d 回合 · %s" % [int(first.number), date],
+		"asset": _marker_asset(data, "Turn"), "x": _day_slot(date), "y": 324.0, "size": 36.0})
+	card.counters.append({"id": "track-ground", "asset": _marker_asset(data, "Ground"),
+		"label": "冻结" if freeze else "解冻", "x": 547.0 if freeze else 631.0, "y": 504.0, "size": 43.0})
+	var flights := {"normal": [742.0, "正常飞行"], "limited": [825.0, "飞行受限"], "none": [909.0, "禁飞"]}
+	var flight: Array = flights.get(str(first.flight), [742.0, "正常飞行"])
+	card.counters.append({"id": "track-flight", "asset": _marker_asset(data, "Flight"),
+		"label": str(flight[1]), "x": flight[0], "y": 659.0, "size": 41.0})
+	return card
+
+
+static func _day_slot(date: String) -> float:
+	var days := [1, 5, 8, 12, 15, 19, 22, 26, 29]
+	return 121.0 + days.find(int(date.substr(8, 2))) * 90.0
+
+
+static func _dead_card(boxes: Array, cell: int) -> Dictionary:
+	var contents: Array = []
+	for box: Dictionary in boxes:
+		if int(box.get("cell", 0)) == cell:
+			contents = box.get("counters", [])
+	var count := contents.size()
+	var columns: int = max(1, int(ceil(sqrt(count * 1.4)))) if count else 1
+	var rows: int = max(1, int(ceil(float(count) / columns)))
+	var pitch: float = minf(76.0, minf(840.0 / columns, 480.0 / rows))
+	var counters: Array = []
+	for index in count:
+		var counter: Dictionary = contents[index].duplicate()
+		counter.x = 65.0 + pitch * (index % columns)
+		counter.y = 130.0 + pitch * int(index / columns)
+		counter.size = pitch - 6.0
+		counters.append(counter)
+	return {"counters": counters, "captions": []}
+
+
 ## OCS v4.3 §12 — printed supply counters: every four tons become one SP counter.
 static func supply_counters(id: String, tokens: int, data: Dictionary) -> Array:
 	var counters: Array = []
@@ -318,7 +511,7 @@ static func supply_counters(id: String, tokens: int, data: Dictionary) -> Array:
 		var used: int = points * 4 if points else left
 		var label: String = "%d SP" % points if points else "%dT" % used
 		var ref: String = "Supply Point %d" % points if points else "Supply Ton %dT" % used
-		var asset: String = data.view.catalog.markers.get(ref, "")
+		var asset := _marker_asset(data, ref)
 		if asset.is_empty():
 			break
 		counters.append({"id": "%s:%d" % [id, counters.size() + 1], "label": label, "asset": asset})
@@ -358,8 +551,14 @@ static func _ground_badges(unit: Dictionary, data: Dictionary, show_reserve: boo
 
 
 static func _badge(data: Dictionary, ref: String, label: String, text: String) -> Dictionary:
-	var asset: String = data.view.catalog.markers.get(ref, "")
+	var asset := _marker_asset(data, ref)
 	return {"label": label, "asset": asset} if not asset.is_empty() else {"label": label, "text": text}
+
+
+static func _marker_asset(data: Dictionary, ref: String, face: String = "combat") -> String:
+	var marker: Dictionary = data.view.catalog.markers.get(ref, {})
+	var asset: Variant = marker.get(face)
+	return "" if asset == null else str(asset)
 
 
 static func _definition(data: Dictionary, id: String) -> Dictionary:

@@ -94,11 +94,12 @@ func dispatch(request: Dictionary) -> Dictionary:
 func project(viewer: String) -> Dictionary:
 	if _record.state.kind != "setup":
 		return {}
-	return ScorpionView.project(_record, _selection, _data)
+	return ScorpionView.project(_record, _selection, _data, viewer)
 
 
 func _render() -> Dictionary:
-	return project("axis")
+	# The desktop projection hides the opponent's off-map air box, so the viewer is the acting side.
+	return project(_actor())
 
 
 func _actor() -> String:

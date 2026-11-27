@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { loadLocalScorpion } from '../desktop/local/data.mjs'
 import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
 import { prepareScorpionOpening } from '../src/match/scorpion-setup.ts'
+import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
+import { scorpionFirstTurn } from '../src/match/scorpion-session.ts'
+import { scorpionDates } from '../src/ttw/scorpion/weather.ts'
 import { scorpionControlSites, scorpionOpeningFrontControl } from '../src/ttw/scorpion/initial-map.ts'
 import { scorpionOpeningAirBases } from '../src/ttw/scorpion/setup-stores.ts'
 
@@ -24,32 +27,46 @@ const deployment = { airBases: scorpionOpeningAirBases, alertProfiles,
 // Projection needs the printed name and counter face of every referenced definition, and the marker
 // faces drawn on the map. Exporting the slice keeps GDScript away from the raw catalog format.
 const definitionIds = new Set([...Object.values(opening.units).map((unit) => unit.definition),
-  ...opening.pieces.map((piece) => piece.definition), ...opening.pool.map(({ definition }) => definition)])
+  ...opening.pieces.map((piece) => piece.definition), ...opening.pool.map(({ definition }) => definition),
+  // Kessel slots and remnants are drawn from the card even when no counter is on the map.
+  'hq:id:4150', 'hq:id:4151', 'land:id:3999', 'land:id:4499'])
 const definitions = Object.fromEntries([...definitionIds].map((id) => {
   const definition = catalog.definitions.get(id)
   if (!definition) throw new Error(`Missing catalog definition ${id}`)
   const source = definition.source
   return [id, { name: source.name, side: source.side, kind: definition.kind, re: source.re,
-    faces: { combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
+    abilities: source.abilities ?? [], faces: {
+      combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
 }))
 const markerRefs = [...['Airbase Strength 1', 'Airbase Strength 2', 'Airbase Strength 3'],
   ...[1, 2, 3, 4, 5].map((points) => `Supply Point ${points}`),
   ...[1, 2, 3, 4, 5].map((tons) => `Supply Ton ${tons}T`),
   ...[1, 2, 3].map((steps) => `Step Loss ${steps}`),
   'DG (Disorganized)', 'Axis Reserve', 'Sov Reserve', 'Out of Supply', 'Low/Exhausted', 'Exhausted',
-  '1T Organic c.png', '2T Organic c.png', '3T Organic c.png', 'F Organic c.png', 'misc_fueled.png', 'misc_fueled-Sv.png']
+  '1T Organic c.png', '2T Organic c.png', '3T Organic c.png', 'F Organic c.png', 'misc_fueled.png', 'misc_fueled-Sv.png',
+  'Turn', 'Ground', 'Flight', 'Soviet VPs Tracker', '1st Ukr Arty Ready', '2nd Ukr Arty Ready',
+  'Year', 'Month', 'Player Turn', 'Axis Reserves Tracker', 'Soviet Reserves Tracker',
+  ...[1, 2, 3, 4, 5, 6].map((slot) => `Air Strip ${slot}`)]
 const markers = Object.fromEntries(markerRefs.flatMap((ref) => {
   const matches = catalog.aliases.get(ref)
-  const asset = matches?.length === 1 ? matches[0].source.faces.combat?.asset : undefined
+  if (matches?.length !== 1) return []
+  const faces = matches[0].source.faces
   // 4T never appears: four tons print as one SP counter. Only export refs that have artwork.
-  return asset ? [[ref, asset]] : []
+  if (!faces.combat?.asset && !faces.move?.asset) return []
+  return [[ref, { combat: faces.combat?.asset ?? null, move: faces.move?.asset ?? null }]]
 }))
 for (const ref of ['Airbase Strength 1', 'Airbase Strength 2', 'Airbase Strength 3']) {
-  if (!markers[ref]) throw new Error(`Missing marker artwork ${ref}`)
+  if (!markers[ref]?.combat) throw new Error(`Missing marker artwork ${ref}`)
 }
 const basename = (path) => path.split(/[\\/]/).at(-1)
+const firstTurn = scorpionFirstTurn()
+const airstrips = [...scorpionAirstripPool({ airBases: [] }, catalog)].map(({ key, source }) => ({
+  definition: key, asset: source.faces.combat?.asset ?? null }))
 const view = {
   catalog: { definitions, markers },
+  firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
+    ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
+  airstrips,
   model: { ...data.model, map: basename(data.model.map),
     aid: { ...data.model.aid, asset: basename(data.model.aid.asset) },
     cards: data.model.cards.map(({ path, ...card }) => ({ ...card, asset: basename(card.asset) })) },
