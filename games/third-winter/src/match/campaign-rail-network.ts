@@ -19,6 +19,7 @@ export interface CampaignRailNetwork {
 
 export function campaignRailheads(state: Readonly<CampaignTurnState>, map: CampaignGroundMap, network?: CampaignRailNetwork) {
   if (!network) return []
+  // Railhead markers are boundary displays: derive them from the current gauge table, not from the opening snapshot.
   const junctions = new Set([...(network.initialGaugeJunctions ?? []), ...Object.keys(state.railGaugeByEdge ?? {}).flatMap((edge) => edge.split('|'))])
   return [...junctions].flatMap((hex) => {
     const tracks = map.neighbors(hex).flatMap((to) => {

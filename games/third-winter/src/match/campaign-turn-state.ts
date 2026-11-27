@@ -95,8 +95,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   pontoonPhase?: CampaignPontoonPhase
   khersonFerryPhase?: CampaignKhersonFerryPhase
   railGaugeByEdge?: Readonly<Record<string, TtwRailGauge>>
-  /** Fixed scenario railhead markers; their hexes are the initial gauge junctions. */
-  railheadMarkers?: readonly { side: Side; hex: string }[]
+  /** Opening-only railhead snapshot used to seed the initial gauge. Current railheads are derived from gauge changes. */
+  initialRailheadMarkers?: readonly { side: Side; hex: string }[]
   /** Scenario supply sources at map edges (TTW Scenario 9 west/east rail hexes). */
   edgeSupplySources?: Readonly<Record<Side, readonly string[]>>
   cleanup?: { sovietConvertedEdges: readonly string[] }

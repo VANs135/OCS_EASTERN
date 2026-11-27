@@ -123,7 +123,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const recordCity = campaignControlRecorder(new Set([city]))
   const baseMovement = turnRules.groundMovement
   const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
-  const railheadMarkers = data.otherMarkers.filter(({ ref }) => ref === 'Railhead').map(({ side, hex }) => {
+  const initialRailheadMarkers = data.otherMarkers.filter(({ ref }) => ref === 'Railhead').map(({ side, hex }) => {
     const resolved = hex ? data.map.resolveHex(hex) : undefined
     if (!resolved) throw new Error(`Kirovograd railhead is outside the play area: ${hex ?? '(missing hex)'}`)
     return { side, hex: resolved }
@@ -176,7 +176,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps, edgeSupplySources,
-    ...(railheadMarkers.length ? { railheadMarkers } : {}),
+    ...(initialRailheadMarkers.length ? { initialRailheadMarkers } : {}),
     ...(initialRailGauge ? { railGaugeByEdge: initialRailGauge } : {}),
     hexControl: { [city]: 'axis' } }
   return { opening, context, markerSetup: transports.pendingMarkers,

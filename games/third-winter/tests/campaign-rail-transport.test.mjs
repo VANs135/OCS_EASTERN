@@ -154,6 +154,7 @@ test('ground rail costs the same as a track regardless of gauge; conversion upda
   }) } }, { crossingAt: () => ({ barrier: 'none', routes: ['rail'] }), terrainAt: () => ['Forest'] })
   const record = normal(beforeMovement({ engineer: land('D12.03', { mode: 'combat' }), foot: land('D12.03'),
     rider: land('D12.03', { mode: 'combat' }), back: land('D14.03') }), config)
+  record.state.initialRailheadMarkers = [{ side: 'axis', hex: 'D13.3' }]
   const trip = rail(['D12.03', 'D13.03', 'D14.03'], ['foot'])
   const ground = { type: 'move-campaign-ground', movers: [{ id: 'foot' }], path: trip.path.slice(1) }
   assert.equal(projectCampaignGroundRoute(record, 'axis', ground, config).placements[0].spent, 2)
@@ -165,6 +166,7 @@ test('ground rail costs the same as a track regardless of gauge; conversion upda
   assert.deepEqual(projectCampaignGroundRoute(record, 'axis', work, config).railGaugeChanges, [{ edge: frontier, gauge: 'standard' }])
   const changed = submit(record, work, config)
   assert.deepEqual(changed.state.railGaugeByEdge, { [frontier]: 'standard' })
+  assert.deepEqual(changed.state.initialRailheadMarkers, [{ side: 'axis', hex: 'D13.3' }])
   assert.deepEqual(changed.state.groundMovement.railConversionCount, { engineer: 1 })
   assert.deepEqual(projectCampaignMatch(changed, 'axis', config).railheads, [])
   assert.equal(projectCampaignRailTransport(changed, 'axis', trip, config).ok, true)
