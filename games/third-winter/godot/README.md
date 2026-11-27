@@ -102,6 +102,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 ## 已实现
 
 - 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠、回合轨、盒区清单、辅助卡、炮击标记、印刷运输面额与拆分库存；无头测试用 TS 交互序列逐步对照。
+- 飞机整备收束：`works/third-winter/rules/stacking.gd` 与 `reinforcement.gd` 结算 `complete-refit`——先查 10 RE 堆叠，再推进到增援阶段并按剧本固定补给表开出增援窗口。该阶段只有记录状态对照，视图仍未迁。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
@@ -122,7 +123,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 继续规则链：`complete-refit` 与首回合增援需要补给网络/油料支付，先移植 `scorpion-sp-payment` 与 `scorpion-supply-position` 的原生版本，再逐修订对照 TS；之后接 09 战役回归与 01 全景盘面。
+1. 增援阶段与对局投影：`place-arrival` 等需要先移植补给网络（`scorpion-supply-position`）与油费账本（`scorpion-sp-payment`），再补增援/移动阶段的视图与逐修订对照。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。

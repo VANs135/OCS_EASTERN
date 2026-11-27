@@ -6,6 +6,7 @@ import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.t
 import { prepareScorpionOpening } from '../src/match/scorpion-setup.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
 import { scorpionTransportStock } from '../src/match/scorpion-transport-points.ts'
+import { scorpionFixedSupply } from '../src/ttw/scorpion/fixed-supply.ts'
 import { scorpionFirstTurn } from '../src/match/scorpion-session.ts'
 import { scorpionDates } from '../src/ttw/scorpion/weather.ts'
 import { scorpionControlSites, scorpionOpeningFrontControl } from '../src/ttw/scorpion/initial-map.ts'
@@ -77,6 +78,7 @@ const view = {
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
   airstrips, transportRows, breakdownRows,
+  fixedSupply: scorpionFixedSupply.map(({ side, turn, sp, destinations }) => ({ side, turn, sp, destinations })),
   model: { ...data.model, map: basename(data.model.map),
     aid: { ...data.model.aid, asset: basename(data.model.aid.asset) },
     cards: data.model.cards.map(({ path, ...card }) => ({ ...card, asset: basename(card.asset) })) },

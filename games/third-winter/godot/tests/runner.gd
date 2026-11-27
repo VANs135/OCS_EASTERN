@@ -246,6 +246,37 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
 		else:
 			_expect(int(step.view.revision) == session.revision(), "08 原生开局在修订 %d 结束" % session.revision())
 	_expect(compared > 30, "08 原生会话走完整个开局命令序列")
+	# The next oracle command closes the Aircraft Refit Phase and opens the reinforcement window.
+	# The playing projection is not migrated yet, so this compares the record state only.
+	var refit_step: Dictionary = {}
+	for step: Dictionary in vector.steps:
+		if not step.has("view") or str(step.view.get("phaseId", "")) != "reinforcement":
+			continue
+		refit_step = step
+		break
+	if refit_step.is_empty():
+		return
+	var refit: Dictionary = session.dispatch({"kind": "command", "revision": session.revision(),
+		"action": {"type": "complete-refit"}})
+	_expect(refit.ok, "08 原生结算 complete-refit · %s" % refit.get("errorMessage", ""))
+	if not refit.ok:
+		return
+	_expect(session.revision() == int(refit_step.view.revision), "08 原生 complete-refit 修订 %d" % int(refit_step.view.revision))
+	var expected: Dictionary = vector.records.get(str(int(refit_step.view.revision)), {}).get("state", {})
+	_compare_state(session.state(), expected, "08 原生增援窗口状态")
+
+
+func _state_slice(state: Dictionary) -> Dictionary:
+	return {"kind": state.get("kind"), "turn": state.get("turn"), "cursor": state.get("cursor"),
+		"window": state.get("window"), "moved": state.get("moved"), "victory": state.get("victory")}
+
+
+func _compare_state(actual: Dictionary, expected: Dictionary, label: String) -> void:
+	if expected.is_empty():
+		_expect(false, label + " · oracle 缺少该修订的状态")
+		return
+	var difference := _first_difference(_state_slice(actual), _state_slice(expected), "")
+	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
 
 
 ## The scene bridge must produce the same bootstrap the TypeScript bridge does, with the map and
