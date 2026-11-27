@@ -13,6 +13,7 @@ const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcemen
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
+const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1125,6 +1126,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	if state.get("kind") != "playing" or state.get("victory") != null:
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
+	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
 	_append_barrage_menu(state, side, selection, data, menu)
 	return menu
@@ -1159,6 +1161,60 @@ static func _append_unit_menu(state: Dictionary, side: String, selection: Dictio
 	if unit.get("reserve") != null and phase != "movement":
 		menu.append({"label": "释放预备队", "group": "预备队",
 			"actions": [{"type": "release-reserve", "unitId": uid}]})
+
+
+## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
+## 目标格取选中格，缺省取 worker 所在格；补给源只列能同时供所有 worker 追溯的那些。
+static func _append_hedgehog_menu(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	var cursor: Dictionary = state.get("cursor", {})
+	if str(cursor.get("phase", "")) != "movement" or str(cursor.get("phasing", "")) != side:
+		return
+	var ids: Array = selection.get("unitIds", [])
+	if ids.is_empty() and selection.get("unitId") != null:
+		ids = [selection.get("unitId")]
+	var units: Dictionary = state.get("units", {})
+	var moved: Array = state.get("moved", [])
+	var workers: Array = []
+	var worker_ids: Array = []
+	for entry: Variant in ids:
+		var id := str(entry)
+		var unit: Dictionary = units.get(id, {})
+		if unit.is_empty() or str(unit.get("side", "")) != side:
+			continue
+		if unit.get("combat") != true or unit.get("moveMode") == true:
+			continue
+		if unit.get("reserve") != null or unit.get("exploit") != null or unit.get("disorganized") == true:
+			continue
+		if moved.has(id):
+			continue
+		workers.append(unit)
+		worker_ids.append(id)
+	if workers.is_empty():
+		return
+	var hex_id := str(selection.get("hex", workers[0].get("hex", "")))
+	if hex_id.is_empty():
+		return
+	var entry: Variant = state.get("hedgehogs", {}).get(hex_id)
+	var level_now := Hedgehogs.level(state, hex_id)
+	if entry != null and str(entry.get("side", "")) != side:
+		return
+	if entry == null and level_now > 0:
+		return
+	if level_now < 2:
+		var ledger := SpPayment.new(state, side, data)
+		var sources: Array = ledger.available(workers)
+		for source: Dictionary in sources:
+			if int(source.get("tokens", 0)) < 8:
+				continue
+			var dump_id := str(source.get("dumpId", ""))
+			menu.append({"label": "构筑刺猬 · 格 %s（8T · %s）" % [hex_id, dump_id], "group": "刺猬",
+				"actions": [{"type": "work-hedgehog", "operation": "build", "hex": hex_id,
+					"unitIds": worker_ids, "payments": [{"dumpId": dump_id, "tokens": 8}]}]})
+	if level_now > 0:
+		menu.append({"label": "拆除刺猬 · 格 %s" % hex_id, "group": "刺猬",
+			"actions": [{"type": "work-hedgehog", "operation": "reduce", "hex": hex_id,
+				"unitIds": worker_ids, "payments": []}]})
 
 
 static func _append_combat_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
@@ -1201,6 +1257,9 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 				if state.get("units", {}).has(id):
 					menu.append({"label": "推进 1 枚 · %s" % _unit_name(state, id, data), "group": "地面战斗",
 						"actions": [{"type": "advance-after-combat", "unitIds": [id]}]})
+		"continue-combat-retreat":
+			menu.append({"label": "继续撤退 · 原地续跑", "group": "地面战斗",
+				"actions": [{"type": "continue-combat-retreat"}]})
 
 
 static func _append_barrage_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:

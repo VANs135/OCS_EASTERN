@@ -15,6 +15,7 @@ const Reserves := preload("res://works/third-winter/rules/reserves.gd")
 const Combat := preload("res://works/third-winter/rules/combat.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const Barrage := preload("res://works/third-winter/rules/barrage.gd")
+const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 
 
@@ -73,9 +74,12 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	# OCS v4.3 §9.5–9.13 正规战斗七步：宣告、守方补给、选行动值、选地形（攻/守方结算与进击见结果分支）。
 	if action.get("type") in ["declare-combat", "defend-combat", "select-combat-rating", "choose-combat-terrain"]:
 		return _combat_command(state, actor, action, data)
-	# 战斗结果：攻/守方结算与战后推进。
-	if action.get("type") in ["resolve-combat", "advance-after-combat"]:
+	# 战斗结果：攻/守方结算、战后推进与挂起撤退续跑。
+	if action.get("type") in ["resolve-combat", "advance-after-combat", "continue-combat-retreat"]:
 		return _combat_result_command(state, actor, action, data)
+	# OCS 13.3 刺猬作业：构筑（8T）/ 拆除（0T），限本方移动阶段。
+	if action.get("type") == "work-hedgehog":
+		return Hedgehogs.work(state, actor, action, data)
 	# OCS 10.0 地面炮兵炮击：声明 / 选地形 / 分配射击损失。
 	if action.get("type") in ["declare-artillery-barrage", "choose-barrage-terrain", "assign-barrage-loss"]:
 		return Barrage.apply(state, actor, action, data)
@@ -114,6 +118,8 @@ static func _combat_result_command(state: Dictionary, actor: String, action: Dic
 		"advance-after-combat":
 			return _unwrap_match_state(CombatResult.advance(state, actor, action.get("unitIds", []), data, board,
 				action.get("breakdowns", [])))
+		"continue-combat-retreat":
+			return _unwrap_match_state(CombatResult.continue_retreat(state, actor, action, data, board))
 	return Result.failure("unsupported_action", "该战斗结果命令尚未接入原生 08 对局")
 
 
