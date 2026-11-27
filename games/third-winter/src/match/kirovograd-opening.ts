@@ -18,6 +18,7 @@ import { kirovogradEdgeSupplySources } from './kirovograd-supply.ts'
 import { kirovogradAirStrikeBoard } from './kirovograd-air-strike-board.ts'
 import { kirovogradInitialRailGauge, kirovogradRailNetwork } from './kirovograd-initial-gauge.ts'
 import { kirovogradOpeningSovietSide } from './kirovograd-initial-front.ts'
+import { kirovogradGroundMovementBoard } from './kirovograd-ground-movement.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -146,13 +147,16 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const airMission = turnRules.airMission ?? (turnRules.barrage
     ? kirovogradAirStrikeBoard({ map: data.map, table: turnRules.barrage.table, definitions: data.catalog.definitions })
     : undefined)
+  const builtMovement = !baseMovement && data.terrain && 'terrainAt' in data.terrain && 'crossingAt' in data.terrain
+    ? kirovogradGroundMovementBoard(data, railNetwork)
+    : undefined
   const groundMovement = baseMovement ? { ...baseMovement,
     ...(railNetwork && !baseMovement.railNetwork ? { railNetwork } : {}),
     afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
     move: Parameters<typeof recordCity>[2]) => {
       const recorded = recordCity(state, side, move)
       return baseMovement.afterMove ? baseMovement.afterMove(recorded, side, move) : recorded
-    } } : undefined
+    } } : builtMovement
   const context: CampaignOpeningContext = { setupPlan, setupRules, turn: { ...turnRules,
     ...(groundMovement ? { groundMovement } : {}),
     ...(airMission ? { airMission } : {}),
@@ -183,6 +187,6 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   return { opening, context, markerSetup: transports.pendingMarkers,
     aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
     railNetwork,
-    movement: { ...(railNetwork ? { railNetwork } : {}),
+    movement: { ...(railNetwork ? { railNetwork } : {}), ...(groundMovement ? { groundMovement } : {}),
       releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }
 }

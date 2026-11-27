@@ -4,7 +4,11 @@ import { scorpionPrintedMovement } from './scorpion-printed-movement.ts'
 import type { BackupUnit } from './unit-backup.ts'
 import type { Definition } from './unit-catalog.ts'
 
-const movementColors: Readonly<Record<string, Mobility>> = { white: 'leg', black: 'truck', red: 'track' }
+const movementColors: Readonly<Record<string, Mobility>> = {
+  white: 'leg', black: 'truck', red: 'track',
+  // 铁路 HQ 的地面 MA 为 0；其补给绘制按铁路/轮式处理，地面移动由 railOnly 单独拦住。
+  rail: 'truck',
+}
 
 export interface GroundProfile {
   side: Side
