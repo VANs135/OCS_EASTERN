@@ -24,5 +24,5 @@ export function kirovogradSetupTransports(data: Awaited<ReturnType<typeof loadKi
     }
     if (points !== marker.count) throw new Error('Kirovograd transport definitions disagree with the scenario capacity')
   }
-  return { counters, pendingMarkers: data.otherMarkers.filter(({ ref }) => ref !== 'Truck Points') }
+  return { counters, pendingMarkers: data.otherMarkers.filter(({ ref }) => ref !== 'Truck Points' && ref !== 'Railhead') }
 }

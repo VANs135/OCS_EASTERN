@@ -61,6 +61,7 @@ export function projectCampaignMatch(record: Readonly<Pick<CampaignMatch, 'state
   const railheads = map ? campaignRailheads(state, map, context.groundMovement?.railNetwork) : []
   const base = { viewer, revision, turn, date: when.date, weather: weather ? { ...weather } : null, ice: weatherHistory.ice,
     ferries, blownBridges, repairingBridges, repairedBridges, pontoonTrackBridges, railheads,
+    railheadMarkers: (state.railheadMarkers ?? []).map((marker) => ({ ...marker })),
     trainbusting: (state.trainbusting ?? []).map((marker) => ({ ...marker })), phase: cursor.phase, preTurnRolls,
     own: projectCampaignSeat(state, viewer) }
   if (cursor.phase === 'ended') return { ...base, reason: cursor.reason, phasing: null, actor: null }

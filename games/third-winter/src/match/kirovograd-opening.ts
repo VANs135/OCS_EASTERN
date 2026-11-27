@@ -123,6 +123,11 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const recordCity = campaignControlRecorder(new Set([city]))
   const baseMovement = turnRules.groundMovement
   const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
+  const railheadMarkers = data.otherMarkers.filter(({ ref }) => ref === 'Railhead').map(({ side, hex }) => {
+    const resolved = hex ? data.map.resolveHex(hex) : undefined
+    if (!resolved) throw new Error(`Kirovograd railhead is outside the play area: ${hex ?? '(missing hex)'}`)
+    return { side, hex: resolved }
+  })
   // Scenario 9 has no printed gauge table. The Soviet railhead markers bound the
   // converted line: rail east of a marker is broad, everything else is standard.
   // The opening deployment supplies the missing front-side mask so an eastward
@@ -171,6 +176,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps, edgeSupplySources,
+    ...(railheadMarkers.length ? { railheadMarkers } : {}),
     ...(initialRailGauge ? { railGaugeByEdge: initialRailGauge } : {}),
     hexControl: { [city]: 'axis' } }
   return { opening, context, markerSetup: transports.pendingMarkers,

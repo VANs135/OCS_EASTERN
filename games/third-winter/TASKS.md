@@ -178,7 +178,8 @@
 - [x] 2026-11-27，09 边缘补给源写入对局状态。`kirovogradEdgeSupplySources` 从 D 图可玩窗与铁路格边推导：轴心西缘 `D1.26`、苏军东缘 `D31.26`；`CampaignTurnState.edgeSupplySources` 随开局保存。`campaignPhysicalSupply` 把边缘源视为不限量抽取点，支付时不扣库存；`campaignTraceSupply` 将其并入补给源集合。
 - [x] 2026-11-27，09 空军板默认随会话装配。`prepareKirovogradOpening` 若已收到 `barrage` 板，就用其 `BarrageTable` 与实际机谱自动构造 `kirovogradAirStrikeBoard`；显式 `airMission` 优先，仍不重复表源。新增开局装配测试。
 - [x] 2026-11-27，09 初始轨距按苏联铁路端头标记绑定，并加初设战线侧别检查。`kirovograd-initial-gauge.ts` 读取 setup 中 `Railhead` 标记：以每个苏军端头为界，封住其西侧入边，东侧连通铁路组件全部记为苏式宽轨，其余为德式标准轨；同列南北弯线也属于东侧组件。`kirovograd-initial-front.ts` 用双方初设地面战斗单位的最近格距判定一个格是否在苏军战线一侧（平局归德军），东向追溯只穿过苏军侧格，包围圈内保留本地铁路、遇德军环即停。实库两个端头为 `D25.30`、`D29.24`，78 条铁路边中 22 条宽轨。开局把完整轨距表写入 `railGaugeByEdge`，并把同一份轨距接到 `CampaignRailNetwork`；新增合成端头、战线遮挡、包围与开局装配测试。
-- [ ] 09 剩余绑定：边缘补给的实际铁路网络/控制检查（当前源格与物理源已接，尚未用真实 09 地面移动板跑通）；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头和双方预备库存接实际状态与 UI；完整 B9 七步仍不在本子集内。
+- [x] 2026-11-27，09 固定铁路端头写入对局状态，不再作为待放置标记。`CampaignTurnState.railheadMarkers` 保存 setup 的 `Railhead` 格与阵营；开局 `railheadMarkers` 为 `D25.30`、`D29.24`，`markerSetup` 只保留双方预备标记。对局视图同时投影 `railheadMarkers`，桌面图标显示仍待接。
+- [ ] 09 剩余绑定：边缘补给的实际铁路网络/控制检查（当前源格与物理源已接，尚未用真实 09 地面移动板跑通）；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头图标和双方预备库存接实际状态与 UI；完整 B9 七步仍不在本子集内。
 - [x] 按确认口径，08 的 `s5.16` 和 `s21.04` 分别有 2 点、3 点卡车及 9 SP、10 SP。开局具象补给合计 126T，实库审计分别校验卡车运输点数和补给。
 - [ ] 收敛其他地图接缝和河流数据待核。2026-11-25 的实库导入已不报 09 接缝缺失，仍有 135 条临时河边待目视确认，由项目方维护地图源。
 - [ ] 继续登记原文表述不清及缺失数据。战役河流连续三个 Dry、Mud 或 Thaw 回合后的解冰生效时点仍待核。其他辅助卡接入时逐张校验标定与状态字段。
