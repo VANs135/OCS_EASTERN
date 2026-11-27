@@ -7,7 +7,7 @@ import { campaignControlRecorder } from './campaign-control.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
 import { campaignThrowHeadquarters } from './campaign-hq-supply.ts'
-import { captureCampaignDump } from './campaign-dump-capture.ts'
+import { resolveCampaignEntryCapture } from './campaign-entry-capture.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
@@ -44,7 +44,7 @@ export function kirovogradGroundMovementBoard(data: KirovogradData, railNetwork?
     terrainAt: (hex) => data.terrain.terrainAt(hex),
     crossingAt: (_state, _id, from, to) => data.terrain.crossingAt(from, to),
     entryRequiresResolution: () => false,
-    resolveEntry: (state, side, hex, ids) => captureCampaignDump(state, side, hex, ids,
+    resolveEntry: (state, side, hex, ids) => resolveCampaignEntryCapture(state, side, hex, ids,
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true }),
     releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }),
     railOnly: hq.railOnly,

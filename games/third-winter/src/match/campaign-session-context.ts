@@ -8,6 +8,7 @@ import { campaignMovementProfiles, type CampaignMovementCatalog } from './campai
 import { campaignGeometryHooks, type CampaignGeometrySource } from './campaign-geometry.ts'
 import { campaignPostureHooks, type CampaignPostureSource } from './campaign-posture-boards.ts'
 import { campaignControlRecorder, campaignCityControl } from './campaign-control.ts'
+import { resolveCampaignEntryCapture } from './campaign-entry-capture.ts'
 import { campaignFortressBoards, type CampaignFortressSource } from './campaign-fortress-board.ts'
 import { settleCampaignFortressStatus } from './campaign-fortress.ts'
 import type { CampaignLossBoard } from './campaign-combat-losses.ts'
@@ -60,6 +61,9 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
       destroyOnRetreat: campaignDestroyOnRetreat(losses),
       postureBenefitAt: posture.postureBenefitAt,
       frontOfHex: posture.frontOfHex,
+      // 9.14b/9.14e 的非交互进格夺取；9.14c/9.14f 仍需各自的交互窗口。
+      resolveEntry: (state: Readonly<CampaignTurnState>, side: 'axis' | 'soviet', hex: string, ids: readonly string[]) =>
+        resolveCampaignEntryCapture(state, side, hex, ids, { attackCapable: sources.geometry.isCombatUnit }),
       ...(fortress ? { fortressExitRefusal: fortress.exitRefusal } : {}),
     },
     groundMovement: { railOnly: hq.railOnly, profileOf: movement.profileOf, moveProfile: movement.moveProfile,

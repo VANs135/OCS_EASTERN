@@ -35,6 +35,23 @@ export interface CampaignHedgehogBoard {
   maxLevel?: number
 }
 
+/** OCS 9.14e：敌方攻击单位进入工事格时降一级并归进入方；1 级工事直接移除。 */
+export interface CampaignHedgehogCaptureBoard {
+  attackCapable(state: Readonly<CampaignTurnState>, id: string): boolean
+  /** 印刷工事回退；无状态记录时仍可被夺取。 */
+  printed?(state: Readonly<CampaignTurnState>, hex: string): CampaignHedgehog | null
+}
+
+export function captureCampaignHedgehog(state: Readonly<CampaignTurnState>, side: Side, hex: string,
+  ids: readonly string[], board: CampaignHedgehogCaptureBoard): CampaignTurnState {
+  const current = state.hedgehogs && Object.hasOwn(state.hedgehogs, hex)
+    ? state.hedgehogs[hex] : board.printed?.(state, hex) ?? null
+  if (!current || current.side === side) return state
+  if (!ids.some((id) => board.attackCapable(state, id))) return state
+  const next = current.level === 2 ? { side, level: 1 as const } : null
+  return { ...state, hedgehogs: { ...state.hedgehogs, [hex]: next } }
+}
+
 /** 工事等级：状态写入优先，印刷工事回退。 */
 export function campaignHedgehogLevel(state: Readonly<CampaignTurnState>, hex: string, board?: CampaignHedgehogBoard): number {
   if (state.hedgehogs && Object.hasOwn(state.hedgehogs, hex)) return state.hedgehogs[hex]?.level ?? 0
