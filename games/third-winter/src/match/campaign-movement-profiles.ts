@@ -27,7 +27,7 @@ export function campaignMovementProfiles(catalog: CampaignMovementCatalog): Camp
     const counter = state.counters[id]
     const def = defOf(state, id)
     if (!counter || !def) return undefined
-    const combat = scorpionGroundProfile(def, 'combat')
+    const combat = scorpionGroundProfile(def, 'combat') ?? scorpionGroundProfile(def, 'move')
     if (!combat) return undefined
     const move = scorpionGroundProfile(def, 'move')
     const source = def.source

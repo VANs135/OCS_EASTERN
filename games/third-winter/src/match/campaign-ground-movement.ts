@@ -96,7 +96,8 @@ function movementUnit(board: CampaignGroundMovementBoard, proposed: Readonly<Cam
   if (board.railOnly?.(proposed, id)) return refuse('hq-rail-only')
   const profile = board.moveProfile(proposed, id)
   if (!profile || !Number.isFinite(profile.ma) || profile.ma <= 0) return refuse('no-movement-allowance')
-  if (!profile.fuelReady) return refuse('needs-fuel')
+  // 通规 12.5 燃料支付只适用于机械化/轮式/履带单位；步行单位不需要燃料标记。
+  if (!profile.fuelReady && profile.mobility !== 'leg') return refuse('needs-fuel')
   const mode = campaignCounterGroundMode(proposed.counters[id]!, combatFace)
   const activeSide = 'phasing' in proposed.cursor ? proposed.cursor.phasing : side
   if (!canMoveInPhase({ state: mode, side, activeSide }, phase).ok) return refuse('unit-cannot-move-in-phase')

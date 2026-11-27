@@ -51,7 +51,7 @@ export interface CampaignReinforcementRoll {
 
 export interface CampaignCounter {
   definition: string
-  kind: 'land' | 'hq' | 'transport' | 'aircraft'
+  kind: 'land' | 'hq' | 'transport' | 'aircraft' | 'air-army-hq' | 'luftflotte-hq'
   side: Side
   location: { kind: 'map'; hex: string } | { kind: 'box'; box: string } | { kind: 'breakout-return'; turn: number }
     | { kind: 'available' | 'dead-pile' | 'withdrawn' | 'consolidated' }

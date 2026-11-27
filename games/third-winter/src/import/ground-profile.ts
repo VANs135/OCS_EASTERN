@@ -26,7 +26,13 @@ export function scorpionGroundProfile(
   const face = source.faces[mode] ?? (transport ? source.faces.combat : null)
   const allowance = face?.stats.move
   const printedColor = face?.asset ? scorpionPrintedMovement[face.asset] : undefined
-  const color = printedColor ?? face?.maColor
+  const faceColor = face?.maColor && face.maColor !== 'unknown' ? face.maColor : undefined
+  // TTW's V2 counter OCR left some back-side ma_color null. category is the
+  // source's own unit class and supplies the printed movement color in that case.
+  const category = (source as { category?: string | null }).category
+  const inferredColor = category === 'mech' || category === 'at' || category === 'recon' ? 'black'
+    : category === 'armor' ? 'red' : category === 'infantry' ? 'white' : undefined
+  const color = printedColor ?? faceColor ?? inferredColor
   if (typeof allowance !== 'number' || !Number.isFinite(allowance) || allowance < 0 ||
     !color || !Object.hasOwn(movementColors, color)) return null
   return { side: source.side, combat: !transport, allowance, mobility: movementColors[color]! }
