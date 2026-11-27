@@ -4,6 +4,8 @@ const CommandLog := preload("res://scripts/core/command_log.gd")
 const Deployment := preload("deployment.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
 const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
+const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
+const PhaseFlow := preload("res://works/third-winter/rules/phase_flow.gd")
 const Result := preload("res://scripts/core/result.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 
@@ -31,6 +33,14 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
 	if action.get("type") == "ground-move":
 		return GroundMove.apply(state, actor, action, data)
+	if action.get("type") == "complete-movement":
+		return SupplyPhase.complete_movement(state, actor, data)
+	if action.get("type") == "check-attrition":
+		return SupplyPhase.check_attrition(state, actor, data)
+	if action.get("type") == "complete-supply":
+		return SupplyPhase.complete_supply(state, actor)
+	if action.get("type") in ["complete-reaction", "complete-combat", "complete-exploitation", "complete-cleanup"]:
+		return PhaseFlow.apply(state, actor, action)
 	if action.get("type") in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
 			"place-alert", "pass-alert", "complete-reinforcement"]:
 		if state.kind != "playing":

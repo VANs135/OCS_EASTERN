@@ -8,6 +8,7 @@ const PoolDraw := preload("res://scripts/rules/series/pool_draw.gd")
 const ScorpionData := preload("res://scripts/data/scorpion_opening_data.gd")
 const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-pocket/opening.gd")
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
+const PhaseFlow := preload("res://works/third-winter/rules/phase_flow.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
@@ -377,6 +378,56 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 			break
 	_reject_scorpion(record, data, "soviet", {"type": "ground-move", "unitId": fresh,
 		"path": [enemy_hex]}, "movement_blocked")
+	# The oracle closes the segment here and the supply window must match the TS trace book.
+	var next_index := index + 1
+	var closed: Dictionary = vector.records.get(str(next_index), {})
+	if closed.is_empty():
+		_expect(false, "08 补给阶段缺少 oracle 修订 %d" % next_index)
+		return
+	var close_action: Dictionary = closed.receipts[next_index - 1].action
+	var opened := ScorpionMatch.submit(record.duplicate(true), "soviet",
+		{"id": "close-%d" % next_index, "expectedRevision": record.revision, "action": close_action}, data)
+	_expect(opened.ok, "08 原生结束移动 %s" % opened.get("errorMessage", ""))
+	if not opened.ok:
+		return
+	_compare_supply(opened.value.record.state, closed.state, "08 原生补给窗口修订 %d" % next_index)
+	# The window opens before the trace and attrition steps, so their order is refused.
+	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
+		"supply_pending")
+	_reject_scorpion(opened.value.record, data, "axis", {"type": "complete-supply"},
+		"supply_unavailable")
+	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-reaction"},
+		"phase_command")
+	# Then the oracle checks attrition and closes the phase, one revision each.
+	var after_supply: Dictionary = opened.value.record
+	for offset in [2, 3, 4]:
+		var at: int = index + offset
+		var later: Dictionary = vector.records.get(str(at), {})
+		if later.is_empty():
+			_expect(false, "08 后勤阶段缺少 oracle 修订 %d" % at)
+			return
+		var step_action: Dictionary = later.receipts[at - 1].action
+		var settled := ScorpionMatch.submit(after_supply.duplicate(true), PhaseFlow.acting_side(after_supply.state.cursor),
+			{"id": "supply-%d" % at, "expectedRevision": after_supply.revision, "action": step_action}, data)
+		_expect(settled.ok, "08 原生 %s %s" % [str(step_action.get("type")), settled.get("errorMessage", "")])
+		if not settled.ok:
+			return
+		after_supply = settled.value.record
+		_compare_supply(after_supply.state, later.state, "08 原生 %s 修订 %d" % [str(step_action.get("type")), at])
+		if offset == 2:
+			_reject_scorpion(after_supply, data, "soviet", {"type": "check-attrition"},
+				"supply_allocation")
+
+
+func _compare_supply(actual: Dictionary, expected: Dictionary, label: String) -> void:
+	var fields := ["kind", "turn", "cursor", "supply", "units", "moved", "railControl", "victory", "rng"]
+	var left := {}
+	var right := {}
+	for field: String in fields:
+		left[field] = actual.get(field)
+		right[field] = expected.get(field)
+	var difference := _first_difference(left, right, "")
+	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
 
 
 func _compare_movement(actual: Dictionary, expected: Dictionary, label: String) -> void:
