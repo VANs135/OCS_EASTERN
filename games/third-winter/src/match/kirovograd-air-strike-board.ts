@@ -77,6 +77,8 @@ CampaignAirStrikeProfile | undefined {
 export function kirovogradAirStrikeBoard(source: KirovogradAirStrikeSource): CampaignAirStrikeBoard {
   return {
     map: source.map,
+    // The play-area hex set doubles as the on-map target list for air support.
+    targetHexes: source.map.availableHexes ? [...source.map.availableHexes] : undefined,
     table: source.table,
     distance: (from, to) => mapDistance(source.map, from, to),
     airProfileOf: (state, id) => airProfile(state, id, source),

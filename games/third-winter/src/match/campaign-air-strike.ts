@@ -6,8 +6,8 @@
 
 import { allowsBarrageSource, airMissionSegments } from '@ocs-eastern/series/fire-timing'
 import { airbaseAaValue } from '@ocs-eastern/series/airbase'
-import { airMissionLaunchRefusal } from '@ocs-eastern/series/air-mission'
-import type { AirMissionTargetFacts, AirMissionAircraftFacts } from '@ocs-eastern/series/air-mission'
+import { airMissionLaunchRefusal, airMissionTargetCandidates } from '@ocs-eastern/series/air-mission'
+import type { AirMissionTargetFacts, AirMissionTargetHexFacts, AirMissionAircraftFacts } from '@ocs-eastern/series/air-mission'
 import type { FlakDrmFacts } from '@ocs-eastern/series/air'
 import { flakDrm, flakKill } from '@ocs-eastern/series/air'
 import { roll2d6, rollDie } from '@ocs-eastern/series/rng'
@@ -36,6 +36,8 @@ export interface CampaignAirStrikeProfile {
 }
 
 export interface CampaignAirStrikeBoard extends Pick<CampaignBarrageBoard, 'map' | 'table' | 'distance' | 'hedgehogAt'> {
+  /** On-map hexes exposed for candidate lists; omitted leaves target enumeration unavailable. */
+  targetHexes?: readonly string[]
   airProfileOf(state: Readonly<CampaignTurnState>, id: string): CampaignAirStrikeProfile | undefined
   /** 09 special rule: off-map air units reach every map hex. */
   rangeHexes?(state: Readonly<CampaignTurnState>, id: string): number | undefined
@@ -117,6 +119,26 @@ function targetFacts(state: Readonly<CampaignTurnState>, side: Side, hex: string
     friendlyAirBase,
     rail: board.railAt?.(state, hex) ?? false,
   }
+}
+
+/**
+ * Enumerate hexes this 09 air-strike board permits for a mission type.
+ * The candidate list is a UI/selection helper; launch still performs the
+ * full phase, weather, aircraft and Flak checks. Aircraft with active enemy
+ * air or an airbase are excluded because this scenario has no air combat.
+ */
+export function campaignAirStrikeTargetCandidates(state: Readonly<CampaignTurnState>, side: Side,
+  board: CampaignAirStrikeBoard, kind: CampaignAirStrikeKind): string[] {
+  if (!board.targetHexes?.length) return []
+  const hexes: AirMissionTargetHexFacts[] = board.targetHexes.map((hex) => ({ hex, ...targetFacts(state, side, hex, board) }))
+  return airMissionTargetCandidates({
+    kind,
+    hexes,
+    reachable: (hex) => {
+      const facts = targetFacts(state, side, hex, board)
+      return board.map.resolveHex(hex) === hex && !facts.enemyActiveAircraft && !facts.enemyAirBase
+    },
+  })
 }
 
 function airProfile(state: Readonly<CampaignTurnState>, id: string, board: CampaignAirStrikeBoard) {

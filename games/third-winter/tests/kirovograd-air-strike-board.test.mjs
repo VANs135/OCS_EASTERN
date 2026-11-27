@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { campaignAirStrikeTargetCandidates } from '../src/match/campaign-air-strike.ts'
 import { kirovogradAirStrikeBoard } from '../src/match/kirovograd-air-strike-board.ts'
 
 const map = {
@@ -48,4 +49,13 @@ test('09 board uses one AA DRM per hex only in Combat Mode and filters by side',
   assert.equal(board.flakValueAt(state, 'D1.2', 'soviet'), 2)
   assert.equal(board.flakValueAt(state, 'D1.2', 'axis'), 1)
   assert.equal(board.flakValueAt({ counters: { s1: aa('aa1', 'soviet', 'move') } }, 'D1.2'), undefined)
+})
+
+test('09 target candidates exclude empty hexes and enemy airbases', () => {
+  const state = {
+    counters: { enemy: { kind: 'land', side: 'soviet', location: { kind: 'map', hex: 'D1.2' } } },
+    airBases: [{ side: 'soviet', hex: 'D1.3' }],
+  }
+  assert.deepEqual(campaignAirStrikeTargetCandidates(state, 'axis', board, 'barrage'), ['D1.2'])
+  assert.deepEqual(campaignAirStrikeTargetCandidates(state, 'axis', board, 'hip-shoot'), ['D1.2'])
 })

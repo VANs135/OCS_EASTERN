@@ -126,6 +126,22 @@ export interface AirMissionTargetFacts {
   rail: boolean
 }
 
+/** Target facts tagged with the hex they describe, for candidate lists. */
+export interface AirMissionTargetHexFacts extends AirMissionTargetFacts {
+  hex: string
+}
+
+/** Filter a hex list down to legal mission targets; the caller supplies range/reachability. */
+export function airMissionTargetCandidates(input: {
+  kind: AirMissionKind
+  hexes: readonly AirMissionTargetHexFacts[]
+  reachable(hex: string): boolean
+}): string[] {
+  return input.hexes
+    .filter((facts) => airMissionTargetTypeAllowed(input.kind, facts) && input.reachable(facts.hex))
+    .map((facts) => facts.hex)
+}
+
 /** 14.6-14.11: whether this mission type may target the hex at all. */
 export function airMissionTargetTypeAllowed(kind: AirMissionKind, facts: AirMissionTargetFacts): boolean {
   switch (kind) {
