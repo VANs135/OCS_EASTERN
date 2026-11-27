@@ -10,6 +10,7 @@ const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcemen
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
+const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -557,6 +558,21 @@ static func reinforcement_choices(state: Dictionary, side: String, selection: Di
 				str(state.turn.weather.ground)):
 			_choice(choices, "警戒营入场 · %s" % hex, [{"type": "place-alert", "hex": hex}])
 		_choice(choices, "放弃本次警戒营", [{"type": "pass-alert"}])
+	## TTW 2.4d and 1.7a — a remnant stacked with a supplied HQ can be exchanged for its parent at
+	## one step, spending one Axis Pax.
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.units[id]
+		if str(unit.get("side")) != side or unit.get("remnantOf") == null:
+			continue
+		for face: String in ["combat", "move"]:
+			var probe: Dictionary = state.duplicate(true)
+			var rebuilt := Remnants.rebuild(probe, side,
+				{"type": "rebuild-remnant", "remnantId": id, "face": face}, data)
+			if not rebuilt.ok:
+				continue
+			_choice(choices, "重建 %s · %s · 1 人员补充点"
+				% [_unit_name(state, id, data), "战斗面" if face == "combat" else "移动面"],
+				[{"type": "rebuild-remnant", "remnantId": id, "face": face}])
 	if tokens == 0 and pending == null:
 		_choice(choices, "结束增援", [{"type": "complete-reinforcement"}])
 	return choices

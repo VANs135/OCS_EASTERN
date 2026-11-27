@@ -28,7 +28,7 @@ static func apply(state: Dictionary, allocation: Dictionary, data: Dictionary) -
 			alerts.append({"id": id, "definition": definition})
 			continue
 		pieces.append({"id": id, "kind": "ground", "side": str(unit.get("side", "")),
-			"definition": definition, "location": {"kind": "dead-pile"}})
+			"definition": definition, "location": {"kind": "dead-pile"}, "counter": unit})
 	state.units = units
 	state.pieces = pieces
 	state.availableAlerts = alerts

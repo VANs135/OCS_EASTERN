@@ -398,6 +398,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	_test_supply_split(opened.value.record, data)
 	_test_supply_attrition(opened.value.record, data)
 	_test_supply_feed(opened.value.record, data)
+	_test_remnant_rebuild(opened.value.record, data)
 	# The window opens before the trace and attrition steps, so their order is refused.
 	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
 		"supply_pending")
@@ -616,6 +617,102 @@ func _test_supply_feed(record: Dictionary, data: Dictionary) -> void:
 	_reject_scorpion(fed.value.record, data, "soviet",
 		{"type": "feed-units", "payments": [{"dumpId": dump_id,
 			"portions": [{"unitId": fighter, "re": re}]}]}, "supply_payment")
+
+
+## src/match/scorpion-remnants.ts `rebuildScorpionRemnant` — TTW 2.4d/1.7a exchange. The 08 opening
+## has no dead axis division yet, so a remnant, its parent on the dead pile and a moved HQ are forged.
+func _test_remnant_rebuild(record: Dictionary, data: Dictionary) -> void:
+	var hq_id := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if str(unit.get("side")) == "axis" and unit.get("headquarters") != null \
+				and not str(data.view.catalog.definitions.get(str(unit.definition), {}).get("name", "")).contains("Kessel"):
+			hq_id = id
+			break
+	var parent_id := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if str(unit.get("side")) == "axis" and unit.get("combat") == true and unit.get("headquarters") == null \
+				and int(unit.get("printedRe", 0)) >= 2:
+			parent_id = id
+			break
+	if hq_id.is_empty() or parent_id.is_empty():
+		_expect(false, "08 原生重建夹具找不到轴心司令部或母单位")
+		return
+	var parent_definition := str(record.state.units[parent_id].definition)
+	var remnant_id := "remnant:forge:1"
+	var forged: Dictionary = record.duplicate(true)
+	forged.state.cursor = {"turn": 1, "first": "soviet", "phasing": "axis", "phase": "reinforcement",
+		"retention": "soviet"}
+	forged.state.window = {"stage": "variable", "variableTokens": 0, "fixedTokens": 0}
+	forged.state.pax = {"axis": 1, "soviet": 0}
+	var parent_counter: Dictionary = record.state.units[parent_id].duplicate(true)
+	var template: Dictionary = parent_counter.duplicate(true)
+	template.hex = str(record.state.units[hq_id].hex)
+	template.remnantOf = parent_id
+	template.stepsLost = 0
+	forged.state.units[remnant_id] = template
+	var pieces: Array = (forged.state.pieces as Array).duplicate(true)
+	pieces.append({"id": parent_id, "kind": "ground", "side": "axis", "definition": parent_definition,
+		"location": {"kind": "dead-pile"}, "counter": parent_counter})
+	forged.state.pieces = pieces
+	var hex := str(template.hex)
+	var zoc := SupplyPosition.enemy_zoc(forged.state.units, "axis", data)
+	var traced := false
+	var position := SupplyPosition.position(forged.state.units, forged.state.railControl, "axis", data)
+	var network: RefCounted = SupplyTrace.network(data.view.mapGraph, position, "axis", "freeze")
+	var candidates: Array = (data.view.mapGraph.terrains as Dictionary).keys()
+	candidates.sort()
+	for candidate: String in candidates:
+		if zoc.has(candidate) or not network.has_trace(candidate):
+			continue
+		hex = candidate
+		traced = true
+		break
+	_expect(traced, "08 原生重建夹具找到有追溯且不在 ZOC 的格")
+	if not traced:
+		return
+	forged.state.units[hq_id].hex = hex
+	forged.state.units[remnant_id].hex = hex
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "rebuild-remnant", "remnantId": remnant_id, "face": "combat"}, "remnant_rebuild")
+	var missing_pax: Dictionary = forged.duplicate(true)
+	missing_pax.state.pax = {"axis": 0, "soviet": 0}
+	_reject_scorpion(missing_pax, data, "axis",
+		{"type": "rebuild-remnant", "remnantId": remnant_id, "face": "combat"}, "remnant_rebuild")
+	var far_hq: Dictionary = forged.duplicate(true)
+	far_hq.state.units[hq_id].hex = str(record.state.units[hq_id].hex) \
+		if str(record.state.units[hq_id].hex) != hex else str(record.state.units[parent_id].hex)
+	_reject_scorpion(far_hq, data, "axis",
+		{"type": "rebuild-remnant", "remnantId": remnant_id, "face": "combat"}, "remnant_rebuild")
+	_reject_scorpion(forged, data, "axis",
+		{"type": "rebuild-remnant", "remnantId": remnant_id, "face": "sideways"}, "remnant_rebuild")
+	var panel: Dictionary = ScorpionView.project(forged, {}, data, "axis")
+	var offered := false
+	for control: Dictionary in panel.get("actions", []):
+		if str(control.get("label")).begins_with("重建 ") and str(control.get("label")).ends_with("· 1 人员补充点"):
+			offered = true
+			break
+	_expect(offered, "08 原生增援侧栏给出残部重建选项")
+	var rebuilt := ScorpionMatch.submit(forged.duplicate(true), "axis",
+		{"id": "rebuild-1", "expectedRevision": forged.revision,
+			"action": {"type": "rebuild-remnant", "remnantId": remnant_id, "face": "move"}}, data)
+	_expect(rebuilt.ok, "08 原生可把残部重建为母单位")
+	if not rebuilt.ok:
+		return
+	var after: Dictionary = rebuilt.value.record.state
+	_expect(not after.units.has(remnant_id), "08 原生重建后残部离场")
+	_expect(after.units.has(parent_id), "08 原生重建后母单位回到盘面")
+	_expect(int(after.units[parent_id].stepsLost) == int(parent_counter.printedRe) - 1,
+		"08 原生重建的母单位降一步")
+	_expect(after.units[parent_id].moveMode == true, "08 原生重建按请求取移动面朝向")
+	_expect(int(after.pax.axis) == 0, "08 原生重建耗掉 1 个轴心人员补充点")
+	var still_piled := false
+	for piece: Dictionary in after.pieces:
+		if str(piece.get("id")) == parent_id:
+			still_piled = true
+			break
+	_expect(not still_piled, "08 原生重建后母单位离开死人堆")
 
 ## is forged onto the second side's Cleanup and the rollover invariants are asserted instead.
 func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:
