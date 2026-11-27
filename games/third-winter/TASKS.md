@@ -182,6 +182,7 @@
 - [x] 2026-11-27，09 真实地面移动基础板默认装配。新增 `kirovograd-ground-movement.ts`：用真实地图、地形/格边、`campaignMovementProfiles`、真实 `railNetwork` 和 `kirovogradReleaseRule` 组成 `CampaignGroundMovementBoard`；边缘补给源与铁路卸载点接入 `campaignTraceSupply`，普通地面移动、地形代价、铁路格转换和端头投影可在实盘跑通。HQ throw 补给、进格夺取/堆叠等义务尚未注入，不能用本板冒充完整 09 规则。
 - [x] 2026-11-27，09 常规 HQ 投送接入真实补给网。通规 12.3b 的判定继续由 `series/supply-network` 承担；新增 `campaign-hq-supply.ts` 只从算子库当前面读取印刷 `dropRange`，把在图、非战略模式、非 Kessel 的 HQ 作为 `headquarters` 事实注入 `kirovogradGroundMovementBoard`。Kessel 仍走 `campaign-kessel-trace` 的 self-contained 源；TTW §2.3b/c 的 Army/Army Group 额度、§3.3b 方面军边界不混入本函数，留给专规闸门。实库 09 得到轴心 4 个、苏军 3 个投送 HQ，双方 37/69 个地面单位开局均在 trace 内；合成 4 例覆盖当前面、战略禁投、Kessel 分流和离图 HQ。
 - [x] 2026-11-27，09 进格 9.14b dump 夺取接入移动板。`campaign-movement-board` 增加非交互 `resolveEntry` 钩子，`campaign-ground-march` 在每次进格后调用；新增 `campaign-dump-capture.ts` 只按 series 9.14b 向量表掷骰、扣除原主 dump、把夺取部分加到进入方。9.14c 运输点需要原主选择余部位移，9.14e 工事/9.14f 机场各有独立窗口，均未用自动猜测混入本钩子。09 实库 09.14b 可在进入敌方 dump 格时结算；无可攻击单位进入时不触发、不掷骰，空 dump 格不消耗 RNG。
+- [x] 2026-11-27，9.14c 通规组级规则下沉 `packages/series`。新增 `transport-capture.ts`：按 MA>10/≤10 分卡车/马车组、组内先合计再按 series 夺取向量表取整（SP/T 同比例）、组内子集优先分配、位移候选按 10/5 格且不被敌情/地形过滤。该层只给规则与默认方案；09 的实际运输点算子窗口、原主选择和余部位移落点仍待接，不能用自动位移冒充。
 - [ ] 09 剩余绑定：HQ throw 补给与进格夺取/堆叠等移动义务；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头图标和双方预备库存接实际状态与 UI；完整 B9 七步仍不在本子集内。
 - [x] 按确认口径，08 的 `s5.16` 和 `s21.04` 分别有 2 点、3 点卡车及 9 SP、10 SP。开局具象补给合计 126T，实库审计分别校验卡车运输点数和补给。
 - [ ] 收敛其他地图接缝和河流数据待核。2026-11-25 的实库导入已不报 09 接缝缺失，仍有 135 条临时河边待目视确认，由项目方维护地图源。
