@@ -58,10 +58,13 @@ function readLoss(entry: Record<string, unknown>): { stepsLost?: number; issue?:
 
 /** Prepare known placements and retain pending setup actions. A prepared list alone cannot open a match. */
 export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map: TtwCampaignMapIndex, area?: PlayableMap) {
-  if (!isRecord(raw) || !Array.isArray(raw.units) || (raw.random_draws !== undefined && !Array.isArray(raw.random_draws))) {
+  if (!isRecord(raw) || !Array.isArray(raw.units) || (raw.random_draws !== undefined && !Array.isArray(raw.random_draws)) ||
+    (raw.markers !== undefined && !Array.isArray(raw.markers))) {
     throw new Error('Invalid campaign setup rows')
   }
   const counters: SetupCounter[] = []
+  const initialHedgehogs: { hex: string; side: Side; level: 1 | 2 }[] = []
+  const unresolvedHedgehogs: { row: number; ref: string; printedHex: string | null; issue: HexIssue | 'invalid-hedgehog-level' | 'invalid-hedgehog-count' }[] = []
   const pendingMarkerRows: { row: number; side: Side; ref: string; printedHex: string | null; lossHint?: number }[] = []
   const formationHeadings: { row: number; side: Side; ref: string }[] = []
   const unresolvedSetup: { row: number; side: Side; ref: string; issue: CampaignReferenceIssue }[] = []
@@ -105,6 +108,34 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
       ...(loss.stepsLost === undefined ? {} : { stepsLost: loss.stepsLost }) })
   }
 
+  for (const [index, entry] of (raw.markers ?? []).entries()) {
+    const row = index + 1
+    if (!isRecord(entry) || typeof entry.ref !== 'string' || !entry.ref.trim()) {
+      throw new Error(`Invalid campaign setup marker ${row}`)
+    }
+    const hedgehog = /^hedgehog\s+(\d+)$/i.exec(entry.ref.trim())
+    if (!hedgehog) continue
+    const side = readSide(entry.side, `marker ${row}`)
+    const at = entry.at
+    const printedHex = isRecord(at) ? `${at.map}${at.col}.${at.row}` : null
+    const location = resolveLocation(printedHex, map, area)
+    const level = Number(hedgehog[1])
+    const count = entry.count ?? 1
+    if ('issue' in location) {
+      unresolvedHedgehogs.push({ row, ref: entry.ref, printedHex, issue: location.issue })
+      continue
+    }
+    if (level !== 1 && level !== 2) {
+      unresolvedHedgehogs.push({ row, ref: entry.ref, printedHex, issue: 'invalid-hedgehog-level' })
+      continue
+    }
+    if (count !== 1) {
+      unresolvedHedgehogs.push({ row, ref: entry.ref, printedHex, issue: 'invalid-hedgehog-count' })
+      continue
+    }
+    initialHedgehogs.push({ hex: location.hex, side, level })
+  }
+
   const drawOrders: { row: number; side: Side; pool: string; hex: string; count?: number }[] = []
   const unresolvedDraws: { row: number; hex: string; pool: string; issue: HexIssue }[] = []
   for (const [index, entry] of (raw.random_draws ?? []).entries()) {
@@ -123,5 +154,6 @@ export function prepareCampaignSetup(raw: unknown, aliases: CampaignAliases, map
   return {
     total: raw.units.length, resolvedNonMarkers, counters, pendingMarkerRows, unresolvedSetup, unresolvedLosses,
     missingSetupHexes, outsideSetupArea, drawOrders, unresolvedDraws, formationHeadings,
+    initialHedgehogs, unresolvedHedgehogs,
   }
 }

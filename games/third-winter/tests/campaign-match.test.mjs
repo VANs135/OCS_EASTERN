@@ -14,6 +14,11 @@ const send = (record, type, fields = {}, side = 'soviet', configured = context) 
   submitCampaignMatch(record, side, command(record, type, fields), configured).record
 const view = (record, side, configured = context) => projectCampaignMatch(record, side, configured)
 
+test('opening carries fixed setup hedgehogs onto the board', () => {
+  const opened = make(when.date, 1, { hedgehogs: { 'B6.04': { side: 'axis', level: 1 } } })
+  assert.deepEqual(opened.state.hedgehogs, { 'B6.04': { side: 'axis', level: 1 } })
+})
+
 test('campaign scenario opening, scheduled arrival, each reinforcement check and movement use one record', () => {
   const arrival = { id: 'arrival', ref: 'test-infantry', side: 'soviet', status: 'classified', definition: 'infantry',
     counterKind: 'land', operation: { kind: 'arrival', channel: { kind: 'fixed-hex', hex: 'B6.04', printedHex: 'B6.04' } } }

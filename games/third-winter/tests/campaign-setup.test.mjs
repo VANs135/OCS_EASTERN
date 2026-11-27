@@ -37,6 +37,21 @@ test('setup prepares canonical placements with distinct row identities and keeps
   assert.deepEqual(result.drawOrders, [{ row: 1, pool: 'example', hex: 'A2.0', side: 'axis' }])
 })
 
+test('fixed setup Hedgehog markers become initial hedgehogs; non-hedgehog markers stay untouched', () => {
+  const area = campaignMapInPlayArea(map, { kind: 'hex-list', hexes: ['A2.00'] })
+  const result = prepareCampaignSetup({ units: [], markers: [
+    { ref: 'Hedgehog 1', side: 'axis', at: { map: 'C', col: 2, row: 34 }, count: 1 },
+    { ref: 'Supply Point', side: 'soviet', at: { map: 'C', col: 2, row: 34 }, count: 1 },
+    { ref: 'Hedgehog 2', side: 'axis', at: { map: 'D', col: 1, row: 1 }, count: 1 },
+    { ref: 'Hedgehog 3', side: 'axis', at: { map: 'C', col: 2, row: 34 }, count: 1 },
+    { ref: 'Hedgehog 1', side: 'axis', at: { map: 'C', col: 2, row: 34 }, count: 2 },
+  ] }, aliases, map, area)
+  assert.deepEqual(result.initialHedgehogs, [{ hex: 'A2.0', side: 'axis', level: 1 }])
+  assert.deepEqual(result.unresolvedHedgehogs.map(({ row, issue }) => [row, issue]), [
+    [3, 'outside-scenario'], [4, 'invalid-hedgehog-level'], [5, 'invalid-hedgehog-count'],
+  ])
+})
+
 test('setup reports loss ambiguity, out-of-scope locations and wrong-side references separately', () => {
   const area = campaignMapInPlayArea(map, { kind: 'hex-list', hexes: ['A2.00'] })
   const result = prepareCampaignSetup({ units: [

@@ -44,7 +44,7 @@ export type CampaignMatch = MatchRecord<CampaignTurnState, CampaignTurnAction, S
 
 export type CampaignMatchOpening = Pick<CampaignTurnState, 'when' | 'turn' | 'opening' | 'counters'> & Partial<
   Pick<CampaignTurnState, 'weatherHistory' | 'ferries' | 'volgaBridgeDecisions' | 'volgaBridgeRepairs' |
-  'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting' | 'replacementHoldings'>>
+  'supplyDumps' | 'withdrawalSupplyDebt' | 'railGaugeByEdge' | 'trainbusting' | 'replacementHoldings' | 'hedgehogs'>>
 
 /** Use a normalized board after scenario setup, or a small board for single-mechanism tests. */
 export function openCampaignMatch(opening: CampaignMatchOpening, seed: number | RngState): CampaignMatch {
