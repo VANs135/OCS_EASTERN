@@ -8,6 +8,7 @@ const HexLayout := preload("res://scripts/view/hex_layout.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
+const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -79,6 +80,12 @@ static func choices(state: Dictionary, side: String, selection: Dictionary, data
 	if state.kind == "playing":
 		if str(state.cursor.get("phase")) == "reinforcement" and state.get("window") != null:
 			return reinforcement_choices(state, side, selection, data)
+		if _closable_phase(str(state.cursor.get("phase"))):
+			var commands := playing_choices(state, side, selection, data)
+			var rated: Array = []
+			for command: Dictionary in commands:
+				rated.append({"label": command.label, "actions": [command]})
+			return rated
 		return []
 	var choices: Array = []
 	var opening := _source(state)
@@ -205,11 +212,8 @@ static func _project_phase(record: Dictionary, selection: Dictionary, data: Dict
 				unit_ids.append(id)
 	elif unit_id != null:
 		unit_ids.append(unit_id)
-	var actions: Array = _phase_actions(state, actor, revision, data)
-	# A pending formation-trace choice or attrition allocation has no native command yet, so the
-	# panel is withheld rather than offering a dead end.
-	if phase_is_supply(state) and actions.is_empty():
-		return {}
+	var actions: Array = _choice_actions(revision,
+		playing_choices(state, actor, selection, data))
 	var stacks := map_stacks(state, data)
 	var frame := {
 		"trackers": trackers(data), "inventories": inventories(state, data, viewer),
@@ -241,29 +245,86 @@ static func _closable_phase(phase: String) -> bool:
 		or phase == "exploitation" or phase == "cleanup"
 
 
-static func phase_is_supply(state: Dictionary) -> bool:
-	return str(state.cursor.get("phase")) == "supply"
-
-
-static func _phase_actions(state: Dictionary, actor: String, revision: int, data: Dictionary) -> Array:
+## The segment commands the panel offers, as real actions rather than text: the map resolves a
+## pressed key back through this same list, so the payloads have to live here.
+## Mirrors desktop/local/actions.mjs `supplyChoices` and the segment closing commands.
+static func playing_choices(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary) -> Array:
 	var phase := str(state.cursor.get("phase"))
 	if phase == "supply":
-		var step := str(SupplyPhase.decision(state, actor).get("step", ""))
-		if step == "settle-trace-and-feeding":
-			return _command_actions(revision, [{"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"}])
-		if step == "complete-supply":
-			return _command_actions(revision, [{"label": "结束补给", "type": "complete-supply"}])
-		return []
+		return _supply_choices(state, side, data)
 	# OCS 2.2 — the closing command of each segment with no pending combat.
-	return _command_actions(revision,
-		[{"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase}])
+	return [{"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase}]
 
 
-static func _command_actions(revision: int, steps: Array) -> Array:
+static func _supply_choices(state: Dictionary, side: String, data: Dictionary) -> Array:
+	var decision := SupplyPhase.decision(state, side)
+	var step := str(decision.get("step", ""))
+	var window: Dictionary = state.get("supply", {})
+	var names: Dictionary = data.view.get("catalog", {}).get("definitions", {})
+	if step == "choose-formation-trace":
+		var formation := str(decision.get("formation", ""))
+		var pending: Dictionary = {}
+		for split: Dictionary in (window.get("splits", []) as Array):
+			if str(split.get("formation", "")) == formation:
+				pending = split
+				break
+		var choices: Array = []
+		if not pending.is_empty():
+			for anchor: Variant in (pending.get("anchors", []) as Array):
+				var anchor_id := str(anchor)
+				var unit_id := anchor_id.substr(anchor_id.find(":") + 1)
+				var display := unit_id
+				var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+				if not unit.is_empty():
+					var name := str(names.get(str(unit.get("definition", "")), {}).get("name", "HQ"))
+					display = "%s %s" % [str(unit.get("hex", "")), name]
+				choices.append({"label": "%s 追溯 · %s" % [formation, display],
+					"type": "choose-formation-trace", "formation": formation, "anchor": anchor_id})
+		return choices
+	if step == "assign-attrition":
+		var stack_hex := str(decision.get("hex", ""))
+		var stack: Dictionary = {}
+		for entry: Dictionary in (window.get("attrition", []) as Array):
+			if str(entry.get("hex", "")).to_lower() == stack_hex.to_lower() and entry.get("assigned") != true:
+				stack = entry
+				break
+		var losses := []
+		if not stack.is_empty():
+			for unit_id: Variant in (stack.get("units", []) as Array):
+				var order: Array = [unit_id]
+				for other: Variant in (stack.get("units", []) as Array):
+					if other != unit_id:
+						order.append(other)
+				var left := int(stack.get("losses", 0))
+				var allocation: Array = []
+				for candidate: Variant in order:
+					var remaining := StepLoss.remaining(state.get("units", {}).get(str(candidate), {}))
+					var steps: int = min(left, remaining)
+					if steps < 1:
+						break
+					allocation.append({"unitId": str(candidate), "steps": steps})
+					left -= steps
+				var name := str(names.get(str(state.get("units", {}).get(str(unit_id), {}).get("definition", "")), {}).get("name", str(unit_id)))
+				losses.append({"label": "%s 分配 %d 步损失 · 优先 %s" % [str(stack.get("hex", "")),
+					int(stack.get("losses", 0)), name], "type": "assign-attrition",
+					"hex": str(stack.get("hex", "")), "allocation": allocation})
+		return losses
+	if step == "settle-trace-and-feeding":
+		# Feeding itself is not native yet, so only the attrition check that closes the step is
+		# offered; the pay-from-dump lines stay with the TypeScript engine for now.
+		return [{"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"}]
+	if step == "complete-supply":
+		return [{"label": "结束补给", "type": "complete-supply"}]
+	return []
+
+
+static func _choice_actions(revision: int, choices: Array) -> Array:
 	var actions: Array = []
-	for step: Dictionary in steps:
-		actions.append({"key": "action:%d:%d" % [revision, actions.size()], "label": step.label,
-			"kind": "command", "actionTypes": [step.type]})
+	for choice: Dictionary in choices:
+		actions.append({"key": "action:%d:%d" % [revision, actions.size()],
+			"label": choice.label, "kind": "command",
+			"actionTypes": [choice.type]})
 	return actions
 
 

@@ -193,7 +193,7 @@ static func _open_turn(number: int, weather: Dictionary, vp: int, retention: Str
 		axis_steps: int, reroll_holder: String) -> Dictionary:
 	var base := {"number": number, "weather": {"ground": weather.ground, "flight": weather.flight},
 		"thawSeen": weather.thawSeen == true, "vp": vp}
-	var sudden := _sudden_death(number, vp)
+	var sudden := sudden_death(number, vp)
 	if not sudden.is_empty():
 		base.vp = _final_points(vp, reroll_holder)
 		base.step = {"kind": "ended", "result": sudden}
@@ -206,7 +206,7 @@ static func _open_turn(number: int, weather: Dictionary, vp: int, retention: Str
 	var penalty: int = min(axis_steps, 4) if number >= 3 and str(weather.ground) != "thaw" else 0
 	var adjusted: int = vp - penalty
 	base.vp = adjusted
-	var result := _sudden_death(number, adjusted)
+	var result := sudden_death(number, adjusted)
 	if not result.is_empty():
 		base.vp = _final_points(adjusted, reroll_holder)
 		base.step = {"kind": "ended", "result": result}
@@ -276,7 +276,7 @@ static func _edge_key(left: String, right: String) -> String:
 	return left + "|" + right if left < right else right + "|" + left
 
 
-static func _sudden_death(turn: int, vp: int) -> Dictionary:
+static func sudden_death(turn: int, vp: int) -> Dictionary:
 	if turn < 3:
 		return {}
 	if vp < -4:

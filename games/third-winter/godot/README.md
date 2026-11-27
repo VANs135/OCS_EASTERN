@@ -134,7 +134,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 移动至清理阶段：`ground-move`、`complete-movement`、补给/断补、反应/战斗/进击/清理收尾已原生（`supply_phase.gd`、`phase_flow.gd`），同回合换手可用；第二方清理后的回合换手与主动权应答（天气、突死、扣分、`retain-initiative`/`roll-initiative`/`choose-first`）已原生（`round.gd`），应答期间的侧栏仍留空。加油/拆分/预备/夺取与正规战斗未接。`rebuild-remnant` 仍缺原生命令。
+1. 移动至清理阶段：`ground-move`、`complete-movement`、补给/断补（含 `choose-formation-trace` 编队追溯来源与 `assign-attrition` 步损分配，见 `supply_phase.gd` + `scripts/rules/series/step_loss.gd`）、反应/战斗/进击/清理收尾已原生（`phase_flow.gd`），同回合换手可用；第二方清理后的回合换手与主动权应答（天气、突死、扣分、`retain-initiative`/`roll-initiative`/`choose-first`）已原生（`round.gd`），应答期间的侧栏仍留空。阶段侧栏给出的是可执行的完整动作（`ScorpionView.playing_choices`），按键能回到同一张表。加油/拆分/预备/夺取与正规战斗未接，`feed-units`（具象补给支付）与内部补给回收仍缺。`rebuild-remnant` 仍缺原生命令。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。

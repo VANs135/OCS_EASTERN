@@ -7,6 +7,8 @@ const SupplyPosition := preload("res://works/third-winter/rules/supply_position.
 const SupplyTrace := preload("res://works/third-winter/rules/supply_trace.gd")
 const Attrition := preload("res://scripts/rules/series/attrition.gd")
 const Rng := preload("res://scripts/core/rng.gd")
+const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
+const Round := preload("res://works/third-winter/rules/round.gd")
 
 
 ## OCS 12.1 — `complete-movement` closes the Movement Segment and opens the Supply Phase of
@@ -176,14 +178,111 @@ static func _pending_split(window: Dictionary) -> String:
 	return ""
 
 
+## src/match/scorpion-losses.ts floors the surviving RE at 1, so a printed 0-RE counter still
+## keeps one step.
 static func _remaining_steps(unit: Dictionary) -> int:
-	return int(unit.get("printedRe", 0)) - int(unit.get("stepsLost", 0))
+	return max(1, int(unit.get("printedRe", 0)) - int(unit.get("stepsLost", 0)))
 
 
 static func _list(value: Variant) -> Array:
 	if value is Array:
 		return value
 	return []
+
+
+## src/match/scorpion-supply-phase.ts `selectTraceAnchor` — a split formation picks one source for
+## the whole group, and only before any feeding or attrition settles.
+static func choose_formation(state: Dictionary, actor: String, action: Dictionary) -> Dictionary:
+	var window := _window_of(state, actor)
+	if window.is_empty():
+		return Result.failure("supply_unavailable", "当前不在本方补给阶段")
+	if window.get("attrition") != null or not _list(window.get("fed")).is_empty():
+		return Result.failure("supply_allocation", "先结算追溯来源再付补给或查断补")
+	var formation := str(action.get("formation", ""))
+	var anchor := str(action.get("anchor", ""))
+	var splits: Array = []
+	var chosen := false
+	for split: Dictionary in _list(window.get("splits")):
+		if not chosen and str(split.get("formation")) == formation:
+			if not _list(split.get("anchors")).has(anchor):
+				return Result.failure("supply_trace_choice", "该编队没有这条追溯来源")
+			var picked: Dictionary = split.duplicate(true)
+			picked.selected = anchor
+			splits.append(picked)
+			chosen = true
+			continue
+		splits.append(split.duplicate(true))
+	if not chosen:
+		return Result.failure("supply_trace_choice", "没有待选追溯的编队")
+	var settled: Dictionary = window.duplicate(true)
+	settled.splits = splits
+	state.supply = settled
+	return Result.success(state)
+
+
+## src/match/scorpion-attrition.ts `assignScorpionAttrition` — one allocation, covering the whole
+## attrition result of the chosen stack, then the Axis loss moves the Soviet VP.
+static func assign_attrition(state: Dictionary, actor: String, action: Dictionary,
+		data: Dictionary) -> Dictionary:
+	var window := _window_of(state, actor)
+	if window.is_empty():
+		return Result.failure("supply_unavailable", "当前不在本方补给阶段")
+	if window.get("attrition") == null:
+		return Result.failure("supply_allocation", "请先检查断补损耗")
+	var hex := str(action.get("hex", "")).to_lower()
+	var stack: Dictionary = {}
+	for entry: Dictionary in _list(window.get("attrition")):
+		if str(entry.get("hex")).to_lower() == hex and entry.get("assigned") != true:
+			stack = entry
+			break
+	if stack.is_empty():
+		return Result.failure("attrition_stack", "该格没有待分配的断补损耗")
+	var allocation: Variant = action.get("allocation", [])
+	if not (allocation is Array) or (allocation as Array).is_empty():
+		return Result.failure("attrition_allocation", "请给出完整的步损分配")
+	var steps_by_unit := {}
+	var total := 0
+	for row: Variant in allocation:
+		if not (row is Dictionary):
+			return Result.failure("attrition_allocation", "步损分配格式错误")
+		var unit_id := str(row.get("unitId", ""))
+		var steps := int(row.get("steps", 0))
+		if steps_by_unit.has(unit_id) or steps < 1:
+			return Result.failure("attrition_allocation", "每个单位只能分一次且步数至少为 1")
+		steps_by_unit[unit_id] = steps
+		total += steps
+	if total != int(stack.get("losses", 0)):
+		return Result.failure("attrition_allocation", "分配步数须等于该格的损耗 %d" % int(stack.get("losses", 0)))
+	for unit_id: String in steps_by_unit:
+		var unit: Dictionary = state.units.get(unit_id, {})
+		if unit.is_empty() or not _list(stack.get("units")).has(unit_id):
+			return Result.failure("attrition_allocation", "只能从该格断补单位里分步损")
+		if unit.get("outOfSupply") != true:
+			return Result.failure("attrition_allocation", "该单位不在断补状态")
+		if int(steps_by_unit[unit_id]) > _remaining_steps(unit):
+			return Result.failure("attrition_allocation", "步损超出该单位的存活步数")
+	var settled := StepLoss.apply(state, steps_by_unit, data)
+	if not settled.ok:
+		return settled
+	var vp := int(state.arrival.get("sovietVp", 0))
+	if str(state.cursor.get("phasing")) == "axis":
+		vp += int(stack.get("losses", 0))
+	state.arrival.sovietVp = vp
+	## scorpionSuddenDeath only records a result when the marker actually ends the game.
+	var sudden := Round.sudden_death(int(state.cursor.get("turn", 0)), vp)
+	state.victory = null if sudden.is_empty() else sudden
+	var assigned: Array = []
+	for entry: Dictionary in _list(window.get("attrition")):
+		if entry == stack:
+			var done: Dictionary = entry.duplicate(true)
+			done.assigned = true
+			assigned.append(done)
+			continue
+		assigned.append(entry.duplicate(true))
+	var window_copy: Dictionary = window.duplicate(true)
+	window_copy.attrition = assigned
+	state.supply = window_copy
+	return Result.success(state)
 
 
 ## The window as the TS module builds it; `traceExempt` only appears when a supply drop covers a

@@ -395,6 +395,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	_compare_supply(opened.value.record.state, closed.state, "08 原生补给窗口修订 %d" % next_index)
 	_compare_view_at(opened.value.record, vector, data, "08 原生补给视图修订 %d" % next_index)
 	_test_supply_split(opened.value.record, data)
+	_test_supply_attrition(opened.value.record, data)
 	# The window opens before the trace and attrition steps, so their order is refused.
 	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
 		"supply_pending")
@@ -455,8 +456,109 @@ func _test_supply_split(record: Dictionary, data: Dictionary) -> void:
 	_expect(str(step.get("step")) == "choose-formation-trace" and str(step.get("formation")) == "forge",
 		"08 原生未选编队时先要求选追溯来源")
 	_reject_scorpion(forged, data, "soviet", {"type": "check-attrition"}, "supply_allocation")
-	_expect(ScorpionView.project(forged, {}, data, "soviet").is_empty(),
-		"08 原生未选编队时侧栏留空而不是给出死路选项")
+	## src/match/scorpion-supply-phase.ts `selectTraceAnchor` — the pending formation lists its
+	## anchors, and picking one outside the list is refused without touching the board.
+	var panel: Dictionary = ScorpionView.project(forged, {}, data, "soviet")
+	var panels: Array = panel.get("actions", [])
+	_expect(panels.size() == 1 and str(panels[0].get("label")) == "forge 追溯 · forge"
+		and panels[0].get("actionTypes", [])[0] == "choose-formation-trace",
+		"08 原生未选编队时侧栏给出追溯来源选项")
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "choose-formation-trace", "formation": "forge", "anchor": "hq:nowhere"}, "supply_trace_choice")
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "choose-formation-trace", "formation": "missing", "anchor": "direct:forge"},
+		"supply_trace_choice")
+	var anchored := ScorpionMatch.submit(forged.duplicate(true), "soviet",
+		{"id": "split-1", "expectedRevision": forged.revision,
+			"action": {"type": "choose-formation-trace", "formation": "forge", "anchor": "direct:forge"}}, data)
+	_expect(anchored.ok, "08 原生可选编队追溯来源")
+	if not anchored.ok:
+		return
+	var settled: Dictionary = anchored.value.record.state
+	_expect(str(SupplyPhase.decision(settled, "soviet").get("step")) == "settle-trace-and-feeding",
+		"08 原生选好编队追溯后进入结算追溯")
+	_expect(not SupplyPhase.has_trace(settled.supply, member),
+		"08 原生选中的虚构来源仍不构成追溯")
+
+
+## src/match/scorpion-attrition.ts `assignScorpionAttrition` — step losses come out of the
+## out-of-supply counters of one hex, and Axis losses raise the sudden-death Soviet VP marker.
+func _test_supply_attrition(record: Dictionary, data: Dictionary) -> void:
+	var hex := ""
+	var fighter := ""
+	var doomed := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if str(unit.get("side")) != "soviet" or unit.get("combat") != true or str(unit.get("hex", "")) == "":
+			continue
+		if fighter == "":
+			fighter = id
+			hex = str(unit.hex)
+			continue
+		if str(unit.hex) == hex and int(unit.get("printedRe", 0)) <= 1:
+			doomed = id
+			break
+	if fighter.is_empty():
+		_expect(false, "08 原生断补夹具找不到苏军战斗力单位")
+		return
+	var forged: Dictionary = record.duplicate(true)
+	var both: Array = [fighter]
+	if doomed != "":
+		both.append(doomed)
+	for id: String in both:
+		forged.state.units[id].outOfSupply = true
+	forged.state.cursor.phasing = "axis"
+	forged.state.supply.attrition = [{"hex": hex, "units": both, "losses": both.size(),
+		"assigned": false}]
+	var decision: Dictionary = SupplyPhase.decision(forged.state, "axis")
+	_expect(str(decision.get("step")) == "assign-attrition" and str(decision.get("hex")) == hex,
+		"08 原生断补损耗先要求按格分配")
+	var panel: Dictionary = ScorpionView.project(forged, {}, data, "axis")
+	var panels: Array = panel.get("actions", [])
+	_expect(panels.size() >= 1 and str(panels[0].get("label")).begins_with("%s 分配 %d 步损失 · 优先 "
+		% [hex, both.size()]) and panels[0].get("actionTypes", [])[0] == "assign-attrition",
+		"08 原生断补损耗侧栏按优先单位给出分配选项")
+	_reject_scorpion(forged, data, "axis",
+		{"type": "assign-attrition", "hex": hex, "allocation": [{"unitId": fighter, "steps": 0}]},
+		"attrition_allocation")
+	_reject_scorpion(forged, data, "axis",
+		{"type": "assign-attrition", "hex": hex,
+			"allocation": [{"unitId": fighter, "steps": 1}, {"unitId": fighter, "steps": 1}]},
+		"attrition_allocation")
+	var short := ScorpionMatch.submit(forged.duplicate(true), "axis",
+		{"id": "attrition-1", "expectedRevision": forged.revision,
+			"action": {"type": "assign-attrition", "hex": hex,
+				"allocation": [{"unitId": both[0], "steps": 1}]}}, data)
+	_expect(short.ok == (both.size() == 1), "08 原生分配步数不足该格损耗时被拒")
+	var losses: Array = []
+	for id: String in both:
+		losses.append({"unitId": id, "steps": 1})
+	var settled := ScorpionMatch.submit(forged.duplicate(true), "axis",
+		{"id": "attrition-2", "expectedRevision": forged.revision,
+			"action": {"type": "assign-attrition", "hex": hex, "allocation": losses}}, data)
+	_expect(settled.ok, "08 原生可按格分配断补步损")
+	if not settled.ok:
+		return
+	var after: Dictionary = settled.value.record.state
+	var vp := int(forged.state.arrival.get("sovietVp", 0))
+	_expect(int(after.arrival.sovietVp) == vp + both.size(),
+		"08 原生轴心分配断补步损时苏军记 %d 胜利点" % both.size())
+	_expect(int(after.units[fighter].stepsLost) == int(forged.state.units[fighter].stepsLost) + 1,
+		"08 原生断补步损记入存活步数")
+	if doomed != "":
+		_expect(not after.units.has(doomed), "08 原生断补打光步数的单位离场")
+		var piled := false
+		for piece: Dictionary in after.pieces:
+			if str(piece.get("id")) == doomed and str(piece.location.get("kind")) == "dead-pile":
+				piled = true
+				break
+		_expect(piled, "08 原生断补阵亡单位进死人堆")
+	_expect(str(SupplyPhase.decision(after, "axis").get("step")) == "complete-supply",
+		"08 原生分配完断补损耗后可结束补给")
+	_expect(after.supply.attrition[0].assigned == true, "08 原生分配后该格标记已分配")
+	_reject_scorpion(settled.value.record, data, "axis",
+		{"type": "assign-attrition", "hex": hex, "allocation": losses}, "attrition_stack")
+
 ## is forged onto the second side's Cleanup and the rollover invariants are asserted instead.
 func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:
 	var forged: Dictionary = record.duplicate(true)
