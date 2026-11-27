@@ -15,9 +15,9 @@ static func acting_side(cursor: Dictionary) -> String:
 	return "soviet" if phasing == "axis" else "axis"
 
 
-## The phase-flow commands of src/match/scorpion-phase-flow.ts that carry no pending combat. Only
-## the Reaction Segment is migrated here; combat and exploitation still need their own rules, so
-## they are refused instead of guessed.
+## The phase-flow commands of src/match/scorpion-phase-flow.ts that carry no pending combat. Combat
+## results, initiative and the cleanup round rollover are not native yet, so they are refused
+## instead of guessed.
 static func apply(state: Dictionary, actor: String, action: Dictionary) -> Dictionary:
 	if state.kind != "playing":
 		return Result.failure("match_not_started", "请先开始 08 对局")
@@ -30,18 +30,19 @@ static func apply(state: Dictionary, actor: String, action: Dictionary) -> Dicti
 		return Result.failure("wrong_actor", "该方不能结束本阶段")
 	if str(action.get("type")) != "complete-" + phase:
 		return Result.failure("phase_command", "该命令不能结束当前阶段")
-	match phase:
-		"reaction":
-			return _complete_reaction(state, actor)
-	return Result.failure("unsupported_action", "该阶段的结束命令尚未接入原生 08 对局")
+	if state.get("combat") != null:
+		return Result.failure("phase_pending", "先结算当前战斗再推进阶段")
+	if not _generic_phase(phase):
+		return Result.failure("unsupported_action", "该阶段的结束命令尚未接入原生 08 对局")
+	return _complete_phase(state, actor)
 
 
-## OCS 5.11 — releasing reserves ends the Reaction Segment: the reacting side's fuel and release
-## markers expire and the movement books start empty for the next segment.
-static func _complete_reaction(state: Dictionary, actor: String) -> Dictionary:
-	var sides := _completed_cursor(state.cursor)
-	if sides.is_empty():
-		return Result.failure("phase_transition", "无法进入战斗阶段")
+## OCS 5.11 and 9.1 — closing a segment expires the acting side's fuel and release markers and
+## starts the movement books of the next segment empty.
+static func _complete_phase(state: Dictionary, actor: String) -> Dictionary:
+	var next := _completed_cursor(state.cursor)
+	if next.is_empty():
+		return Result.failure("phase_transition", "无法推进到下一阶段")
 	var units: Dictionary = state.units.duplicate(true)
 	for id: String in units:
 		if str(units[id].get("side")) != actor:
@@ -49,13 +50,17 @@ static func _complete_reaction(state: Dictionary, actor: String) -> Dictionary:
 		units[id].fueled = false
 		units[id].released = false
 	state.units = units
-	state.cursor = sides
+	state.cursor = next
 	state.moved = []
 	state.combatTargets = []
 	state.combatAttackers = []
 	state.overrunMarch = null
 	state.groundCaptureMove = null
 	return Result.success(state)
+
+
+static func _generic_phase(phase: String) -> bool:
+	return phase == "reaction" or phase == "combat" or phase == "exploitation"
 
 
 static func _completed_cursor(cursor: Dictionary) -> Dictionary:

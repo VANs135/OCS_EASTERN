@@ -420,6 +420,33 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 		if offset == 2:
 			_reject_scorpion(after_supply, data, "soviet", {"type": "check-attrition"},
 				"supply_allocation")
+	# Combat and exploitation have no oracle past revision 43, so only the invariants are asserted:
+	# each close advances the cursor, clears the movement books and leaves the cleanup rollover refused.
+	after_supply = _phase_close(after_supply, data, "complete-combat", "exploitation")
+	after_supply = _phase_close(after_supply, data, "complete-exploitation", "cleanup")
+	_reject_scorpion(after_supply, data, "soviet", {"type": "complete-cleanup"}, "unsupported_action")
+
+
+## Submits one phase-closing command and asserts the cursor moved to the named phase with clean books.
+func _phase_close(record: Dictionary, data: Dictionary, action: String, phase: String) -> Dictionary:
+	var wrote := ScorpionMatch.submit(record.duplicate(true), PhaseFlow.acting_side(record.state.cursor),
+		{"id": "phase-%s" % action, "expectedRevision": record.revision, "action": {"type": action}}, data)
+	_expect(wrote.ok, "08 原生 %s %s" % [action, wrote.get("errorMessage", "")])
+	if not wrote.ok:
+		return record
+	var state: Dictionary = wrote.value.record.state
+	_expect(str(state.cursor.phase) == phase, "08 原生 %s 进入 %s" % [action, phase])
+	_expect(state.moved.is_empty() and state.combatTargets.is_empty() and state.overrunMarch == null,
+		"08 原生 %s 清空移动与战斗账本" % action)
+	var marked := true
+	for id: String in state.units:
+		if str(state.units[id].get("side")) != str(record.state.cursor.phasing):
+			continue
+		if state.units[id].get("fueled") == true or state.units[id].get("released") == true:
+			marked = false
+			break
+	_expect(marked, "08 原生 %s 清空本方加油与释放标记" % action)
+	return wrote.value.record
 
 
 func _compare_supply(actual: Dictionary, expected: Dictionary, label: String) -> void:
