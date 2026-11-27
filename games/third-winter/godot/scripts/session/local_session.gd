@@ -78,18 +78,21 @@ func dispatch(request: Dictionary) -> Dictionary:
 			return Result.success(_shown)
 		"apply":
 			var chosen: Dictionary = {}
-			for control: Dictionary in _shown.get("actions", []) + _menu:
-				if control.key == request.get("key"):
+			for control: Dictionary in _shown.get("actions", []) + _menu + _shown.get("menu", []):
+				if control.get("key") == request.get("key"):
 					chosen = control
 					break
 			if chosen.is_empty():
 				return Result.failure("unavailable_action", "这项操作已不可用")
-			return _run(_actions_of(chosen))
+			var chosen_actions: Array = chosen.get("actions", [])
+			if chosen_actions.is_empty():
+				chosen_actions = _actions_of(chosen)
+			return _run(chosen_actions)
 		"command":
 			var action: Variant = request.get("action")
 			if not action is Dictionary or not action.get("type") is String:
 				return Result.failure("invalid_command_action", "无法识别此操作")
-			return _run([action])
+			return _run([action], str(request.get("seat", "")))
 		_:
 			return Result.failure("invalid_request", "无法识别此操作")
 	_shown = _render()
@@ -194,11 +197,14 @@ func _available(actions: Array) -> bool:
 	return true
 
 
-func _run(actions: Array) -> Dictionary:
+## seat_override 仅用于集成用例把待决窗口的应答方（守方/被炮击方）显式送入规则层；
+## 缺省仍按视图席位 _actor() 解析。规则层自身的席位门禁不变。
+func _run(actions: Array, seat_override: String = "") -> Dictionary:
 	var next := _record.duplicate(true)
 	for action: Dictionary in actions:
 		_command_count += 1
-		var outcome := ScorpionMatch.submit(next, _actor(),
+		var seat := _actor() if seat_override == "" else seat_override
+		var outcome := ScorpionMatch.submit(next, seat,
 			{"id": "native:%d" % _command_count, "expectedRevision": next.revision, "action": action}, _data)
 		if not outcome.ok:
 			return outcome
