@@ -30,12 +30,17 @@ const attackCapable = (catalog, definition) => {
 }
 
 test('scenario 01 real hedgehog D35.29 completes 9.14e with a real Soviet regiment', async () => {
-  const { catalog, setup } = await scenario01()
+  const { map, catalog, setup } = await scenario01()
   const hedgehog = setup.initialHedgehogs.find((row) => row.hex === 'D35.29')
   assert.deepEqual(hedgehog, { hex: 'D35.29', side: 'axis', level: 1 })
   const attacker = setup.counters.find((row) => row.ref === 'Sov 53 MC Rgt')
   assert.ok(attacker)
-  const state = { turn: 1, hedgehogs: { 'D35.29': hedgehog } }
+  // The regiment's printed setup hex is D37.30; D36.29 is a real adjacent hex,
+  // used here as an explicit test placement so the entry probe has a legal start.
+  const attackerHex = 'D36.29'
+  assert.ok(map.neighbors('D35.29').includes(attackerHex))
+  const state = { turn: 1, counters: { [attacker.definition]: { side: 'soviet', location: { kind: 'map', hex: attackerHex } } },
+    hedgehogs: { 'D35.29': hedgehog } }
   const after = captureCampaignHedgehog(state, 'soviet', 'D35.29', [attacker.definition], {
     attackCapable: (_state, id) => attackCapable(catalog, id),
   })
@@ -50,13 +55,19 @@ test('scenario 01 real hedgehog D35.29 completes 9.14e with a real Soviet regime
 })
 
 test('scenario 01 real Soviet supply point D60.19 completes 9.14b with a real Axis attacker', async () => {
-  const { catalog, setup, setupRaw } = await scenario01()
+  const { map, catalog, setup, setupRaw } = await scenario01()
   const supplyMarker = setupRaw.markers.find((row) => row.ref === 'Supply Point' && row.side === 'soviet')
   assert.ok(supplyMarker)
   const hex = `D${supplyMarker.at.col}.${supplyMarker.at.row}`
   const attacker = setup.counters.find((row) => row.ref === 'Ge 302 Ers Bn')
   assert.ok(attacker)
-  const state = { rng: createRngState(623), supplyDumps: { axis: {}, soviet: { [hex]: 8 } } }
+  // D59.19 is a real neighbor of the real supply hex D60.19; the Axis battalion's
+  // printed setup hex is D35.29, so this is an explicit test placement.
+  const attackerHex = 'D59.19'
+  assert.ok(map.neighbors(hex).includes(attackerHex))
+  const state = { turn: 1,
+    counters: { [attacker.definition]: { side: 'axis', location: { kind: 'map', hex: attackerHex } } },
+    rng: createRngState(623), supplyDumps: { axis: {}, soviet: { [hex]: 8 } } }
   const after = captureCampaignDump(state, 'axis', hex, [attacker.definition], {
     attackCapable: (_state, id) => attackCapable(catalog, id),
   })
