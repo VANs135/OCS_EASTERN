@@ -16,6 +16,7 @@ import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply
 import { kirovogradRailBoard } from './kirovograd-rail-board.ts'
 import { kirovogradEdgeSupplySources } from './kirovograd-supply.ts'
 import { kirovogradAirStrikeBoard } from './kirovograd-air-strike-board.ts'
+import { kirovogradInitialRailGauge, kirovogradRailNetwork } from './kirovograd-initial-gauge.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -121,6 +122,14 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const recordCity = campaignControlRecorder(new Set([city]))
   const baseMovement = turnRules.groundMovement
   const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
+  // Scenario 9 has no printed gauge table. The Soviet railhead markers bound the
+  // converted line: rail east of a marker is broad, everything else is standard.
+  const initialRailGauge = data.terrain?.railAt
+    ? kirovogradInitialRailGauge({ map: data.map, railAt: data.terrain.railAt, railheads: data.otherMarkers })
+    : undefined
+  const railNetwork = initialRailGauge
+    ? kirovogradRailNetwork({ map: data.map, railAt: data.terrain!.railAt, railheads: data.otherMarkers })
+    : undefined
   // Reuse the scenario's loaded barrage table and the actual air unit definitions
   // to assemble the 09 air-strike board without a second table source.
   const airMission = turnRules.airMission ?? (turnRules.barrage
@@ -156,8 +165,10 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps, edgeSupplySources,
+    ...(initialRailGauge ? { railGaugeByEdge: initialRailGauge } : {}),
     hexControl: { [city]: 'axis' } }
   return { opening, context, markerSetup: transports.pendingMarkers,
     aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
+    railNetwork,
     movement: { releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }
 }

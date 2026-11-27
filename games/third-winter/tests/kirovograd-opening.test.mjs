@@ -19,12 +19,17 @@ function data() {
     { kind: 'transport', file: 'synthetic-transport', rows: [transport('at', 'Axis Truck 2/45', 'axis', 2),
       transport('st2', 'Sov Truck 2/45', 'soviet', 2), transport('st1', 'Sov Truck', 'soviet', 1)] },
   ])
-  const map = { resolveHex: (hex) => ['D10.30', 'D11.30', 'D5.23', 'D13.23', 'D12.30', 'D14.30'].includes(hex) ? hex : undefined }
+  const railEdges = new Set(['D11.30|D12.30', 'D12.30|D13.30'])
+  const map = { resolveHex: (hex) => ['D10.30', 'D11.30', 'D5.23', 'D13.23', 'D12.30', 'D14.30', 'D13.30'].includes(hex) ? hex : undefined,
+    availableHexes: new Set(['D10.30', 'D11.30', 'D5.23', 'D13.23', 'D12.30', 'D14.30', 'D13.30']),
+    neighbors: (hex) => [...railEdges].filter((key) => key.split('|').includes(hex))
+      .flatMap((key) => key.split('|').filter((pair) => pair !== hex)) }
+  const terrain = { railAt: (from, to) => railEdges.has(`${from}|${to}`) }
   const arrivals = [1, 2].map((turn) => ({ id: `order-${turn}`, ref: 'first', row: turn, entry: 1, side: 'axis', turn,
     date: turn === 1 ? '1944-01-05' : '1944-01-08', sourceDate: null, sourceChannel: 'reinforce hex', note: null,
     definition: 'land:id:first', counterKind: 'land', status: 'classified',
     operation: { kind: 'arrival', channel: { kind: 'fixed-hex', hex: 'D13.23', printedHex: 'D13.23' } } }))
-  return { map, catalog, kirovogradHex: 'D12.30', setupOrder: ['axis', 'soviet'], dates: ['1944-01-05'], opening: {
+  return { map, terrain, catalog, kirovogradHex: 'D12.30', setupOrder: ['axis', 'soviet'], dates: ['1944-01-05'], opening: {
     weather: { ground: 'freeze', flight: 'limited' }, first: 'soviet' },
   setup: { counters: [
     { id: 'initial-axis', definition: 'land:id:first', side: 'axis', kind: 'land', hex: 'D10.30', face: null, stepsLost: 2 },
@@ -48,7 +53,7 @@ const send = (record, actor, action, context) => submitCampaignSessionCommand(re
 
 test('scenario opening binds losses, ordinary truck capacity, pool identities and independent arrival instances', () => {
   const input = data()
-  const { opening, context, markerSetup, aircraftAvailability, movement } = prepareKirovogradOpening(input)
+  const { opening, context, markerSetup, aircraftAvailability, movement, railNetwork } = prepareKirovogradOpening(input)
   assert.deepEqual(opening.hexControl, { 'D12.30': 'axis' })
   assert.equal(typeof context.turn.scenarioVictory, 'function')
   assert.equal(typeof context.turn.roundEnd, 'function')
@@ -63,6 +68,9 @@ test('scenario opening binds losses, ordinary truck capacity, pool identities an
   assert.equal(opening.counters['air-1'].stepsLost, 1)
   assert.equal(opening.counters['air-1'].availableThrough, 3)
   assert.deepEqual(aircraftAvailability, [{ id: 'air-1', availableThrough: 3 }])
+  assert.equal(opening.railGaugeByEdge['D11.30|D12.30'], 'standard')
+  assert.equal(opening.railGaugeByEdge['D12.30|D13.30'], 'broad')
+  assert.deepEqual(railNetwork.initialGaugeJunctions, ['D12.30'])
   assert.deepEqual(context.turn.aircraftRefit.offMapBoxes(undefined, 'soviet'), ['09:soviet:air'])
   assert.deepEqual(context.turn.aircraftRefit.offMapBoxes(undefined, 'axis'), [])
   assert.deepEqual(markerSetup, [input.otherMarkers[2]])
@@ -126,5 +134,5 @@ test('the opening reuses a supplied barrage table to assemble the 09 air-strike 
   const table = { columns: ['1-2'], costs: [1], matrix: Array.from({ length: 11 }, () => ['-']) }
   const prepared = prepareKirovogradOpening(data(), { barrage: { table } })
   assert.equal(prepared.context.turn.airMission?.table, table)
-  assert.equal(prepared.context.turn.airMission?.rangeHexes?.({ counters: {} }, 'air-1'), Number.MAX_SAFE_INTEGER)
+  assert.equal(prepared.context.turn.airMission?.rangeHexes?.({ counters: {} }, 'air-1'), 7)
 })
