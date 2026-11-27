@@ -147,6 +147,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     ? kirovogradAirStrikeBoard({ map: data.map, table: turnRules.barrage.table, definitions: data.catalog.definitions })
     : undefined)
   const groundMovement = baseMovement ? { ...baseMovement,
+    ...(railNetwork && !baseMovement.railNetwork ? { railNetwork } : {}),
     afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
     move: Parameters<typeof recordCity>[2]) => {
       const recorded = recordCity(state, side, move)
@@ -182,5 +183,6 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   return { opening, context, markerSetup: transports.pendingMarkers,
     aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
     railNetwork,
-    movement: { releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }
+    movement: { ...(railNetwork ? { railNetwork } : {}),
+      releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }
 }
