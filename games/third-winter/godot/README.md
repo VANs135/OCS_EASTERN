@@ -93,13 +93,15 @@ $ttwData = 'D:\war game\OCS各作数据库\OCS第三个冬天'
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-opening-data.mjs $ttwData
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-vector.mjs $ttwData
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-supply.mjs $ttwData
+node --experimental-strip-types games/third-winter/scripts/godot-scorpion-terrain.mjs $ttwData
 godot --headless --path games/third-winter/godot --script res://tests/runner.gd -- `
     (Resolve-Path 'dist/godot/08-opening-data.json').Path `
     (Resolve-Path 'dist/godot/08-scorpion.json').Path `
-    (Resolve-Path 'dist/godot/08-supply.json').Path
+    (Resolve-Path 'dist/godot/08-supply.json').Path `
+    (Resolve-Path 'dist/godot/08-terrain.json').Path
 ```
 
-第三个参数可选：给出补给态势对照时额外核对双方 ZOC 与补给态势字典。
+第三、四个参数可选：补给态势对照核对双方 ZOC 与态势字典，格边取费对照核对 1045 条印刷边双向、三种机动、封冻/解冻共 12540 条 trace 取费与 6270 条干地取费。
 
 视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
 
@@ -108,6 +110,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 - 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠、回合轨、盒区清单、辅助卡、炮击标记、印刷运输面额与拆分库存；无头测试用 TS 交互序列逐步对照。
 - 飞机整备收束：`works/third-winter/rules/stacking.gd` 与 `reinforcement.gd` 结算 `complete-refit`——先查 10 RE 堆叠，再推进到增援阶段并按剧本固定补给表开出增援窗口。该阶段只有记录状态对照，视图仍未迁。
 - 补给态势：`works/third-winter/rules/supply_position.gd` 复现敌方 ZOC、控制点归属、补给源、可卸货设施与 HQ/延补队；地图邻接与格边轨距随数据包导出，用 `08-supply.json` 与 TypeScript 逐字段对照。
+- 格边取费：`scripts/rules/series/ground_terrain.gd` 与 `works/third-winter/rules/terrain_cost.gd` 复现 OCS 6.2 地形/格边选择和 TTW TEC 三列代价，含封冻取小与路线取费；`view.mapGraph.terrains` 随数据包导出，用 `08-terrain.json` 全边对照。图算法（铁路连通、延补队、HQ 投送）仍未迁。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。

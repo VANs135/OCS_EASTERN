@@ -82,9 +82,10 @@ const breakdownRows = data.assets.breakdowns
 // Keys are normalised so GDScript needs no direction bookkeeping.
 const edgeKeyOf = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 const gauge = scorpionInitialRailGauge(map)
-const mapGraph = { neighbors: {}, cities: {}, edges: {}, railGauge: {} }
+const mapGraph = { neighbors: {}, cities: {}, terrains: {}, edges: {}, railGauge: {} }
 for (const hex of map.hexes.keys()) {
   mapGraph.neighbors[hex] = [...map.neighbors(hex)]
+  mapGraph.terrains[hex] = [...map.hexes.get(hex).terrains]
   const city = map.hexes.get(hex).city
   if (city) mapGraph.cities[hex] = city
   for (const near of map.neighbors(hex)) {

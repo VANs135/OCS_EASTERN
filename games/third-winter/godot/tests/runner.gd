@@ -10,6 +10,7 @@ const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-p
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
+const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 var _checks := 0
@@ -26,10 +27,9 @@ func _initialize() -> void:
 	else:
 		_expect(false, "读取 Godot 对照向量")
 	var args := OS.get_cmdline_user_args()
-	if args.size() == 2:
-		_test_scorpion_opening(args[0], args[1])
-	elif args.size() == 3:
-		_test_scorpion_opening(args[0], args[1], args[2])
+	if args.size() >= 2 and args.size() <= 4:
+		_test_scorpion_opening(args[0], args[1], "" if args.size() < 3 else args[2],
+			"" if args.size() < 4 else args[3])
 	elif not args.is_empty():
 		_expect(false, "实库检查需要同时传入 08 初设数据和对照向量路径")
 	print("Godot 迁移基础检查 %d/%d 通过" % [_checks - _failures, _checks])
@@ -117,7 +117,7 @@ func _test_pool() -> void:
 	_expect(PoolDraw.draw_without_replacement(state, pool, 2).get("errorCode") == "invalid_pool_count", "拒绝超出库存")
 
 
-func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "") -> void:
+func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "", terrain_path: String = "") -> void:
 	var bundle := ScorpionData.read(bundle_path)
 	var vector := JsonFile.read(vector_path)
 	_expect(bundle.ok, bundle.get("errorMessage", "08 初设数据有效"))
@@ -133,7 +133,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_pat
 	_expect(ScorpionOpening.create_record(bad_facts, baseline.seed).get("errorCode") == "invalid_alert_pool", "08 开局拒绝重复 Alert 库存")
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
-		_test_scorpion_views(bundle.value, baseline, supply_path)
+		_test_scorpion_views(bundle.value, baseline, supply_path, terrain_path)
 		_test_native_bridge(bundle_path, baseline)
 
 
@@ -229,7 +229,7 @@ const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unit
 	"route", "roster", "stack", "ended", "transportStock", "breakdownStock"]
 
 
-func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "") -> void:
+func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "", terrain_path: String = "") -> void:
 	var opened := LocalSession.open(bundle, float(vector.seed))
 	_expect(opened.ok, "08 原生会话开局")
 	if not opened.ok:
@@ -253,6 +253,8 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 	_expect(compared > 30, "08 原生会话走完整个开局命令序列")
 	if supply_path != "":
 		_test_supply_position(session.state(), bundle, supply_path)
+	if terrain_path != "":
+		_test_terrain_cost(bundle, terrain_path)
 	# The next oracle command closes the Aircraft Refit Phase and opens the reinforcement window.
 	# The playing projection is not migrated yet, so this compares the record state only.
 	var refit_step: Dictionary = {}
@@ -315,6 +317,53 @@ func _test_supply_position(state: Dictionary, bundle: Dictionary, path: String) 
 		var actual: Dictionary = SupplyPosition.position(units, rail_control, side, bundle)
 		var difference := _first_difference(actual, fixture.position[side], "")
 		_expect(difference.is_empty(), "08 %s 补给态势" % side + ("" if difference.is_empty() else " · " + difference))
+
+
+## Every printed hexside, both directions, all three mobilities, freeze and thaw: the native
+## step cost must equal scorpionTraceStepCost, and the ordinary dry column must match too.
+func _test_terrain_cost(bundle: Dictionary, path: String) -> void:
+	var read := JsonFile.read(path)
+	_expect(read.ok, read.get("errorMessage", "08 格边取费对照有效"))
+	if not read.ok:
+		return
+	var fixture: Dictionary = read.value.document
+	_expect(str(bundle.fingerprint) == str(fixture.fingerprint), "08 格边取费对照与初设指纹一致")
+	var graph: Dictionary = bundle.view.mapGraph
+	_expect(graph.get("terrains", {}).size() > 0, "08 地图拓扑包含地形")
+	var trace: Dictionary = _compare_costs(fixture.costs, graph, true)
+	_expect(trace.passed, "08 全边天候取费与 TS 逐条一致 (%d 条)%s" % [trace.checked, trace.detail])
+	var dry: Dictionary = _compare_costs(fixture.dry, graph, false)
+	_expect(dry.passed, "08 全边干地取费与 TS 逐条一致 (%d 条)%s" % [dry.checked, dry.detail])
+
+
+## Keys are "weather|mobility|from|to" for the trace and "mobility|from|to" for the dry column.
+func _compare_costs(rows: Dictionary, graph: Dictionary, trace: bool) -> Dictionary:
+	var checked := 0
+	var samples: Array = []
+	for key: String in rows:
+		var parts := key.split("|")
+		var actual: Variant
+		if trace:
+			actual = TerrainCost.trace_step_cost(graph, parts[2], parts[3], parts[1], parts[0])
+		else:
+			actual = TerrainCost.step_cost(graph, parts[1], parts[2], parts[0], "dry")
+		checked += 1
+		if _same_cost(actual, rows[key]):
+			continue
+		if samples.size() < 3:
+			samples.append(" · %s 原生 %s ≠ TS %s" % [key, JSON.stringify(actual), JSON.stringify(rows[key])])
+	return {"checked": checked, "passed": checked > 0 and samples.is_empty(), "detail": "".join(samples)}
+
+
+func _same_cost(actual: Variant, expected: Variant) -> bool:
+	var numeric := [TYPE_INT, TYPE_FLOAT]
+	if actual == null or expected == null:
+		return actual == null and expected == null
+	if actual is String or expected is String:
+		return actual is String and expected is String and actual == expected
+	if typeof(actual) in numeric and typeof(expected) in numeric:
+		return is_equal_approx(float(actual), float(expected))
+	return false
 
 
 func _state_slice(state: Dictionary) -> Dictionary:
