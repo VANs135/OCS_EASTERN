@@ -372,8 +372,9 @@ static func _place_capacity(pending: Dictionary, data: Dictionary, source: Dicti
 
 
 static func _safe_amount(value: Variant) -> bool:
+	# TS 用 Number.isSafeInteger：缺键、null、负数与小数都算非法。
 	if value == null:
-		return true
+		return false
 	if value is int:
 		return int(value) >= 0
 	if value is float:
