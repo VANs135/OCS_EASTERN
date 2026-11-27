@@ -19,6 +19,7 @@
 
 ## 已通过核验
 
+- [x] 2026-11-27，Godot 客户端正式收编进仓库。`games/third-winter/godot/` 保存 `project.godot`、主场景、桥接和启动脚本；`bridge.config.json` 的仓库内路径改为相对路径（`engine_dir`/`tables`/`res://` 桥接），外部资料与 Node 可经 `OCS_NODE`/`OCS_DATA_ROOT`/`OCS_TABLES`/`OCS_SAVE` 覆盖；存档改 `user://`，不再写 E 盘。Godot AI 插件不随仓库分发，运行不依赖它。无头启动验证 `EASTERN Node 已启动`、`bootstrap 3111x1969`。当前桥接仍是 08 瓶中蝎控制器；09 战役桥接待下一项。
 - [x] 2026-11-26，《通规专规补全方案》批次 1–13 规则层全部交付并 push；绑定层起步。规则层：姿态/方面军 HQ/边界/口袋 HQ/轴心 HQ/航空队 HQ（批次 10）、RVGK/STE/KG（批次 11）、胜利/罗马尼亚投降（批次 12）、通规 §12.5 燃料移植进 `packages/series/fuel.ts`（批次 13，复用斯摩棱斯克、可选闸门注入）。绑定层（均经正常命令入口结算＋只读 UI 投影）：战役燃料 `campaign-fuel.ts`（单单位/编队/HQ 法、fuelReady、换段/清理清除、`campaignFuelOptions`）、姿态指定＋`campaignFrontPostureOptions`、RVGK 盒 `campaign-rvgk.ts`（入盒≤20/释放≤5/强制出盒≤3、`campaignRvgkOptions`）、KG 战斗群 `campaign-kg.ts`（创建/解散/成员派生/空标记回池、`campaignKgOptions`）；STE 绑定＋投影批次 8 已有。立绑定层通则：每机制留 `*Options` 只读投影供极简 UI。门禁 480 全绿。待决：释放预备永久摘标记需补朝向数据模型（5.7b，权威注释与代码张力已记录）；姿态战斗钩子注入待边界几何 Q07。剩余绑定：HQ 免费加油 12.5e、KG/RVGK 免费加油钩子、HQ 位移/空运窗、RVGK 标记铁路/最低编成计数/盒内 trace、事件效果、VP 计分入口。
 
 - [x] 2026-11-26，批次 6 子机制：§3.4 弹幕标记计时。新增 `spend-campaign-barrage-marker`（仅苏军空/海军炮击环节＋进攻姿态＋Ready），用后入轨 9 回合（复用 `barrageMarkerRecoveryTurn`），`campaignBarrageMarkerReady` 查询，目标几何经 `barrageMarkerTarget` 注入；合成 3 例；门禁 451 全绿。提交 `3275eb6` 已 push。#23 各机制（突袭返回移动/残部/HQ 恢复消费/守势炮击/弹幕标记/推进 3RE 记账）至此结清；真实进格夺取判定属绑定层与批次 12。
