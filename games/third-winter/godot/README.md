@@ -105,7 +105,9 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 第三到五个参数可选：补给态势对照核对双方 ZOC 与态势字典；格边取费对照核对 1045 条印刷边双向、三种机动、封冻/解冻共 12540 条 trace 取费与 6270 条干地取费；补给 trace 对照核对双方 374 格 × 两套机动的选项列表与覆盖集。
 
-视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
+视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。`menu` 字段不参与对照，新增的界面入口只能落在 `menu`。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
+
+本轮各数值层与命令层都带独立夹具：`godot-combat-terrain.mjs`（967 条）、`godot-mode-commands.mjs`（78 行）、`godot-barrage.mjs`（9 例）、`godot-combat.mjs`（6 场景 43 步）；用例放在 `tests/cases/<名>_cases.gd`，由 `tests/runner.gd` 扫描目录自动加载（每个文件暴露 `static func run(ctx)`，`ctx` 给出 `expect`/`compare`/`reject`/`state_slice` 与 `args`）。当前基线：六参数 **2577/2577**、两参数 **2549/2549**。
 
 ## 已实现
 
@@ -114,6 +116,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 - 补给态势：`works/third-winter/rules/supply_position.gd` 复现敌方 ZOC、控制点归属、补给源、可卸货设施与 HQ/延补队；地图邻接与格边轨距随数据包导出，用 `08-supply.json` 与 TypeScript 逐字段对照。
 - 格边取费：`scripts/rules/series/ground_terrain.gd` 与 `works/third-winter/rules/terrain_cost.gd` 复现 OCS 6.2 地形/格边选择和 TTW TEC 三列代价，含封冻取小与路线取费；`view.mapGraph.terrains` 随数据包导出，用 `08-terrain.json` 全边对照。
 - 补给 trace：`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 12.3/12.6/12.7 的图算法（铁路连通、延补队接力、5 MP 抽补、HQ 投送、Kessel 自足、覆盖集），`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费，用 `08-trace.json` 逐格对照。增援板（13.6 落点 + Alert 落点）由 `works/third-winter/rules/reinforcement_board.gd` 原生实现，用第六个夹具 `08-arrivals.json` 对照全编目 103 条抵达与 2 枚 Alert。四条增援命令已接入（`works/third-winter/rules/reinforcement.gd` 的 `apply`，算子克隆自 `view.catalog.counters`），runner 用 `records[33..38]` 逐条比对整本增援账本；增援阶段的视图投影（`scorpion_view.gd` 的 `project_playing`/`reinforcement_choices`）与 TS 的 `render` 逐字段一致。警戒营的放置/放弃（`place-alert`/`pass-alert`）已原生，08 首回合不抽 Alert，用注入 Alert 的夹具做本地校验。地面移动 `ground-move` 由 `works/third-winter/rules/ground_move.gd` 按 OCS 6.1 与 14.8c 实现，runner 用 oracle 的第一步行军逐块比对 `units`/`moved`/`groundActivity`。
+- 规则模块（数值层与命令层，多数尚未接界面）：`scripts/rules/series/modes.gd`（模式数值与合法性）、`crt.gd`（CRT 取表）、`works/third-winter/rules/combat_terrain.gd`（TTW 战斗地形/强度/行动值）、`ground_mode_actions.gd`（换面）、`reserves.gd`（预备三命令）、`barrage.gd`（地面炮兵炮击）、`combat.gd`/`combat_supply.gd`/`combat_losses.gd`/`combat_result.gd`（正规战斗七步）、`remnants.gd`（残部重建）。逐面数值由数据包的 `view.faces` 提供（251 条，15 条无移动面）。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
@@ -134,7 +137,8 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 移动至清理阶段：`ground-move`、`complete-movement`、补给/断补（含 `choose-formation-trace` 编队追溯来源、`assign-attrition` 步损分配与 `feed-units` 具象补给支付，见 `supply_phase.gd`、`sp_payment.gd` 与 `scripts/rules/series/step_loss.gd`）、反应/战斗/进击/清理收尾已原生（`phase_flow.gd`），同回合换手可用；第二方清理后的回合换手与主动权应答（天气、突死、扣分、`retain-initiative`/`roll-initiative`/`choose-first`）已原生（`round.gd`），应答期间的侧栏仍留空。阶段侧栏给出的是可执行的完整动作（`ScorpionView.playing_choices`），按键能回到同一张表。加油/拆分/预备/夺取与正规战斗未接，卸货点数的“本阶段不可再装”溯源（`scorpionUnloadedTokens`）与内部补给回收（`internalStocks`）仍缺。`rebuild-remnant` 已原生（`remnants.gd`），残部的生成要等战斗接上；`mark-reserve`/`leave-reserve`/`set-ground-mode` 需先给数据包补逐面数值。
+1. 移动至清理阶段：`ground-move`、`complete-movement`、补给/断补（含 `choose-formation-trace` 编队追溯来源、`assign-attrition` 步损分配与 `feed-units` 具象补给支付，见 `supply_phase.gd`、`sp_payment.gd` 与 `scripts/rules/series/step_loss.gd`）、反应/战斗/进击/清理收尾已原生（`phase_flow.gd`），同回合换手可用；第二方清理后的回合换手与主动权应答（天气、突死、扣分、`retain-initiative`/`roll-initiative`/`choose-first`）已原生（`round.gd`），应答期间的侧栏仍留空。阶段侧栏给出的是可执行的完整动作（`ScorpionView.playing_choices`），按键能回到同一张表。
+   规则层已完成但尚未接会话路由与侧栏的：换面 `set-ground-mode`（`ground_mode_actions.gd`）、预备三命令（`reserves.gd`）、地面炮兵炮击（`barrage.gd`）、正规战斗七步（`combat.gd`/`combat_supply.gd`/`combat_losses.gd`/`combat_result.gd`）、`rebuild-remnant`（`remnants.gd`）。数据包已补逐面数值（`view.faces`，251 条，15 条无移动面），换面/预备有数据可依据。仍未移植：撤退与 `continue-combat-retreat`、残部生成、加油、拆分（breakdown）、进格夺取、超越行军、Kessel 返还回合；卸货点数的“本阶段不可再装”溯源（`scorpionUnloadedTokens`）与内部补给回收（`internalStocks`）仍缺。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。
