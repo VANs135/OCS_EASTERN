@@ -38,6 +38,7 @@ func _initialize() -> void:
 			"" if args.size() < 6 else args[5])
 	elif not args.is_empty():
 		_expect(false, "实库检查需要同时传入 08 初设数据和对照向量路径")
+	_test_case_modules()
 	print("Godot 迁移基础检查 %d/%d 通过" % [_checks - _failures, _checks])
 	quit(1 if _failures else 0)
 
@@ -1200,6 +1201,40 @@ func _first_difference(actual: Variant, expected: Variant, path: String) -> Stri
 
 func _compare(actual: Variant, expected: Variant, label: String) -> void:
 	_expect(JSON.stringify(actual, "", true, true) == JSON.stringify(expected, "", true, true), label)
+
+
+## 用例模块：`tests/cases/<name>_cases.gd` 各自暴露 `static func run(ctx: Dictionary) -> void`，
+## 由本入口按文件名顺序自动加载。新机制自带用例即可，不必再改这个 runner。
+const CASE_DIR := "res://tests/cases"
+
+
+func _test_case_modules() -> void:
+	var dir := DirAccess.open(CASE_DIR)
+	if dir == null:
+		return
+	var files := dir.get_files()
+	files.sort()
+	for file: String in files:
+		if not file.ends_with("_cases.gd"):
+			continue
+		var module: Resource = load("%s/%s" % [CASE_DIR, file])
+		if module == null:
+			_expect(false, "用例模块可加载 · " + file)
+			continue
+		if not module.has_method("run"):
+			_expect(false, "用例模块暴露 run · " + file)
+			continue
+		module.call("run", _case_context())
+
+
+func _case_context() -> Dictionary:
+	return {
+		"expect": Callable(self, "_expect"),
+		"compare": Callable(self, "_compare"),
+		"reject": Callable(self, "_reject_scorpion"),
+		"state_slice": Callable(self, "_state_slice"),
+		"args": OS.get_cmdline_user_args(),
+	}
 
 
 func _expect(passed: bool, label: String) -> void:
