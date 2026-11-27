@@ -67,8 +67,8 @@ CampaignAirStrikeProfile | undefined {
     airCombat,
     bombing,
     fighter: definition.source.abilities?.includes('interception') === true,
-    // TTW §2.2a: only Ju.87D has Hip Shoots in 1943-44; Ju.87G is the tank-buster variant.
-    hipShoot: counter.side === 'axis' && /Ju\.87D\b/.test(definition.source.name),
+    // TTW §2.2a: all Ju.87 variants and Hs.129 may Hip Shoot.
+    hipShoot: counter.side === 'axis' && /(?:Ju\.87|Hs\.129)/.test(definition.source.name),
     tankBuster: counter.side === 'axis' && /Ju\.87G\b/.test(definition.source.name),
   }
 }

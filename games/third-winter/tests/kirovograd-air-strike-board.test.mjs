@@ -33,7 +33,7 @@ test('09 board reads air profiles from the actual face and off-map range', () =>
   assert.deepEqual(board.airProfileOf(state, 'd'), { rangeHexes: 95, printedSteps: 2, airCombat: 1,
     bombing: 17, fighter: false, hipShoot: true, tankBuster: false })
   assert.deepEqual(board.airProfileOf(state, 'g'), { rangeHexes: 62, printedSteps: 2, airCombat: 0,
-    bombing: 4, fighter: false, hipShoot: false, tankBuster: true })
+    bombing: 4, fighter: false, hipShoot: true, tankBuster: true })
   assert.deepEqual(board.airProfileOf({ counters: { d: counter('d', { stepsLost: 1 }) } }, 'd'), {
     rangeHexes: 95, printedSteps: 2, airCombat: 0, bombing: 15, fighter: false, hipShoot: true, tankBuster: false,
   })
