@@ -13,12 +13,12 @@ if (-not (Test-Path -LiteralPath $godot)) {
     throw "找不到 Godot：$godot（可用 OCS_GODOT 指定）"
 }
 
-$args = @('--path', $project)
+$godotArgs = @('--path', $project)
 if ($Editor) {
-    $args += '--editor'
+    $godotArgs += '--editor'
 } elseif ($Headless) {
-    $args += @('--headless', '--quit-after', '120')
+    $godotArgs += @('--headless', '--quit-after', '120')
 }
 
-& $godot @args
+& $godot @godotArgs
 exit $LASTEXITCODE
