@@ -64,6 +64,14 @@ Godot 4.7（games/third-winter/godot）
 - `OCS_DATA_ROOT`：第三冬资料库根
 - `OCS_TABLES`：`dist` 图表目录
 - `OCS_SAVE`：存档文件
+- `OCS_NATIVE`：`1` 时菜单进入 `main-native.tscn`
+- `OCS_NATIVE_DATA`：原生开局数据包路径
+
+08 入口由 `bridge.config.json` 的 `native` 开关决定：`true` 时菜单进入 `main-native.tscn`，由 `native_bridge.gd` 直接加载 `dist/godot/08-opening-data.json` 并投影，不再启动 Node；改为 `false` 回落到 `main.tscn` 的 Node 桥。直接跑原生地图并截图：
+
+```powershell
+& 'E:\godot\Godot_v4.7.2-stable_win64_console.exe' --path 'D:\OCS\OCS_EASTERN\games\third-winter\godot' main-native.tscn -- --capture=E:/OCS/工作文件/native-08-open.png
+```
 
 默认存档为 `user://eastern-godot-save.json`（Godot 用户目录），不会写进仓库。
 
@@ -94,6 +102,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 ## 已实现
 
 - 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠与选中格；无头测试用 TS 交互序列逐步对照。
+- 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
 - 地图场景侧栏显示当前“剧本 · 模式”上下文，并可返回主页面。
@@ -113,9 +122,8 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 接原生桥：`bootstrap` 取 `view.model`（地图、盒区、辅助卡路径），`view` 取原生投影；用配置开关与 Node 桥并存，先放开 08 开局。
-2. 补投影缺口：盒内清单、回合轨、辅助卡与苏军辅助卡炮击标记，再补 `transportStock` / `breakdownStock`。
-3. 继续规则链：`complete-refit` → 首回合增援 → 地面移动，逐修订对照 TS；再接 09 战役回归与 01 全景盘面。
-4. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
-5. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
-6. 验证 Windows 独立导出以及 Linux 无头会话。
+1. 补投影缺口：盒内清单、回合轨、辅助卡与苏军辅助卡炮击标记，再补 `transportStock` / `breakdownStock`，让整份视图与 TS 对照。
+2. 继续规则链：`complete-refit` → 首回合增援 → 地面移动，逐修订对照 TS；再接 09 战役回归与 01 全景盘面。
+3. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
+4. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
+5. 验证 Windows 独立导出以及 Linux 无头会话。

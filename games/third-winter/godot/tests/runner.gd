@@ -130,6 +130,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String) -> void:
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
 		_test_scorpion_views(bundle.value, baseline)
+		_test_native_bridge(bundle_path, baseline)
 
 
 func _test_scorpion_deployment(record: Dictionary, data: Dictionary, records: Dictionary) -> void:
@@ -245,6 +246,45 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
 		else:
 			_expect(int(step.view.revision) == session.revision(), "08 原生开局在修订 %d 结束" % session.revision())
 	_expect(compared > 30, "08 原生会话走完整个开局命令序列")
+
+
+## The scene bridge must produce the same bootstrap the TypeScript bridge does, with the map and
+## box artwork resolved to absolute paths, and return a view for every accepted map request.
+func _test_native_bridge(data_path: String, vector: Dictionary) -> void:
+	var bridge: Node = load("res://scripts/session/native_bridge.gd").new()
+	bridge.config = {"seed": float(vector.seed)}
+	var bootstrap := {"model": {}, "view": {}}
+	var views: Array = []
+	var failure := {"message": ""}
+	bridge.bootstrap_ready.connect(func(next_model: Dictionary, next_view: Dictionary) -> void:
+		bootstrap.model = next_model
+		bootstrap.view = next_view)
+	bridge.view_ready.connect(func(next_view: Dictionary) -> void: views.append(next_view))
+	bridge.bridge_failed.connect(func(message: String) -> void: failure.message = message)
+	bridge._boot(data_path)
+	_expect(not bootstrap.view.is_empty(), "原生桥发出 bootstrap")
+	if bootstrap.view.is_empty():
+		return
+	_compare_view(bootstrap.view, vector.bootstrap, "原生桥开局视图")
+	var model: Dictionary = bootstrap.model
+	_expect(FileAccess.file_exists(str(model.get("map", ""))), "原生桥地图路径可读")
+	_expect(int(model.get("width", 0)) > 0 and model.get("boxes", []).size() > 0, "原生桥盒区可读")
+	bridge.request({"kind": "select-unit", "unitId": str(vector.steps[0].request.unitId)})
+	bridge._pump()
+	_expect(views.size() == 1, "原生桥 select-unit 返回视图")
+	if views.size() == 1:
+		_compare_view(views[0], vector.steps[0].view, "原生桥 select-unit 视图")
+	var placement: Dictionary = vector.steps[1].request
+	bridge.request({"kind": "board-left", "x": placement.x, "y": placement.y,
+		"unitId": placement.get("unitId", ""), "revision": int(placement.revision)})
+	bridge._pump()
+	_expect(views.size() == 2, "原生桥 board-left 返回视图")
+	if views.size() == 2:
+		_compare_view(views[1], vector.steps[1].view, "原生桥 board-left 视图")
+	bridge.request({"kind": "apply", "key": "action:0:0", "revision": 0})
+	bridge._pump()
+	_expect(failure.message.contains("局面已更新") and views.size() == 2, "原生桥拒绝迟到修订")
+	bridge.free()
 
 
 func _compare_view(actual: Dictionary, expected: Dictionary, label: String) -> void:

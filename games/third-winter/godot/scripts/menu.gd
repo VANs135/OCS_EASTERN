@@ -96,7 +96,7 @@ const SCENARIOS := [
 	{
 		"id": "08-korsun-pocket", "no": "08", "zh": "科尔孙口袋：瓶中之蝎", "en": "Korsun Pocket: Scorpions in a Bottle",
 		"date": "1944-01-26", "turns": "8", "maps": "迷你地图", "kind": "战役",
-		"bridge": "interactive", "note": "当前 Godot 桥接可直接进入；使用瓶中蝎桌面控制器与迷你地图。",
+		"bridge": "interactive", "note": "08 开局由原生 GDScript 结算并投影；飞机整备及之后阶段暂由 Node 桥对照。",
 	},
 	{
 		"id": "09-kirovograd-armor-defense", "no": "09", "zh": "装甲防御：1944 年早期装甲防御行动", "en": "Kirovograd Armor Defense",
@@ -277,7 +277,7 @@ func _render_home_detail() -> void:
 
 	_home_detail.add_child(_stat_line("入口状态", str(mode.badge), GOOD if bool(mode.available) else WARN))
 	_home_detail.add_child(_stat_line("本地存档", "user://eastern-godot-save.json", MUTED))
-	_home_detail.add_child(_stat_line("规则内核", "Node / TypeScript v4.3", MUTED))
+	_home_detail.add_child(_stat_line("规则内核", "Godot / GDScript（08 开局）", MUTED))
 	_home_detail.add_child(_spacer(8))
 	var next := _button("进入剧本选择  →", true)
 	next.custom_minimum_size = Vector2(0, 48)
@@ -304,7 +304,7 @@ func _bridge_summary() -> PanelContainer:
 	inner.add_child(_label("ACTIVE BRIDGE / 本机唯一接通", 10, ACCENT))
 	inner.add_child(_label("08  ·  科尔孙口袋：瓶中之蝎", 14, TEXT, true))
 	inner.add_child(_label("迷你地图 · 8 回合 · 本地热座", 11, MUTED))
-	inner.add_child(_label("从剧本页进入后启动 Node / TypeScript 引擎，首次连接约数秒。", 11, DIM, true))
+	inner.add_child(_label("开局由原生 GDScript 载入数据包并立即投影；不再等待 Node 进程。", 11, DIM, true))
 	return panel
 
 
@@ -417,7 +417,22 @@ func _enter_scenario() -> void:
 		state.mode_label = str(mode.title)
 		state.scenario_id = str(scenario.id)
 		state.scenario_label = "%s · %s" % [str(scenario.no), str(scenario.zh)]
-	get_tree().change_scene_to_file("res://main.tscn")
+	# 08 开局已由原生 GDScript 结算；配置关闭时才回落到 Node 桥。
+	var native := _native_enabled() and str(scenario.id) == "08-korsun-pocket"
+	get_tree().change_scene_to_file("res://main-native.tscn" if native else "res://main.tscn")
+
+
+func _native_enabled() -> bool:
+	var env := OS.get_environment("OCS_NATIVE")
+	if env == "1":
+		return true
+	if env == "0":
+		return false
+	var raw := FileAccess.get_file_as_string("res://bridge.config.json")
+	var parsed = JSON.parse_string(raw)
+	if not (parsed is Dictionary):
+		return false
+	return bool(parsed.get("native", false))
 
 
 func _reset_selection() -> void:

@@ -53,9 +53,12 @@ func view() -> Dictionary:
 ## Protocol-v1 request handling. Unknown or out-of-window requests fail without touching the board.
 func dispatch(request: Dictionary) -> Dictionary:
 	var kind: String = str(request.get("kind", ""))
+	if kind == "ready":
+		kind = "view"
 	if kind == "view":
 		return Result.success(_shown)
-	if not request.has("revision") or int(request.revision) != _record.revision:
+	# The map omits the revision on counter picks; a supplied revision must still be current.
+	if request.has("revision") and int(request.revision) != _record.revision:
 		return Result.failure("stale_revision", "局面已更新，请重新选择")
 	match kind:
 		"select-unit":

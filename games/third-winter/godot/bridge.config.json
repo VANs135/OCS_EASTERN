@@ -5,5 +5,7 @@
   "data_root": "D:/war game/OCS各作数据库/OCS第三个冬天",
   "tables": "../../../dist",
   "save_path": "user://eastern-godot-save.json",
-  "seed": 20261127
+  "seed": 20261127,
+  "native": true,
+  "native_data": "../../../dist/godot/08-opening-data.json"
 }

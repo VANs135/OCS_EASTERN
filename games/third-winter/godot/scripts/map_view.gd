@@ -226,7 +226,7 @@ func _build_ui() -> void:
 	column.add_child(reset)
 
 	_status = Label.new()
-	_status.text = "等待 D:\\OCS\\OCS_EASTERN 的 Node 规则进程…"
+	_status.text = "等待规则会话…"
 	_status.add_theme_font_size_override("font_size", 12)
 	_status.add_theme_color_override("font_color", Color(0.72, 0.78, 0.84))
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
