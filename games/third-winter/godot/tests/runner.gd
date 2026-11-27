@@ -286,6 +286,7 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 ## Replays the oracle's reinforcement receipts through the native match and compares the whole
 ## reinforcement ledger: arrivals on the map, deployed counters, deliveries, pax and the dice.
 func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: Dictionary, from: int) -> void:
+	_reject_reinforcements(record, data)
 	var steps := 0
 	var index := from + 1
 	while true:
@@ -315,23 +316,37 @@ func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: 
 	_expect(steps >= 5, "08 原生增援走完抵达、交付与收尾 (%d 步)" % steps)
 
 
+## Every guard below is a rule the TypeScript reinforcement phase enforces: the non-phasing side,
+## an unknown or illegal entry hex, a delivery outside the printed hex, an oversized delivery, and
+## closing the window before the scheduled obligations and the variable award are settled.
+func _reject_reinforcements(record: Dictionary, data: Dictionary) -> void:
+	_reject_scorpion(record, data, "axis", {"type": "place-arrival",
+		"arrivalId": "1:soviet:land:id:2098", "hex": "s1.12"}, "wrong_actor")
+	_reject_scorpion(record, data, "soviet", {"type": "place-arrival",
+		"arrivalId": "1:soviet:land:id:9999", "hex": "s1.12"}, "unknown_arrival")
+	_reject_scorpion(record, data, "soviet", {"type": "place-arrival",
+		"arrivalId": "1:soviet:land:id:2098", "hex": "s99.99"}, "arrival_destination")
+	_reject_scorpion(record, data, "soviet", {"type": "place-arrival",
+		"arrivalId": "1:soviet:land:id:2098", "hex": "s22.02"}, "arrival_destination")
+	_reject_scorpion(record, data, "soviet", {"type": "place-supply",
+		"target": {"kind": "hex", "id": "s1.12"}, "tokens": 4}, "fixed_destination")
+	_reject_scorpion(record, data, "soviet", {"type": "place-supply",
+		"target": {"kind": "hex", "id": "s22.02"}, "tokens": 12}, "supply_tokens")
+	_reject_scorpion(record, data, "soviet", {"type": "finish-scheduled-arrivals"}, "arrivals_pending")
+	_reject_scorpion(record, data, "soviet", {"type": "complete-reinforcement"}, "variable_pending")
+
+
 func _compare_reinforcement(actual: Dictionary, expected: Dictionary, label: String) -> void:
 	if expected.is_empty():
 		_expect(false, label + " · oracle 缺少该修订的增援账本")
 		return
-	var fields := ["cursor", "window", "arrival", "arrivalsOnMap", "dumps", "pax", "availableAlerts",
-		"placedAlerts", "victory", "rng"]
+	var fields := ["kind", "turn", "cursor", "window", "arrival", "arrivalsOnMap", "dumps", "pax",
+		"availableAlerts", "placedAlerts", "victory", "rng", "railControl", "units"]
 	var left := {}
 	var right := {}
 	for field: String in fields:
 		left[field] = actual.get(field)
 		right[field] = expected.get(field)
-	var ids: Array = []
-	for placed: Dictionary in expected.get("arrivalsOnMap", []):
-		var id := str(placed.arrival.id)
-		ids.append(id)
-		left["unit:" + id] = actual.get("units", {}).get(id)
-		right["unit:" + id] = expected.get("units", {}).get(id)
 	var difference := _first_difference(left, right, "")
 	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
 

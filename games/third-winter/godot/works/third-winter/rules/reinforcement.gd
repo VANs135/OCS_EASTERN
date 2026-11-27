@@ -54,8 +54,9 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 ## settles the obligation; entry-hex availability never removes one from the outstanding set.
 static func scheduled(state: Dictionary, actor: String, data: Dictionary) -> Dictionary:
 	var turn := int(state.cursor.turn)
-	var placed: Array = state.get("arrival", {}).get("placed", [])
-	var forfeited: Array = state.get("arrival", {}).get("forfeited", [])
+	var arrival_state: Dictionary = state.get("arrival", {})
+	var placed := _list(arrival_state.get("placed"))
+	var forfeited := _list(arrival_state.get("forfeited"))
 	var outstanding: Array = []
 	var placeable: Array = []
 	var blocked: Array = []
@@ -85,9 +86,9 @@ static func _place_arrival(state: Dictionary, actor: String, action: Dictionary,
 	if entry.is_empty():
 		return Result.failure("unknown_arrival", "未知的增援条目")
 	var arrival_state: Dictionary = state.get("arrival", {})
-	if str(entry.side) != actor or arrival_state.get("placed", []).has(entry.id):
+	if str(entry.side) != actor or _list(arrival_state.get("placed")).has(entry.id):
 		return Result.failure("arrival_unavailable", "该增援不属于本方或已经抵达")
-	if arrival_state.get("forfeited", []).has(entry.id):
+	if _list(arrival_state.get("forfeited")).has(entry.id):
 		return Result.failure("arrival_forfeited", "该增援在本阶段已弃置")
 	var turn := int(state.cursor.turn)
 	var force := "" if entry.get("optionalForce") == null else str(entry.optionalForce)
@@ -101,22 +102,25 @@ static func _place_arrival(state: Dictionary, actor: String, action: Dictionary,
 	var template: Dictionary = data.view.get("catalog", {}).get("counters", {}).get(entry.get("definition"), {})
 	if template.is_empty():
 		return Result.failure("arrival_counter", "缺少该增援的算子资料")
+	# src/match/scorpion-session.ts rejects an arrival whose counter is foreign or already on the map.
+	if str(template.get("side")) != actor or state.get("units", {}).has(entry.id):
+		return Result.failure("arrival_counter", "该增援的算子资料与盘面冲突")
 	var unit: Dictionary = template.duplicate(true)
 	unit.hex = hex
 	unit.stepsLost = int(entry.get("stepsLost", 0))
 	if entry.get("organicTruck") != null:
 		unit.organicTruck = str(entry.organicTruck)
 	var next_arrival: Dictionary = arrival_state.duplicate(true)
-	next_arrival.placed = arrival_state.get("placed", []).duplicate()
+	next_arrival.placed = _list(arrival_state.get("placed")).duplicate()
 	next_arrival.placed.append(entry.id)
 	var vp := int(arrival_state.get("sovietVp", 0))
-	if force != "" and not arrival_state.get("mobilized", []).has(force):
-		var mobilized: Array = arrival_state.get("mobilized", []).duplicate()
+	if force != "" and not _list(arrival_state.get("mobilized")).has(force):
+		var mobilized := _list(arrival_state.get("mobilized")).duplicate()
 		mobilized.append(force)
 		next_arrival.mobilized = mobilized
 		vp += 5 if actor == "axis" else -5
 	next_arrival.sovietVp = vp
-	var on_map: Array = state.get("arrivalsOnMap", []).duplicate()
+	var on_map := _list(state.get("arrivalsOnMap")).duplicate()
 	on_map.append({"arrival": entry.duplicate(true), "hex": hex, "turn": turn})
 	state.arrival = next_arrival
 	state.arrivalsOnMap = on_map
@@ -172,9 +176,9 @@ static func _finish_scheduled(state: Dictionary, actor: String, data: Dictionary
 		return Result.failure("fixed_supply_pending", "请先交付固定补给")
 	if not status.blocked.is_empty():
 		var arrival_state: Dictionary = state.arrival.duplicate(true)
-		var forfeited: Array = arrival_state.get("forfeited", []).duplicate()
+		var forfeited := _list(arrival_state.get("forfeited")).duplicate()
 		for entry: Dictionary in status.blocked:
-			if arrival_state.get("placed", []).has(entry.id):
+			if _list(arrival_state.get("placed")).has(entry.id):
 				return Result.failure("arrival_conflict", "该增援已经在盘面上")
 			if not forfeited.has(entry.id):
 				forfeited.append(entry.id)
@@ -208,7 +212,7 @@ static func _award_variable(state: Dictionary, actor: String) -> Dictionary:
 		else:
 			sp = 5 if total <= 5 else (6 if total <= 7 else 7)
 	var pending: Variant = null
-	var pool: Array = state.get("availableAlerts", [])
+	var pool := _list(state.get("availableAlerts"))
 	if alert > 0 and not pool.is_empty():
 		var pick := Rng.pick_index(state.rng, pool.size())
 		if not pick.ok:
@@ -217,7 +221,7 @@ static func _award_variable(state: Dictionary, actor: String) -> Dictionary:
 		pending = pool[int(pick.value.value)]
 	state.pax[actor] = int(state.pax.get(actor, 0)) + pax
 	state.window = {"dice": dice, "variableTokens": sp * 4, "fixedTokens": int(window.get("fixedTokens", 0)),
-		"fixedDestinations": window.get("fixedDestinations", []).duplicate(), "pendingAlert": pending,
+		"fixedDestinations": _list(window.get("fixedDestinations")).duplicate(), "pendingAlert": pending,
 		"stage": "variable"}
 	return Result.success(state)
 
@@ -262,6 +266,13 @@ static func _record_control(state: Dictionary, actor: String, entered: String, d
 		return
 	control[entered] = actor
 	state.railControl = control
+
+
+## TypeScript reads optional arrays as `?? []`; a stored null must read as empty, not crash.
+static func _list(value: Variant) -> Array:
+	if value is Array:
+		return value
+	return []
 
 
 static func _sudden_death(turn: int, vp: int) -> Variant:
