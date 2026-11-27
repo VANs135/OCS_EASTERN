@@ -20,10 +20,9 @@ test('9.14b dump capture uses one die and moves the captured portion to the capt
   assert.equal(after.rng.drawCount, before.rng.drawCount + 1)
 })
 
-test('a dump hex with no attack-capable entering unit is refused before rolling', () => {
+test('a non-attack-capable entering unit does not trigger 9.14b and keeps the dump', () => {
   const before = state()
-  assert.throws(() => captureCampaignDump(before, 'axis', 'D5.23', ['transport'], board),
-    /attack-capable/)
+  assert.equal(captureCampaignDump(before, 'axis', 'D5.23', ['transport'], board), before)
   assert.equal(before.rng.drawCount, 0)
 })
 

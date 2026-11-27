@@ -26,9 +26,8 @@ export function captureCampaignDump(state: Readonly<CampaignTurnState>, side: Si
   const owner = opposite(side)
   const tokens = state.supplyDumps?.[owner]?.[hex] ?? 0
   if (!tokens) return state
-  if (!ids.some((id) => board.attackCapable(state, id))) {
-    throw new Error(`Entry into ${hex} with an enemy dump needs an attack-capable unit`)
-  }
+  // 9.14b 的触发条件是“可攻击单位进入”；纯运输/非战斗单位进入不触发夺取，dump 原样保留。
+  if (!ids.some((id) => board.attackCapable(state, id))) return state
   const draw = rollDie(state.rng)
   const taken = capturedAmount(tokens, 'dump', draw.value)
   const ownerDumps = { ...(state.supplyDumps[owner] ?? {}) }
