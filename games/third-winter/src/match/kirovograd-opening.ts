@@ -53,7 +53,8 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   }
   for (const aircraft of data.aircraft) {
     add(aircraft.id, { definition: aircraft.definition, kind: 'aircraft', side: aircraft.side,
-      location: { kind: 'box', box: `09:${aircraft.side}:air` }, active: true, stepsLost: aircraft.reduced ? 1 : 0 })
+      location: { kind: 'box', box: `09:${aircraft.side}:air` }, active: true, stepsLost: aircraft.reduced ? 1 : 0,
+      availableThrough: aircraft.availableThrough })
   }
   const transports = kirovogradSetupTransports(data)
   for (const [id, counter] of Object.entries(transports.counters)) add(id, counter)

@@ -58,6 +58,8 @@ export interface CampaignCounter {
   active?: boolean
   currentRe?: number
   stepsLost?: number
+  /** Scenario Book p.62: inclusive last game turn in which this aircraft may sortie. */
+  availableThrough?: number
   disorganized?: boolean
   exploiting?: boolean
   fueled?: boolean
