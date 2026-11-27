@@ -14,6 +14,7 @@ const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
+const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1126,6 +1127,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	if state.get("kind") != "playing" or state.get("victory") != null:
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
+	_append_move_menu(state, side, selection, data, menu)
 	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
 	_append_barrage_menu(state, side, selection, data, menu)
@@ -1161,6 +1163,58 @@ static func _append_unit_menu(state: Dictionary, side: String, selection: Dictio
 	if unit.get("reserve") != null and phase != "movement":
 		menu.append({"label": "释放预备队", "group": "预备队",
 			"actions": [{"type": "release-reserve", "unitId": uid}]})
+
+
+## OCS 6.1 — the move rows of desktop `moveChoices`: the clicked hex (or an explicit path) is offered
+## only when the whole leg passes the same check the command runs. Fuel payment rows are not native
+## yet, so a mechanised combat face that still needs fuel offers nothing rather than a doomed row.
+static func _append_move_menu(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	if str(state.get("cursor", {}).get("phase", "")) != "movement":
+		return
+	if str(state.get("turn", {}).get("weather", {}).get("ground", "")) != "freeze":
+		return
+	var unit_id := ""
+	var ids: Array = selection.get("unitIds", [])
+	if selection.get("unitId") != null:
+		unit_id = str(selection.unitId)
+	elif ids.size() == 1:
+		unit_id = str(ids[0])
+	if unit_id.is_empty():
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side:
+		return
+	if unit.get("extender") != null or state.get("moved", []).has(unit_id):
+		return
+	if int(unit.get("allowance", 0)) <= 0:
+		return
+	if unit.get("combat") == true and str(unit.get("mobility")) != "leg" and unit.get("fueled") != true:
+		return
+	var from := str(unit.get("hex", ""))
+	var path: Array = []
+	var requested: Variant = selection.get("path")
+	if requested is Array and not (requested as Array).is_empty():
+		for hex: Variant in requested:
+			path.append(str(hex))
+	elif selection.get("hex") != null:
+		var target := str(selection.hex)
+		if target != from and _neighbors(data).get(from, []).has(target):
+			path = [target]
+	## 与桌面一致：没点邻格（或点的是自己那格）就不出移动行，避免把整圈邻格摊在侧栏。
+	if path.is_empty():
+		return
+	if GroundMove.check(state, side, unit_id, path, data).ok:
+		var destination := str(path[path.size() - 1])
+		menu.append({"label": "移动到 %s" % destination, "group": "移动",
+			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path}]})
+
+
+static func _neighbors(data: Dictionary) -> Dictionary:
+	var graph: Variant = data.get("view", {}).get("mapGraph", {}).get("neighbors")
+	if graph is Dictionary:
+		return graph
+	return {}
 
 
 ## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
