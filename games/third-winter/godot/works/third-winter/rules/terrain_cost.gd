@@ -74,6 +74,11 @@ static func _edge(graph: Dictionary, from: String, to: String) -> Variant:
 	return graph.get("edges", {}).get(edge_key(from, to), null)
 
 
+## 公开边表查询（战斗地形校验用）。
+static func edge_between(graph: Dictionary, from: String, to: String) -> Variant:
+	return _edge(graph, from, to)
+
+
 static func _terrains(graph: Dictionary, hex: String) -> Variant:
 	return graph.get("terrains", {}).get(hex, null)
 
