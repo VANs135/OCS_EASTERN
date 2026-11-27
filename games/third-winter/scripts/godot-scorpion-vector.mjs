@@ -8,9 +8,17 @@ import { loadLocalScorpion } from '../desktop/local/data.mjs'
 import { readLocalJson } from '../desktop/local/store.mjs'
 import { scorpionHexLayout } from '../src/view/scorpion-grid-layout.ts'
 import { sampleScorpionOpening } from './scorpion-sample-opening.mjs'
+import { scorpionSupplyNetwork } from '../src/ttw/scorpion/supply-trace.ts'
+import { scorpionSupplyPosition } from '../src/match/scorpion-supply-position.ts'
+import { scorpionAxisSources, scorpionSovietSources } from '../src/ttw/scorpion/initial-map.ts'
+import { scorpionStepCost } from '../src/ttw/scorpion/terrain-cost.ts'
+import { remainingSteps } from '../src/match/scorpion-losses.ts'
 
 const dist = fileURLToPath(new URL('../../../dist/', import.meta.url))
-const [root, output = join(dist, 'godot', '08-scorpion.json'), tables = dist] = process.argv.slice(2)
+const argv = process.argv.slice(2)
+const extended = argv.includes('--extended')
+const [root, output = join(dist, 'godot', extended ? '08-scorpion-extended.json' : '08-scorpion.json'), tables = dist] =
+  argv.filter((arg) => arg !== '--extended')
 if (!root) throw new Error('请提供第三冬资料库目录，可另传输出路径和图表目录')
 
 const seed = 19440126
@@ -76,6 +84,199 @@ function click(kind, hex, fields = {}) {
   return send(kind, { ...scorpionHexLayout(hex), ...fields })
 }
 
+// —— 扩档（--extended）：第 1 回合战斗段之后的正规战斗、换手整备/增援与第 2 回合 ——
+
+async function latestState() {
+  return (await readLocalJson(savePath)).record.state
+}
+
+/** 排空战斗/重掷/撤退等待决窗口；夺取在自动结算策略下随同一条命令落定。 */
+async function drainPending() {
+  for (;;) {
+    const state = await latestState()
+    if (state.reroll) {
+      await send('command', { action: { type: 'resolve-reroll', decision: 'keep' } })
+      continue
+    }
+    if (state.combat?.retreat) {
+      await send('command', { action: { type: 'continue-combat-retreat' } })
+      continue
+    }
+    if (state.capture) throw new Error('存在待手动结算的夺取窗口，扩档路径未覆盖')
+    break
+  }
+}
+
+function pickCombatant(state, side) {
+  const map = data.assets.map
+  const enemy = side === 'soviet' ? 'axis' : 'soviet'
+  const enemySources = side === 'soviet' ? scorpionAxisSources : scorpionSovietSources
+  const network = scorpionSupplyNetwork(map, scorpionSupplyPosition(state, map, side))
+  for (const [unitId, unit] of Object.entries(state.units)) {
+    if (unit.side !== side || !unit.attackCapable || unit.reserve || unit.mobility !== 'leg') continue
+    const dumpId = Object.keys(state.dumps).find((id) => id.startsWith(`${side}:hex:`) &&
+      state.dumps[id].tokens >= remainingSteps(unit) && network.canUseDump(unit.hex, id.split(':')[2]))
+    const target = map.neighbors(unit.hex).find((hex) => {
+      if (map.edge(unit.hex, hex)?.river || enemySources.includes(hex)) return false
+      return Object.values(state.units).some((e) => e.side === enemy && e.combat && e.hex === hex)
+    })
+    if (dumpId && target) return { unitId, unit, dumpId, target }
+  }
+  return null
+}
+
+async function resolveCombatSide(role) {
+  const state = await latestState()
+  const battle = state.combat
+  const slots = role === 'attacker' ? battle.attackers : battle.defenders
+  const leader = role === 'attacker' ? battle.attackerLeader : battle.defenderLeader
+  const ordered = [leader, ...slots.filter((id) => id !== leader)]
+  const counts = new Map(ordered.map((id) => [id, remainingSteps(state.units[id])]))
+  const rolled = battle.roll
+  const hard = Math.min(rolled[role].loss, [...counts.values()].reduce((total, count) => total + count, 0))
+  const lossOrder = []
+  while (lossOrder.length < hard + rolled[role].option && [...counts.values()].some((count) => count > 0)) {
+    for (const id of ordered) {
+      if (lossOrder.length === hard + rolled[role].option) break
+      if (counts.get(id) > 0) { lossOrder.push(id); counts.set(id, counts.get(id) - 1) }
+    }
+  }
+  await send('command', { action: { type: 'resolve-combat', lossOrder, optionLosses: lossOrder.length - hard, retreats: [] } })
+  await drainPending()
+}
+
+/** 正规战斗七步；返回是否找到合法战斗并开打。 */
+async function runRegularCombat(side) {
+  const chosen = pickCombatant(await latestState(), side)
+  if (!chosen) return false
+  const { unitId, unit, dumpId, target } = chosen
+  await send('command', { action: { type: 'declare-combat', target, attackers: [unitId],
+    payments: [{ unitId, dumpId, tokens: remainingSteps(unit) }] } })
+  await drainPending()
+  await send('command', { action: { type: 'defend-combat', payments: [], internalUnitIds: [] } })
+  await drainPending()
+  await send('command', { action: { type: 'select-combat-rating', unitId } })
+  const defender = (await latestState()).combat.defenders[0]
+  await send('command', { action: { type: 'select-combat-rating', unitId: defender } })
+  const terrain = data.assets.map.hexes.get(target).terrains[0]
+  await send('command', { action: { type: 'choose-combat-terrain', terrain, attackingTerrain: { [unit.hex]: terrain } } })
+  await drainPending()
+  await resolveCombatSide('attacker')
+  await resolveCombatSide('defender')
+  const after = await latestState()
+  if (after.combat?.step === 'advance') {
+    await send('command', { action: { type: 'advance-after-combat', unitIds: [] } })
+    await drainPending()
+  }
+  return true
+}
+
+async function driveReinforcement() {
+  while (has('place-arrival')) { await apply('place-arrival'); await drainPending() }
+  let state = await latestState()
+  if (state.window?.fixedTokens) {
+    const dest = state.window.fixedDestinations[0]
+    await send('command', { action: { type: 'place-supply', target: { kind: 'hex', id: dest }, tokens: state.window.fixedTokens } })
+    await drainPending()
+  }
+  await apply('finish-scheduled-arrivals')
+  await drainPending()
+  state = await latestState()
+  const rules = data.board.reinforcements(state)
+  if (state.window?.variableTokens) {
+    const side = state.cursor.phasing
+    const id = [...rules.supplySources[side]].find((hex) => rules.controlOf(hex) !== side) ?? [...rules.supplySources[side]][0]
+    await send('command', { action: { type: 'place-supply', target: { kind: 'hex', id }, tokens: state.window.variableTokens } })
+    await drainPending()
+  }
+  if (state.window?.pendingAlert) {
+    const dest = [...rules.alertDestinations(state.window.pendingAlert)].sort()[0]
+    if (dest) await send('command', { action: { type: 'place-alert', hex: dest } })
+    else await send('command', { action: { type: 'pass-alert' } })
+    await drainPending()
+  }
+  await apply('complete-reinforcement')
+}
+
+async function driveMovement() {
+  const state = await latestState()
+  const side = state.cursor.phasing
+  const map = data.assets.map
+  const mover = Object.entries(state.units).find(([id, unit]) => unit.side === side && unit.combat && !unit.reserve &&
+    unit.mobility === 'leg' && unit.allowance > 0 && !state.moved.includes(id))
+  if (mover) {
+    const [unitId, unit] = mover
+    const dest = map.neighbors(unit.hex).find((hex) => {
+      if (map.edge(unit.hex, hex)?.river) return false
+      if (Object.values(state.units).some((e) => e.side !== side && e.combat && e.hex === hex)) return false
+      return scorpionStepCost(map, unit.hex, hex, 'leg', state.turn.weather.ground) !== null
+    })
+    if (dest) {
+      await send('command', { action: { type: 'ground-move', unitId, path: [dest] } })
+      await drainPending()
+    }
+  }
+  await apply('complete-movement')
+}
+
+async function driveSupply() {
+  while (has('choose-formation-trace')) await apply('choose-formation-trace')
+  await apply('check-attrition')
+  while (has('assign-attrition')) await apply('assign-attrition')
+  await apply('complete-supply')
+}
+
+async function driveInitiative() {
+  for (;;) {
+    const state = await latestState()
+    const kind = state.turn.step.kind
+    if (kind === 'player-turn') return
+    if (kind === 'retention') {
+      const responder = state.turn.step.responder
+      const dumpId = Object.keys(state.dumps).find((id) => state.dumps[id].side === responder &&
+        state.dumps[id].location === 'on-map' && state.dumps[id].tokens >= 4)
+      if (dumpId) await send('command', { action: { type: 'retain-initiative', dumpId } })
+      else await send('command', { action: { type: 'roll-initiative' } })
+    } else if (kind === 'roll') {
+      await send('command', { action: { type: 'roll-initiative' } })
+    } else if (kind === 'choose-order') {
+      await send('command', { action: { type: 'choose-first', first: state.turn.step.responder } })
+    }
+    await drainPending()
+  }
+}
+
+async function driveExtended() {
+  // 苏军第 1 回合：战斗段 → 进击段 → 清理段
+  await runRegularCombat('soviet')
+  await apply('complete-combat')
+  await apply('complete-exploitation')
+  await apply('complete-cleanup')
+  // 轴心第 1 回合：整备 → 增援 → 地面移动 → 补给 → 反应 → 战斗 → 进击 → 清理
+  await apply('complete-refit')
+  await driveReinforcement()
+  await driveMovement()
+  await driveSupply()
+  await apply('complete-reaction')
+  await apply('complete-combat')
+  await apply('complete-exploitation')
+  await apply('complete-cleanup')
+  // 回合换手：主动权应答
+  await driveInitiative()
+  // 第 2 回合：整备 → 增援 → 地面移动 → 补给 → 反应 → 战斗
+  await apply('complete-refit')
+  await driveReinforcement()
+  await driveMovement()
+  await driveSupply()
+  await apply('complete-reaction')
+  const state = await latestState()
+  if (state.cursor.phase === 'combat' && (await runRegularCombat(state.cursor.phasing))) {
+    await apply('complete-combat')
+    await apply('complete-exploitation')
+    await apply('complete-cleanup')
+  }
+}
+
 try {
   match = await openLocalScorpion(data, savePath, seed)
   const bootstrap = await capture(match.view())
@@ -125,6 +326,8 @@ try {
   assert.equal(match.view().actor, 'axis')
   await apply('complete-reaction')
   assert.equal(match.view().actor, 'soviet')
+
+  if (extended) await driveExtended()
 
   const { map, imageDirectory, aid, cards, ...model } = data.model
   const asset = ({ path, ...rest }) => ({ ...rest, path: basename(path) })
