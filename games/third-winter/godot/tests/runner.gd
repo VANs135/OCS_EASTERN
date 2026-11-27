@@ -8,6 +8,7 @@ const PoolDraw := preload("res://scripts/rules/series/pool_draw.gd")
 const ScorpionData := preload("res://scripts/data/scorpion_opening_data.gd")
 const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-pocket/opening.gd")
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
+const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const PhaseFlow := preload("res://works/third-winter/rules/phase_flow.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
@@ -393,6 +394,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 		return
 	_compare_supply(opened.value.record.state, closed.state, "08 原生补给窗口修订 %d" % next_index)
 	_compare_view_at(opened.value.record, vector, data, "08 原生补给视图修订 %d" % next_index)
+	_test_supply_split(opened.value.record, data)
 	# The window opens before the trace and attrition steps, so their order is refused.
 	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
 		"supply_pending")
@@ -428,7 +430,33 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	_test_round_rollover(after_supply, data)
 
 
-## The round rollover is past the oracle horizon (the vector ends at turn-one Combat), so the state
+## The 08 first-turn window has no formation split, so the split branch of src/match/
+## scorpion-supply-phase.ts is exercised with a forged split: an unselected split means no trace,
+## the next obligation is the formation choice and attrition stays refused.
+func _test_supply_split(record: Dictionary, data: Dictionary) -> void:
+	var member := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if str(unit.get("side")) != "soviet" or unit.get("combat") != true or str(unit.get("hex", "")) == "":
+			continue
+		if record.state.supply.trace.get(id, []).is_empty():
+			continue
+		member = id
+		break
+	if member.is_empty():
+		_expect(false, "08 原生补给夹具找不到有追溯的苏军战斗力单位")
+		return
+	var forged: Dictionary = record.duplicate(true)
+	forged.state.supply.splits = [{"formation": "forge", "members": [member],
+		"anchors": ["direct:forge"], "selected": null}]
+	var window: Dictionary = forged.state.supply
+	_expect(not SupplyPhase.has_trace(window, member), "08 原生未选追溯的编队成员不算有追溯")
+	var step: Dictionary = SupplyPhase.decision(forged.state, "soviet")
+	_expect(str(step.get("step")) == "choose-formation-trace" and str(step.get("formation")) == "forge",
+		"08 原生未选编队时先要求选追溯来源")
+	_reject_scorpion(forged, data, "soviet", {"type": "check-attrition"}, "supply_allocation")
+	_expect(ScorpionView.project(forged, {}, data, "soviet").is_empty(),
+		"08 原生未选编队时侧栏留空而不是给出死路选项")
 ## is forged onto the second side's Cleanup and the rollover invariants are asserted instead.
 func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:
 	var forged: Dictionary = record.duplicate(true)
@@ -473,8 +501,16 @@ func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:
 		and str(cursor.phase) == "aircraft-refit", "08 原生第 2 回合由轴心从整备开局")
 	_reject_scorpion(retained.value.record, data, "axis", {"type": "choose-first", "first": "axis"},
 		"initiative_step")
-	_reject_scorpion(rolled.value.record, data, "soviet", {"type": "roll-initiative"},
+	# The retention responder may skip paying by rolling; the other side may not.
+	_reject_scorpion(rolled.value.record, data, "axis", {"type": "roll-initiative"},
 		"initiative_step")
+	var skipped := ScorpionMatch.submit(rolled.value.record.duplicate(true), "soviet",
+		{"id": "skip", "expectedRevision": rolled.value.record.revision,
+			"action": {"type": "roll-initiative"}}, data)
+	_expect(skipped.ok, "08 原生不付补给直接掷主动权 %s" % skipped.get("errorMessage", ""))
+	if skipped.ok:
+		_expect(str(skipped.value.record.state.turn.step.kind) in ["choose-order", "roll"],
+			"08 原生掷主动权后进选先手或等同点重掷")
 	var forced: Dictionary = rolled.value.record.duplicate(true)
 	forced.state.turn.step = {"kind": "roll", "retention": "soviet"}
 	var contest := ScorpionMatch.submit(forced, "soviet",

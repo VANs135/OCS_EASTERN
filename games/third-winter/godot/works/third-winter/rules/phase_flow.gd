@@ -2,6 +2,7 @@ extends RefCounted
 
 const Result := preload("res://scripts/core/result.gd")
 const Round := preload("res://works/third-winter/rules/round.gd")
+const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 
 const PHASES := ["aircraft-refit", "reinforcement", "movement", "supply", "reaction", "combat",
 	"exploitation", "cleanup"]
@@ -33,6 +34,12 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 		return Result.failure("phase_command", "该命令不能结束当前阶段")
 	if state.get("combat") != null:
 		return Result.failure("phase_pending", "先结算当前战斗再推进阶段")
+	# OCS 5.11 — src/match/scorpion-session.ts asserts pooling legality as these phases close:
+	# reaction and exploitation through `assertScorpionMovementEnd` (its hedgehog half is absent in
+	# 08, which ships no hedgehog), combat and cleanup through `assertScorpionPhaseStacking`.
+	var stacked := Stacking.assert_phase_stacking(state, actor)
+	if not stacked.ok:
+		return stacked
 	if phase == "cleanup":
 		return _complete_cleanup(state, actor, data)
 	if not _generic_phase(phase):

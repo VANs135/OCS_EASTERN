@@ -138,14 +138,17 @@ static func decision(state: Dictionary, actor: String) -> Dictionary:
 static func has_trace(window: Dictionary, id: String) -> bool:
 	if _list(window.get("traceExempt")).has(id):
 		return true
-	var selected := ""
-	for split: Dictionary in _list(window.get("splits")):
-		if _list(split.get("members")).has(id):
-			selected = str(split.get("selected", ""))
+	var split: Dictionary = {}
+	for entry: Dictionary in _list(window.get("splits")):
+		if _list(entry.get("members")).has(id):
+			split = entry
 			break
 	var routes: Dictionary = _list_into_dict(window.get("trace"))
 	for option: Dictionary in _list(routes.get(id)):
-		if selected == "" or _anchor(option) == selected:
+		if split.is_empty():
+			return true
+		if split.get("selected") != null and str(split.get("selected", "")) != "" \
+				and _anchor(option) == str(split.selected):
 			return true
 	return false
 

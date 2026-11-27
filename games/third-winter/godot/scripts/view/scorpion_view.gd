@@ -206,6 +206,10 @@ static func _project_phase(record: Dictionary, selection: Dictionary, data: Dict
 	elif unit_id != null:
 		unit_ids.append(unit_id)
 	var actions: Array = _phase_actions(state, actor, revision, data)
+	# A pending formation-trace choice or attrition allocation has no native command yet, so the
+	# panel is withheld rather than offering a dead end.
+	if phase_is_supply(state) and actions.is_empty():
+		return {}
 	var stacks := map_stacks(state, data)
 	var frame := {
 		"trackers": trackers(data), "inventories": inventories(state, data, viewer),
@@ -237,18 +241,25 @@ static func _closable_phase(phase: String) -> bool:
 		or phase == "exploitation" or phase == "cleanup"
 
 
+static func phase_is_supply(state: Dictionary) -> bool:
+	return str(state.cursor.get("phase")) == "supply"
+
+
 static func _phase_actions(state: Dictionary, actor: String, revision: int, data: Dictionary) -> Array:
 	var phase := str(state.cursor.get("phase"))
-	var steps: Array = []
 	if phase == "supply":
-		var next := SupplyPhase.decision(state, actor)
-		var step := str(next.get("step", ""))
+		var step := str(SupplyPhase.decision(state, actor).get("step", ""))
 		if step == "settle-trace-and-feeding":
-			steps.append({"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"})
-		elif step == "complete-supply":
-			steps.append({"label": "结束补给", "type": "complete-supply"})
-	else:
-		steps.append({"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase})
+			return _command_actions(revision, [{"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"}])
+		if step == "complete-supply":
+			return _command_actions(revision, [{"label": "结束补给", "type": "complete-supply"}])
+		return []
+	# OCS 2.2 — the closing command of each segment with no pending combat.
+	return _command_actions(revision,
+		[{"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase}])
+
+
+static func _command_actions(revision: int, steps: Array) -> Array:
 	var actions: Array = []
 	for step: Dictionary in steps:
 		actions.append({"key": "action:%d:%d" % [revision, actions.size()], "label": step.label,

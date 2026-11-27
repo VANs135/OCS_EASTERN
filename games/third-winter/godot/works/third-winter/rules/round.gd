@@ -92,6 +92,14 @@ static func _retain(state: Dictionary, actor: String, action: Dictionary) -> Dic
 
 static func _roll(state: Dictionary, actor: String) -> Dictionary:
 	var step: Dictionary = state.turn.step
+	# src/match/scorpion-phase-flow.ts lets the retention responder skip paying by rolling.
+	if str(step.get("kind")) == "retention":
+		if str(step.get("responder")) != actor:
+			return Result.failure("initiative_step", "该方现在不能回答主动权问题")
+		var asked: Dictionary = state.turn.duplicate(true)
+		asked.step = {"kind": "roll", "retention": step.get("retention")}
+		state.turn = asked
+		step = asked.step
 	if str(step.get("kind")) != "roll":
 		return Result.failure("initiative_step", "现在不掷主动权")
 	var rng: Dictionary = state.rng
