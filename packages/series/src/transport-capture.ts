@@ -154,7 +154,8 @@ export function validateTransportCaptureChoice(group: TransportCaptureGroup,
   }
 }
 
-/** 9.14c 位移候选：图内、非原格、格距不超过上限；敌情/地形不参与过滤。 */export function transportDisplacementCandidates(from: string, hexes: readonly string[],
+/** 9.14c 位移候选：图内、非原格、格距不超过上限；敌情/地形不参与过滤。 */
+export function transportDisplacementCandidates(from: string, hexes: readonly string[],
   distance: (a: string, b: string) => number, kind: TransportCaptureClass): string[] {
   const limit = transportDisplacementMaxHexes(kind)
   return hexes.filter((hex) => hex !== from && Number.isFinite(distance(from, hex)) && distance(from, hex) <= limit)
