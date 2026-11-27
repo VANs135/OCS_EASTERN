@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Result := preload("res://scripts/core/result.gd")
+const Round := preload("res://works/third-winter/rules/round.gd")
 
 const PHASES := ["aircraft-refit", "reinforcement", "movement", "supply", "reaction", "combat",
 	"exploitation", "cleanup"]
@@ -18,7 +19,7 @@ static func acting_side(cursor: Dictionary) -> String:
 ## The phase-flow commands of src/match/scorpion-phase-flow.ts that carry no pending combat. Combat
 ## results, initiative and the cleanup round rollover are not native yet, so they are refused
 ## instead of guessed.
-static func apply(state: Dictionary, actor: String, action: Dictionary) -> Dictionary:
+static func apply(state: Dictionary, actor: String, action: Dictionary, data: Dictionary = {}) -> Dictionary:
 	if state.kind != "playing":
 		return Result.failure("match_not_started", "请先开始 08 对局")
 	if state.get("victory") != null or str(state.turn.step.kind) == "ended":
@@ -33,19 +34,19 @@ static func apply(state: Dictionary, actor: String, action: Dictionary) -> Dicti
 	if state.get("combat") != null:
 		return Result.failure("phase_pending", "先结算当前战斗再推进阶段")
 	if phase == "cleanup":
-		return _complete_cleanup(state, actor)
+		return _complete_cleanup(state, actor, data)
 	if not _generic_phase(phase):
 		return Result.failure("unsupported_action", "该阶段的结束命令尚未接入原生 08 对局")
 	return _complete_phase(state, actor)
 
 
 ## OCS 2.1 — Cleanup clears the acting side's disorganization, exploitation and markers, then hands
-## the round to the other side. The round rollover past the second side needs weather, initiative
-## and victory, so it is refused instead of guessed.
-static func _complete_cleanup(state: Dictionary, actor: String) -> Dictionary:
+## the round to the other side. When both sides are done the round rollover rolls weather and opens
+## the initiative question.
+static func _complete_cleanup(state: Dictionary, actor: String, data: Dictionary) -> Dictionary:
 	var next := _completed_cursor(state.cursor)
 	if next.is_empty():
-		return Result.failure("round_rollover", "回合换手的天气与主动权尚未接入原生 08 对局")
+		return Round.complete_cleanup(state, actor, data)
 	var units: Dictionary = state.units.duplicate(true)
 	for id: String in units:
 		if str(units[id].get("side")) != actor:

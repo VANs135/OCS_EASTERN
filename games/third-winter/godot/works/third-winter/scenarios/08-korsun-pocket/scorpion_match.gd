@@ -6,6 +6,7 @@ const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd"
 const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const PhaseFlow := preload("res://works/third-winter/rules/phase_flow.gd")
+const Round := preload("res://works/third-winter/rules/round.gd")
 const Result := preload("res://scripts/core/result.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 
@@ -40,7 +41,9 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	if action.get("type") == "complete-supply":
 		return SupplyPhase.complete_supply(state, actor)
 	if action.get("type") in ["complete-reaction", "complete-combat", "complete-exploitation", "complete-cleanup"]:
-		return PhaseFlow.apply(state, actor, action)
+		return PhaseFlow.apply(state, actor, action, data)
+	if action.get("type") in ["retain-initiative", "roll-initiative", "choose-first"]:
+		return Round.answer(state, actor, action, data)
 	if action.get("type") in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
 			"place-alert", "pass-alert", "complete-reinforcement"]:
 		if state.kind != "playing":

@@ -425,6 +425,70 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	after_supply = _phase_close(after_supply, data, "complete-combat", "exploitation")
 	after_supply = _phase_close(after_supply, data, "complete-exploitation", "cleanup")
 	after_supply = _cleanup_close(after_supply, data)
+	_test_round_rollover(after_supply, data)
+
+
+## The round rollover is past the oracle horizon (the vector ends at turn-one Combat), so the state
+## is forged onto the second side's Cleanup and the rollover invariants are asserted instead.
+func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:
+	var forged: Dictionary = record.duplicate(true)
+	forged.state.cursor = {"turn": 1, "first": "soviet", "phasing": "axis", "phase": "cleanup",
+		"retention": "soviet"}
+	forged.state.turn.step = {"kind": "player-turn", "first": "soviet", "retention": "soviet"}
+	var rolled := ScorpionMatch.submit(forged.duplicate(true), "axis",
+		{"id": "round-1", "expectedRevision": forged.revision,
+			"action": {"type": "complete-cleanup"}}, data)
+	_expect(rolled.ok, "08 原生回合换手 %s" % rolled.get("errorMessage", ""))
+	if not rolled.ok:
+		return
+	var turn: Dictionary = rolled.value.record.state.turn
+	_expect(int(turn.number) == 2, "08 原生回合换手进入第 2 回合")
+	_expect(str(turn.weather.ground) == "freeze", "08 原生第 2 回合天气按冻结上限 6 必冻结")
+	_expect(str(turn.step.kind) == "retention" and str(turn.step.responder) == "soviet",
+		"08 原生第 2 回合先问苏军是否保留主动权")
+	# The weather dice must be reproducible from the same record and RNG.
+	var replay := ScorpionMatch.submit(forged.duplicate(true), "axis",
+		{"id": "round-2", "expectedRevision": forged.revision,
+			"action": {"type": "complete-cleanup"}}, data)
+	_expect(replay.ok and replay.value.record.state.turn.weather == turn.weather,
+		"08 原生回合换手天气可复现")
+	var retained := ScorpionMatch.submit(rolled.value.record.duplicate(true), "soviet",
+		{"id": "retain", "expectedRevision": rolled.value.record.revision,
+			"action": {"type": "retain-initiative", "dumpId": "soviet:hex:s21.04"}}, data)
+	_expect(retained.ok, "08 原生苏军付 1 SP 保留主动权 %s" % retained.get("errorMessage", ""))
+	if not retained.ok:
+		return
+	_expect(str(retained.value.record.state.turn.step.kind) == "choose-order",
+		"08 原生付补给后进入选先手")
+	_expect(int(retained.value.record.state.dumps["soviet:hex:s21.04"].tokens) == 36,
+		"08 原生保留主动权从盘上补给堆扣 1 SP")
+	var chosen := ScorpionMatch.submit(retained.value.record.duplicate(true), "soviet",
+		{"id": "choose", "expectedRevision": retained.value.record.revision,
+			"action": {"type": "choose-first", "first": "axis"}}, data)
+	_expect(chosen.ok, "08 原生指定先手 %s" % chosen.get("errorMessage", ""))
+	if not chosen.ok:
+		return
+	var cursor: Dictionary = chosen.value.record.state.cursor
+	_expect(str(cursor.turn) == "2" and str(cursor.first) == "axis" and str(cursor.phasing) == "axis" \
+		and str(cursor.phase) == "aircraft-refit", "08 原生第 2 回合由轴心从整备开局")
+	_reject_scorpion(retained.value.record, data, "axis", {"type": "choose-first", "first": "axis"},
+		"initiative_step")
+	_reject_scorpion(rolled.value.record, data, "soviet", {"type": "roll-initiative"},
+		"initiative_step")
+	var forced: Dictionary = rolled.value.record.duplicate(true)
+	forced.state.turn.step = {"kind": "roll", "retention": "soviet"}
+	var contest := ScorpionMatch.submit(forced, "soviet",
+		{"id": "roll", "expectedRevision": forced.revision,
+			"action": {"type": "roll-initiative"}}, data)
+	_expect(contest.ok, "08 原生掷主动权 %s" % contest.get("errorMessage", ""))
+	if contest.ok:
+		var step: Dictionary = contest.value.record.state.turn.step
+		_expect(str(step.kind) == "choose-order" or str(step.kind) == "roll",
+			"08 原生主动权同点时继续等掷骰")
+		if str(step.kind) == "choose-order":
+			var expected := "axis" if str(step.retention) != "soviet" or str(step.responder) != "soviet" \
+				else "soviet"
+			_expect(str(step.responder) == expected, "08 原生主动权由胜方指定先手")
 
 
 ## Cleanup hands the round to the other side without rolling weather; the round rollover past the

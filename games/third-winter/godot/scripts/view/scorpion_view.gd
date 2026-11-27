@@ -258,6 +258,8 @@ static func _phase_actions(state: Dictionary, actor: String, revision: int, data
 
 static func project_playing(record: Dictionary, selection: Dictionary, data: Dictionary, viewer: String) -> Dictionary:
 	var state: Dictionary = record.state
+	if str(state.turn.get("step", {}).get("kind")) != "player-turn":
+		return {}
 	var phase_id := str(state.cursor.get("phase"))
 	if phase_id == "reinforcement" and state.get("window") != null:
 		pass
