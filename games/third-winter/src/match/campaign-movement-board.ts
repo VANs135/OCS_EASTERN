@@ -32,6 +32,8 @@ export interface CampaignGroundMovementBoard {
   ferryUsedForStep?(state: Readonly<CampaignTurnState>, id: string, from: string, to: string, mobility: Mobility): string | undefined
   /** True when the step needs capture, a protected site check, or another work-specific resolver. */
   entryRequiresResolution(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
+  /** Non-interactive entry settlement (9.14b dump). The interactive 9.14c transport window stays outside this hook. */
+  resolveEntry?(state: Readonly<CampaignTurnState>, side: Side, hex: string, ids: readonly string[]): Readonly<CampaignTurnState>
   /** Supply facts for the proposed board at the end of the move. */
   inTrace(state: Readonly<CampaignTurnState>, id: string, hex: string): boolean | undefined
   traceSupply?(state: Readonly<CampaignTurnState>, side: Side): ReturnType<typeof campaignTraceSupply>
@@ -80,7 +82,7 @@ export function createCampaignOrdinaryMovementBoard(inputs: OrdinaryBoardInputs)
     if (crossing?.barrier === 'volga') return crossing
   }
   return { map: inputs.map, railNetwork: inputs.railNetwork, profileOf: inputs.profileOf, moveProfile: inputs.moveProfile,
-    entryRequiresResolution: inputs.entryRequiresResolution, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
+    entryRequiresResolution: inputs.entryRequiresResolution, resolveEntry: inputs.resolveEntry, traceSupply, endBlockers: inputs.endBlockers, volgaCrossingAt,
     releases: inputs.releases,
     railOnly: inputs.railOnly,
     exitRefusal: inputs.exitRefusal,

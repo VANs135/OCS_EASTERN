@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { unitCatalog } from '../src/import/unit-catalog.ts'
+import { createRngState, rollDie } from '@ocs-eastern/series/rng'
+import { capturedAmount } from '@ocs-eastern/series/tables/capture'
 import { kirovogradGroundMovementBoard } from '../src/match/kirovograd-ground-movement.ts'
 
 const unit = { id: 'u1', name: 'Test infantry', side: 'axis', re: 4, faces: {
@@ -26,4 +28,15 @@ test('real-data-shaped Scenario 9 ground board reads profiles, terrain cost and 
   assert.equal(board.inTrace(state, 'u1', 'A2.1'), true)
   assert.ok(board.railOnly)
   assert.equal(typeof board.releases, 'function')
+  assert.equal(typeof board.resolveEntry, 'function')
+})
+
+test('the real board settles 9.14b dump capture on entry', () => {
+  const board = kirovogradGroundMovementBoard(data, { edge: () => undefined })
+  const withDump = { ...state, rng: createRngState(623), supplyDumps: { axis: {}, soviet: { 'A2.1': 4 } } }
+  const expected = capturedAmount(4, 'dump', rollDie(withDump.rng).value)
+  const after = board.resolveEntry(withDump, 'axis', 'A2.1', ['u1'])
+  assert.equal(after.supplyDumps.soviet['A2.1'], undefined)
+  assert.equal(after.supplyDumps.axis['A2.1'], expected)
+  assert.equal(after.rng.drawCount, withDump.rng.drawCount + 1)
 })

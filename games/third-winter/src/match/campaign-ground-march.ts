@@ -69,9 +69,12 @@ function prepareMarchStep(state: Readonly<CampaignTurnState>, side: Side, board:
       entered.push({ ...mover, progress: step, stepsLeft: stepsLeft - 1, stepsDone: (mover.stepsDone ?? 0) + 1 })
       counters[id] = { ...counters[id]!, location: { kind: 'map', hex: to } }
     }
-    let afterEntry = reconcileCampaignBridgeRepairs({ ...state, counters, groundMovement: { ...state.groundMovement,
+    let afterEntry: CampaignTurnState = { ...state, counters, groundMovement: { ...state.groundMovement,
       moved: state.groundMovement?.moved ?? [], zocLocks: state.groundMovement?.zocLocks ?? [], crossedReByHexside: usage.settled(),
-      usedFerryIds: [...usedFerries] } }, board)
+      usedFerryIds: [...usedFerries] } }
+    // 9.14b 的 dump 夺取是非交互结算；运输点 9.14c 需要原主选择位移，不在此自动猜测。
+    if (board.resolveEntry) afterEntry = { ...board.resolveEntry(afterEntry, side, to, entered.map(({ id }) => id)) }
+    afterEntry = reconcileCampaignBridgeRepairs(afterEntry, board)
     if (displaceSte) afterEntry = displaceCampaignSte(afterEntry, board.map, to)
     const firstCombat = side === 'soviet' && entered.find(({ combat }) => combat)
     const bridges = firstCombat ? campaignDemolishableBridges(afterEntry, board, firstCombat.id, to) : []
