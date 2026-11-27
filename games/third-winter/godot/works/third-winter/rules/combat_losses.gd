@@ -2,13 +2,15 @@ extends RefCounted
 
 ## OCS v4.3 §9.11 战斗损失分配与落地（src/match/scorpion-combat-losses.ts、scorpion-losses.ts）。
 ## AR 领导单位承受第一点损失；损失超过单位数时先各摊一点再允许第二点（逐轮均摊）。
-## 步损经 step_loss.gd 分流：残部回池 / 警戒营回池 / 死人堆。
-## 本轮缺口：轴心师阵亡残部只登记占位，不在盘面生成；Kessel 司令部离场返还未结算。
+## 步损经 step_loss.gd 分流：残部回池 / 警戒营回池 / 死人堆；合格轴心师打光即按 TTW 2.4d
+## 在盘面生成残部。
+## 本轮缺口：Kessel 司令部离场后的 kesselReturns 返还回合未结算。
 
 const Result := preload("res://scripts/core/result.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 const SupplyTrace := preload("res://works/third-winter/rules/supply_trace.gd")
+const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 
 
 ## 存活步数（TTW 2.4b 口径，下限 1）。
@@ -41,8 +43,8 @@ static func validate_loss_order(state: Dictionary, participants: Array, leader: 
 	return Result.success({"allocation": assigned})
 
 
-## 按分配落地步损。allocation 为 { unitId: steps }；remnants 为本轮未生成的残部占位名单。
-## 返回 Result.success({ state, vp, isolated, pendingRemnants, pendingKessel })。
+## 按分配落地步损。allocation 为 { unitId: steps }；remnants 为本轮玩家指定的残部落点
+## 名单 [{ divisionId, hex }]。返回 Result.success({ state, vp, isolated, remnants, pendingKessel })。
 static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictionary,
 		_board: Variant = null, remnants: Array = []) -> Dictionary:
 	var vp: int = int(state.get("arrival", {}).get("sovietVp", 0))
@@ -53,7 +55,7 @@ static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictio
 		return Result.failure("remnant_choice", "每枚可生成残部的师只能选择一个落点")
 	var current: Dictionary = state.duplicate(true)
 	var isolated: Array = []
-	var pending_remnants: Array = []
+	var placed_remnants: Array = []
 	var pending_kessel: Array = []
 	for id: String in allocation:
 		var steps := int(allocation[id])
@@ -76,16 +78,28 @@ static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictio
 		if headquarters is Dictionary and headquarters.get("kessel") == true and not current.get("units", {}).has(id):
 			# 缺口：Kessel 司令部离场后的 kesselReturns 返还回合未结算。
 			pending_kessel.append({"unitId": id, "definition": str(unit.get("definition", ""))})
+		var placed_remnant := false
 		if str(unit.get("side", "")) == "axis" and not current.get("units", {}).has(id):
-			# 缺口：本轮不在盘面生成残部；阵亡师只登记占位，残部 +1 VP 暂不计入。
-			pending_remnants.append({"divisionId": id, "hex": choices.get(id, "")})
+			## TTW 2.4d：合格轴心师打光即生成残部；非师级 / 非合格单位留在死人堆，不进残部。
+			var place_res: Dictionary = Remnants.place(current, id, unit, choices.get(id, null), data)
+			if not place_res.ok:
+				return place_res
+			current = place_res.value.state
+			placed_remnant = place_res.value.placed
+			if placed_remnant:
+				placed_remnants.append({"divisionId": id,
+					"remnantId": str(place_res.value.get("remnantId", "")),
+					"hex": str(place_res.value.get("hex", ""))})
+		## 剧本册 p.53：断补轴心单位按损失步数计 VP；否则生成残部的师记 1 VP。
 		if isolated_flag:
 			isolated.append({"unitId": id, "steps": steps})
 			vp += steps
+		elif placed_remnant:
+			vp += 1
 	if choices.size() > 0:
 		for division_id: String in choices:
 			var matched := false
-			for entry: Dictionary in pending_remnants:
+			for entry: Dictionary in placed_remnants:
 				if str(entry.get("divisionId", "")) == division_id:
 					matched = true
 					break
@@ -97,7 +111,7 @@ static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictio
 	current["arrival"] = arrival
 	current["victory"] = victory
 	return Result.success({"state": current, "vp": vp, "isolated": isolated,
-		"pendingRemnants": pending_remnants, "pendingKessel": pending_kessel})
+		"remnants": placed_remnants, "pendingKessel": pending_kessel})
 
 
 ## 剧本册 p.53 突然死亡：第 3 回合起，VP ≤ -4 轴心大胜，≥ 20 苏军大胜。
