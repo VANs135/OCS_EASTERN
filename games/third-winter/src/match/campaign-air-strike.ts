@@ -35,12 +35,12 @@ export interface CampaignAirStrikeProfile {
   tankBuster: boolean
 }
 
-export interface CampaignAirStrikeBoard extends CampaignBarrageBoard {
+export interface CampaignAirStrikeBoard extends Pick<CampaignBarrageBoard, 'map' | 'table' | 'distance' | 'hedgehogAt'> {
   airProfileOf(state: Readonly<CampaignTurnState>, id: string): CampaignAirStrikeProfile | undefined
   /** 09 special rule: off-map air units reach every map hex. */
   rangeHexes?(state: Readonly<CampaignTurnState>, id: string): number | undefined
-  /** Printed Flak value in a target hex (AA units, map feature). */
-  flakValueAt?(state: Readonly<CampaignTurnState>, hex: string): number | undefined
+  /** Printed Flak value / AA DRM in a target hex; side filters out friendly AA. */
+  flakValueAt?(state: Readonly<CampaignTurnState>, hex: string, side?: Side): number | undefined
   patrolZone?(state: Readonly<CampaignTurnState>, side: Side, hex: string): boolean
   railAt?(state: Readonly<CampaignTurnState>, hex: string): boolean
   facilityAt?(state: Readonly<CampaignTurnState>, hex: string): boolean
@@ -198,7 +198,7 @@ function flakFacts(state: Readonly<CampaignTurnState>, mission: CampaignAirMissi
     missionAircraftCount: mission.flights.length,
     targetHasHq: targetCounters.some(([, counter]) => counter.kind === 'hq'),
     airBaseLevel: baseLevel,
-    printedFlakValue: board.flakValueAt?.(state, target),
+    printedFlakValue: board.flakValueAt?.(state, target, opponent(mission.side)),
     inEnemyPatrolZone,
     missionHasFighter,
     trainbustingInPatrolZone: false,
