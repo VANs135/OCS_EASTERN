@@ -5,6 +5,8 @@ extends RefCounted
 ## Only the setup phase is projected here; later phases are added with their own mechanisms.
 
 const HexLayout := preload("res://scripts/view/hex_layout.gd")
+const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
+const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -25,7 +27,7 @@ static func decision_side(state: Dictionary) -> String:
 
 ## TTW S08 pp.53–56 — printing order of the setup roster: deployable counters, aircraft, placed counters.
 static func roster(state: Dictionary, side: String, data: Dictionary) -> Array:
-	var opening: Dictionary = state.opening
+	var opening := _source(state)
 	var units: Dictionary = opening.units
 	var air: Array = []
 	for piece: Dictionary in opening.pieces:
@@ -71,8 +73,12 @@ static func _counter_entry(id: String, definition: String, hex: Variant, detail:
 
 ## Legal setup commands, in the printed order the desktop menu shows them.
 static func choices(state: Dictionary, side: String, selection: Dictionary, data: Dictionary) -> Array:
+	if state.kind == "playing":
+		if str(state.cursor.get("phase")) == "reinforcement" and state.get("window") != null:
+			return reinforcement_choices(state, side, selection, data)
+		return []
 	var choices: Array = []
-	var opening: Dictionary = state.opening
+	var opening := _source(state)
 	var unit_id: Variant = selection.get("unitId")
 	var hex: Variant = selection.get("hex")
 	var waiting: Array = []
@@ -85,7 +91,7 @@ static func choices(state: Dictionary, side: String, selection: Dictionary, data
 			aircraft = piece
 			break
 	var base: Dictionary = {}
-	for airbase: Dictionary in data.deployment.airBases:
+	for airbase: Dictionary in opening.get("airBases", data.deployment.get("airBases", [])):
 		if airbase.side == side:
 			base = airbase
 			break
@@ -160,17 +166,197 @@ static func choices(state: Dictionary, side: String, selection: Dictionary, data
 	return choices
 
 
-static func _choice(choices: Array, label: String, actions: Array) -> void:
-	choices.append({"label": label, "actions": actions})
 
 
 ## Projection consumed by the map and the sidebar. Frame boxes, auxiliary cards and the turn track
 ## are still served by the TypeScript bridge and are not produced here yet.
+## Setup keeps its facts under `opening`; the in-play state moves them to the top level. Boxes, map
+## stacks and cards read one shape through this adapter.
+static func _source(state: Dictionary) -> Dictionary:
+	if state.kind != "playing":
+		return state.opening
+	return {"units": state.get("units", {}), "pieces": state.get("pieces", []),
+		"dumps": state.get("dumps", {}), "availableAlerts": state.get("availableAlerts", []),
+		"airBases": state.get("airBases", [])}
+
+
+## TTW S08 — the reinforcement phase projection. Other in-play phases are not migrated yet, so the
+## native session still refuses them instead of drawing a guessed panel.
+static func _choice(choices: Array, label: String, actions: Array) -> void:
+	choices.append({"label": label, "actions": actions})
+
+
+static func project_playing(record: Dictionary, selection: Dictionary, data: Dictionary, viewer: String) -> Dictionary:
+	var state: Dictionary = record.state
+	if str(state.cursor.get("phase")) != "reinforcement" or state.get("window") == null:
+		return {}
+	var revision: int = record.revision
+	var actor: String = decision_side(state)
+	var entries := roster_playing(state, actor, data)
+	var selected := {}
+	for entry: Dictionary in entries:
+		if entry.id == selection.get("unitId"):
+			selected = entry
+			break
+	var placement: bool = str(state.window.get("stage")) == "scheduled"
+	if selected.is_empty() and placement and not selection.has("unitIds") and not entries.is_empty():
+		selected = entries[0]
+	var unit_id: Variant = selected.get("id") if not selected.is_empty() else null
+	var picked_hex: Variant = selection.get("hex") if selection.has("hex") else selected.get("hex")
+	var unit_ids: Array = []
+	if selection.has("unitIds"):
+		for id: Variant in selection.unitIds:
+			if _roster_has(entries, id):
+				unit_ids.append(id)
+	elif unit_id != null:
+		unit_ids.append(unit_id)
+	var picked := {"unitId": unit_id, "unitIds": unit_ids,
+		"hex": selection.get("hex") if selection.get("hex") != null else selected.get("hex")}
+	var legal := reinforcement_choices(state, actor, picked, data)
+	var actions: Array = []
+	for choice: Dictionary in legal:
+		actions.append({"key": "action:%d:%d" % [revision, actions.size()], "label": choice.label,
+			"kind": "command",
+			"actionTypes": choice.actions.map(func(step: Dictionary) -> String: return step.type)})
+	var stacks := map_stacks(state, data)
+	var frame := {
+		"trackers": trackers(data), "inventories": inventories(state, data, viewer),
+		"aidCounters": aid_counters(data), "auxiliaryCards": auxiliary_cards(state, data, viewer),
+		"mapStacks": stacks, "selectedUnits": unit_ids, "targets": [], "route": [],
+	}
+	if picked_hex != null:
+		var layout := HexLayout.layout(str(picked_hex))
+		if not layout.is_empty():
+			frame.selectedHex = layout
+	var phase: String = PHASE_NAMES.get(str(state.cursor.phase), str(state.cursor.phase))
+	return {
+		"protocolVersion": 1, "revision": revision, "actor": actor,
+		"headline": "第 %d 回合 · %s · %s" % [int(state.turn.number), side_name(actor), phase],
+		"phase": phase, "phaseId": str(state.cursor.phase),
+		"roster": entries, "stack": _stack(selection, stacks, entries), "stacking": [],
+		"unitId": unit_id, "unitIds": unit_ids, "hex": picked_hex, "route": [],
+		"actions": actions, "menu": [], "ended": false,
+			"turnNumber": int(state.turn.number), "phasingSide": str(state.cursor.phasing),
+			"transportStock": transport_stock(state.get("units", {}), viewer, data),
+			"breakdownStock": breakdown_stock(state.get("units", {}), state.get("pieces", []), data),
+		"frame": frame,
+	}
+
+
+## S08 scheduled arrivals list only the counters that still owe this phase; afterwards the panel falls
+## back to the side's counters and aircraft, matching src/view/campaign-match-view.ts.
+static func roster_playing(state: Dictionary, side: String, data: Dictionary) -> Array:
+	if str(state.cursor.get("phase")) == "reinforcement" and str(state.window.get("stage")) == "scheduled":
+		var entries: Array = []
+		for entry: Dictionary in arrivals(state, side, data):
+			entries.append(_counter_entry(str(entry.id), str(entry.definition), null,
+				"可选增援" if entry.get("optionalForce") != null else "定期增援", data))
+		return entries
+	var entries: Array = []
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.units[id]
+		if unit.side != side:
+			continue
+		entries.append(_counter_entry(id, str(unit.definition), unit.get("hex"), unit.get("hex"), data))
+	for piece: Dictionary in state.get("pieces", []):
+		if piece.side != side or piece.kind != "aircraft" or piece.location.kind == "dead-pile":
+			continue
+		var hex: Variant = piece.location.get("hex")
+		entries.append(_counter_entry(str(piece.id), str(piece.definition), hex,
+			hex if hex != null else "地图外空军盒", data))
+	return entries
+
+
+## The catalog entries that still owe this turn: scheduled ones only in their own turn, optional
+## formations from their printed turn onward.
+static func arrivals(state: Dictionary, side: String, data: Dictionary) -> Array:
+	var turn := int(state.cursor.turn)
+	var placed: Array = state.get("arrival", {}).get("placed", [])
+	var result: Array = []
+	for entry: Dictionary in data.view.get("arrivals", []):
+		if str(entry.side) != side or placed.has(entry.id):
+			continue
+		if entry.get("optionalForce") != null:
+			if int(entry.turn) <= turn:
+				result.append(entry)
+		elif int(entry.turn) == turn:
+			result.append(entry)
+	return result
+
+
+## The reinforcement-phase command list of desktop/local/actions.mjs, in its printed order.
+static func reinforcement_choices(state: Dictionary, side: String, selection: Dictionary, data: Dictionary) -> Array:
+	var choices: Array = []
+	var window: Dictionary = state.window
+	var graph: Dictionary = data.view.mapGraph
+	if str(window.get("stage")) == "scheduled":
+		var candidates := arrivals(state, side, data)
+		var status: Dictionary = Reinforcement.scheduled(state, side, data)
+		var placeable: Array = status.placeable
+		var picked := {}
+		for entry: Dictionary in candidates:
+			if entry.id == selection.get("unitId"):
+				picked = entry
+				break
+		if picked.is_empty() and not (selection.has("unitIds") and selection.get("unitIds", []).is_empty()):
+			picked = placeable[0] if not placeable.is_empty() else {}
+		if not picked.is_empty():
+			var first_call: bool = picked.get("optionalForce") != null \
+				and not state.get("arrival", {}).get("mobilized", []).has(picked.optionalForce)
+			for at: String in ReinforcementBoard.arrival_destinations(graph, data, state, picked):
+				var suffix := " · 首次调入扣 5 VP" if first_call else ""
+				_choice(choices, "入场到 %s%s" % [at, suffix],
+					[{"type": "place-arrival", "arrivalId": picked.id, "hex": at}])
+		var fixed: Array = []
+		for entry: Dictionary in placeable:
+			var at: Array = ReinforcementBoard.arrival_destinations(graph, data, state, entry)
+			if at.size() == 1:
+				fixed.append({"type": "place-arrival", "arrivalId": entry.id, "hex": at[0]})
+		if fixed.size() > 1:
+			choices.append({"label": "放置 %d 枚只有一个入场格的定期增援" % fixed.size(), "actions": fixed})
+		if int(window.get("fixedTokens", 0)) > 0:
+			for id: String in window.get("fixedDestinations", []):
+				_choice(choices, "放置固定补给 %dT · %s" % [int(window.fixedTokens), id],
+					[{"type": "place-supply", "target": {"kind": "hex", "id": id}, "tokens": int(window.fixedTokens)}])
+		if placeable.is_empty() and int(window.get("fixedTokens", 0)) == 0:
+			for entry: Dictionary in status.blocked:
+				_choice(choices, "无法入场：%s 印刷入场格全部被敌方占据，按 OCS 13.6 记录为未到场" % str(entry.id),
+					[{"type": "finish-scheduled-arrivals"}])
+			_choice(choices, "完成定期增援并处理可变补给", [{"type": "finish-scheduled-arrivals"}])
+		return choices
+	var tokens := int(window.get("variableTokens", 0))
+	if tokens > 0:
+		var enemy := "soviet" if side == "axis" else "axis"
+		var open: Array = []
+		for id: String in data.view.get("supplySources", {}).get(side, []):
+			if Reinforcement.control_of(state, id, data) != enemy:
+				open.append(id)
+		var shown: Array = [selection.get("hex")] if open.has(selection.get("hex")) else open
+		for id: String in shown:
+			_choice(choices, "放置 %dT · %s" % [tokens, id],
+				[{"type": "place-supply", "target": {"kind": "hex", "id": id}, "tokens": tokens}])
+		_choice(choices, "放置 %dT · 地图外空军盒" % tokens,
+			[{"type": "place-supply", "target": {"kind": "air-box"}, "tokens": tokens}])
+	var pending: Variant = window.get("pendingAlert")
+	if pending != null:
+		for hex: String in ReinforcementBoard.alert_destinations(graph, data, state, pending, side,
+				str(state.turn.weather.ground)):
+			_choice(choices, "警戒营入场 · %s" % hex, [{"type": "place-alert", "hex": hex}])
+		_choice(choices, "放弃本次警戒营", [{"type": "pass-alert"}])
+	if tokens == 0 and pending == null:
+		_choice(choices, "结束增援", [{"type": "complete-reinforcement"}])
+	return choices
+
+
+
+
 static func project(record: Dictionary, selection: Dictionary, data: Dictionary, viewer: String = "axis") -> Dictionary:
 	var state: Dictionary = record.state
+	if state.kind == "playing":
+		return project_playing(record, selection, data, viewer)
 	if state.kind != "setup":
 		return {}
-	var opening: Dictionary = state.opening
+	var opening := _source(state)
 	var actor: String = opening.seat
 	var revision: int = record.revision
 	var entries := roster(state, actor, data)
@@ -259,7 +445,7 @@ static func _stack(selection: Dictionary, stacks: Array, entries: Array) -> Arra
 
 ## Map counters in the printed draw order: ground units, aircraft, airbase strengths, supply dumps.
 static func map_stacks(state: Dictionary, data: Dictionary) -> Array:
-	var opening: Dictionary = state.opening
+	var opening := _source(state)
 	var stacks: Dictionary = {}
 	var order: Array = []
 	var push := func(counter: Dictionary) -> void:
@@ -290,7 +476,7 @@ static func map_stacks(state: Dictionary, data: Dictionary) -> Array:
 			badges.append({"text": "停", "label": "非激活"})
 		push.call({"id": piece.id, "hex": piece.location.hex, "asset": face,
 			"label": definition.get("name", piece.id), "badges": badges})
-	for airbase: Dictionary in data.deployment.airBases:
+	for airbase: Dictionary in opening.get("airBases", data.deployment.get("airBases", [])):
 		var marker := _marker_asset(data, "Airbase Strength %d" % airbase.level)
 		if marker.is_empty():
 			continue
@@ -336,7 +522,7 @@ static func trackers(data: Dictionary) -> Array:
 
 
 static func inventories(state: Dictionary, data: Dictionary, viewer: String) -> Array:
-	var opening: Dictionary = state.opening
+	var opening := _source(state)
 	var cells := {"axis": {"dead": 19, "air": 20}, "soviet": {"dead": 27, "air": 26}}
 	var names := {"axis": "轴心国", "soviet": "苏联"}
 	var boxes: Array = []
@@ -377,10 +563,14 @@ static func aid_counters(data: Dictionary) -> Array:
 
 static func auxiliary_cards(state: Dictionary, data: Dictionary, viewer: String) -> Dictionary:
 	var boxes: Array = inventories(state, data, viewer)
+	var soviet := _reserve_card("soviet", state, data)
+	var pax: Variant = _pax_marker(state, "soviet", data)
+	if pax != null:
+		soviet.counters.append(pax)
 	return {
 		"axis-off-map": _axis_card(state, data),
-		"soviet-off-map": _reserve_card("soviet", state, data),
-		"turn-weather": _turn_card(data),
+		"soviet-off-map": soviet,
+		"turn-weather": _turn_card(state, data),
 		"axis-dead": _dead_card(boxes, 19),
 		"soviet-dead": _dead_card(boxes, 27),
 		"rail-sea-cap": {"counters": [], "captions": [
@@ -389,6 +579,7 @@ static func auxiliary_cards(state: Dictionary, data: Dictionary, viewer: String)
 
 
 static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
+	var opening := _source(state)
 	var card := _reserve_card("axis", state, data)
 	var strips: Array = data.view.get("airstrips", [])
 	for index in strips.size():
@@ -403,11 +594,11 @@ static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
 		if not (source.get("abilities", []) as Array).has("kessel_supply"):
 			continue
 		var on_map := false
-		for id: String in state.opening.units:
-			if state.opening.units[id].definition == definition:
+		for id: String in opening.units:
+			if opening.units[id].definition == definition:
 				on_map = true
 		var dead := false
-		for piece: Dictionary in state.opening.pieces:
+		for piece: Dictionary in opening.pieces:
 			if piece.definition == definition and piece.location.kind == "dead-pile":
 				dead = true
 		if not on_map and not dead:
@@ -415,8 +606,8 @@ static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
 				"asset": source.get("faces", {}).get("combat"),
 				"label": "%s · 可放置" % str(source.get("name", definition)),
 				"x": 219.0 + 74.0 * index, "y": 729.0, "size": 54.0})
-	for index in state.opening.get("availableAlerts", []).size():
-		var alert: Dictionary = state.opening.availableAlerts[index]
+	for index in opening.get("availableAlerts", []).size():
+		var alert: Dictionary = opening.availableAlerts[index]
 		var source := _definition(data, alert.definition)
 		card.counters.append({"id": "alert-pool:%s" % str(alert.id),
 			"asset": source.get("faces", {}).get("combat"), "label": str(source.get("name", alert.definition)),
@@ -425,8 +616,8 @@ static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
 	for index in remnants.size():
 		var definition: String = remnants[index]
 		var in_units := false
-		for id: String in state.opening.units:
-			if state.opening.units[id].definition == definition:
+		for id: String in opening.units:
+			if opening.units[id].definition == definition:
 				in_units = true
 		if in_units:
 			continue
@@ -435,13 +626,17 @@ static func _axis_card(state: Dictionary, data: Dictionary) -> Dictionary:
 			continue
 		card.counters.append({"id": "remnant-pool:%s" % definition, "asset": asset,
 			"label": "可用德军残部营", "x": 183.0 + index * 75.0, "y": 317.0, "size": 54.0})
+	var pax: Variant = _pax_marker(state, "axis", data)
+	if pax != null:
+		card.counters.append(pax)
 	return card
 
 
 static func _reserve_card(side: String, state: Dictionary, data: Dictionary) -> Dictionary:
+	var opening := _source(state)
 	var used: Dictionary = {}
-	for id: String in state.opening.units:
-		var unit: Dictionary = state.opening.units[id]
+	for id: String in opening.units:
+		var unit: Dictionary = opening.units[id]
 		if unit.side == side and unit.get("reserve") != null:
 			used[unit.hex] = true
 	var count: int = max(0, 6 - used.size())
@@ -459,22 +654,36 @@ static func _reserve_card(side: String, state: Dictionary, data: Dictionary) -> 
 	return card
 
 
-static func _turn_card(data: Dictionary) -> Dictionary:
+static func _turn_card(state: Dictionary, data: Dictionary) -> Dictionary:
+	var playing: bool = state.kind == "playing"
 	var first: Dictionary = data.view.firstTurn
-	var date: String = str(first.date)
-	var freeze: bool = str(first.ground) == "freeze"
+	var number := int(state.turn.number) if playing else int(first.number)
+	var dates: Array = data.view.get("dates", [])
+	var date: String = str(dates[number - 1]) if number >= 1 and number <= dates.size() else str(first.date)
+	var ground := str(state.turn.weather.ground) if playing else str(first.ground)
+	var freeze: bool = ground == "freeze"
 	var card := {"counters": [], "captions": []}
 	card.counters.append({"id": "track-year", "label": date.substr(0, 4),
 		"asset": _marker_asset(data, "Year", "move"), "x": 107.0, "y": 120.0, "size": 50.0})
 	card.counters.append({"id": "track-month", "label": date.substr(0, 7),
 		"asset": _marker_asset(data, "Month"), "x": 606.0 if int(date.substr(5, 2)) == 1 else 696.0,
 		"y": 113.0, "size": 42.0})
-	card.counters.append({"id": "track-turn", "label": "第 %d 回合 · %s" % [int(first.number), date],
+	card.counters.append({"id": "track-turn", "label": "第 %d 回合 · %s" % [number, date],
 		"asset": _marker_asset(data, "Turn"), "x": _day_slot(date), "y": 324.0, "size": 36.0})
+	if playing and str(state.turn.step.kind) == "player-turn":
+		var player_turn := 1 if str(state.cursor.phasing) == str(state.cursor.first) else 2
+		card.counters.append({"id": "track-player-turn", "label": "第 %d 个玩家回合" % player_turn,
+			"asset": _marker_asset(data, "Player Turn", "move" if player_turn == 2 else "combat"),
+			"x": 795.0, "y": 219.0, "size": 51.0})
 	card.counters.append({"id": "track-ground", "asset": _marker_asset(data, "Ground"),
 		"label": "冻结" if freeze else "解冻", "x": 547.0 if freeze else 631.0, "y": 504.0, "size": 43.0})
-	var flights := {"normal": [742.0, "正常飞行"], "limited": [825.0, "飞行受限"], "none": [909.0, "禁飞"]}
-	var flight: Array = flights.get(str(first.flight), [742.0, "正常飞行"])
+	var flight: Array = []
+	if playing:
+		var flights := {"normal": [742.0, "正常飞行"], "limited": [825.0, "飞行受限"], "none": [909.0, "禁飞"]}
+		flight = flights.get(str(state.turn.weather.flight), [742.0, "正常飞行"])
+	else:
+		var flights := {"normal": [742.0, "正常飞行"], "limited": [825.0, "飞行受限"], "none": [909.0, "禁飞"]}
+		flight = flights.get(str(first.flight), [742.0, "正常飞行"])
 	card.counters.append({"id": "track-flight", "asset": _marker_asset(data, "Flight"),
 		"label": str(flight[1]), "x": flight[0], "y": 659.0, "size": 41.0})
 	return card
@@ -630,6 +839,22 @@ static func _marker_asset(data: Dictionary, ref: String, face: String = "combat"
 	var marker: Dictionary = data.view.catalog.markers.get(ref, {})
 	var asset: Variant = marker.get(face)
 	return "" if asset == null else str(asset)
+
+
+## src/view/scorpion-auxiliary-cards.ts only draws the Pax trackers once play starts.
+static func _pax_marker(state: Dictionary, side: String, data: Dictionary) -> Variant:
+	if state.kind != "playing":
+		return null
+	var value: int = int(state.get("pax", {}).get(side, 0))
+	var asset := _marker_asset(data, "German Pax Tracker" if side == "axis" else "Soviet Pax Tracker")
+	if asset == "":
+		return null
+	var label := "人员补充点 %d" % value
+	var x := 54.0 if side == "axis" else 58.0
+	if value > 0:
+		x = (255.0 if side == "axis" else 265.0) + 82.0 * (min(9, value) - 1)
+	return {"id": "pax:%s" % side, "label": label, "asset": asset, "x": x, "y": 174.0, "size": 32.0,
+		"badges": [{"label": label, "text": str(value)}]}
 
 
 static func _definition(data: Dictionary, id: String) -> Dictionary:

@@ -283,10 +283,23 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 	_test_reinforcement_commands(session.record(), vector, bundle, int(refit_step.view.revision))
 
 
+## The oracle's view for the revision this record reached, compared field by field.
+func _compare_view_at(record: Dictionary, vector: Dictionary, data: Dictionary, label: String) -> void:
+	var view := ScorpionView.project(record, {}, data, str(record.state.cursor.phasing))
+	var oracle := {}
+	for step: Dictionary in vector.steps:
+		if step.view.revision == record.revision:
+			oracle = step.view
+			break
+	if not view.is_empty() and not oracle.is_empty():
+		_compare_view(view, oracle, label)
+
+
 ## Replays the oracle's reinforcement receipts through the native match and compares the whole
 ## reinforcement ledger: arrivals on the map, deployed counters, deliveries, pax and the dice.
 func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: Dictionary, from: int) -> void:
 	_reject_reinforcements(record, data)
+	_compare_view_at(record, vector, data, "08 原生增援窗口视图")
 	var steps := 0
 	var index := from + 1
 	while true:
@@ -309,6 +322,7 @@ func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: 
 			return
 		record = wrote.value.record
 		_compare_reinforcement(record.state, expected.state, "08 原生增援修订 %d" % index)
+		_compare_view_at(record, vector, data, "08 原生增援修订 %d 视图" % index)
 		steps += 1
 		if str(action.get("type")) == "complete-reinforcement":
 			break

@@ -70,6 +70,7 @@ const markerRefs = [...['Airbase Strength 1', 'Airbase Strength 2', 'Airbase Str
   '1T Organic c.png', '2T Organic c.png', '3T Organic c.png', 'F Organic c.png', 'misc_fueled.png', 'misc_fueled-Sv.png',
   'Turn', 'Ground', 'Flight', 'Soviet VPs Tracker', '1st Ukr Arty Ready', '2nd Ukr Arty Ready',
   'Year', 'Month', 'Player Turn', 'Axis Reserves Tracker', 'Soviet Reserves Tracker',
+  'German Pax Tracker', 'Soviet Pax Tracker',
   ...[1, 2, 3, 4, 5, 6].map((slot) => `Air Strip ${slot}`)]
 const markers = Object.fromEntries(markerRefs.flatMap((ref) => {
   const matches = catalog.aliases.get(ref)
@@ -116,6 +117,7 @@ const arrivalCatalog = arrivalCatalogSource.map(({ id, side, turn, destinations,
   ({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }))
 const view = {
   catalog: { definitions, markers, counters },
+  dates: [...scorpionDates],
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
   airstrips, transportRows, breakdownRows, arrivals: arrivalCatalog,

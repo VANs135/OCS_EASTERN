@@ -148,7 +148,7 @@ static func _place_supply(state: Dictionary, actor: String, action: Dictionary, 
 		var enemy := "soviet" if actor == "axis" else "axis"
 		var candidates: Array = window.get("fixedDestinations", []) if fixed \
 			else data.view.get("supplySources", {}).get(actor, [])
-		legal = candidates.has(hex) and _control_of(state, hex, data) != enemy
+		legal = candidates.has(hex) and control_of(state, hex, data) != enemy
 	if not legal:
 		return Result.failure("supply_destination", "补给只能放在补给源或本方地图外的机场盒")
 	var id := "%s:air-box" % actor if kind == "air-box" else "%s:hex:%s" % [actor, hex]
@@ -240,7 +240,7 @@ static func _complete(state: Dictionary, actor: String) -> Dictionary:
 
 
 ## packages/series — HQ Alert placement follows TTW 1.7a; only the printed Alerts carry a location rule.
-static func _control_of(state: Dictionary, hex: String, data: Dictionary) -> Variant:
+static func control_of(state: Dictionary, hex: String, data: Dictionary) -> Variant:
 	var sites: Array = data.get("deployment", {}).get("controlSites", [])
 	if not sites.has(hex):
 		return null

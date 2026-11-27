@@ -97,8 +97,6 @@ func dispatch(request: Dictionary) -> Dictionary:
 
 
 func project(viewer: String) -> Dictionary:
-	if _record.state.kind != "setup":
-		return {}
 	return ScorpionView.project(_record, _selection, _data, viewer)
 
 
