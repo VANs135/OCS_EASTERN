@@ -3,6 +3,7 @@ extends RefCounted
 const CommandLog := preload("res://scripts/core/command_log.gd")
 const Deployment := preload("deployment.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
+const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const Result := preload("res://scripts/core/result.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 
@@ -28,6 +29,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 			return stacked
 		return Reinforcement.enter(state, actor, data)
 	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
+	if action.get("type") == "ground-move":
+		return GroundMove.apply(state, actor, action, data)
 	if action.get("type") in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
 			"place-alert", "pass-alert", "complete-reinforcement"]:
 		if state.kind != "playing":

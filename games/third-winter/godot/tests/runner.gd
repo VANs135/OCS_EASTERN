@@ -332,6 +332,65 @@ func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: 
 		index += 1
 	_expect(steps >= 5, "08 原生增援走完抵达、交付与收尾 (%d 步)" % steps)
 	_test_alert_placement(variable, data)
+	_test_movement_commands(record, vector, data)
+
+
+## The oracle's first Movement Phase move: one leg counter walks one hex. The whole route is checked
+## before the board changes, so a rejection leaves `moved` and the spent books untouched.
+func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dictionary) -> void:
+	var index: int = int(record.revision) + 1
+	var expected: Dictionary = vector.records.get(str(index), {})
+	if expected.is_empty():
+		_expect(false, "08 移动阶段缺少 oracle 修订 %d" % index)
+		return
+	var action: Dictionary = expected.receipts[index - 1].action
+	var wrote := ScorpionMatch.submit(record.duplicate(true), "soviet",
+		{"id": "move-%d" % index, "expectedRevision": record.revision, "action": action}, data)
+	_expect(wrote.ok, "08 原生移动命令 %s %s" % [str(action.get("type")), wrote.get("errorMessage", "")])
+	if not wrote.ok:
+		return
+	record = wrote.value.record
+	_compare_movement(record.state, expected.state, "08 原生移动修订 %d" % index)
+	var unit_id := str(action.get("unitId"))
+	_reject_scorpion(record, data, "axis", {"type": "ground-move", "unitId": unit_id,
+		"path": [str(record.state.units[unit_id].hex)]}, "wrong_actor")
+	_reject_scorpion(record, data, "soviet", {"type": "ground-move", "unitId": "setup:land:id:9999:1",
+		"path": ["s1.12"]}, "movement_unit")
+	# The counter that already moved is refused before the route is even read.
+	_reject_scorpion(record, data, "soviet", {"type": "ground-move", "unitId": unit_id,
+		"path": [str(record.state.units[unit_id].hex)]}, "movement_spent")
+	var fresh := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if unit.side == "soviet" and unit.get("combat") == true and unit.get("hex") != null \
+				and str(unit.get("mobility")) == "leg" and not record.state.moved.has(id):
+			fresh = id
+			break
+	_reject_scorpion(record, data, "soviet", {"type": "ground-move", "unitId": fresh, "path": []},
+		"movement_path")
+	# An enemy combat counter blocks entry outright.
+	var enemy_hex := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if unit.side != "soviet" and unit.get("combat") == true and unit.get("hex") != null:
+			enemy_hex = str(unit.hex)
+			break
+	_reject_scorpion(record, data, "soviet", {"type": "ground-move", "unitId": fresh,
+		"path": [enemy_hex]}, "movement_blocked")
+
+
+func _compare_movement(actual: Dictionary, expected: Dictionary, label: String) -> void:
+	if expected.is_empty():
+		_expect(false, label + " · oracle 缺少该修订的对局账本")
+		return
+	var fields := ["kind", "turn", "cursor", "moved", "groundActivity", "units", "railControl", "victory"]
+	var left := {}
+	var right := {}
+	for field: String in fields:
+		left[field] = actual.get(field)
+		right[field] = expected.get(field)
+	var difference := _first_difference(left, right, "")
+	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
 
 
 ## The 08 first turn awards no Alert, so there is no oracle for this path. The fixture starts from the

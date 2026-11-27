@@ -113,7 +113,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 - 飞机整备收束：`works/third-winter/rules/stacking.gd` 与 `reinforcement.gd` 结算 `complete-refit`——先查 10 RE 堆叠，再推进到增援阶段并按剧本固定补给表开出增援窗口。该阶段只有记录状态对照，视图仍未迁。
 - 补给态势：`works/third-winter/rules/supply_position.gd` 复现敌方 ZOC、控制点归属、补给源、可卸货设施与 HQ/延补队；地图邻接与格边轨距随数据包导出，用 `08-supply.json` 与 TypeScript 逐字段对照。
 - 格边取费：`scripts/rules/series/ground_terrain.gd` 与 `works/third-winter/rules/terrain_cost.gd` 复现 OCS 6.2 地形/格边选择和 TTW TEC 三列代价，含封冻取小与路线取费；`view.mapGraph.terrains` 随数据包导出，用 `08-terrain.json` 全边对照。
-- 补给 trace：`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 12.3/12.6/12.7 的图算法（铁路连通、延补队接力、5 MP 抽补、HQ 投送、Kessel 自足、覆盖集），`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费，用 `08-trace.json` 逐格对照。增援板（13.6 落点 + Alert 落点）由 `works/third-winter/rules/reinforcement_board.gd` 原生实现，用第六个夹具 `08-arrivals.json` 对照全编目 103 条抵达与 2 枚 Alert。四条增援命令已接入（`works/third-winter/rules/reinforcement.gd` 的 `apply`，算子克隆自 `view.catalog.counters`），runner 用 `records[33..38]` 逐条比对整本增援账本；增援阶段的视图投影（`scorpion_view.gd` 的 `project_playing`/`reinforcement_choices`）与 TS 的 `render` 逐字段一致。
+- 补给 trace：`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 12.3/12.6/12.7 的图算法（铁路连通、延补队接力、5 MP 抽补、HQ 投送、Kessel 自足、覆盖集），`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费，用 `08-trace.json` 逐格对照。增援板（13.6 落点 + Alert 落点）由 `works/third-winter/rules/reinforcement_board.gd` 原生实现，用第六个夹具 `08-arrivals.json` 对照全编目 103 条抵达与 2 枚 Alert。四条增援命令已接入（`works/third-winter/rules/reinforcement.gd` 的 `apply`，算子克隆自 `view.catalog.counters`），runner 用 `records[33..38]` 逐条比对整本增援账本；增援阶段的视图投影（`scorpion_view.gd` 的 `project_playing`/`reinforcement_choices`）与 TS 的 `render` 逐字段一致。警戒营的放置/放弃（`place-alert`/`pass-alert`）已原生，08 首回合不抽 Alert，用注入 Alert 的夹具做本地校验。地面移动 `ground-move` 由 `works/third-winter/rules/ground_move.gd` 按 OCS 6.1 与 14.8c 实现，runner 用 oracle 的第一步行军逐块比对 `units`/`moved`/`groundActivity`。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
@@ -134,7 +134,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 增援阶段收尾：`place-alert`/`pass-alert` 与 `rebuild-remnant` 尚未原生；移动及之后阶段的投影仍未接入。
+1. 移动与后勤阶段：`ground-move` 已原生（单算子、整条路线先验后改盘面），`complete-movement` 起的补给判定、加油/拆分/预备/夺取仍未接入；移动阶段的视图投影也未接。`rebuild-remnant` 仍缺原生命令。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。
