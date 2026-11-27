@@ -58,6 +58,7 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
   let vp = state.sovietVp ?? 0
   let rng = state.rng
   const recoveries = [...(state.hqRecoveries ?? [])]
+  const destroyedUnits = [...(state.destroyedUnits ?? [])]
   const kesselReturn = { ...(state.kesselReturn ?? {}) }
   for (const [id, steps] of allocation) {
     const counter = Object.hasOwn(counters, id) ? counters[id] : undefined
@@ -85,6 +86,7 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
         die: rolled.value, turn: state.turn, availableTurn: nextAxisReinforcementTurn(state) })
     }
     counters[id] = { ...counter, location: { kind: 'dead-pile' }, currentRe: 0, outOfSupply: false }
+    destroyedUnits.push({ id, definition: counter.definition, side: counter.side, kind: counter.kind, turn: state.turn })
     // TTW 2.3a：Kessel HQ 被毁调度三回合返回（离图池/死堆期满后再放置），不计歼灭 VP。
     if (counter.kind === 'hq' && board.isKesselHq?.(state, id)) kesselReturn[id] = state.turn + KESSEL_RETURN_TURNS
     // TTW 2.4d：16-4-3 步兵师战斗损失最后一步 ⇒ 池有余且落点合法时自动生成残部营，继承指示物与模式。
@@ -99,5 +101,5 @@ export function applyCampaignCombatLosses(state: Readonly<CampaignTurnState>, al
       }
     }
   }
-  return { ...state, counters, rng, sovietVp: vp, hqRecoveries: recoveries, kesselReturn }
+  return { ...state, counters, rng, sovietVp: vp, hqRecoveries: recoveries, destroyedUnits, kesselReturn }
 }

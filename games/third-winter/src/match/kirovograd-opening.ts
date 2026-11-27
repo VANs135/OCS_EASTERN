@@ -3,13 +3,14 @@ import type { Side } from '@ocs-eastern/series/state-types'
 import type { loadKirovogradScenario } from '../import/kirovograd-scenario.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
 import type { Definition } from '../import/unit-catalog.ts'
-import { kirovogradScenario, kirovogradTankCorps, kirovogradTankCorpsHold } from '../ttw/campaign/kirovograd.ts'
+import { kirovogradDates, kirovogradScenario, kirovogradTankCorps, kirovogradTankCorpsHold } from '../ttw/campaign/kirovograd.ts'
 import type { CampaignOpeningContext } from './campaign-opening-session.ts'
 import type { CampaignMatchOpening } from './campaign-match.ts'
 import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignTurnContext } from './campaign-turn-state.ts'
 import { kirovogradSetupTransports } from './kirovograd-setup-transports.ts'
 import { kirovogradReleaseRule } from './kirovograd-release.ts'
+import { kirovogradScenarioVictory } from './kirovograd-scenario-victory.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
@@ -114,6 +115,13 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     reinforcement: { ...turnRules.reinforcement, schedule: data.reinforcement.schedule, bindings,
       resolveHex: (hex) => data.map.resolveHex(hex), arrivalSites: turnRules.reinforcement?.arrivalSites ?? (() => []),
       ...kirovogradReinforcementSupply(data) },
+    scenarioVictory: turnRules.scenarioVictory ?? kirovogradScenarioVictory({ map: data.map,
+      definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }),
+    roundEnd: turnRules.roundEnd ?? ((cleaned) => {
+      if (cleaned.when.scenarioId !== kirovogradScenario) return undefined
+      return cleaned.turn >= kirovogradDates.length ? { kind: 'ended' as const }
+        : { kind: 'continue' as const, date: kirovogradDates[cleaned.turn]! }
+    }),
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
     opening: data.opening, counters, supplyDumps: data.supplyDumps }

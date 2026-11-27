@@ -5,7 +5,7 @@ import type { CampaignReinforcementDate } from '../ttw/campaign/reinforcement-ti
 import type { TtwRailGauge } from '../ttw/campaign/rail-gauge.ts'
 import type { CampaignEventCheck, CampaignEventDraw } from '../ttw/campaign/random-events.ts'
 import type { CampaignThawTiming, CampaignWeather, CampaignWeatherCheck, WeatherHistory } from '../ttw/campaign/weather.ts'
-import type { CampaignBoardState, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
+import type { CampaignBoardState, CampaignCounter, CampaignReinforcementAction, CampaignReinforcementContext, CampaignReinforcementWindow } from './campaign-reinforcement-state.ts'
 import type { CampaignBreakoutAction, CampaignBreakoutBoard, CampaignBreakoutRoll } from './campaign-breakout.ts'
 import type { CampaignBreakoutReturnBoard, ReturnCampaignBreakout } from './campaign-breakout-returns.ts'
 import type { CampaignAircraftConsolidationBoard, ConsolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -28,6 +28,7 @@ import type { CampaignHqRecoveryBoard, PlaceCampaignHqRecovery } from './campaig
 import type { CampaignBreakdownAction, CampaignBreakdownBoard } from './campaign-breakdown.ts'
 import type { CampaignRemnantRebuildBoard, RebuildCampaignFromRemnant } from './campaign-remnants.ts'
 import type { CampaignRoundEnd } from './campaign-cleanup-phase.ts'
+import type { CampaignScenarioVictory } from './campaign-victory.ts'
 import type { CampaignSteAction, CampaignStePlacement } from './campaign-special-truck-extender.ts'
 
 type CampaignPreTurn = { phase: 'pre-turn' } & (
@@ -56,6 +57,22 @@ export interface CampaignFerry {
   side: Side
   hex: string
   pontoonId: string
+}
+
+/** 控制点易手事件：VP/城市格被另一侧战斗单位穿越时追加，供剧本计分读取历史归属。 */
+export interface CampaignControlEvent {
+  hex: string
+  side: Side
+  turn: number
+}
+
+/** 整算子被歼事件。与 Dead Pile 当前快照分开记账，重建后再被毁可再次计分。 */
+export interface CampaignDestroyedUnit {
+  id: string
+  definition: string
+  side: Side
+  kind: CampaignCounter['kind']
+  turn: number
 }
 
 export interface CampaignOpeningConditions {
@@ -129,6 +146,12 @@ export interface CampaignTurnState extends CampaignBoardState {
   armyGroupDrmTurn?: number
   /** TTW §5.0a：VP/城市格归属（最后穿越该格的战斗单位一方；hex→side）。 */
   hexControl?: Readonly<Record<string, Side>>
+  /** TTW §5.0a：控制点易手事件（按发生顺序；剧本“解放/曾控制”类条件读取）。 */
+  controlEvents?: readonly CampaignControlEvent[]
+  /** 整算子歼灭事件（战斗/炮击损失入 Dead Pile 时追加；剧本 VP/事件读取）。 */
+  destroyedUnits?: readonly CampaignDestroyedUnit[]
+  /** 剧本终局胜负结果（清理阶段判终局时写入；进行中为 undefined）。 */
+  scenarioVictory?: CampaignScenarioVictory
   /** OCS 16.0b–c：在图工事标记（hex→归属/等级；null＝已缩减为空）。 */
   hedgehogs?: Readonly<Record<string, import('./campaign-hedgehogs.ts').CampaignHedgehog | null>>
   /** OCS 16.0b：各格本回合是否已建造/缩减（每格每操作每回合一次）。 */
@@ -234,6 +257,8 @@ export interface CampaignTurnContext {
   lateSegmentEndBlockers?: (state: Readonly<CampaignTurnState>, actor: Side, segment: CampaignLateSegment) => readonly string[] | undefined
   cleanupEndBlockers?: (state: Readonly<CampaignTurnState>, side: Side) => readonly string[] | undefined
   roundEnd?: (cleaned: Readonly<CampaignTurnState>) => CampaignRoundEnd | undefined
+  /** 剧本终局 VP 结算（清理阶段 roundEnd 返回 ended 时写入 scenarioVictory；绑定层注入）。 */
+  scenarioVictory?: (cleaned: Readonly<CampaignTurnState>) => CampaignScenarioVictory | undefined
   /** TTW §3.4a：弹幕标记目标格几何校验（邻接苏军战斗单位＋已编属 HQ 指挥半径内 throw）；绑定层注入。 */
   barrageMarkerTarget?: (state: Readonly<CampaignTurnState>, front: string, hex: string) => boolean
   /** 通规 §12.5c-A：编队燃料的编队归属判定（绑定层注入）。 */

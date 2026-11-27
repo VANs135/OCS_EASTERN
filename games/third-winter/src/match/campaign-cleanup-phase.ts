@@ -26,7 +26,11 @@ export function completeCampaignCleanup(state: Readonly<CampaignTurnState>, side
 
   const result = context.roundEnd?.(settled)
   if (!result) throw new Error('Campaign round end is unavailable')
-  if (result.kind === 'ended') return { ...settled, cursor: { phase: 'ended', reason: 'scenario-end' } }
+  if (result.kind === 'ended') {
+    const victory = context.scenarioVictory?.(settled)
+    return { ...settled, ...(victory === undefined ? {} : { scenarioVictory: victory }),
+      cursor: { phase: 'ended', reason: 'scenario-end' } }
+  }
   const date = new Date(`${result.date}T00:00:00Z`)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result.date) || !Number.isFinite(date.getTime()) ||
     date.toISOString().slice(0, 10) !== result.date || result.date <= state.when.date) throw new Error('Invalid next campaign date')

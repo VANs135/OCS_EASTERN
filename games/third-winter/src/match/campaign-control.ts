@@ -29,8 +29,13 @@ export function campaignControlRecorder(sites: ReadonlySet<string>) {
     }
     if (!touched.size) return state
     const hexControl = { ...state.hexControl }
-    for (const hex of touched) hexControl[hex] = side
-    return { ...state, hexControl }
+    const controlEvents = [...(state.controlEvents ?? [])]
+    for (const hex of touched) {
+      if (hexControl[hex] === side) continue
+      hexControl[hex] = side
+      controlEvents.push({ hex, side, turn: state.turn })
+    }
+    return { ...state, hexControl, ...(controlEvents.length ? { controlEvents } : {}) }
   }
 }
 
