@@ -97,11 +97,11 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
     (Resolve-Path 'dist/godot/08-scorpion.json').Path
 ```
 
-视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks` 与选中格/路线/目标。盒内清单、回合轨、辅助卡和 `transportStock` 仍由 TypeScript 提供，尚未投影；地图入口也还未切到原生会话。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
+视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
 
 ## 已实现
 
-- 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠、回合轨、盒区清单、辅助卡与炮击标记；无头测试用 TS 交互序列逐步对照。
+- 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠、回合轨、盒区清单、辅助卡、炮击标记、印刷运输面额与拆分库存；无头测试用 TS 交互序列逐步对照。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
@@ -122,8 +122,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 补 `transportStock` / `breakdownStock` 投影（印面额表与实体副本数量）。
-2. 继续规则链：`complete-refit` → 首回合增援 → 地面移动，逐修订对照 TS；再接 09 战役回归与 01 全景盘面。
-3. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
-4. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
-5. 验证 Windows 独立导出以及 Linux 无头会话。
+1. 继续规则链：`complete-refit` 与首回合增援需要补给网络/油料支付，先移植 `scorpion-sp-payment` 与 `scorpion-supply-position` 的原生版本，再逐修订对照 TS；之后接 09 战役回归与 01 全景盘面。
+2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
+3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
+4. 验证 Windows 独立导出以及 Linux 无头会话。

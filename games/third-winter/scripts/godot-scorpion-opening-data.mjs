@@ -5,6 +5,7 @@ import { loadLocalScorpion } from '../desktop/local/data.mjs'
 import { deployScorpionGroundCounter } from '../src/import/scorpion-deployment.ts'
 import { prepareScorpionOpening } from '../src/match/scorpion-setup.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
+import { scorpionTransportStock } from '../src/match/scorpion-transport-points.ts'
 import { scorpionFirstTurn } from '../src/match/scorpion-session.ts'
 import { scorpionDates } from '../src/ttw/scorpion/weather.ts'
 import { scorpionControlSites, scorpionOpeningFrontControl } from '../src/ttw/scorpion/initial-map.ts'
@@ -35,7 +36,9 @@ const definitions = Object.fromEntries([...definitionIds].map((id) => {
   if (!definition) throw new Error(`Missing catalog definition ${id}`)
   const source = definition.source
   return [id, { name: source.name, side: source.side, kind: definition.kind, re: source.re,
-    abilities: source.abilities ?? [], faces: {
+    abilities: source.abilities ?? [],
+    transport: typeof source.faces.combat?.stats?.transport === 'number' ? source.faces.combat.stats.transport : null,
+    faces: {
       combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
 }))
 const markerRefs = [...['Airbase Strength 1', 'Airbase Strength 2', 'Airbase Strength 3'],
@@ -62,11 +65,18 @@ const basename = (path) => path.split(/[\\/]/).at(-1)
 const firstTurn = scorpionFirstTurn()
 const airstrips = [...scorpionAirstripPool({ airBases: [] }, catalog)].map(({ key, source }) => ({
   definition: key, asset: source.faces.combat?.asset ?? null }))
+// Printed transport denominations for both sides; the project keeps inUse at zero, the view counts it.
+const transportRows = [...scorpionTransportStock({}, 'axis', data.assets), ...scorpionTransportStock({}, 'soviet', data.assets)]
+  .map(({ side, mobility, allowance, points, limit }) => ({ side, mobility, allowance, points, limit }))
+const breakdownRows = data.assets.breakdowns
+  ? [...data.assets.breakdowns.counters].map(([definition, { pool, copies }]) => ({
+    definition, side: catalog.definitions.get(definition)?.source.side ?? null, pool, copies }))
+  : []
 const view = {
   catalog: { definitions, markers },
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
-  airstrips,
+  airstrips, transportRows, breakdownRows,
   model: { ...data.model, map: basename(data.model.map),
     aid: { ...data.model.aid, asset: basename(data.model.aid.asset) },
     cards: data.model.cards.map(({ path, ...card }) => ({ ...card, asset: basename(card.asset) })) },

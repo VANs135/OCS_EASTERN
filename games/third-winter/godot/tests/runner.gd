@@ -219,10 +219,10 @@ func _reject_scorpion(record: Dictionary, data: Dictionary, seat: String, action
 
 
 ## Drives the native session with the TypeScript interaction requests and diffs the projected view.
-## Covers the map and sidebar projection (stacks, roster, legal actions, selection); frame boxes,
-## auxiliary cards and the turn track are still TypeScript-only and are not part of the slice.
+## Covers the map and sidebar projection (stacks, roster, legal actions, selection, transport and
+## breakdown stock) plus the frame slices that the native view mirrors.
 const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unitId", "unitIds", "hex",
-	"route", "roster", "stack", "ended"]
+	"route", "roster", "stack", "ended", "transportStock", "breakdownStock"]
 
 
 func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:

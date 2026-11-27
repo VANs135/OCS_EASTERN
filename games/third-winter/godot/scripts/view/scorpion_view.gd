@@ -222,6 +222,8 @@ static func project(record: Dictionary, selection: Dictionary, data: Dictionary,
 		"roster": entries, "stack": _stack(selection, stacks, entries), "stacking": [],
 		"unitId": unit_id, "unitIds": unit_ids, "hex": picked_hex, "route": [],
 		"actions": actions, "menu": [], "ended": false,
+		"transportStock": transport_stock(opening.units, viewer, data),
+		"breakdownStock": breakdown_stock(opening.units, state.get("pieces", []), data),
 		"frame": frame,
 	}
 	return view
@@ -517,6 +519,70 @@ static func supply_counters(id: String, tokens: int, data: Dictionary) -> Array:
 		counters.append({"id": "%s:%d" % [id, counters.size() + 1], "label": label, "asset": asset})
 		left -= used
 	return counters
+
+
+## TTW 13.2c — printed transport denominations on the board, counted per side like the sidebar.
+static func transport_stock(units: Dictionary, side: String, data: Dictionary) -> Array:
+	var rows: Array = []
+	for row: Dictionary in data.view.transportRows:
+		if row.side != side:
+			continue
+		rows.append({"side": row.side, "mobility": row.mobility, "allowance": row.allowance,
+			"points": row.points, "inUse": 0, "limit": row.get("limit")})
+	for id: Variant in units:
+		var unit: Dictionary = units[id]
+		# organicTruck carries the load label ('full'/'empty') rather than a boolean.
+		if unit.get("side") != side or unit.get("combat") == true or unit.get("organicTruck") != null:
+			continue
+		var definition: Dictionary = data.view.catalog.definitions.get(unit.get("definition"), {})
+		if definition.get("kind") != "transport":
+			continue
+		var points: Variant = definition.get("transport")
+		if points == null:
+			continue
+		for row: Dictionary in rows:
+			if row.mobility == unit.get("mobility") and row.allowance == unit.get("allowance") \
+					and row.points == int(points):
+				row.inUse += 1
+				break
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a.mobility != b.mobility:
+			return a.mobility < b.mobility
+		if a.allowance != b.allowance:
+			return a.allowance < b.allowance
+		return a.points < b.points)
+	return rows
+
+
+## TTW 1.6e — every breakdown definition owns physical copies; the opening board has none deployed.
+static func breakdown_stock(units: Dictionary, pieces: Array, data: Dictionary) -> Array:
+	var rows: Array = []
+	if data.view.breakdownRows.is_empty():
+		return rows
+	var occupied := {}
+	var in_use := {}
+	for id: Variant in units:
+		occupied[str(id)] = true
+		var definition: Variant = units[id].get("definition")
+		in_use[definition] = in_use.get(definition, 0) + 1
+	for piece: Dictionary in pieces:
+		occupied[str(piece.id)] = true
+		in_use[piece.definition] = in_use.get(piece.definition, 0) + 1
+	for row: Dictionary in data.view.breakdownRows:
+		if row.get("side") == null:
+			continue
+		var used: int = in_use.get(row.definition, 0)
+		var wanted: int = 1 if row.copies == null else max(0, int(row.copies) - used)
+		var ids: Array = []
+		var copy := 1
+		while ids.size() < wanted:
+			var id := "breakdown:%s:%d" % [row.definition, copy]
+			if not occupied.has(id):
+				ids.append(id)
+			copy += 1
+		rows.append({"definition": row.definition, "side": row.side, "pool": row.pool,
+			"copies": row.copies, "inUse": used, "availableIds": ids})
+	return rows
 
 
 static func _ground_badges(unit: Dictionary, data: Dictionary, show_reserve: bool) -> Array:
