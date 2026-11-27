@@ -92,13 +92,21 @@ export function interceptionPostCombatActive(interceptorWon: boolean): boolean {
   return interceptorWon
 }
 
+/** 14.5: a winning interceptor was not charged with a mission and may intercept again this phase. */
+export function canInterceptAgainSamePhase(interceptorWon: boolean): boolean {
+  return interceptorWon
+}
+
+/** 14.11: base transfer may use twice the printed range. */
+export const BASE_TRANSFER_RANGE_MULTIPLIER = 2
+
 /** 14.11: base transfer range is twice the printed range; only fighters inside normal range stay active. */
 export function baseTransferResult(facts: {
   isFighter: boolean
   rangeHexes: number
   distanceHexes: number
 }): { allowed: boolean; activeOnArrival: boolean; maximumDistance: number } {
-  const maximumDistance = Math.max(0, facts.rangeHexes) * 2
+  const maximumDistance = Math.max(0, facts.rangeHexes) * BASE_TRANSFER_RANGE_MULTIPLIER
   if (facts.distanceHexes > maximumDistance)
     return { allowed: false, activeOnArrival: false, maximumDistance }
   return {
