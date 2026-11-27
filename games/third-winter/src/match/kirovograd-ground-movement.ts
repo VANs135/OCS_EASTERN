@@ -6,6 +6,7 @@ import { ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
 import { campaignControlRecorder } from './campaign-control.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
+import { campaignThrowHeadquarters } from './campaign-hq-supply.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import type { CampaignGroundMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
@@ -19,8 +20,8 @@ type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
  * Scenario 9 ordinary ground movement, assembled from the real map, terrain,
  * catalog and opening rail network. Trace uses the edge supply sources stored in
  * the opening (`edgeSupplySources`) plus the printed rail unloading sites.
- * HQ throw supply is not injected here yet; it must be added when the real HQ
- * facts adapter lands, rather than guessed from the catalog.
+ * HQ throw facts are read from the loaded catalog and the counter's current face;
+ * TTW quota and front-boundary restrictions remain separate work-specific gates.
  */
 export function kirovogradGroundMovementBoard(data: KirovogradData, railNetwork?: CampaignRailNetwork): CampaignGroundMovementBoard {
   const catalog = Object.fromEntries(data.catalog.definitions) as Record<string, Definition<BackupUnit>>
@@ -50,7 +51,8 @@ export function kirovogradGroundMovementBoard(data: KirovogradData, railNetwork?
       facts: (state, side) => ({
         sources: new Set<string>(),
         controlled: new Set(Object.entries(state.hexControl ?? {}).filter(([, owner]) => owner === side).map(([hex]) => hex)),
-        headquarters: [], extenders: [],
+        headquarters: campaignThrowHeadquarters(state, catalog)
+          .filter((hq) => hq.id !== undefined && state.counters[hq.id]?.side === side), extenders: [],
         detrainable: (hex) => hasPrintedRail(data.map, hex),
       }),
     },
