@@ -26,7 +26,7 @@ func _resolve_path(value: String) -> String:
 	if value.begins_with("/") or value.contains(":/"):
 		return value.replace("\\", "/")
 	var base := ProjectSettings.globalize_path("res://").trim_suffix("/")
-	return (base + "/" + value).replace("\\", "/")
+	return (base + "/" + value).simplify_path().replace("\\", "/")
 
 
 func _ready() -> void:
