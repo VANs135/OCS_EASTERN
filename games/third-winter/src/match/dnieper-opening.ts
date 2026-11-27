@@ -1,8 +1,6 @@
-// 剧本 01 初设盘面：把 774 条固定初设、104 架飞机、固定标记与
-// 可选池的测试放置装成 CampaignMatchOpening。这里不启动整局 63 回合，
-// 只给 P2/P3 局部/首回合夹具一块已经初设完成的真实盘面。
-// 可选池（5 SP、2 SP、5 刺猬、12 Truck/14 Wagon、1 罗要塞）原文未指定格，
-// 此函数采用显式、可复核的测试放置；不是历史唯一解。
+// 剧本 01 初设盘面：固定初设逐条拷贝；原文写"任意"的池子变成显式选择。
+// 默认选择是复核过的一键预设，玩家仍可按同一候选集改放，预设不是历史唯一解。
+// 这里不启动整局 63 回合，只给 P2/P3 局部/首回合夹具一块真实盘面。
 
 import type { Side } from '@ocs-eastern/series/state-types'
 import { tryCampaignHexKey } from '../import/hex-id.ts'
@@ -14,12 +12,24 @@ import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignHedgehog } from './campaign-hedgehogs.ts'
 import type { CampaignAirBase } from './campaign-airfield.ts'
 import type { CampaignFortress } from './campaign-fortress.ts'
+import {
+  buildCampaignOpeningChoices,
+  resolveCampaignOpeningChoices,
+} from './campaign-opening-choices.ts'
+import type { CampaignOpeningChoice, CampaignOpeningChoicePlacements } from './campaign-opening-choices.ts'
 
 interface DnieperSetupData {
   setup: ReturnType<typeof import('../import/campaign-setup.ts').prepareCampaignSetup>
   setupRaw: Record<string, unknown>
   catalog: Awaited<ReturnType<typeof import('../import/unit-v2.ts').loadThirdWinterV2Units>>
   map: TtwCampaignMapIndex
+  playable?: { availableHexes: ReadonlySet<string> }
+}
+
+export interface DnieperOpeningOptions {
+  date?: string
+  /** Omit any choice to keep its reviewed preset; submit only the ones the player changes. */
+  placements?: CampaignOpeningChoicePlacements
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -59,9 +69,38 @@ function markerHex(map: TtwCampaignMapIndex, marker: Record<string, unknown>, la
   return hexOf(map, `${String(at.map)}${String(at.col)}.${String(at.row)}`, label)
 }
 
-/** Build a fully populated Scenario 01 opening for local mechanism/first-turn tests. */
-export function prepareDnieperBoard(data: DnieperSetupData, date = '1943-09-26'): CampaignMatchOpening {
+/** The player-facing choice list; preset is one-click, candidates are the legal set. */
+export function dnieperOpeningChoices(data: DnieperSetupData): CampaignOpeningChoice[] {
   const { setup, setupRaw, catalog, map } = data
+  const rumKey = tryCampaignHexKey('D24.06')
+  const rumHex = rumKey ? map.canonicalByHex.get(rumKey) : undefined
+  const transportCities = ['B41.06', 'B42.06', 'B3.24', 'B4.23'].map((hex) => hexOf(map, hex, 'transport city'))
+  return buildCampaignOpeningChoices(record(setupRaw.pools), {
+    aliases: catalog.aliases,
+    definitions: catalog.definitions,
+    map,
+    availableHexes: data.playable?.availableHexes,
+    fixedCounters: setup.counters.map(({ side, definition, hex }) => ({ side, definition, hex })),
+    fixedHedgehogs: new Set(setup.initialHedgehogs.map(({ hex }) => hex)),
+    preferredPreset: {
+      ...(rumHex ? { 'setup:fortress:1': [rumHex] } : {}),
+      'setup:transport:1': transportCities,
+      'setup:transport:2': transportCities,
+    },
+  })
+}
+
+/** Build a fully populated Scenario 01 opening. With no placements this is the reviewed preset. */
+export function prepareDnieperBoard(
+  data: DnieperSetupData,
+  dateOrOptions: string | DnieperOpeningOptions = '1943-09-26',
+): CampaignMatchOpening {
+  const { setup, setupRaw, catalog, map } = data
+  const options: DnieperOpeningOptions = typeof dateOrOptions === 'string'
+    ? { date: dateOrOptions } : dateOrOptions
+  const date = options.date ?? '1943-09-26'
+  const choices = dnieperOpeningChoices(data)
+  const placements = resolveCampaignOpeningChoices(choices, options.placements)
   const counters: Record<string, CampaignCounter> = {}
   const add = (id: string, counter: CampaignCounter) => {
     if (Object.hasOwn(counters, id)) throw new Error(`Duplicate 01 counter: ${id}`)
@@ -119,43 +158,43 @@ export function prepareDnieperBoard(data: DnieperSetupData, date = '1943-09-26')
     }
   }
 
-  // The scenario text leaves these pools "any"; use real, named hexes and mark them
-  // as test placements. They are not a claim about the historical deployment.
-  const optionalCities = ['B41.06', 'B42.06', 'B3.24', 'B4.23'].map((hex) => hexOf(map, hex, 'city'))
-  // Map B prints the Dnepr as the major river class (D-map uses dnieper); the pool
-  // condition is therefore "adjacent to a B-map major-river edge".
-  const bMajor = [...map.onMapHexes].filter((hex) => {
-    if (!hex.startsWith('B')) return false
-    return map.neighbors(hex).some((to) => map.connection(hex, to)?.sourceEdges.some((edge) => edge.river_class === 'major'))
-  }).sort()
-  const freeMajor = bMajor.filter((hex) => !initialHedgehogs[hex])
-  if (freeMajor.length < 6) throw new Error('01 B-map Dnepr pool has fewer than six free test hexes')
-  const optionalHedgehogs = freeMajor.slice(0, 5)
-  for (const [index, hex] of optionalHedgehogs.entries()) {
-    initialHedgehogs[hex] = { side: 'axis', level: 1 }
-    if (index === 0) supplyDumps.axis[hex] = (supplyDumps.axis[hex] ?? 0) + 8
-  }
-  const sovietHq = Object.values(setup.counters).filter((row) => row.side === 'soviet' &&
-    ['front', 'army'].includes(catalog.definitions.get(row.definition)?.source.hqKind ?? ''))
-    .sort((a, b) => Number(catalog.definitions.get(b.definition)?.source.hqKind === 'front') -
-      Number(catalog.definitions.get(a.definition)?.source.hqKind === 'front'))
-  if (sovietHq.length < 5) throw new Error('01 has fewer than five Soviet Front/Army HQ supply sites')
-  for (const row of sovietHq.slice(0, 5)) {
-    supplyDumps.soviet[row.hex] = (supplyDumps.soviet[row.hex] ?? 0) + 4
-  }
+  const fortresses: CampaignFortress[] = [{ city: 'Poltava', hexes: ['B41.06', 'B42.06'].map((hex) => hexOf(map, hex, 'Poltava')),
+    sinceTurn: 1 }]
 
-  const truck = catalog.aliases.get('Axis Truck')?.find((definition) => definition.kind === 'transport')
-  const wagon = catalog.aliases.get('Axis Wagon')?.find((definition) => definition.kind === 'transport')
-  if (!truck || !wagon) throw new Error('Missing 01 Axis Truck/Wagon definitions')
-  for (let index = 0; index < 12; index += 1) {
-    add(`01-optional:truck:${index + 1}`, { definition: truck.key, kind: 'transport', side: 'axis',
-      location: { kind: 'map', hex: optionalCities[index % optionalCities.length]! }, mode: 'combat', currentRe: 0,
-      transportPoints: 1, transportCargoTokens: 0 })
-  }
-  for (let index = 0; index < 14; index += 1) {
-    add(`01-optional:wagon:${index + 1}`, { definition: wagon.key, kind: 'transport', side: 'axis',
-      location: { kind: 'map', hex: optionalCities[index % optionalCities.length]! }, mode: 'combat', currentRe: 0,
-      transportPoints: 1, transportCargoTokens: 0 })
+  // Apply the resolved choices. A choice is either a token/marker copy, a
+  // transport counter group, or a fortress/unit counter plus its city site.
+  for (const choice of choices) {
+    const hexes = placements[choice.id]!
+    if (choice.kind === 'supply') {
+      const tokens = choice.tokensPerPlacement ?? 0
+      if (tokens < 1) throw new Error(`01 supply choice has no token value: ${choice.id}`)
+      for (const hex of hexes) supplyDumps[choice.side][hex] = (supplyDumps[choice.side][hex] ?? 0) + tokens
+    } else if (choice.kind === 'hedgehog') {
+      for (const hex of hexes) {
+        if (initialHedgehogs[hex]) throw new Error(`01 hedgehog choice overlaps a fixed hedgehog: ${hex}`)
+        initialHedgehogs[hex] = { side: choice.side, level: choice.level ?? 1 }
+      }
+    } else {
+      const definition = choice.definition ? catalog.definitions.get(choice.definition) : undefined
+      if (!definition) throw new Error(`Missing 01 choice definition: ${choice.id}`)
+      for (const [index, hex] of hexes.entries()) {
+        if (choice.kind === 'transport') {
+          if (definition.kind !== 'transport' || definition.source.side !== choice.side) {
+            throw new Error(`Invalid 01 transport definition: ${choice.id}`)
+          }
+          add(`01-optional:${choice.id}:${index + 1}`, { definition: definition.key, kind: 'transport', side: choice.side,
+            location: { kind: 'map', hex }, stepsLost: 0, currentRe: 0, mode: 'combat',
+            transportPoints: 1, transportCargoTokens: 0 })
+        } else {
+          add(`01-optional:${choice.id}:${index + 1}`, setupCounter(definition, choice.side, hex))
+          if (choice.kind === 'fortress') {
+            const city = map.cityOf(hex)
+            if (!city) throw new Error(`01 fortress choice is not on a city: ${hex}`)
+            fortresses.push({ city: city.city, hexes: [hex], sinceTurn: 1 })
+          }
+        }
+      }
+    }
   }
 
   const alertPool = rows(record(setupRaw.pools).alert)
@@ -170,14 +209,6 @@ export function prepareDnieperBoard(data: DnieperSetupData, date = '1943-09-26')
 
   const initialRailheadMarkers = rows(setupRaw.markers).filter((marker) => marker.ref === 'Railhead')
     .map((marker) => ({ side: marker.side as Side, hex: markerHex(map, marker, 'railhead') }))
-  const fortresses: CampaignFortress[] = [{ city: 'Poltava', hexes: ['B41.06', 'B42.06'].map((hex) => hexOf(map, hex, 'Poltava')),
-    sinceTurn: 1 }]
-  const rumFortress = catalog.aliases.get('Rum Fortress')?.find((definition) => definition.kind === 'land' &&
-    definition.source.side === 'axis')
-  if (!rumFortress) throw new Error('Missing 01 Rumanian fortress definition')
-  const rumHex = hexOf(map, 'D24.06', 'Rumanian fortress')
-  add('01-optional:rum-fortress', setupCounter(rumFortress, 'axis', rumHex))
-  fortresses.push({ city: 'Homostayivka', hexes: [rumHex], sinceTurn: 1 })
   const rvgkMarkers: Record<string, string> = {}
   for (const marker of rows(setupRaw.markers)) {
     if (typeof marker.ref !== 'string' || !/^RVGK-[12] Marker$/.test(marker.ref)) continue

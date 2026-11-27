@@ -7,7 +7,7 @@ import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
-import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
+import { prepareDnieperBoard, dnieperOpeningChoices } from '../src/match/dnieper-opening.ts'
 import { dnieperGroundMovementBoard } from '../src/match/dnieper-ground-movement.ts'
 import { openCampaignMatch, submitCampaignMatch } from '../src/match/campaign-match.ts'
 
@@ -29,6 +29,7 @@ async function data() {
 test('scenario 01 opening board places every fixed counter, aircraft, marker and optional pool', async () => {
   const loaded = await data()
   const opening = prepareDnieperBoard(loaded)
+  const choices = dnieperOpeningChoices(loaded)
   const record = openCampaignMatch(opening, createRngState(1))
   const state = record.state
   assert.equal(Object.keys(state.counters).length, 774 + 104 + 26 + 9 + 1)
@@ -36,7 +37,9 @@ test('scenario 01 opening board places every fixed counter, aircraft, marker and
   assert.equal(state.airBases.length, 59)
   assert.equal(Object.keys(state.hedgehogs).length, 18)
   assert.ok(Object.values(state.supplyDumps.soviet).some((tokens) => tokens >= 4))
-  assert.ok(Object.values(state.supplyDumps.axis).some((tokens) => tokens >= 8))
+  const axisSupply = choices.find((choice) => choice.side === 'axis' && choice.kind === 'supply')
+  assert.ok(axisSupply)
+  assert.equal(axisSupply.preset.reduce((total, hex) => total + (state.supplyDumps.axis[hex] ?? 0), 0), 8)
   assert.deepEqual(state.opening, { weather: { ground: 'dry', flight: 'normal' }, first: 'soviet' })
   assert.equal(state.initialRailheadMarkers.length, 8)
   assert.equal(state.fortresses.length, 2)
@@ -51,19 +54,77 @@ test('scenario 01 opening board places every fixed counter, aircraft, marker and
     assert.equal(loaded.map.neighbors(hex).some((to) =>
       loaded.map.connection(hex, to)?.sourceEdges.some((edge) => edge.river_class === 'major')), true)
   }
-  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith('01-alert:')).length, 9)
-  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith('01-optional:truck:')).length, 12)
-  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith('01-optional:wagon:')).length, 14)
-  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith('01-optional:rum-fortress')).length, 1)
-  const frontHq = loaded.setup.counters.filter((candidate) => candidate.side === 'soviet' &&
-    loaded.catalog.definitions.get(candidate.definition)?.source.hqKind === 'front')
-  const armyHq = loaded.setup.counters.filter((candidate) => candidate.side === 'soviet' &&
-    loaded.catalog.definitions.get(candidate.definition)?.source.hqKind === 'army')
-  const supplyHq = [...frontHq, ...armyHq].slice(0, 5)
-  assert.equal(supplyHq.length, 5)
-  for (const row of supplyHq) {
-    assert.ok((state.supplyDumps.soviet[row.hex] ?? 0) >= 4, `HQ ${row.hex} received a 01 supply point`)
+  const trucks = choices.find((choice) => choice.kind === 'transport' && choice.definition.endsWith('tp_003'))
+  const wagons = choices.find((choice) => choice.kind === 'transport' && choice.definition.endsWith('tp_001'))
+  const fortress = choices.find((choice) => choice.kind === 'fortress')
+  assert.ok(trucks && wagons && fortress)
+  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith(`01-optional:${trucks.id}:`)).length, 12)
+  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith(`01-optional:${wagons.id}:`)).length, 14)
+  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith(`01-optional:${fortress.id}:`)).length, 1)
+  const sovietSupply = choices.find((choice) => choice.side === 'soviet' && choice.kind === 'supply')
+  assert.ok(sovietSupply)
+  assert.equal(sovietSupply.preset.length, 5)
+  for (const hex of sovietSupply.preset) {
+    assert.ok((state.supplyDumps.soviet[hex] ?? 0) >= 4, `HQ ${hex} received a 01 supply point`)
   }
+})
+
+test('scenario 01 opening accepts a player placement instead of the reviewed preset', async () => {
+  const loaded = await data()
+  const choices = dnieperOpeningChoices(loaded)
+  const hedgehogs = choices.find((choice) => choice.kind === 'hedgehog')
+  const sovietSupply = choices.find((choice) => choice.side === 'soviet' && choice.kind === 'supply')
+  const axisSupply = choices.find((choice) => choice.side === 'axis' && choice.kind === 'supply')
+  const trucks = choices.find((choice) => choice.kind === 'transport' && choice.definition.endsWith('tp_003'))
+  assert.ok(hedgehogs && sovietSupply && axisSupply && trucks)
+
+  const hedgehogAlternatives = hedgehogs.candidates
+    .filter((hex) => !hedgehogs.preset.includes(hex)).slice(0, hedgehogs.count)
+  const supplyAlternatives = sovietSupply.candidates.slice(-sovietSupply.count)
+  const axisSupplyAlternatives = axisSupply.candidates.slice(-axisSupply.count)
+  const truckAlternatives = trucks.candidates.slice(20, 20 + trucks.count)
+  assert.equal(hedgehogAlternatives.length, hedgehogs.count)
+  assert.equal(supplyAlternatives.length, sovietSupply.count)
+  assert.equal(axisSupplyAlternatives.length, axisSupply.count)
+  assert.equal(truckAlternatives.length, trucks.count)
+
+  const opening = prepareDnieperBoard(loaded, { placements: {
+    [hedgehogs.id]: hedgehogAlternatives,
+    [sovietSupply.id]: supplyAlternatives,
+    [axisSupply.id]: axisSupplyAlternatives,
+    [trucks.id]: truckAlternatives,
+  } })
+  const baseline = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
+  const state = openCampaignMatch(opening, createRngState(1)).state
+  const fixedHedgehogs = new Set(loaded.setup.initialHedgehogs.map(({ hex }) => hex))
+  const optionalHedgehogs = Object.keys(state.hedgehogs).filter((hex) => !fixedHedgehogs.has(hex))
+  assert.deepEqual(optionalHedgehogs.sort(), [...hedgehogAlternatives].sort())
+  for (const hex of supplyAlternatives) {
+    assert.equal(state.supplyDumps.soviet[hex], (baseline.supplyDumps.soviet[hex] ?? 0) + 4)
+  }
+  for (const hex of axisSupplyAlternatives) {
+    assert.equal(state.supplyDumps.axis[hex], (baseline.supplyDumps.axis[hex] ?? 0) + 4)
+  }
+  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith(`01-optional:${trucks.id}:`)).length, 12)
+  for (const [index, hex] of truckAlternatives.entries()) {
+    assert.equal(state.counters[`01-optional:${trucks.id}:${index + 1}`].location.hex, hex)
+  }
+})
+
+test('scenario 01 opening rejects counts, destinations and hedgehog duplicates outside the choice contract', async () => {
+  const loaded = await data()
+  const choices = dnieperOpeningChoices(loaded)
+  const hedgehogs = choices.find((choice) => choice.kind === 'hedgehog')
+  assert.ok(hedgehogs)
+  assert.throws(() => prepareDnieperBoard(loaded, { placements: {
+    [hedgehogs.id]: hedgehogs.preset.slice(0, -1),
+  } }), /needs 5 placements/)
+  assert.throws(() => prepareDnieperBoard(loaded, { placements: {
+    [hedgehogs.id]: [...hedgehogs.preset.slice(0, -1), 'Z99.99'],
+  } }), /rejects destination/)
+  assert.throws(() => prepareDnieperBoard(loaded, { placements: {
+    [hedgehogs.id]: [hedgehogs.preset[0], hedgehogs.preset[0], ...hedgehogs.preset.slice(1, 4)],
+  } }), /distinct hexes/)
 })
 
 test('scenario 01 opening runs the prescribed first-turn pre-turn without consuming a weather die', async () => {
