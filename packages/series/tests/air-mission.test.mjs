@@ -96,6 +96,13 @@ test('14.5 interception needs a Flak-affected mission, a patrol zone and an unus
   assert.equal(interceptionPostCombatActive(false), false)
 })
 
+test('14.11 base transfer is delegated to its dedicated plan, not the generic gate', () => {
+  const targetFacts = target({ enemyGroundUnit: false, friendlyAirBase: true })
+  assert.equal(airMissionLaunchRefusal(launch({ kind: 'base-transfer', aircraft: [crew('a', { distanceHexes: 15 })],
+    targetFacts })), 'air-base-transfer-uses-dedicated-plan')
+  assert.equal(baseTransferResult({ isFighter: true, rangeHexes: 10, distanceHexes: 15 }).allowed, true)
+})
+
 test('14.11 base transfer doubles range; only fighters inside normal range stay active', () => {
   assert.equal(baseTransferResult({ isFighter: true, rangeHexes: 10, distanceHexes: 10 }).activeOnArrival, true)
   assert.equal(baseTransferResult({ isFighter: true, rangeHexes: 10, distanceHexes: 15 }).activeOnArrival, false)

@@ -169,6 +169,10 @@ export function airMissionLaunchRefusal(facts: {
 }): string | null {
   const { kind, aircraft, targetFacts } = facts
   if (kind === 'interception') return 'air-interception-is-not-a-declared-mission'
+  // 14.11 has its own plan: doubled range and a per-aircraft arrival status.
+  // The generic mission gate cannot express that result, so do not let it
+  // classify base transfers as ordinary single-range missions.
+  if (kind === 'base-transfer') return 'air-base-transfer-uses-dedicated-plan'
   if (facts.flight === 'none') return 'air-weather-prohibits-flying'
   if (facts.flight === 'limited' && facts.phase !== 'movement') return 'air-limited-flight-movement-only'
   if (facts.flight === 'limited' && kind === 'hip-shoot') return 'air-limited-flight-no-hip-shoot'
