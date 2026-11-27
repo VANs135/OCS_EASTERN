@@ -136,7 +136,18 @@ export function campaignAirStrikeTargetCandidates(state: Readonly<CampaignTurnSt
     hexes,
     reachable: (hex) => {
       const facts = targetFacts(state, side, hex, board)
-      return board.map.resolveHex(hex) === hex && !facts.enemyActiveAircraft && !facts.enemyAirBase
+      if (board.map.resolveHex(hex) !== hex || facts.enemyActiveAircraft || facts.enemyAirBase) return false
+      return Object.entries(state.counters).some(([id, counter]) => {
+        if (counter.side !== side || counter.kind !== 'aircraft' || counter.active !== true) return false
+        const found = airProfile(state, id, board)
+        if (!found || found.profile.printedSteps - (counter.stepsLost ?? 0) <= 0) return false
+        if (counter.availableThrough !== undefined && state.turn > counter.availableThrough) return false
+        if (missionsFlown(state, id) > 0) return false
+        if (kind === 'hip-shoot' ? !found.profile.hipShoot : found.profile.bombing < 1) return false
+        const distanceHexes = distance(state, id, hex, board)
+        const rangeHexes = rangeOf(state, id, board)
+        return distanceHexes !== undefined && rangeHexes !== undefined && distanceHexes <= rangeHexes
+      })
     },
   })
 }

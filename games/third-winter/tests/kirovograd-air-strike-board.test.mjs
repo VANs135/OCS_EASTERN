@@ -53,7 +53,10 @@ test('09 board uses one AA DRM per hex only in Combat Mode and filters by side',
 
 test('09 target candidates exclude empty hexes and enemy airbases', () => {
   const state = {
-    counters: { enemy: { kind: 'land', side: 'soviet', location: { kind: 'map', hex: 'D1.2' } } },
+    turn: 1,
+    cursor: { phasing: 'axis', phase: 'combat' },
+    counters: { enemy: { kind: 'land', side: 'soviet', location: { kind: 'map', hex: 'D1.2' } },
+      plane: counter('d', { availableThrough: 5 }) },
     airBases: [{ side: 'soviet', hex: 'D1.3' }],
   }
   assert.deepEqual(campaignAirStrikeTargetCandidates(state, 'axis', board, 'barrage'), ['D1.2'])
