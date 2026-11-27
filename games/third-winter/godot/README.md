@@ -1,6 +1,6 @@
 # EASTERN OCS · Godot 客户端
 
-这是 `D:\OCS\OCS_EASTERN` 仓库内的正式 Godot 客户端目录。地图入口在迁移期间仍由 Node/TypeScript 引擎结算。原生 GDScript 的随机数、命令回执、08 初设与双方部署命令可通过无头测试验证到首回合飞机整备。
+这是 `D:\OCS\OCS_EASTERN` 仓库内的正式 Godot 客户端目录。地图入口在迁移期间仍由 Node/TypeScript 引擎结算。原生 GDScript 已覆盖 08 开局的会话与投影：印刷初设、Alert 抽取、双方部署、进入首回合飞机整备的命令由 `scripts/session/local_session.gd` 结算，地图与侧栏视图由 `scripts/view/scorpion_view.gd` 生成，并用 TypeScript 交互序列逐步对照。
 
 工程分层、作品包接入和迁移阶段见 [Godot 纯 GDScript 架构方案](../../../docs/Godot纯GDScript架构方案.md)。三层规则、五种模式、Linux 无头 AI、LLM 指挥和 Android 适配的开发要求见 [Godot 项目约束](../../../docs/Godot项目约束.md)。
 
@@ -78,7 +78,7 @@ npm run check:godot-vectors --workspace=@ocs-eastern/third-winter
 godot --headless --path games/third-winter/godot --script res://tests/runner.gd
 ```
 
-08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案和控制点。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执和首回合飞机整备入口。移动、交互投影和续档的原生对照仍待接入。
+08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案、控制点以及视图所需的算子名/面/标记素材。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执，并用同一交互序列驱动原生会话逐视图对照修订 0–30 的地图与侧栏投影。移动、交互投影和续档的原生对照仍待接入。
 
 ```powershell
 $ttwData = 'D:\war game\OCS各作数据库\OCS第三个冬天'
@@ -89,8 +89,11 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
     (Resolve-Path 'dist/godot/08-scorpion.json').Path
 ```
 
+视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks` 与选中格/路线/目标。盒内清单、回合轨、辅助卡和 `transportStock` 仍由 TypeScript 提供，尚未投影；地图入口也还未切到原生会话。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
+
 ## 已实现
 
+- 原生开局会话与投影：`local_session.gd` 处理席位、修订、预演与命令；`scorpion_view.gd` 生成开局算子清单、合法动作、地图堆叠与选中格；无头测试用 TS 交互序列逐步对照。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。
 - 地图场景侧栏显示当前“剧本 · 模式”上下文，并可返回主页面。
@@ -110,7 +113,9 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 将已验证的 08 部署命令接入原生会话和按席位投影，继续迁移至地面移动。以现有 TypeScript 交互序列验证菜单、落子和续档。
-2. 补齐 08 其余规则机制，再接 09 战役回归与 01 全景盘面。
-3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
-4. 验证 Windows 独立导出以及 Linux 无头会话。
+1. 接原生桥：`bootstrap` 取 `view.model`（地图、盒区、辅助卡路径），`view` 取原生投影；用配置开关与 Node 桥并存，先放开 08 开局。
+2. 补投影缺口：盒内清单、回合轨、辅助卡与苏军辅助卡炮击标记，再补 `transportStock` / `breakdownStock`。
+3. 继续规则链：`complete-refit` → 首回合增援 → 地面移动，逐修订对照 TS；再接 09 战役回归与 01 全景盘面。
+4. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
+5. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
+6. 验证 Windows 独立导出以及 Linux 无头会话。

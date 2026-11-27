@@ -1,7 +1,7 @@
 extends RefCounted
 
 
-static func success(value: Dictionary) -> Dictionary:
+static func success(value: Variant) -> Dictionary:
 	return {"ok": true, "value": value}
 
 

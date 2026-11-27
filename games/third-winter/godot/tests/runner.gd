@@ -8,6 +8,7 @@ const PoolDraw := preload("res://scripts/rules/series/pool_draw.gd")
 const ScorpionData := preload("res://scripts/data/scorpion_opening_data.gd")
 const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-pocket/opening.gd")
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
+const LocalSession := preload("res://scripts/session/local_session.gd")
 
 var _checks := 0
 var _failures := 0
@@ -128,6 +129,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String) -> void:
 	_expect(ScorpionOpening.create_record(bad_facts, baseline.seed).get("errorCode") == "invalid_alert_pool", "08 开局拒绝重复 Alert 库存")
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
+		_test_scorpion_views(bundle.value, baseline)
 
 
 func _test_scorpion_deployment(record: Dictionary, data: Dictionary, records: Dictionary) -> void:
@@ -213,6 +215,86 @@ func _reject_scorpion(record: Dictionary, data: Dictionary, seat: String, action
 	var rejected := ScorpionMatch.submit(record, seat, {"id": "reject", "expectedRevision": record.revision, "action": action}, data)
 	_expect(not rejected.ok and rejected.get("errorCode") == code, "08 部署拒绝 %s" % code)
 	_compare(record, before, "08 拒绝保持盘面、骰序和回执 · %s" % code)
+
+
+## Drives the native session with the TypeScript interaction requests and diffs the projected view.
+## Covers the map and sidebar projection (stacks, roster, legal actions, selection); frame boxes,
+## auxiliary cards and the turn track are still TypeScript-only and are not part of the slice.
+const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unitId", "unitIds", "hex",
+	"route", "roster", "stack", "ended"]
+
+
+func _test_scorpion_views(bundle: Dictionary, vector: Dictionary) -> void:
+	var opened := LocalSession.open(bundle, float(vector.seed))
+	_expect(opened.ok, "08 原生会话开局")
+	if not opened.ok:
+		return
+	var session: RefCounted = opened.value
+	_compare_view(session.view(), vector.bootstrap, "08 开局视图")
+	var compared := 0
+	for step: Dictionary in vector.steps:
+		if session.state().kind != "setup":
+			break
+		var outcome: Dictionary = session.dispatch(step.request.duplicate(true))
+		_expect(outcome.ok, "08 视图命令 %s 被接受 · %s" % [step.request.kind, outcome.get("errorMessage", "")])
+		if not outcome.ok:
+			break
+		compared += 1
+		if session.state().kind == "setup":
+			_compare_view(session.view(), step.view, "08 修订 %d 视图" % int(step.view.revision))
+		else:
+			_expect(int(step.view.revision) == session.revision(), "08 原生开局在修订 %d 结束" % session.revision())
+	_expect(compared > 30, "08 原生会话走完整个开局命令序列")
+
+
+func _compare_view(actual: Dictionary, expected: Dictionary, label: String) -> void:
+	var difference := _first_difference(_view_slice(actual), _view_slice(expected), "")
+	_expect(difference.is_empty(), label + ("" if difference.is_empty() else " · " + difference))
+
+
+func _view_slice(view: Dictionary) -> Dictionary:
+	var slice: Dictionary = {}
+	for field: String in VIEW_FIELDS:
+		slice[field] = view.get(field)
+	var actions: Array = []
+	for control: Dictionary in view.get("actions", []):
+		actions.append({"label": control.get("label"), "actionTypes": control.get("actionTypes")})
+	slice.actions = actions
+	var frame: Dictionary = view.get("frame", {})
+	slice.frame = {
+		"mapStacks": frame.get("mapStacks", []), "selectedUnits": frame.get("selectedUnits", []),
+		"targets": frame.get("targets", []), "route": frame.get("route", []),
+		"selectedHex": frame.get("selectedHex"),
+	}
+	return slice
+
+
+func _first_difference(actual: Variant, expected: Variant, path: String) -> String:
+	if actual is Array and expected is Array:
+		if actual.size() != expected.size():
+			return "%s 长度 %d ≠ %d" % [path, actual.size(), expected.size()]
+		for index in actual.size():
+			var difference := _first_difference(actual[index], expected[index], "%s[%d]" % [path, index])
+			if not difference.is_empty():
+				return difference
+		return ""
+	if actual is Dictionary and expected is Dictionary:
+		var keys: Dictionary = {}
+		for key: Variant in actual:
+			keys[key] = true
+		for key: Variant in expected:
+			keys[key] = true
+		for key: Variant in keys:
+			var difference := _first_difference(actual.get(key), expected.get(key), "%s.%s" % [path, key])
+			if not difference.is_empty():
+				return difference
+		return ""
+	if (actual is int or actual is float) and (expected is int or expected is float):
+		return "" if absf(float(actual) - float(expected)) <= 0.000001 else \
+			"%s %s ≠ %s" % [path, str(actual), str(expected)]
+	if actual == expected:
+		return ""
+	return "%s %s ≠ %s" % [path, JSON.stringify(actual), JSON.stringify(expected)]
 
 
 func _compare(actual: Variant, expected: Variant, label: String) -> void:
