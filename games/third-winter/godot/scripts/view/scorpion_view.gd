@@ -7,6 +7,7 @@ extends RefCounted
 const HexLayout := preload("res://scripts/view/hex_layout.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
+const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -22,6 +23,8 @@ static func side_name(side: String) -> String:
 static func decision_side(state: Dictionary) -> String:
 	if state.kind == "setup":
 		return state.opening.seat
+	if str(state.cursor.phase) == "reaction":
+		return "soviet" if str(state.cursor.phasing) == "axis" else "axis"
 	return state.cursor.phasing
 
 
@@ -180,15 +183,86 @@ static func _source(state: Dictionary) -> Dictionary:
 		"airBases": state.get("airBases", [])}
 
 
-## TTW S08 — the reinforcement phase projection. Other in-play phases are not migrated yet, so the
-## native session still refuses them instead of drawing a guessed panel.
+## TTW S08 — the reinforcement phase projection, plus the bare projection of the phases that only
+## offer their closing command so far. Yet unmigrated phases are still refused instead of drawn.
 static func _choice(choices: Array, label: String, actions: Array) -> void:
 	choices.append({"label": label, "actions": actions})
 
 
+## Revisions 38–42 of the oracle: movement, supply and reaction with no selection. Only the closing
+## command is exposed, because the move, reserve, fuel and trace choices are not native yet.
+static func _project_phase(record: Dictionary, selection: Dictionary, data: Dictionary,
+		viewer: String) -> Dictionary:
+	var state: Dictionary = record.state
+	var revision: int = record.revision
+	var actor: String = decision_side(state)
+	var entries := roster_playing(state, actor, data)
+	var unit_id: Variant = selection.get("unitId")
+	var unit_ids: Array = []
+	if selection.has("unitIds"):
+		for id: Variant in selection.unitIds:
+			if _roster_has(entries, id):
+				unit_ids.append(id)
+	elif unit_id != null:
+		unit_ids.append(unit_id)
+	var actions: Array = _phase_actions(state, actor, revision, data)
+	var stacks := map_stacks(state, data)
+	var frame := {
+		"trackers": trackers(data), "inventories": inventories(state, data, viewer),
+		"aidCounters": aid_counters(data), "auxiliaryCards": auxiliary_cards(state, data, viewer),
+		"mapStacks": stacks, "selectedUnits": unit_ids, "targets": [], "route": [],
+	}
+	var picked_hex: Variant = selection.get("hex")
+	if picked_hex != null:
+		var layout := HexLayout.layout(str(picked_hex))
+		if not layout.is_empty():
+			frame.selectedHex = layout
+	var phase: String = PHASE_NAMES.get(str(state.cursor.phase), str(state.cursor.phase))
+	return {
+		"protocolVersion": 1, "revision": revision, "actor": actor,
+		"headline": "第 %d 回合 · %s · %s" % [int(state.turn.number), side_name(actor), phase],
+		"phase": phase, "phaseId": str(state.cursor.phase),
+		"roster": entries, "stack": _stack(selection, stacks, entries), "stacking": [],
+		"unitId": unit_id, "unitIds": unit_ids, "hex": picked_hex, "route": [],
+		"actions": actions, "menu": [], "ended": state.get("victory") != null,
+		"turnNumber": int(state.turn.number), "phasingSide": str(state.cursor.phasing),
+		"transportStock": transport_stock(state.get("units", {}), viewer, data),
+		"breakdownStock": breakdown_stock(state.get("units", {}), state.get("pieces", []), data),
+		"frame": frame,
+	}
+
+
+static func _closable_phase(phase: String) -> bool:
+	return phase == "movement" or phase == "supply" or phase == "reaction"
+
+
+static func _phase_actions(state: Dictionary, actor: String, revision: int, data: Dictionary) -> Array:
+	var phase := str(state.cursor.get("phase"))
+	var steps: Array = []
+	if phase == "supply":
+		var next := SupplyPhase.decision(state, actor)
+		var step := str(next.get("step", ""))
+		if step == "settle-trace-and-feeding":
+			steps.append({"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"})
+		elif step == "complete-supply":
+			steps.append({"label": "结束补给", "type": "complete-supply"})
+	else:
+		steps.append({"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase})
+	var actions: Array = []
+	for step: Dictionary in steps:
+		actions.append({"key": "action:%d:%d" % [revision, actions.size()], "label": step.label,
+			"kind": "command", "actionTypes": [step.type]})
+	return actions
+
+
 static func project_playing(record: Dictionary, selection: Dictionary, data: Dictionary, viewer: String) -> Dictionary:
 	var state: Dictionary = record.state
-	if str(state.cursor.get("phase")) != "reinforcement" or state.get("window") == null:
+	var phase_id := str(state.cursor.get("phase"))
+	if phase_id == "reinforcement" and state.get("window") != null:
+		pass
+	elif _closable_phase(phase_id):
+		return _project_phase(record, selection, data, viewer)
+	else:
 		return {}
 	var revision: int = record.revision
 	var actor: String = decision_side(state)

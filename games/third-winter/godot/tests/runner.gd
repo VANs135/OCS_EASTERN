@@ -286,7 +286,7 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 
 ## The oracle's view for the revision this record reached, compared field by field.
 func _compare_view_at(record: Dictionary, vector: Dictionary, data: Dictionary, label: String) -> void:
-	var view := ScorpionView.project(record, {}, data, str(record.state.cursor.phasing))
+	var view := ScorpionView.project(record, {}, data, ScorpionView.decision_side(record.state))
 	var oracle := {}
 	for step: Dictionary in vector.steps:
 		if step.view.revision == record.revision:
@@ -352,6 +352,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 		return
 	record = wrote.value.record
 	_compare_movement(record.state, expected.state, "08 原生移动修订 %d" % index)
+	_compare_view_at(record, vector, data, "08 原生移动视图修订 %d" % index)
 	var unit_id := str(action.get("unitId"))
 	_reject_scorpion(record, data, "axis", {"type": "ground-move", "unitId": unit_id,
 		"path": [str(record.state.units[unit_id].hex)]}, "wrong_actor")
@@ -391,6 +392,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	if not opened.ok:
 		return
 	_compare_supply(opened.value.record.state, closed.state, "08 原生补给窗口修订 %d" % next_index)
+	_compare_view_at(opened.value.record, vector, data, "08 原生补给视图修订 %d" % next_index)
 	# The window opens before the trace and attrition steps, so their order is refused.
 	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
 		"supply_pending")
@@ -414,6 +416,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 			return
 		after_supply = settled.value.record
 		_compare_supply(after_supply.state, later.state, "08 原生 %s 修订 %d" % [str(step_action.get("type")), at])
+		_compare_view_at(after_supply, vector, data, "08 原生 %s 视图修订 %d" % [str(step_action.get("type")), at])
 		if offset == 2:
 			_reject_scorpion(after_supply, data, "soviet", {"type": "check-attrition"},
 				"supply_allocation")

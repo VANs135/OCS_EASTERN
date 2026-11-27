@@ -134,7 +134,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 ## 下一步
 
-1. 移动与后勤阶段：`ground-move`、`complete-movement` 与补给/断补/反应收尾已原生（`supply_phase.gd`、`phase_flow.gd`），加油/拆分/预备/夺取仍未接入；移动与补给阶段的视图投影也未接。`rebuild-remnant` 仍缺原生命令。
+1. 移动与后勤阶段：`ground-move`、`complete-movement` 与补给/断补/反应收尾已原生（`supply_phase.gd`、`phase_flow.gd`），移动/补给/反应阶段已能出侧栏（只列已原生命令），加油/拆分/预备/夺取仍未接入。`rebuild-remnant` 仍缺原生命令。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。
