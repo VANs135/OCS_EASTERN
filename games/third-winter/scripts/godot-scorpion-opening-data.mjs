@@ -51,6 +51,11 @@ const deployableDefinition = (id) => {
   return definition && ['land', 'hq', 'transport'].includes(definition.kind) ? definition : undefined
 }
 const counterIds = referencedIds.filter((id) => deployableDefinition(id))
+// Remnant battalions deploy on demand when an Axis division is eliminated; ship their deployed
+// templates (combat + move face) so the native side clones a counter instead of re-deriving profiles.
+for (const remnantId of ['land:id:3999', 'land:id:4499']) {
+  if (deployableDefinition(remnantId) && !counterIds.includes(remnantId)) counterIds.push(remnantId)
+}
 // Counter template each entry clones: the exact deployScorpionGroundCounter output with the hex
 // stripped, so the native session never re-derives ground profiles by hand.
 const counters = Object.fromEntries(counterIds.map((id) => {
