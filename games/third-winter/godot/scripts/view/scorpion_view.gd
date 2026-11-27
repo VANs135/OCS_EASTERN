@@ -9,6 +9,7 @@ const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd"
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
+const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -252,12 +253,12 @@ static func playing_choices(state: Dictionary, side: String, selection: Dictiona
 		data: Dictionary) -> Array:
 	var phase := str(state.cursor.get("phase"))
 	if phase == "supply":
-		return _supply_choices(state, side, data)
+		return _supply_choices(state, side, selection, data)
 	# OCS 2.2 — the closing command of each segment with no pending combat.
 	return [{"label": "结束" + str(PHASE_NAMES.get(phase, phase)), "type": "complete-" + phase}]
 
 
-static func _supply_choices(state: Dictionary, side: String, data: Dictionary) -> Array:
+static func _supply_choices(state: Dictionary, side: String, selection: Dictionary, data: Dictionary) -> Array:
 	var decision := SupplyPhase.decision(state, side)
 	var step := str(decision.get("step", ""))
 	var window: Dictionary = state.get("supply", {})
@@ -311,12 +312,76 @@ static func _supply_choices(state: Dictionary, side: String, data: Dictionary) -
 					"hex": str(stack.get("hex", "")), "allocation": allocation})
 		return losses
 	if step == "settle-trace-and-feeding":
-		# Feeding itself is not native yet, so only the attrition check that closes the step is
-		# offered; the pay-from-dump lines stay with the TypeScript engine for now.
-		return [{"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"}]
+		var choices: Array = _feed_choices(state, side, selection, data)
+		choices.append({"label": "确认追溯补给并检查断补损耗", "type": "check-attrition"})
+		return choices
 	if step == "complete-supply":
 		return [{"label": "结束补给", "type": "complete-supply"}]
 	return []
+
+
+## desktop/local/supply-draft.mjs `supplyDraft` — only the selected counters that lack an abstract
+## trace can be fed, one shared payment per source, `ceil(RE/2)` tokens each.
+static func _feed_choices(state: Dictionary, side: String, selection: Dictionary, data: Dictionary) -> Array:
+	var window: Dictionary = state.get("supply", {})
+	var ids: Array = []
+	if selection.get("unitIds") is Array:
+		ids = (selection.get("unitIds") as Array).duplicate()
+	elif selection.get("unitId") != null:
+		ids = [selection.get("unitId")]
+	var selected: Array = []
+	for id: Variant in ids:
+		var unit: Dictionary = state.get("units", {}).get(str(id), {})
+		if unit.is_empty() or unit.get("combat") != true or str(unit.get("side")) != side:
+			continue
+		if not selected.has(str(id)):
+			selected.append(str(id))
+	if selected.is_empty():
+		return []
+	var unresolved: Array = []
+	for id: String in selected:
+		if (window.get("fed", []) as Array).has(id) or SupplyPhase.has_trace(window, id):
+			continue
+		unresolved.append(id)
+	if unresolved.is_empty() or window.get("attrition") != null:
+		return []
+	for split: Dictionary in (window.get("splits", []) as Array):
+		if split.get("selected") == null:
+			return []
+	var total := 0
+	var portions: Array = []
+	for id: String in unresolved:
+		var re: int = StepLoss.remaining(state.get("units", {}).get(id, {}))
+		portions.append({"unitId": id, "re": re})
+		total += re
+	## Internal-stock recovery only intervenes for counters that carry `internalStocks`; the native
+	## 08 state never does, so `planScorpionStockRecovery` settles without spending here.
+	var ledger: RefCounted = SpPayment.new(state, side, data)
+	var cost := int(ceil(float(total) / 2.0))
+	var choices: Array = []
+	for row: Dictionary in ledger.available(unresolved.map(func(id: String) -> Dictionary:
+			return state.get("units", {}).get(id, {}))):
+		var tokens := int(row.get("tokens", 0))
+		if tokens < cost:
+			continue
+		var from: Dictionary = ledger.source(str(row.get("dumpId", "")))
+		if from.is_empty():
+			continue
+		var place := "%s 补给堆" % str(from.get("hex", ""))
+		var truck: Dictionary = from.get("truck", {})
+		if not truck.is_empty():
+			place = "%s %s 车载补给" % [str(from.get("hex", "")),
+				_unit_name(state, str(row.get("dumpId", "")), data)]
+		choices.append({"label": "%s · 支付 %dT 供养 %d 枚（%d RE，余 %dT）"
+			% [place, cost, portions.size(), total, tokens - cost], "type": "feed-units",
+			"payments": [{"dumpId": str(row.get("dumpId", "")), "portions": portions}]})
+	return choices
+
+
+static func _unit_name(state: Dictionary, id: String, data: Dictionary) -> String:
+	var unit: Dictionary = state.get("units", {}).get(id, {})
+	var names: Dictionary = data.view.get("catalog", {}).get("definitions", {})
+	return str(names.get(str(unit.get("definition", "")), {}).get("name", id))
 
 
 static func _choice_actions(revision: int, choices: Array) -> Array:

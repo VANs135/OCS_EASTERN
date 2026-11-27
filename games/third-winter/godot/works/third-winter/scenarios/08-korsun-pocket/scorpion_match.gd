@@ -40,6 +40,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return SupplyPhase.check_attrition(state, actor, data)
 	if action.get("type") == "choose-formation-trace":
 		return SupplyPhase.choose_formation(state, actor, action)
+	if action.get("type") == "feed-units":
+		return SupplyPhase.feed_units(state, actor, action, data)
 	if action.get("type") == "assign-attrition":
 		return SupplyPhase.assign_attrition(state, actor, action, data)
 	if action.get("type") == "complete-supply":

@@ -8,6 +8,7 @@ const PoolDraw := preload("res://scripts/rules/series/pool_draw.gd")
 const ScorpionData := preload("res://scripts/data/scorpion_opening_data.gd")
 const ScorpionOpening := preload("res://works/third-winter/scenarios/08-korsun-pocket/opening.gd")
 const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
+const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const PhaseFlow := preload("res://works/third-winter/rules/phase_flow.gd")
 const LocalSession := preload("res://scripts/session/local_session.gd")
@@ -396,6 +397,7 @@ func _test_movement_commands(record: Dictionary, vector: Dictionary, data: Dicti
 	_compare_view_at(opened.value.record, vector, data, "08 原生补给视图修订 %d" % next_index)
 	_test_supply_split(opened.value.record, data)
 	_test_supply_attrition(opened.value.record, data)
+	_test_supply_feed(opened.value.record, data)
 	# The window opens before the trace and attrition steps, so their order is refused.
 	_reject_scorpion(opened.value.record, data, "soviet", {"type": "complete-supply"},
 		"supply_pending")
@@ -558,6 +560,62 @@ func _test_supply_attrition(record: Dictionary, data: Dictionary) -> void:
 	_expect(after.supply.attrition[0].assigned == true, "08 原生分配后该格标记已分配")
 	_reject_scorpion(settled.value.record, data, "axis",
 		{"type": "assign-attrition", "hex": hex, "allocation": losses}, "attrition_stack")
+
+
+## src/match/scorpion-supply-phase.ts `feedScorpionUnits` — concrete supply pays `ceil(RE/2)` tokens
+## to cover a counter's whole surviving RE, and a fed counter cannot be fed again this phase.
+func _test_supply_feed(record: Dictionary, data: Dictionary) -> void:
+	var fighter := ""
+	for id: String in record.state.units:
+		var unit: Dictionary = record.state.units[id]
+		if str(unit.get("side")) != "soviet" or unit.get("combat") != true or str(unit.get("hex", "")) == "":
+			continue
+		fighter = id
+		break
+	if fighter.is_empty():
+		_expect(false, "08 原生具象补给夹具找不到苏军战斗力单位")
+		return
+	var hex := str(record.state.units[fighter].hex)
+	var dump_id := "soviet:hex:%s" % hex
+	var forged: Dictionary = record.duplicate(true)
+	forged.state.supply.trace[fighter] = []
+	forged.state.supply.fed = []
+	forged.state.dumps[dump_id] = {"side": "soviet", "location": "on-map", "tokens": 4}
+	_expect(not SupplyPhase.has_trace(forged.state.supply, fighter),
+		"08 原生具象补给夹具的单位没有抽象追溯")
+	var re: int = StepLoss.remaining(forged.state.units[fighter])
+	var cost := int(ceil(float(re) / 2.0))
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "feed-units", "payments": [{"dumpId": "soviet:hex:nowhere",
+			"portions": [{"unitId": fighter, "re": re}]}]}, "supply_payment")
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "feed-units", "payments": [{"dumpId": dump_id,
+			"portions": [{"unitId": fighter, "re": re + 1}]}]}, "supply_payment")
+	_reject_scorpion(forged, data, "soviet",
+		{"type": "feed-units", "payments": [{"dumpId": dump_id, "portions": [{"unitId": fighter, "re": re}]},
+			{"dumpId": dump_id, "portions": [{"unitId": fighter, "re": re}]}]}, "supply_payment")
+	var panel: Dictionary = ScorpionView.project(forged, {"unitIds": [fighter]}, data, "soviet")
+	var panels: Array = panel.get("actions", [])
+	var offered := false
+	for control: Dictionary in panels:
+		if str(control.get("label")).contains("补给堆 · 支付 %dT 供养 1 枚（%d RE，余 " % [cost, re]):
+			offered = true
+			break
+	_expect(offered, "08 原生侧栏给出具象补给支付选项")
+	var fed := ScorpionMatch.submit(forged.duplicate(true), "soviet",
+		{"id": "feed-1", "expectedRevision": forged.revision,
+			"action": {"type": "feed-units", "payments": [{"dumpId": dump_id,
+				"portions": [{"unitId": fighter, "re": re}]}]}}, data)
+	_expect(fed.ok, "08 原生可按来源支付具象补给")
+	if not fed.ok:
+		return
+	var after: Dictionary = fed.value.record.state
+	_expect(int(after.dumps[dump_id].tokens) == 4 - cost,
+		"08 原生具象补给按 %d 枚 RE 扣 %d 个补给点" % [re, cost])
+	_expect((after.supply.fed as Array).has(fighter), "08 原生领取具象补给的单位记入 fed")
+	_reject_scorpion(fed.value.record, data, "soviet",
+		{"type": "feed-units", "payments": [{"dumpId": dump_id,
+			"portions": [{"unitId": fighter, "re": re}]}]}, "supply_payment")
 
 ## is forged onto the second side's Cleanup and the rollover invariants are asserted instead.
 func _test_round_rollover(record: Dictionary, data: Dictionary) -> void:

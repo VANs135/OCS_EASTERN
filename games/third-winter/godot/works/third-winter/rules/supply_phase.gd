@@ -9,6 +9,7 @@ const Attrition := preload("res://scripts/rules/series/attrition.gd")
 const Rng := preload("res://scripts/core/rng.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const Round := preload("res://works/third-winter/rules/round.gd")
+const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 
 
 ## OCS 12.1 — `complete-movement` closes the Movement Segment and opens the Supply Phase of
@@ -283,6 +284,73 @@ static func assign_attrition(state: Dictionary, actor: String, action: Dictionar
 	window_copy.attrition = assigned
 	state.supply = window_copy
 	return Result.success(state)
+
+
+## src/match/scorpion-supply-phase.ts `feedScorpionUnits` — concrete supply pays `ceil(RE/2)` tokens
+## per dump and must cover the counter's whole surviving RE. Contiguous portions share one payment
+## row, so a dump can never be charged twice.
+static func feed_units(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	var window := _window_of(state, actor)
+	if window.is_empty():
+		return Result.failure("supply_unavailable", "当前不在本方补给阶段")
+	ready_check(window)
+	var payments: Variant = action.get("payments", [])
+	if not (payments is Array) or (payments as Array).is_empty():
+		return Result.failure("supply_payment", "请先分配补给支付")
+	var ledger: RefCounted = SpPayment.new(state, actor, data)
+	var totals := {}
+	var used := {}
+	for row: Variant in payments:
+		if not (row is Dictionary):
+			return Result.failure("supply_payment", "补给支付格式错误")
+		var dump_id := str(row.get("dumpId", ""))
+		var portions: Variant = row.get("portions", [])
+		if used.has(dump_id) or not (portions is Array) or (portions as Array).is_empty():
+			return Result.failure("supply_payment", "同一来源的分配给养须合并成一行")
+		used[dump_id] = true
+		var re_from_dump := 0
+		for portion: Variant in portions:
+			if not (portion is Dictionary):
+				return Result.failure("supply_payment", "补给支付格式错误")
+			var unit_id := str(portion.get("unitId", ""))
+			var re := int(portion.get("re", 0))
+			var unit: Dictionary = state.units.get(unit_id, {})
+			if unit.is_empty() or unit.get("combat") != true or str(unit.get("side")) != actor \
+					or re <= 0 or _list(window.get("fed")).has(unit_id) or has_trace(window, unit_id) \
+					or not ledger.can_use(unit, dump_id):
+				return Result.failure("supply_payment", "这枚单位无法从该补给来源领取补给")
+			re_from_dump += re
+			totals[unit_id] = int(totals.get(unit_id, 0)) + re
+		var cost := int(ceil(float(re_from_dump) / 2.0))
+		var paid: Dictionary = ledger.spend([{"dumpId": dump_id, "tokens": cost}],
+			func(_row: Dictionary) -> bool: return true)
+		if not paid.ok:
+			return paid
+	for unit_id: String in totals:
+		var unit: Dictionary = state.units.get(unit_id, {})
+		if int(totals[unit_id]) != _remaining_steps(unit):
+			return Result.failure("supply_payment", "补给须覆盖该单位当前的全部存活 RE")
+	var settled: Dictionary = ledger.settle(state.units)
+	state.units = settled.units
+	state.dumps = settled.dumps
+	var fed: Array = _list(window.get("fed")).duplicate()
+	for unit_id: String in totals:
+		fed.append(unit_id)
+	var window_copy: Dictionary = window.duplicate(true)
+	window_copy.fed = fed
+	state.supply = window_copy
+	return Result.success(state)
+
+
+## `readyForSupplyAllocation`: nothing may be paid for or checked while a formation trace or the
+## attrition result is still open.
+static func ready_check(window: Dictionary) -> Dictionary:
+	if window.get("attrition") != null:
+		return Result.failure("supply_allocation", "先结算追溯来源再付补给或查断补")
+	for split: Dictionary in _list(window.get("splits")):
+		if split.get("selected") == null:
+			return Result.failure("supply_allocation", "先选好编队追溯来源再付补给或查断补")
+	return Result.success({})
 
 
 ## The window as the TS module builds it; `traceExempt` only appears when a supply drop covers a
