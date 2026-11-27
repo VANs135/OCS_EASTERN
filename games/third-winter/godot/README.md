@@ -113,7 +113,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 - 飞机整备收束：`works/third-winter/rules/stacking.gd` 与 `reinforcement.gd` 结算 `complete-refit`——先查 10 RE 堆叠，再推进到增援阶段并按剧本固定补给表开出增援窗口。该阶段只有记录状态对照，视图仍未迁。
 - 补给态势：`works/third-winter/rules/supply_position.gd` 复现敌方 ZOC、控制点归属、补给源、可卸货设施与 HQ/延补队；地图邻接与格边轨距随数据包导出，用 `08-supply.json` 与 TypeScript 逐字段对照。
 - 格边取费：`scripts/rules/series/ground_terrain.gd` 与 `works/third-winter/rules/terrain_cost.gd` 复现 OCS 6.2 地形/格边选择和 TTW TEC 三列代价，含封冻取小与路线取费；`view.mapGraph.terrains` 随数据包导出，用 `08-terrain.json` 全边对照。
-- 补给 trace：`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 12.3/12.6/12.7 的图算法（铁路连通、延补队接力、5 MP 抽补、HQ 投送、Kessel 自足、覆盖集），`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费，用 `08-trace.json` 逐格对照。四条增援命令仍未接。
+- 补给 trace：`scripts/rules/series/{trace_targets,trace_path,supply_network}.gd` 复现 12.3/12.6/12.7 的图算法（铁路连通、延补队接力、5 MP 抽补、HQ 投送、Kessel 自足、覆盖集），`works/third-winter/rules/supply_trace.gd` 装配印刷轨距/卸货点/TTW 取费，用 `08-trace.json` 逐格对照。增援板（13.6 落点 + Alert 落点）由 `works/third-winter/rules/reinforcement_board.gd` 原生实现，用第六个夹具 `08-arrivals.json` 对照全编目 103 条抵达与 2 枚 Alert。四条增援命令仍未接。
 - 原生桥与入口：`scripts/session/native_bridge.gd` 与 `engine_bridge.gd` 同信号契约，`bootstrap` 取数据包 `view.model` 并把地图解析成绝对路径；`main-native.tscn` 由 `bridge.config.json` 的 `native` 开关启用，08 开局不再启动 Node 进程。
 - 主页面五模式入口、模式简报、当前唯一桥接提示；深色战术底纹、卡片选中态和不可用状态。
 - 剧本选择页 01–09 列表、滚动、详情面板、桥接状态与“进入检查”门禁。

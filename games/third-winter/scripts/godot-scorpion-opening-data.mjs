@@ -95,11 +95,19 @@ for (const hex of map.hexes.keys()) {
     if (edge.rail) mapGraph.railGauge[edgeKeyOf(hex, near)] = gauge(hex, near)
   }
 }
+// Printed reinforcement catalog: the native board resolves entry hexes without any oracle call.
+// Only the catalog is read here, so a first-turn cursor is enough to open the board.
+const arrivalCatalog = data.board.reinforcements({
+  kind: 'playing', units: opening.units, pieces: opening.pieces, dumps: opening.dumps, airBases: [],
+  cursor: { turn: 1, first: 'soviet', phasing: 'soviet', phase: 'aircraft-refit', retention: 'soviet' },
+}).catalog
+  .map(({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }) =>
+    ({ id, side, turn, destinations, definition, face, stepsLost, organicTruck, optionalForce }))
 const view = {
   catalog: { definitions, markers },
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
-  airstrips, transportRows, breakdownRows,
+  airstrips, transportRows, breakdownRows, arrivals: arrivalCatalog,
   fixedSupply: scorpionFixedSupply.map(({ side, turn, sp, destinations }) => ({ side, turn, sp, destinations })),
   mapGraph,
   supplySources: { axis: [...scorpionSupplySources.axis], soviet: [...scorpionSupplySources.soviet] },

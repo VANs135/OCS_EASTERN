@@ -12,6 +12,7 @@ const LocalSession := preload("res://scripts/session/local_session.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const SupplyTrace := preload("res://works/third-winter/rules/supply_trace.gd")
+const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 var _checks := 0
@@ -28,9 +29,10 @@ func _initialize() -> void:
 	else:
 		_expect(false, "读取 Godot 对照向量")
 	var args := OS.get_cmdline_user_args()
-	if args.size() >= 2 and args.size() <= 5:
+	if args.size() >= 2 and args.size() <= 6:
 		_test_scorpion_opening(args[0], args[1], "" if args.size() < 3 else args[2],
-			"" if args.size() < 4 else args[3], "" if args.size() < 5 else args[4])
+			"" if args.size() < 4 else args[3], "" if args.size() < 5 else args[4],
+			"" if args.size() < 6 else args[5])
 	elif not args.is_empty():
 		_expect(false, "实库检查需要同时传入 08 初设数据和对照向量路径")
 	print("Godot 迁移基础检查 %d/%d 通过" % [_checks - _failures, _checks])
@@ -118,7 +120,7 @@ func _test_pool() -> void:
 	_expect(PoolDraw.draw_without_replacement(state, pool, 2).get("errorCode") == "invalid_pool_count", "拒绝超出库存")
 
 
-func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "", terrain_path: String = "", trace_path: String = "") -> void:
+func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_path: String = "", terrain_path: String = "", trace_path: String = "", arrival_path: String = "") -> void:
 	var bundle := ScorpionData.read(bundle_path)
 	var vector := JsonFile.read(vector_path)
 	_expect(bundle.ok, bundle.get("errorMessage", "08 初设数据有效"))
@@ -134,7 +136,7 @@ func _test_scorpion_opening(bundle_path: String, vector_path: String, supply_pat
 	_expect(ScorpionOpening.create_record(bad_facts, baseline.seed).get("errorCode") == "invalid_alert_pool", "08 开局拒绝重复 Alert 库存")
 	if opening.ok:
 		_test_scorpion_deployment(opening.value, bundle.value, baseline.records)
-		_test_scorpion_views(bundle.value, baseline, supply_path, terrain_path, trace_path)
+		_test_scorpion_views(bundle.value, baseline, supply_path, terrain_path, trace_path, arrival_path)
 		_test_native_bridge(bundle_path, baseline)
 
 
@@ -230,7 +232,7 @@ const VIEW_FIELDS := ["revision", "actor", "headline", "phase", "phaseId", "unit
 	"route", "roster", "stack", "ended", "transportStock", "breakdownStock"]
 
 
-func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "", terrain_path: String = "", trace_path: String = "") -> void:
+func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: String = "", terrain_path: String = "", trace_path: String = "", arrival_path: String = "") -> void:
 	var opened := LocalSession.open(bundle, float(vector.seed))
 	_expect(opened.ok, "08 原生会话开局")
 	if not opened.ok:
@@ -258,6 +260,8 @@ func _test_scorpion_views(bundle: Dictionary, vector: Dictionary, supply_path: S
 		_test_terrain_cost(bundle, terrain_path)
 	if trace_path != "":
 		_test_supply_trace(session.state(), bundle, trace_path)
+	if arrival_path != "":
+		_test_reinforcement_board(session.state(), bundle, arrival_path)
 	# The next oracle command closes the Aircraft Refit Phase and opens the reinforcement window.
 	# The playing projection is not migrated yet, so this compares the record state only.
 	var refit_step: Dictionary = {}
@@ -320,6 +324,39 @@ func _test_supply_position(state: Dictionary, bundle: Dictionary, path: String) 
 		var actual: Dictionary = SupplyPosition.position(units, rail_control, side, bundle)
 		var difference := _first_difference(actual, fixture.position[side], "")
 		_expect(difference.is_empty(), "08 %s 补给态势" % side + ("" if difference.is_empty() else " · " + difference))
+
+
+## OCS 13.6 entry hexes for every printed arrival plus the Alert HQ locations; both are compared
+## against the TypeScript reinforcement board at the same first-turn state.
+func _test_reinforcement_board(state: Dictionary, bundle: Dictionary, path: String) -> void:
+	var read := JsonFile.read(path)
+	_expect(read.ok, read.get("errorMessage", "08 增援板对照有效"))
+	if not read.ok:
+		return
+	var fixture: Dictionary = read.value.document
+	_expect(str(bundle.fingerprint) == str(fixture.fingerprint), "08 增援板对照与初设指纹一致")
+	var graph: Dictionary = bundle.view.mapGraph
+	var units: Dictionary = state.get("units", {})
+	_expect(units.size() > 0, "08 增援板对照读取对局算子")
+	var mismatched: Array = []
+	var checked := 0
+	for entry: Dictionary in fixture.arrivals:
+		var legal: Array = ReinforcementBoard.arrival_destinations(graph, bundle, state, entry)
+		checked += 1
+		if JSON.stringify(legal) == JSON.stringify(entry.legal):
+			continue
+		if mismatched.size() < 3:
+			mismatched.append(" · %s 原生 %s ≠ TS %s" % [entry.id, JSON.stringify(legal), JSON.stringify(entry.legal)])
+	_expect(mismatched.is_empty() and checked == fixture.arrivals.size(),
+		"08 全编目抵达落点一致 (%d 条)%s" % [checked, "".join(mismatched)])
+	var alerts: Array = []
+	for counter: Dictionary in fixture.alerts:
+		var legal: Array = ReinforcementBoard.alert_destinations(graph, bundle, state, counter,
+			"axis", str(fixture.weather))
+		if JSON.stringify(legal) != JSON.stringify(counter.legal):
+			alerts.append(" · %s 原生 %s ≠ TS %s" % [counter.id, JSON.stringify(legal), JSON.stringify(counter.legal)])
+	_expect(alerts.is_empty() and not fixture.alerts.is_empty(),
+		"08 Alert 落点一致 (%d 枚)%s" % [fixture.alerts.size(), "".join(alerts)])
 
 
 ## The native trace must reproduce every per-hex option list and, once coverage is prepared,
