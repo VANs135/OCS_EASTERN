@@ -61,7 +61,7 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 		if state.get("combatAttackers", []).has(id):
 			return Result.failure("combat_attacker_eligible", "该单位本回合已参战：%s" % id)
 		if str(cursor.get("phase", "")) == "exploitation" and unit.get("released", false) != true \
-				and (unit.get("exploit", false) == true or airlifted.has(id)):
+				and (unit.get("exploit", false) != true or airlifted.has(id)):
 			return Result.failure("combat_attacker_eligible", "未释放预备不能在 exploitation 攻击：%s" % id)
 		if TerrainCost.step_cost(map_graph, str(unit.get("hex", "")), target,
 				str(unit.get("mobility", "truck")), weather) == null:
