@@ -12,8 +12,12 @@ config_version=5
 
 config/name="EASTERN OCS - Godot"
 config/description="OCS_EASTERN（第三冬）Godot 客户端；规则由仓库内 Node/TypeScript 引擎结算"
-run/main_scene="res://main.tscn"
+run/main_scene="res://menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+AppState="*res://scripts/app_state.gd"
 
 [display]
 

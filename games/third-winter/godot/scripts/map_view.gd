@@ -10,9 +10,11 @@ var map_texture: Texture2D
 var _textures: Dictionary = {}
 var _ui_layer: CanvasLayer
 var _headline: Label
+var _context: Label
 var _status: Label
 var _list: VBoxContainer
 var _panning := false
+var _request_pending := false
 
 const PANEL_WIDTH := 390.0
 
@@ -32,6 +34,7 @@ func _ready() -> void:
 
 
 func _on_bootstrap(next_model: Dictionary, next_view: Dictionary) -> void:
+	_request_pending = false
 	model = next_model
 	view = next_view
 	_load_map()
@@ -41,12 +44,14 @@ func _on_bootstrap(next_model: Dictionary, next_view: Dictionary) -> void:
 
 
 func _on_view(next_view: Dictionary) -> void:
+	_request_pending = false
 	view = next_view
 	_refresh_ui()
 	queue_redraw()
 
 
 func _on_bridge_failed(message: String) -> void:
+	_request_pending = false
 	if _status != null:
 		_status.text = "桥接失败：%s" % message
 	queue_redraw()
@@ -201,6 +206,19 @@ func _build_ui() -> void:
 	_headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_headline)
 
+	_context = Label.new()
+	_context.text = "剧本 / 模式"
+	_context.add_theme_font_size_override("font_size", 12)
+	_context.add_theme_color_override("font_color", Color(0.84, 0.65, 0.28))
+	_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_context)
+
+	var home := Button.new()
+	home.text = "← 返回主页面"
+	home.custom_minimum_size = Vector2(0, 30)
+	home.pressed.connect(_return_to_menu)
+	column.add_child(home)
+
 	var reset := Button.new()
 	reset.text = "重置视图"
 	reset.custom_minimum_size = Vector2(0, 28)
@@ -230,6 +248,9 @@ func _refresh_ui() -> void:
 	if _headline == null:
 		return
 	_headline.text = str(view.get("headline", "EASTERN"))
+	var state := get_node_or_null("/root/AppState")
+	if _context != null and state != null:
+		_context.text = "%s  ·  %s" % [str(state.scenario_label), str(state.mode_label)]
 	_status.text = "%s\n修订 %s · 阶段 %s\n左键格/算子，右键动作菜单，中键拖动，滚轮缩放" % [
 		str(view.get("phase", "")), str(view.get("revision", 0)), str(view.get("phaseId", ""))]
 	_clear_list()
@@ -291,16 +312,23 @@ func _add_button(text: String, id: String, kind: String) -> void:
 	_list.add_child(button)
 
 
+func _send(request: Dictionary) -> void:
+	if bridge == null or _request_pending:
+		return
+	_request_pending = true
+	bridge.request(request)
+
+
 func _on_action_pressed(key: String) -> void:
 	if bridge == null:
 		return
-	bridge.request({"kind": "apply", "key": key, "revision": int(view.get("revision", 0))})
+	_send({"kind": "apply", "key": key, "revision": int(view.get("revision", 0))})
 
 
 func _on_unit_pressed(unit_id: String) -> void:
 	if bridge == null:
 		return
-	bridge.request({"kind": "select-unit", "unitId": unit_id})
+	_send({"kind": "select-unit", "unitId": unit_id})
 
 
 func _counter_at(world: Vector2) -> String:
@@ -353,8 +381,7 @@ func _input(event: InputEvent) -> void:
 			if event.double_click:
 				request["confirm"] = true
 			print("[Input] board-left ", request)
-			if bridge != null:
-				bridge.request(request)
+			_send(request)
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			var viewport := get_viewport_rect().size
 			if event.position.x > viewport.x - PANEL_WIDTH:
@@ -366,8 +393,7 @@ func _input(event: InputEvent) -> void:
 			if not unit_id.is_empty():
 				request["unitId"] = unit_id
 			print("[Input] board-menu ", request)
-			if bridge != null:
-				bridge.request(request)
+			_send(request)
 	elif event is InputEventMouseMotion and _panning:
 		camera.position -= event.relative / camera.zoom
 
@@ -375,3 +401,7 @@ func _input(event: InputEvent) -> void:
 func _zoom(factor: float) -> void:
 	var next := clampf(camera.zoom.x * factor, 0.12, 1.6)
 	camera.zoom = Vector2(next, next)
+
+
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file("res://menu.tscn")
