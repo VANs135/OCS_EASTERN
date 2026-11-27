@@ -32,7 +32,8 @@ export function campaignTraceSupply(state: Readonly<CampaignTurnState>, side: Si
   const { map, railNetwork } = board
   const ground = campaignGroundPosition(state, side, map, board.profileOf)
   if (!ground || (!railNetwork && !facts.railCanTrace)) return undefined
-  const sources = [...facts.sources].map((hex) => map.resolveHex(hex))
+  const edgeSources = state.edgeSupplySources?.[side] ?? []
+  const sources = [...facts.sources, ...edgeSources].map((hex) => map.resolveHex(hex))
   const controlled = [...facts.controlled].map((hex) => map.resolveHex(hex))
   const headquarters = [...facts.headquarters, ...(side === 'axis' ? facts.kesselHeadquarters ?? [] : [])]
     .map((hq) => ({ ...hq, hex: map.resolveHex(hq.hex) }))

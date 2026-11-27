@@ -14,6 +14,7 @@ import { kirovogradScenarioVictory } from './kirovograd-scenario-victory.ts'
 import { campaignControlRecorder } from './campaign-control.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 import { kirovogradRailBoard } from './kirovograd-rail-board.ts'
+import { kirovogradEdgeSupplySources } from './kirovograd-supply.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -118,7 +119,9 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const city = data.map.resolveHex(data.kirovogradHex) ?? data.kirovogradHex
   const recordCity = campaignControlRecorder(new Set([city]))
   const baseMovement = turnRules.groundMovement
-  const groundMovement = baseMovement ? { ...baseMovement, afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
+  const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
+  const groundMovement = baseMovement ? { ...baseMovement,
+    afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
     move: Parameters<typeof recordCity>[2]) => {
       const recorded = recordCity(state, side, move)
       return baseMovement.afterMove ? baseMovement.afterMove(recorded, side, move) : recorded
@@ -145,7 +148,8 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     }),
   } }
   const opening: CampaignMatchOpening = { when: { scenarioId: kirovogradScenario, date: data.dates[0] }, turn: 1,
-    opening: data.opening, counters, supplyDumps: data.supplyDumps, hexControl: { [city]: 'axis' } }
+    opening: data.opening, counters, supplyDumps: data.supplyDumps, edgeSupplySources,
+    hexControl: { [city]: 'axis' } }
   return { opening, context, markerSetup: transports.pendingMarkers,
     aircraftAvailability: data.aircraft.map(({ id, availableThrough }) => ({ id, availableThrough })),
     movement: { releases: kirovogradReleaseRule({ map: data.map, definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }) } }

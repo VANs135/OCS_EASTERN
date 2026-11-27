@@ -3,17 +3,23 @@ import type { CampaignGroundMap } from './campaign-ground-position.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export type CampaignSupplySource = { kind: 'dump'; hex: string } | { kind: 'transport'; id: string }
-  | { kind: 'carried'; id: string }
+  | { kind: 'carried'; id: string } | { kind: 'edge'; hex: string }
 type OrganicFormation = (state: Readonly<CampaignTurnState>, id: string) => string | undefined
 interface SupplyEntry { source: CampaignSupplySource; hex: string; tokens: number; formation?: string }
 
 export function campaignPhysicalSupply(state: Readonly<CampaignTurnState>, side: Side, map: CampaignGroundMap,
-  organicFormation?: OrganicFormation) {
+  organicFormation?: OrganicFormation, edgeSources: readonly string[] = state.edgeSupplySources?.[side] ?? []) {
   const sources = new Map<string, SupplyEntry>()
   for (const [hex, tokens] of Object.entries(state.supplyDumps[side])) {
     if (Number.isSafeInteger(tokens) && tokens > 0 && map.resolveHex(hex) === hex) {
       sources.set(`dump:${hex}`, { source: { kind: 'dump', hex }, hex, tokens })
     }
+  }
+  // Scenario supply sources at a map edge are not dumps: they are unlimited
+  // drawing points, so they carry a large sentinel and are never decremented.
+  for (const printed of edgeSources) {
+    const hex = map.resolveHex(printed)
+    if (hex) sources.set(`edge:${hex}`, { source: { kind: 'edge', hex }, hex, tokens: Number.MAX_SAFE_INTEGER })
   }
   for (const [id, counter] of Object.entries(state.counters)) {
     if (counter.side !== side) continue
@@ -35,6 +41,7 @@ export function campaignPhysicalSupply(state: Readonly<CampaignTurnState>, side:
 
 export function campaignSupplySourceKey(resolveHex: CampaignGroundMap['resolveHex'], source: CampaignSupplySource) {
   if (source.kind === 'dump') return `dump:${resolveHex(source.hex) ?? ''}`
+  if (source.kind === 'edge') return `edge:${resolveHex(source.hex) ?? ''}`
   return source.kind === 'transport' ? `transport:${source.id}` : `carried:${source.id}`
 }
 
@@ -52,6 +59,8 @@ export function spendCampaignSupply(state: Readonly<CampaignTurnState>, side: Si
     } else if (entry.source.kind === 'transport') {
       const { id } = entry.source
       counters[id] = { ...counters[id]!, transportCargoTokens: entry.tokens - tokens }
+    } else if (entry.source.kind === 'edge') {
+      // A scenario edge source is a drawing point, not a stock; it never decreases.
     } else {
       const { id } = entry.source
       // 保留 0 token 的条目，与 transport 一致：feeding.reBySource 已付款但未用完的 RE 余量要靠该源键继续生效。

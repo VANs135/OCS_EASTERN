@@ -95,6 +95,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   pontoonPhase?: CampaignPontoonPhase
   khersonFerryPhase?: CampaignKhersonFerryPhase
   railGaugeByEdge?: Readonly<Record<string, TtwRailGauge>>
+  /** Scenario supply sources at map edges (TTW Scenario 9 west/east rail hexes). */
+  edgeSupplySources?: Readonly<Record<Side, readonly string[]>>
   cleanup?: { sovietConvertedEdges: readonly string[] }
   supplyPhase?: CampaignSupplyWindow
   lateTurnSegment?: CampaignLateSegment
