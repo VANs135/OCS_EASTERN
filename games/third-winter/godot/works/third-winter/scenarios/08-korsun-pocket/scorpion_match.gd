@@ -102,7 +102,7 @@ static func _combat_command(state: Dictionary, actor: String, action: Dictionary
 		"select-combat-rating":
 			return Combat.select_rating(state, actor, str(action.get("unitId", "")))
 		"choose-combat-terrain":
-			return Combat.choose_terrain(state, actor, action, data, action.get("dice", {}), board)
+			return Combat.choose_terrain(state, actor, action, data, board)
 	return Result.failure("unsupported_action", "该战斗命令尚未接入原生 08 对局")
 
 

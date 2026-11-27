@@ -226,6 +226,8 @@ for (const scenario of SCENARIOS) {
     name: scenario.name, note: scenario.note, target: scenario.target,
     attackerId: scenario.attackerId, defenderId: scenario.defenderId,
     base: baseSnapshot,
+    // 注入骰面的场景在 TS 侧走 offer 分支（不推进 rng）；原生回放要按同样键重放，故随夹具导出。
+    offer: scenario.dice ?? null,
     steps,
     outcome: {
       advanced: entrants.length > 0,

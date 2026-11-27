@@ -14,15 +14,16 @@ const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const Retreat := preload("res://works/third-winter/rules/retreat.gd")
 
 
-## 掷一局正规战斗。dice 注入 { surprise: [d1,d2], shift: n, combat: [c1,c2] }。
+## 掷一局正规战斗。rolls 为 CombatRolls（绑本局 rng），按 TS 顺序抽 surprise(2d6)→shift(1d6)→combat(2d6)。
+## 强度按原始比值取整列（OCS 9.7–9.9 先四舍五入比值，再向下取列），不得先把双方强度取整。
 ## 返回 Result.success({ code, initialColumn, column, row, surpriseDice, shift, combatDice,
 ## attacker, defender, exploit, disorganize })。
-static func roll_combat(table: Dictionary, terrain: String, attack: int, defend: int,
-		modifier: int, hedgehog: int, dice: Dictionary, overrun: bool = false) -> Dictionary:
+static func roll_combat(table: Dictionary, terrain: String, attack: float, defend: float,
+		modifier: int, hedgehog: int, rolls: RefCounted, overrun: bool = false) -> Dictionary:
 	var columns: Variant = table.get("terrainColumns", {}).get(terrain)
 	if not columns is Array or columns.is_empty() or attack < 0 or defend < 0 \
-			or not is_finite(float(attack + defend)):
-		return Result.failure("combat_odds", "无效战斗兵力比（攻 %d / 守 %d）" % [attack, defend])
+			or not is_finite(attack + defend):
+		return Result.failure("combat_odds", "无效战斗兵力比（攻 %s / 守 %s）" % [str(attack), str(defend)])
 	var odds: float
 	if attack == defend:
 		odds = 1.0
@@ -31,9 +32,9 @@ static func roll_combat(table: Dictionary, terrain: String, attack: int, defend:
 	elif attack == 0:
 		odds = 0.0
 	elif attack > defend:
-		odds = roundf(float(attack) / float(defend))
+		odds = roundf(attack / defend)
 	else:
-		odds = 1.0 / roundf(float(defend) / float(attack))
+		odds = 1.0 / roundf(defend / attack)
 	var initial_column := 0
 	for index: int in columns.size():
 		var label: String = str(columns[index])
@@ -46,16 +47,27 @@ static func roll_combat(table: Dictionary, terrain: String, attack: int, defend:
 			return Result.failure("crt_column", "无效 CRT 列标：%s" % label)
 		if a / b <= odds:
 			initial_column = index
-	var surprise: Array = dice.get("surprise", [])
-	var shift_die := int(dice.get("shift", 0))
-	var combat: Array = dice.get("combat", [])
-	if surprise.size() != 2 or combat.size() != 2:
-		return Result.failure("combat_dice", "战斗掷骰须含 2 枚 surprise 骰与 2 枚 combat 骰")
+	var surprise: Array = rolls.two({"kind": "surprise"})
+	if rolls.failed():
+		return rolls.error
+	if surprise.size() != 2:
+		return Result.failure("combat_dice", "战斗掷骰须含 2 枚 surprise 骰")
 	var surprise_total: int = int(surprise[0]) + int(surprise[1]) + modifier - (1 if hedgehog > 0 else 0)
 	var high := 9 if overrun else 10
 	var low := 6 if overrun else 5
-	var shift: int = shift_die if surprise_total >= high else (-shift_die if surprise_total <= low else 0)
+	var shift: int = 0
+	if surprise_total >= high:
+		shift = rolls.one({"kind": "surprise-shift"})
+	elif surprise_total <= low:
+		shift = -rolls.one({"kind": "surprise-shift"})
+	if rolls.failed():
+		return rolls.error
 	var column: int = clampi(initial_column + shift, 0, columns.size() - 1)
+	var combat: Array = rolls.two({"kind": "combat"})
+	if rolls.failed():
+		return rolls.error
+	if combat.size() != 2:
+		return Result.failure("combat_dice", "战斗掷骰须含 2 枚 combat 骰")
 	var row_match := Crt.match_row_index(table.get("diceRows", []),
 		int(combat[0]) + int(combat[1]) + modifier - hedgehog, "crt")
 	if not row_match.ok:

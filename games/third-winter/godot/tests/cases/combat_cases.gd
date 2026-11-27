@@ -7,6 +7,7 @@ extends RefCounted
 const JsonFile := preload("res://scripts/data/json_file.gd")
 const Combat := preload("res://works/third-winter/rules/combat.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
+const CombatRolls := preload("res://works/third-winter/rules/combat_rolls.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 
 const FIXTURE_REL := "../../../dist/godot/08-combat.json"
@@ -23,6 +24,8 @@ static func run(ctx: Dictionary) -> void:
 	var board: Dictionary = {"table": table}
 	for scenario: Dictionary in fixture.get("scenarios", []):
 		_run_scenario(ctx, scenario, bundle, board)
+	_check_fractional_odds(ctx, table)
+	_check_hedgehog_null(ctx, fixture, bundle, board)
 	_reject_paths(ctx, bundle, board)
 
 
@@ -68,16 +71,18 @@ static func _run_scenario(ctx: Dictionary, scenario: Dictionary, bundle: Diction
 
 	var terrain_step: Dictionary = _step(steps, "defender-terrain")
 	var roll: Dictionary = terrain_step.get("roll", {})
-	var dice: Dictionary = {
-		"surprise": roll.get("surpriseDice", []),
-		"shift": absi(int(roll.get("shift", 0))),
-		"combat": roll.get("combatDice", []),
-	}
-	res = Combat.choose_terrain(state, "axis", terrain_step.get("action", {}), bundle, dice, board)
+	var offer := _offer_of(scenario)
+	var draws_before: int = int(state.get("rng", {}).get("drawCount", 0))
+	res = Combat.choose_terrain(state, "axis", terrain_step.get("action", {}), bundle, board, offer)
 	_expect_ok(expect, res, "守方选地形 · " + str(scenario.get("name", "")))
 	if not res.ok:
 		return
 	state = res.value
+	# 默认从本局 rng 自掷：surprise 2 枚 → shift 1 枚（仅极端时）→ combat 2 枚，按骰数推进 drawCount。
+	# 夹具用 offer 固定骰面的场景（TS 侧 offer 分支同样不推进 rng）应为 0。
+	var expected_draws: int = 0 if not offer.is_empty() else (5 if int(roll.get("shift", 0)) != 0 else 4)
+	expect.call(int(state.get("rng", {}).get("drawCount", 0)) == draws_before + expected_draws,
+		"掷骰消耗随机数 %d 次 · %s" % [expected_draws, str(scenario.get("name", ""))])
 	_compare_step(ctx, state, terrain_step, involved, "守方地形")
 
 	var attacker_result: Dictionary = _step(steps, "attacker-result")
@@ -108,11 +113,53 @@ static func _run_scenario(ctx: Dictionary, scenario: Dictionary, bundle: Diction
 		_compare_step(ctx, state, advance_step, involved, "进击")
 
 
+## 半强度取列：OCS 9.7–9.9 先把比值四舍五入再取列，不能先各自取整（2.5:2 应取 1:1 而非 2:1）。
+static func _check_fractional_odds(ctx: Dictionary, table: Dictionary) -> void:
+	var expect: Callable = ctx.expect
+	var columns: Array = table.get("terrainColumns", {}).get("Open", [])
+	var one_to_one := -1
+	for index: int in columns.size():
+		if str(columns[index]) == "1:1":
+			one_to_one = index
+	var rolls := CombatRolls.new({"seed": 19440126, "state": 3682571752, "drawCount": 2})
+	var res: Dictionary = CombatResult.roll_combat(table, "Open", 2.5, 2.0, 0, 0, rolls, false)
+	expect.call(res.ok, "半强度掷骰可结算 · %s" % str(res.get("errorMessage", "")))
+	if res.ok:
+		expect.call(int(res.value.get("initialColumn", -1)) == one_to_one,
+			"半强度按原始比值取列（2.5:2 → 1:1）")
+
+
+## 刺猬 0 级在盘上是 null 条目（削平后保留键），不得当字典取 level。
+static func _check_hedgehog_null(ctx: Dictionary, fixture: Dictionary, bundle: Dictionary, board: Dictionary) -> void:
+	var expect: Callable = ctx.expect
+	var scenario: Dictionary = fixture.get("scenarios", [])[0] if fixture.get("scenarios", []).size() > 0 else {}
+	if scenario.is_empty():
+		return
+	var state: Dictionary = scenario.get("base", {}).duplicate(true)
+	var target := str(scenario.get("target", ""))
+	state["hedgehogs"] = {target: null}
+	var declare_step: Dictionary = _step(scenario.get("steps", []), "declare")
+	var res: Dictionary = Combat.declare(state, "soviet", declare_step.get("action", {}), bundle, board)
+	expect.call(res.ok, "刺猬 0 级 null 条目可宣告战斗 · %s" % str(res.get("errorMessage", "")))
+	if res.ok:
+		expect.call(int(res.value.get("combat", {}).get("hedgehog", -1)) == 0,
+			"刺猬 null 条目按 0 级参战")
+
+
 static func _step(steps: Array, name: String) -> Dictionary:
 	for step: Dictionary in steps:
 		if str(step.get("step", "")) == name:
 			return step
 	return {}
+
+
+## 夹具里注入骰面的场景（TS 走 offer 分支，不推进 rng），原生按同一键重放。
+static func _offer_of(scenario: Dictionary) -> Dictionary:
+	var offered: Variant = scenario.get("offer")
+	if not (offered is Dictionary):
+		return {}
+	return {"surprise": offered.get("surprise", []), "surprise-shift": offered.get("shift", []),
+		"combat": offered.get("combat", [])}
 
 
 static func _compare_step(ctx: Dictionary, state: Dictionary, record: Dictionary, involved: Array, label: String) -> void:
@@ -231,12 +278,7 @@ static func _reject_paths(ctx: Dictionary, bundle: Dictionary, board: Dictionary
 			if rate_a.ok and rate_d.ok:
 				opened2 = rate_d.value
 				var terrain: Dictionary = _step(scenario.get("steps", []), "defender-terrain")
-				var roll: Dictionary = terrain.get("roll", {})
-				var dice: Dictionary = {
-					"surprise": roll.get("surpriseDice", []), "shift": absi(int(roll.get("shift", 0))),
-					"combat": roll.get("combatDice", []),
-				}
-				var terrain_res: Dictionary = Combat.choose_terrain(opened2, "axis", terrain.get("action", {}), bundle, dice, board)
+				var terrain_res: Dictionary = Combat.choose_terrain(opened2, "axis", terrain.get("action", {}), bundle, board)
 				if terrain_res.ok:
 					opened2 = terrain_res.value
 					var attacker_action: Dictionary = {"lossOrder": [attacker_id], "optionLosses": 99,

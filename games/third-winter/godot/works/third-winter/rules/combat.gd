@@ -12,6 +12,8 @@ const CombatSupply := preload("res://works/third-winter/rules/combat_supply.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const SupplyPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 const CombatTerrain := preload("res://works/third-winter/rules/combat_terrain.gd")
+const CombatRolls := preload("res://works/third-winter/rules/combat_rolls.gd")
+const GroundActivity := preload("res://works/third-winter/rules/ground_activity.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 
@@ -41,15 +43,14 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 			return Result.failure("combat_attacker_duplicate", "攻方名单重复：%s" % id)
 		seen[id] = true
 	if str(cursor.get("phase", "")) == "exploitation":
-		var end_check := _assert_movement_end(state, actor)
+		var end_check := _assert_movement_end(state, actor, board)
 		if not end_check.ok:
 			return end_check
 	var opposite := _opponent(actor)
 	var sources: Variant = data.get("view", {}).get("supplySources", {}).get(opposite, [])
 	if sources is Array and sources.has(target):
 		return Result.failure("combat_supply_source", "敌方补给源格不能作为战斗目标")
-	var ground_activity: Dictionary = state.get("groundActivity", {})
-	var airlifted: Array = ground_activity.get("airlifted", [])
+	var airlifted: Array = _airlifted(state)
 	var weather := "freeze" if str(state.get("turn", {}).get("weather", {}).get("ground", "")) == "freeze" else "dry"
 	for id: String in attackers:
 		var unit: Dictionary = state.get("units", {}).get(id, {})
@@ -148,9 +149,9 @@ static func select_rating(state: Dictionary, actor: String, id: String) -> Dicti
 
 
 ## 第五步·守方选择战斗地形（choose-combat-terrain）：算双方强度、掷骰取表并落到战斗记录。
-## dice 为注入骰面 { surprise: [d1,d2], shift: n, combat: [c1,c2] }；本轮不读 RNG 流。
+## 掷骰按 TS 顺序消耗本局 rng：surprise(2d6) → shift(1d6，仅极端时) → combat(2d6)。
 static func choose_terrain(state: Dictionary, actor: String, action: Dictionary, data: Dictionary,
-		dice: Dictionary = {}, board: Dictionary = {}) -> Dictionary:
+		board: Dictionary = {}, offer: Dictionary = {}) -> Dictionary:
 	var combat: Variant = state.get("combat")
 	if combat == null:
 		return Result.failure("combat_missing", "当前没有进行中的战斗")
@@ -198,9 +199,10 @@ static func choose_terrain(state: Dictionary, actor: String, action: Dictionary,
 	var attacker_leader: Dictionary = state.get("units", {}).get(str(combat.get("attackerLeader", "")), {})
 	var defender_leader: Dictionary = state.get("units", {}).get(str(combat.get("defenderLeader", "")), {})
 	var modifier := CombatTerrain.combat_rating(attacker_leader) - CombatTerrain.combat_rating(defender_leader)
+	var rolls := CombatRolls.new(state.get("rng", {}), offer)
 	var roll: Dictionary = CombatResult.roll_combat(board.get("table", {}),
-		CombatTerrain.combat_terrain_category(terrain), int(roundf(attack)), int(roundf(defend)),
-		modifier, int(combat.get("hedgehog", 0)), dice, combat.get("kind") == "overrun")
+		CombatTerrain.combat_terrain_category(terrain), attack, defend,
+		modifier, int(combat.get("hedgehog", 0)), rolls, combat.get("kind") == "overrun")
 	if not roll.ok:
 		return roll
 	var units: Dictionary = state.get("units", {}).duplicate(true)
@@ -220,6 +222,7 @@ static func choose_terrain(state: Dictionary, actor: String, action: Dictionary,
 	var next := state.duplicate(true)
 	next["units"] = units
 	next["combat"] = next_combat
+	next["rng"] = rolls.rng
 	return Result.success(next)
 
 
@@ -289,10 +292,17 @@ static func _held_at_start(state: Dictionary) -> Dictionary:
 	return held
 
 
+## scorpion-ground-activity.ts：只认同一 回合/席位/阶段 的活动记录，过期记录一律忽略。
+static func _airlifted(state: Dictionary) -> Array:
+	return GroundActivity.airlifted(state)
+
+
 static func _hedgehog_level(state: Dictionary, target: String, board: Dictionary) -> Variant:
 	var hedgehogs: Dictionary = state.get("hedgehogs", {})
 	if hedgehogs.has(target):
-		return int(hedgehogs[target].get("level", 0))
+		# TS 在刺猬被削到 0 级时留 null 条目；null 等价 0 级，不能当字典取 level。
+		var entry: Variant = hedgehogs[target]
+		return int(entry.get("level", 0)) if entry is Dictionary else 0
 	var hedgehog_at: Variant = board.get("hedgehogAt")
 	if hedgehog_at is Callable:
 		return hedgehog_at.call(target)
@@ -300,13 +310,19 @@ static func _hedgehog_level(state: Dictionary, target: String, board: Dictionary
 
 
 ## exploitation 阶段收尾检查：预备单位不得留在刺猬格；目标格堆叠不得超限。
-static func _assert_movement_end(state: Dictionary, actor: String) -> Dictionary:
-	var hedgehog_hexes: Array = state.get("hedgehogs", {}).keys()
+static func _assert_movement_end(state: Dictionary, actor: String, board: Dictionary = {}) -> Dictionary:
+	var reserve_hexes: Array = []
 	for id: String in state.get("units", {}):
 		var unit: Dictionary = state.units[id]
-		if str(unit.get("side", "")) == actor and unit.get("reserve") != null \
-				and hedgehog_hexes.has(str(unit.get("hex", ""))):
-			return Result.failure("reserve_hedgehog", "预备单位不能留在刺猬格：%s" % id)
+		if str(unit.get("side", "")) != actor or unit.get("reserve") == null:
+			continue
+		var hex := str(unit.get("hex", ""))
+		if not reserve_hexes.has(hex):
+			reserve_hexes.append(hex)
+	for hex: String in reserve_hexes:
+		# 0 级（含 TS 的 null 条目）不算刺猬格。
+		if int(_hedgehog_level(state, hex, board)) > 0:
+			return Result.failure("reserve_hedgehog", "预备单位不能留在刺猬格：%s" % hex)
 	var illegal: Array = Stacking.overstacked_hexes(state, actor)
 	if not illegal.is_empty():
 		return Result.failure("stacking_limit", "移动收尾存在超堆叠格")

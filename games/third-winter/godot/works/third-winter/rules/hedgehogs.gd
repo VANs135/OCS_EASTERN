@@ -8,6 +8,7 @@ const Result := preload("res://scripts/core/result.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const SupplyPayment := preload("res://works/third-winter/rules/sp_payment.gd")
+const GroundActivity := preload("res://works/third-winter/rules/ground_activity.gd")
 
 const MAX_LEVEL := 4
 const BUILD_COST := 8
@@ -153,7 +154,7 @@ static func _stationary_worker(state: Dictionary, side: String, id: String) -> D
 		return {}
 	if state.get("moved", []).has(id):
 		return {}
-	var airlifted: Array = state.get("groundActivity", {}).get("airlifted", [])
+	var airlifted: Array = GroundActivity.airlifted(state)
 	if airlifted.has(id):
 		return {}
 	return unit

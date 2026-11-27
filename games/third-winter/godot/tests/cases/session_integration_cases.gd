@@ -154,18 +154,20 @@ static func _check_combat(ctx: Dictionary, bundle: Dictionary) -> void:
 		var step_name := str(step.get("step", ""))
 		var action: Dictionary = step.get("action", {}).duplicate(true)
 		action["type"] = _combat_action_type(step_name)
-		var roll: Variant = step.get("roll")
-		if roll is Dictionary:
-			action["dice"] = {
-				"surprise": roll.get("surpriseDice", []),
-				"shift": absi(int(roll.get("shift", 0))),
-				"combat": roll.get("combatDice", []),
-			}
+		var draws_before: int = int(session.state().get("rng", {}).get("drawCount", 0))
 		var seat: String = defender_side if _is_defender_step(step_name) else attacker_side
 		var outcome: Dictionary = session.dispatch({"kind": "command", "seat": seat, "action": action})
 		expect.call(outcome.ok, "集成·战斗：路由可达 %s · %s" % [step_name, str(outcome.get("errorMessage", ""))])
 		if not outcome.ok:
 			return
+		# 选地形这一步必须由引擎自掷骰并推进 rng，不接受外部注入骰面。
+		if step_name == "defender-terrain":
+			var result: Dictionary = step.get("roll", {})
+			var expected_draws: int = 5 if int(result.get("shift", 0)) != 0 else 4
+			expect.call(int(session.state().get("rng", {}).get("drawCount", 0)) == draws_before + expected_draws,
+				"集成·战斗：选地形消耗随机数 %d 次" % expected_draws)
+			expect.call(str(session.state().get("combat", {}).get("roll", {}).get("code", "")) == str(result.get("code", "")),
+				"集成·战斗：选地形掷出与 oracle 相同的结果码")
 		var combat: Variant = session.state().get("combat")
 		if step_next.has(step_name):
 			var expected_step := str(step_next[step_name])
