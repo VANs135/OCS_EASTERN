@@ -299,6 +299,7 @@ func _compare_view_at(record: Dictionary, vector: Dictionary, data: Dictionary, 
 ## reinforcement ledger: arrivals on the map, deployed counters, deliveries, pax and the dice.
 func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: Dictionary, from: int) -> void:
 	_reject_reinforcements(record, data)
+	var variable: Dictionary = {}
 	_compare_view_at(record, vector, data, "08 原生增援窗口视图")
 	var steps := 0
 	var index := from + 1
@@ -321,6 +322,8 @@ func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: 
 		if not wrote.ok:
 			return
 		record = wrote.value.record
+		if str(record.state.cursor.phase) == "reinforcement" and str(record.state.get("window", {}).get("stage")) == "variable":
+			variable = record
 		_compare_reinforcement(record.state, expected.state, "08 原生增援修订 %d" % index)
 		_compare_view_at(record, vector, data, "08 原生增援修订 %d 视图" % index)
 		steps += 1
@@ -328,6 +331,55 @@ func _test_reinforcement_commands(record: Dictionary, vector: Dictionary, data: 
 			break
 		index += 1
 	_expect(steps >= 5, "08 原生增援走完抵达、交付与收尾 (%d 步)" % steps)
+	_test_alert_placement(variable, data)
+
+
+## The 08 first turn awards no Alert, so there is no oracle for this path. The fixture starts from the
+## real variable-stage ledger and injects the pool's first Alert, then checks the mutations
+## src/match/scorpion-reinforcement.ts performs: settle the pending draw, land one counter, drop the
+## pool entry, and record ground control.
+func _test_alert_placement(record: Dictionary, data: Dictionary) -> void:
+	if record.is_empty() or record.state.get("availableAlerts", []).is_empty():
+		_expect(false, "08 警戒营夹具缺少可变阶段账本")
+		return
+	var counter: Dictionary = record.state.availableAlerts[0]
+	# Turn 1 is the Soviet player turn and the Alert pool belongs to the Axis, so the fixture hands the
+	# variable stage to the Axis before injecting the pool's first Alert.
+	var seeded: Dictionary = record.duplicate(true)
+	seeded.state.cursor.phasing = "axis"
+	seeded.state.window.pendingAlert = counter
+	var bare: Dictionary = seeded.duplicate(true)
+	bare.state.window.pendingAlert = null
+	var at: Array = ReinforcementBoard.alert_destinations(data.view.mapGraph, data, seeded.state, counter,
+		"axis", str(seeded.state.turn.weather.ground))
+	_expect(at.size() >= 2, "08 警戒营有可落地的印刷 HQ 落点 (%d)" % at.size())
+	_reject_scorpion(seeded, data, "axis", {"type": "place-alert", "hex": "s99.99"}, "alert_destination")
+	var placed := ScorpionMatch.submit(seeded.duplicate(true), "axis",
+		{"id": "alert-place", "expectedRevision": seeded.revision,
+		"action": {"type": "place-alert", "hex": at[0]}}, data)
+	_expect(placed.ok, "08 警戒营可以落在 %s %s" % [at[0], placed.get("errorMessage", "")])
+	if placed.ok:
+		var after: Dictionary = placed.value.record.state
+		_expect(after.window.pendingAlert == null, "08 警戒营落子后清空待放置")
+		_expect(after.availableAlerts.size() == seeded.state.availableAlerts.size() - 1, "08 警戒营从池中移除")
+		_expect(after.placedAlerts.size() == seeded.state.placedAlerts.size() + 1, "08 警戒营记入已放置")
+		_expect(str(after.placedAlerts[-1].hex) == at[0] and str(after.placedAlerts[-1].counter.id) == str(counter.id),
+			"08 已放置账本记录落点与算子")
+		var unit: Dictionary = after.units.get(str(counter.id), {})
+		_expect(str(unit.get("hex")) == at[0] and str(unit.get("definition")) == str(counter.definition),
+			"08 警戒营落子后生成本方算子")
+		_expect(int(unit.get("stepsLost", -1)) == 0, "08 警戒营算子完整上场")
+	var passed := ScorpionMatch.submit(seeded.duplicate(true), "axis",
+		{"id": "alert-pass", "expectedRevision": seeded.revision, "action": {"type": "pass-alert"}}, data)
+	_expect(passed.ok and passed.value.record.state.window.pendingAlert == null, "08 可以放弃本次警戒营")
+	if passed.ok:
+		var after: Dictionary = passed.value.record.state
+		_expect(after.availableAlerts.size() == seeded.state.availableAlerts.size(), "08 放弃警戒营不损耗池")
+		_expect(after.placedAlerts.is_empty(), "08 放弃警戒营不记入已放置")
+	_reject_scorpion(seeded, data, "soviet", {"type": "place-alert", "hex": at[0]}, "wrong_actor")
+	_reject_scorpion(bare, data, "axis", {"type": "place-alert", "hex": at[0]}, "alert_pending")
+	_reject_scorpion(bare, data, "axis", {"type": "pass-alert"}, "alert_pending")
+	_reject_scorpion(seeded, data, "axis", {"type": "complete-reinforcement"}, "variable_pending")
 
 
 ## Every guard below is a rule the TypeScript reinforcement phase enforces: the non-phasing side,

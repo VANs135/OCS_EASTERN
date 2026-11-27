@@ -45,6 +45,10 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 			return _place_supply(state, actor, action, data)
 		"finish-scheduled-arrivals":
 			return _finish_scheduled(state, actor, data)
+		"place-alert":
+			return _place_alert(state, actor, action, data)
+		"pass-alert":
+			return _pass_alert(state, actor)
 		"complete-reinforcement":
 			return _complete(state, actor)
 	return Result.failure("unsupported_action", "该增援动作尚未接入原生 08 对局")
@@ -159,6 +163,48 @@ static func _place_supply(state: Dictionary, actor: String, action: Dictionary, 
 		window.fixedTokens = left - tokens
 	else:
 		window.variableTokens = left - tokens
+	return Result.success(state)
+
+
+## TTW 1.7a — the Alert counter arrives at one of the printed HQ hexes, or the draw is passed up.
+## src/match/scorpion-reinforcement.ts settles `pendingAlert` first, then lands the counter like any
+## other arrival: one deployed counter in the chosen hex, and ground control recorded for it.
+static func _place_alert(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	var window: Dictionary = state.window
+	var counter: Variant = window.get("pendingAlert")
+	if counter == null:
+		return Result.failure("alert_pending", "本轮没有待放置的警戒营")
+	var hex := str(action.get("hex", ""))
+	var legal := Board.alert_destinations(data.view.mapGraph, data, state, counter, actor,
+		str(state.turn.weather.ground))
+	if not legal.has(hex):
+		return Result.failure("alert_destination", "警戒营只能落在印刷的 HQ 落点")
+	var template: Dictionary = data.view.get("catalog", {}).get("counters", {}).get(counter.get("definition"), {})
+	if template.is_empty() or str(template.get("side")) != actor or state.get("units", {}).has(counter.id):
+		return Result.failure("alert_counter", "该警戒营的算子资料与盘面冲突")
+	var unit: Dictionary = template.duplicate(true)
+	unit.hex = hex
+	unit.stepsLost = 0
+	unit.erase("organicTruck")
+	var pool: Array = []
+	for entry: Dictionary in _list(state.get("availableAlerts")):
+		if str(entry.get("id")) != str(counter.id):
+			pool.append(entry)
+	var placed: Array = _list(state.get("placedAlerts")).duplicate(true)
+	placed.append({"counter": counter.duplicate(true), "hex": hex})
+	window.pendingAlert = null
+	state.availableAlerts = pool
+	state.placedAlerts = placed
+	state.units[str(counter.id)] = unit
+	_record_control(state, actor, hex, data)
+	return Result.success(state)
+
+
+static func _pass_alert(state: Dictionary, actor: String) -> Dictionary:
+	var window: Dictionary = state.window
+	if window.get("pendingAlert") == null:
+		return Result.failure("alert_pending", "本轮没有待放置的警戒营")
+	window.pendingAlert = null
 	return Result.success(state)
 
 

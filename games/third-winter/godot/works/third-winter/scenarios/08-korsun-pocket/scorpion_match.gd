@@ -29,7 +29,7 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return Reinforcement.enter(state, actor, data)
 	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
 	if action.get("type") in ["place-arrival", "place-supply", "finish-scheduled-arrivals",
-			"complete-reinforcement"]:
+			"place-alert", "pass-alert", "complete-reinforcement"]:
 		if state.kind != "playing":
 			return Result.failure("match_not_started", "请先开始 08 对局")
 		return Reinforcement.apply(state, actor, action, data)
