@@ -174,7 +174,8 @@
 - [x] 2026-11-27，B9a 空军任务通规原子落 `packages/series`：七步序列、4 机上限、天气／阶段／射程／每阶段一次、任务目标类型、拦截、转场、Flak DRM 与击落线；09 飞机计数器写入 `availableThrough`，并由 `campaign-air-availability` 拦截。七步交互与打击结算仍待接。
 - [x] 2026-11-27，B9b 接入 09 可用的地图外空袭子集：`campaign-air-strike` 支持 `barrage`／`hip-shoot`，从地图外盒起飞、按 `availableThrough` 限回合、按阶段／天气／Barrage Segment 限制作战，执行 Flak、空袭弹幕、损失分配与回盒；`campaign-match` 分发四个任务动作并在阶段末阻塞未完成任务；09 开局默认提供地图外盒免费整备；新增 `kirovogradAirStrikeBoard` 从实际机谱读取航程／轰炸／空战值，按 09 AA 单位 Combat Mode 的 +1／+2 DRM 取同格最高值。合成 Flak／弹幕／损失／返航、分发集成与 09 板绑定用例全绿。
 - [ ] B9 完整七步仍未接：拦截与空战多轮、`fighter-sweep`、`trainbusting`、空运、空投、基地转移、地图外盒通用返回。当前只覆盖 09 无对抗空袭。
-- [ ] 09 剩余绑定：把 `kirovogradAirStrikeBoard` 连同弹幕表与 `CampaignBarrageBoard` 注入会话装配；边缘补给源、初始轨距；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头和双方预备库存接实际状态与 UI。
+- [x] 2026-11-27，09 铁路运力按 p.62 绑为 0。新增 `kirovogradRailBoard`，经共享 `campaignRailStatus`／`campaign-rail-transport` 返回容量 0，铁路机动无可分配运力；开局 `railTransport` 默认使用该板。
+- [ ] 09 剩余绑定：把 `kirovogradAirStrikeBoard` 连同弹幕表与 `CampaignBarrageBoard` 注入会话装配；边缘补给源（轴心西缘、苏军东缘铁路格）、初始轨距；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头和双方预备库存接实际状态与 UI。
 - [x] 按确认口径，08 的 `s5.16` 和 `s21.04` 分别有 2 点、3 点卡车及 9 SP、10 SP。开局具象补给合计 126T，实库审计分别校验卡车运输点数和补给。
 - [ ] 收敛其他地图接缝和河流数据待核。2026-11-25 的实库导入已不报 09 接缝缺失，仍有 135 条临时河边待目视确认，由项目方维护地图源。
 - [ ] 继续登记原文表述不清及缺失数据。战役河流连续三个 Dry、Mud 或 Thaw 回合后的解冰生效时点仍待核。其他辅助卡接入时逐张校验标定与状态字段。

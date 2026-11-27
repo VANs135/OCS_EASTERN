@@ -13,6 +13,7 @@ import { kirovogradReleaseRule } from './kirovograd-release.ts'
 import { kirovogradScenarioVictory } from './kirovograd-scenario-victory.ts'
 import { campaignControlRecorder } from './campaign-control.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
+import { kirovogradRailBoard } from './kirovograd-rail-board.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -129,6 +130,8 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
       ...kirovogradReinforcementSupply(data) },
     scenarioVictory: turnRules.scenarioVictory ?? kirovogradScenarioVictory({ map: data.map,
       definitions: data.catalog.definitions, kirovogradHex: data.kirovogradHex }),
+    // p.62: Kirovograd has zero rail capacity; bind it to the shared rail checks.
+    railTransport: turnRules.railTransport ?? kirovogradRailBoard(),
     // p.62: Scenario 9 aircraft refit off-map without spending supply points.
     aircraftRefit: turnRules.aircraftRefit ?? {
       bases: () => [],
