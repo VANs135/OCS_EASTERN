@@ -121,3 +121,10 @@ test('the adapter leaves unresolved source rows visible and rejects malformed or
   const missing = { ...input, setup: { ...input.setup, drawOrders: [{ ...input.setup.drawOrders[0], count: undefined }] } }
   assert.throws(() => prepareKirovogradOpening(missing), /Unsupported Kirovograd setup draw/)
 })
+
+test('the opening reuses a supplied barrage table to assemble the 09 air-strike board', () => {
+  const table = { columns: ['1-2'], costs: [1], matrix: Array.from({ length: 11 }, () => ['-']) }
+  const prepared = prepareKirovogradOpening(data(), { barrage: { table } })
+  assert.equal(prepared.context.turn.airMission?.table, table)
+  assert.equal(prepared.context.turn.airMission?.rangeHexes?.({ counters: {} }, 'air-1'), Number.MAX_SAFE_INTEGER)
+})

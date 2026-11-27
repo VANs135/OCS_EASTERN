@@ -15,6 +15,7 @@ import { campaignControlRecorder } from './campaign-control.ts'
 import { kirovogradReinforcementSupply } from './kirovograd-reinforcement-supply.ts'
 import { kirovogradRailBoard } from './kirovograd-rail-board.ts'
 import { kirovogradEdgeSupplySources } from './kirovograd-supply.ts'
+import { kirovogradAirStrikeBoard } from './kirovograd-air-strike-board.ts'
 
 type KirovogradData = Awaited<ReturnType<typeof loadKirovogradScenario>>
 
@@ -120,6 +121,11 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
   const recordCity = campaignControlRecorder(new Set([city]))
   const baseMovement = turnRules.groundMovement
   const edgeSupplySources = kirovogradEdgeSupplySources(data.map)
+  // Reuse the scenario's loaded barrage table and the actual air unit definitions
+  // to assemble the 09 air-strike board without a second table source.
+  const airMission = turnRules.airMission ?? (turnRules.barrage
+    ? kirovogradAirStrikeBoard({ map: data.map, table: turnRules.barrage.table, definitions: data.catalog.definitions })
+    : undefined)
   const groundMovement = baseMovement ? { ...baseMovement,
     afterMove: (state: Parameters<typeof recordCity>[0], side: Side,
     move: Parameters<typeof recordCity>[2]) => {
@@ -128,6 +134,7 @@ export function prepareKirovogradOpening(data: KirovogradData, turnRules: Partia
     } } : undefined
   const context: CampaignOpeningContext = { setupPlan, setupRules, turn: { ...turnRules,
     ...(groundMovement ? { groundMovement } : {}),
+    ...(airMission ? { airMission } : {}),
     reinforcement: { ...turnRules.reinforcement, schedule: data.reinforcement.schedule, bindings,
       resolveHex: (hex) => data.map.resolveHex(hex), arrivalSites: turnRules.reinforcement?.arrivalSites ?? (() => []),
       ...kirovogradReinforcementSupply(data) },
