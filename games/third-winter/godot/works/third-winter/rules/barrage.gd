@@ -44,6 +44,13 @@ static func target_units(state: Dictionary, side: String, at: String) -> Array:
 	return result
 
 
+## 只读预览：复用声明资格核查与齐射强度/列位/费用计算，供菜单草案列出合格炮兵与费用；不改盘面。
+static func volley_preview(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	var fired: Array = _phase_battery_history(state)
+	var target := _hex_id(str(action.get("target", "")))
+	return _prepare_barrage(state, actor, action, data, fired, target)
+
+
 ## src/match/scorpion-barrage.ts `hasScorpionBarrageSpotter`：目标格邻格内有本方战斗算子。
 static func has_spotter(state: Dictionary, side: String, target: String, data: Dictionary) -> bool:
 	var graph: Dictionary = data.view.get("mapGraph", {})

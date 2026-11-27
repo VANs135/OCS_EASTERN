@@ -10,6 +10,12 @@ const Round := preload("res://works/third-winter/rules/round.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 const Result := preload("res://scripts/core/result.gd")
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
+const GroundModeActions := preload("res://works/third-winter/rules/ground_mode_actions.gd")
+const Reserves := preload("res://works/third-winter/rules/reserves.gd")
+const Combat := preload("res://works/third-winter/rules/combat.gd")
+const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
+const Barrage := preload("res://works/third-winter/rules/barrage.gd")
+const Crt := preload("res://scripts/rules/series/crt.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -58,4 +64,73 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		if state.kind != "playing":
 			return Result.failure("match_not_started", "请先开始 08 对局")
 		return Reinforcement.apply(state, actor, action, data)
+	# OCS 5.4 — 朝向面切换（战斗面/移动面），不消耗 MP。
+	if action.get("type") == "set-ground-mode":
+		return GroundModeActions.set_ground_mode(state, actor, action, data)
+	# TTW 08 预备三命令：进预备 / 退预备 / 反应或进击阶段释放预备。
+	if action.get("type") in ["mark-reserve", "leave-reserve", "release-reserve"]:
+		return _reserve_command(state, actor, action, data)
+	# OCS v4.3 §9.5–9.13 正规战斗七步：宣告、守方补给、选行动值、选地形（攻/守方结算与进击见结果分支）。
+	if action.get("type") in ["declare-combat", "defend-combat", "select-combat-rating", "choose-combat-terrain"]:
+		return _combat_command(state, actor, action, data)
+	# 战斗结果：攻/守方结算与战后推进。
+	if action.get("type") in ["resolve-combat", "advance-after-combat"]:
+		return _combat_result_command(state, actor, action, data)
+	# OCS 10.0 地面炮兵炮击：声明 / 选地形 / 分配射击损失。
+	if action.get("type") in ["declare-artillery-barrage", "choose-barrage-terrain", "assign-barrage-loss"]:
+		return Barrage.apply(state, actor, action, data)
 	return Result.failure("unsupported_action", "该机制尚未接入原生 08 对局")
+
+
+static func _reserve_command(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	match str(action.get("type", "")):
+		"mark-reserve":
+			return Reserves.mark_reserve(state, actor, action, data)
+		"leave-reserve":
+			return Reserves.leave_reserve(state, actor, action, data)
+		_:
+			return Reserves.release_reserve(state, actor, action, data)
+
+
+static func _combat_command(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	var board := _combat_board(data)
+	match str(action.get("type", "")):
+		"declare-combat":
+			return Combat.declare(state, actor, action, data, board)
+		"defend-combat":
+			return Combat.defend(state, actor, action, data)
+		"select-combat-rating":
+			return Combat.select_rating(state, actor, str(action.get("unitId", "")))
+		"choose-combat-terrain":
+			return Combat.choose_terrain(state, actor, action, data, action.get("dice", {}), board)
+	return Result.failure("unsupported_action", "该战斗命令尚未接入原生 08 对局")
+
+
+static func _combat_result_command(state: Dictionary, actor: String, action: Dictionary, data: Dictionary) -> Dictionary:
+	var board := _combat_board(data)
+	match str(action.get("type", "")):
+		"resolve-combat":
+			return _unwrap_match_state(CombatResult.resolve(state, actor, action, data, board))
+		"advance-after-combat":
+			return _unwrap_match_state(CombatResult.advance(state, actor, action.get("unitIds", []), data, board,
+				action.get("breakdowns", [])))
+	return Result.failure("unsupported_action", "该战斗结果命令尚未接入原生 08 对局")
+
+
+## CombatResult.resolve/advance 返回 {state, granted/advanced/entrants} 包装；对局记录只落盘面状态，解包出 state。
+static func _unwrap_match_state(res: Dictionary) -> Dictionary:
+	if not res.get("ok", false):
+		return res
+	var value: Variant = res.get("value")
+	if value is Dictionary and value.has("state"):
+		return Result.success(value.state)
+	return res
+
+
+## 战斗掷骰用 CRT 表：数据包可注入 combatTable，缺省读通规默认表。
+static func _combat_board(data: Dictionary) -> Dictionary:
+	var table: Variant = data.get("combatTable")
+	if table is Dictionary and not table.is_empty():
+		return {"table": table}
+	var loaded := Crt.load_table("")
+	return {"table": loaded.value if loaded.ok else {}}

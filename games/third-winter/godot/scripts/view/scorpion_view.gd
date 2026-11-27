@@ -6,10 +6,12 @@ extends RefCounted
 
 const HexLayout := preload("res://scripts/view/hex_layout.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
+const Combat := preload("res://works/third-winter/rules/combat.gd")
+const Barrage := preload("res://works/third-winter/rules/barrage.gd")
+const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const SupplyPhase := preload("res://works/third-winter/rules/supply_phase.gd")
 const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
-const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
@@ -234,7 +236,8 @@ static func _project_phase(record: Dictionary, selection: Dictionary, data: Dict
 		"phase": phase, "phaseId": str(state.cursor.phase),
 		"roster": entries, "stack": _stack(selection, stacks, entries), "stacking": [],
 		"unitId": unit_id, "unitIds": unit_ids, "hex": picked_hex, "route": [],
-		"actions": actions, "menu": [], "ended": state.get("victory") != null,
+		"actions": actions, "menu": _menu_keys(menu_entries(state, actor, selection, data), revision),
+		"ended": state.get("victory") != null,
 		"turnNumber": int(state.turn.number), "phasingSide": str(state.cursor.phasing),
 		"transportStock": transport_stock(state.get("units", {}), viewer, data),
 		"breakdownStock": breakdown_stock(state.get("units", {}), state.get("pieces", []), data),
@@ -385,6 +388,13 @@ static func _unit_name(state: Dictionary, id: String, data: Dictionary) -> Strin
 	return str(names.get(str(unit.get("definition", "")), {}).get("name", id))
 
 
+## 菜单条目自带内联动作；补 menu:<revision>:<index> 键供 apply 寻址（对照 TS localMenu 键口径）。
+static func _menu_keys(entries: Array, revision: int) -> Array:
+	for index: int in entries.size():
+		entries[index]["key"] = "menu:%d:%d" % [revision, index]
+	return entries
+
+
 static func _choice_actions(revision: int, choices: Array) -> Array:
 	var actions: Array = []
 	for choice: Dictionary in choices:
@@ -450,7 +460,7 @@ static func project_playing(record: Dictionary, selection: Dictionary, data: Dic
 		"phase": phase, "phaseId": str(state.cursor.phase),
 		"roster": entries, "stack": _stack(selection, stacks, entries), "stacking": [],
 		"unitId": unit_id, "unitIds": unit_ids, "hex": picked_hex, "route": [],
-		"actions": actions, "menu": [], "ended": false,
+		"actions": actions, "menu": _menu_keys(menu_entries(state, actor, picked, data), revision), "ended": false,
 			"turnNumber": int(state.turn.number), "phasingSide": str(state.cursor.phasing),
 			"transportStock": transport_stock(state.get("units", {}), viewer, data),
 			"breakdownStock": breakdown_stock(state.get("units", {}), state.get("pieces", []), data),
@@ -690,7 +700,7 @@ static func map_stacks(state: Dictionary, data: Dictionary) -> Array:
 		var definition := _definition(data, unit.definition)
 		var asset: Variant = definition.get("faces", {}).get("combat")
 		var label: String = definition.get("name", id)
-		var show_reserve: bool = unit.get("reserve", false) == true and not marked_reserves.has("%s:%s" % [unit.side, unit.hex])
+		var show_reserve: bool = unit.get("reserve") != null and not marked_reserves.has("%s:%s" % [unit.side, unit.hex])
 		if show_reserve:
 			marked_reserves["%s:%s" % [unit.side, unit.hex]] = true
 		var counter := {"id": id, "hex": unit.hex, "asset": asset, "label": label,
@@ -1106,3 +1116,171 @@ static func _stable_sort(items: Array, less: Callable) -> Array:
 	for entry: Dictionary in decorated:
 		result.append(entry.item)
 	return result
+
+
+## ── 右键/单位菜单（对照 desktop/local/actions.mjs、interaction.mjs、replies.mjs） ──
+## menu 字段不参与 runner 视图对照；被比对的 actions 列表仍只由 playing_choices 等生成。
+static func menu_entries(state: Dictionary, side: String, selection: Dictionary, data: Dictionary) -> Array:
+	var menu: Array = []
+	if state.get("kind") != "playing" or state.get("victory") != null:
+		return menu
+	_append_unit_menu(state, side, selection, data, menu)
+	_append_combat_menu(state, side, data, menu)
+	_append_barrage_menu(state, side, selection, data, menu)
+	return menu
+
+
+static func _append_unit_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:
+	var unit_id: Variant = selection.get("unitId")
+	if unit_id == null:
+		var ids: Array = selection.get("unitIds", [])
+		if ids.size() == 1:
+			unit_id = ids[0]
+	if unit_id == null:
+		return
+	var uid := str(unit_id)
+	var unit: Dictionary = state.get("units", {}).get(uid, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side:
+		return
+	var phase := str(state.get("cursor", {}).get("phase", ""))
+	var moved: Array = state.get("moved", [])
+	if phase == "movement" and not moved.has(uid):
+		if unit.get("combat") == true and unit.get("reserve") == null:
+			var to_face := "combat" if unit.get("moveMode") == true else "move"
+			var face_label := "战斗面" if to_face == "combat" else "移动面"
+			menu.append({"label": "切换到%s" % face_label, "group": "模式",
+				"actions": [{"type": "set-ground-mode", "unitId": uid, "face": to_face}]})
+			if unit.get("disorganized") != true and unit.get("exploit") != true:
+				menu.append({"label": "进入预备队", "group": "预备队",
+					"actions": [{"type": "mark-reserve", "unitId": uid}]})
+		elif unit.get("reserve") != null:
+			menu.append({"label": "取消预备队状态", "group": "预备队",
+				"actions": [{"type": "leave-reserve", "unitId": uid}]})
+	if unit.get("reserve") != null and phase != "movement":
+		menu.append({"label": "释放预备队", "group": "预备队",
+			"actions": [{"type": "release-reserve", "unitId": uid}]})
+
+
+static func _append_combat_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
+	var combat: Variant = state.get("combat")
+	if combat == null or not combat is Dictionary:
+		return
+	var decision: Dictionary = Combat.decision(combat)
+	if decision.is_empty() or str(decision.get("actor", "")) != side:
+		return
+	var action_type := str(decision.get("actionType", ""))
+	var attacker := str(combat.get("attacker", ""))
+	var involved: Array = combat.get("attackers", []) if side == attacker else combat.get("defenders", [])
+	match action_type:
+		"defend-combat":
+			menu.append({"label": "守方免付战斗补给", "group": "地面战斗",
+				"actions": [{"type": "defend-combat", "payments": [], "internalUnitIds": []}]})
+		"select-combat-rating":
+			for id: String in involved:
+				menu.append({"label": "用 %s 的行动值" % _unit_name(state, id, data), "group": "地面战斗",
+					"actions": [{"type": "select-combat-rating", "unitId": id}]})
+		"choose-combat-terrain":
+			var target := str(combat.get("target", ""))
+			var terrains: Array = data.view.get("mapGraph", {}).get("terrains", {}).get(target, [])
+			for terrain: String in terrains:
+				var attacking := {}
+				for id: String in combat.get("attackers", []):
+					var origin: Variant = state.get("units", {}).get(id, {}).get("hex")
+					if origin != null:
+						attacking[str(origin)] = terrain
+				menu.append({"label": "选择%s，结算奇袭与战斗" % _terrain_name(terrain), "group": "地面战斗",
+					"actions": [{"type": "choose-combat-terrain", "terrain": terrain, "attackingTerrain": attacking}]})
+		"resolve-combat":
+			menu.append({"label": "结算战斗战果", "group": "地面战斗",
+				"actions": [{"type": "resolve-combat", "lossOrder": [], "optionLosses": 0,
+					"ignoreDefenderOption": false, "retreats": [], "remnants": []}]})
+		"advance-after-combat":
+			menu.append({"label": "放弃战后推进", "group": "地面战斗",
+				"actions": [{"type": "advance-after-combat", "unitIds": []}]})
+			for id: String in combat.get("attackers", []):
+				if state.get("units", {}).has(id):
+					menu.append({"label": "推进 1 枚 · %s" % _unit_name(state, id, data), "group": "地面战斗",
+						"actions": [{"type": "advance-after-combat", "unitIds": [id]}]})
+
+
+static func _append_barrage_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:
+	var barrage: Variant = state.get("barrage")
+	if barrage != null and barrage is Dictionary:
+		_append_barrage_reply_menu(state, side, barrage, data, menu)
+	_append_barrage_declare_menu(state, side, selection, data, menu)
+
+
+static func _append_barrage_reply_menu(state: Dictionary, side: String, barrage: Dictionary, data: Dictionary, menu: Array) -> void:
+	if str(barrage.get("defender", "")) != side:
+		return
+	var target := str(barrage.get("target", ""))
+	if barrage.get("roll") == null:
+		var terrains: Array = data.view.get("mapGraph", {}).get("terrains", {}).get(target, [])
+		for terrain: String in terrains:
+			menu.append({"label": "以%s结算射击" % _terrain_name(terrain), "group": "射击",
+				"actions": [{"type": "choose-barrage-terrain", "terrain": terrain}]})
+		return
+	var candidates: Array = []
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.get("units", {}).get(id, {})
+		if unit.get("combat") == true and str(unit.get("side", "")) == side and str(unit.get("hex", "")) == target:
+			candidates.append(id)
+	var losses_due := int(barrage.get("lossesDue", 0))
+	for preferred: String in candidates:
+		var order: Array = [preferred]
+		for other: String in candidates:
+			if other != preferred:
+				order.append(other)
+		var left := losses_due
+		var allocation: Array = []
+		for id: String in order:
+			if left <= 0:
+				break
+			var remaining := StepLoss.remaining(state.get("units", {}).get(id, {}))
+			var steps: int = mini(left, remaining)
+			if steps > 0:
+				allocation.append({"unitId": id, "steps": steps})
+				left -= steps
+		if left <= 0:
+			menu.append({"label": "分配 %d 步射击损失 · 优先 %s" % [losses_due, _unit_name(state, preferred, data)],
+				"group": "射击", "actions": [{"type": "assign-barrage-loss", "allocation": allocation}]})
+
+
+static func _append_barrage_declare_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:
+	var target := str(selection.get("hex", ""))
+	if target.is_empty():
+		return
+	var batteries: Array = []
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.get("units", {}).get(id, {})
+		if str(unit.get("side", "")) != side:
+			continue
+		var art: Variant = unit.get("artillery")
+		if not art is Dictionary:
+			continue
+		var preview := Barrage.volley_preview(state, side, {"target": target, "batteries": [{"unitId": id}]}, data)
+		if preview.get("ok", false) == true:
+			batteries.append({"unitId": id})
+	if batteries.is_empty():
+		return
+	var first_id := str(batteries[0].get("unitId", ""))
+	var first_preview := Barrage.volley_preview(state, side,
+		{"target": target, "batteries": [{"unitId": first_id}]}, data)
+	var cost := int(first_preview.get("cost", 0))
+	var payments: Array = []
+	var ledger := SpPayment.new(state, side, data)
+	var sources: Array = ledger.available([state.get("units", {}).get(first_id, {})])
+	if not sources.is_empty() and cost > 0:
+		payments.append({"dumpId": str(sources[0].get("dumpId", "")), "tokens": cost})
+	menu.append({"label": "炮击 %s · %d 门 · %dT" % [target, batteries.size(), cost], "group": "射击",
+		"actions": [{"type": "declare-artillery-barrage", "target": target, "batteries": batteries,
+			"supply": {"kind": "direct", "payments": payments}}]})
+
+
+static func _terrain_name(terrain: String) -> String:
+	var names := {
+		"Open": "开阔地", "Village": "村庄", "Minor City": "小城市", "Major City": "大城市",
+		"Hills": "丘陵", "Woods": "疏林", "Forest": "密林", "Rough": "崎岖地",
+		"Mountain": "山地", "Swamp": "沼泽",
+	}
+	return str(names.get(terrain, terrain))
