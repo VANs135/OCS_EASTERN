@@ -88,7 +88,8 @@ function runScenario(name, note, hex, ids, side, policy, build, settle) {
     outcome.captureSettled = true
     next = settled
   }
-  scenarios.push({ name, note, hex, ids: involved, entrants: ids, base: before, steps, outcome })
+  scenarios.push({ name, note, hex, ids: involved, entrants: ids, base: before, steps, outcome,
+    side, policy: policy.captureResolution === 'manual' ? 'manual' : 'auto' })
 }
 
 runScenario('dump', '轴心进格夺取苏军补给堆：按骰面夺取 25–75%，余数销毁', DUMP_HEX, [axisCaptor], 'axis', {},
@@ -121,6 +122,13 @@ runScenario('transports', '苏军卡车进格夺取：手动窗口 + 按夺取�
       transports: [{ id: member.id, takenPoints: group.points, takenTokens: group.tokens,
         ...(group.points < member.points || group.tokens < member.tokens ? { displacedTo: DISPLACE_HEX } : {}) }] }
   })
+
+runScenario('airbase-flip-auto', '默认策略：机场夺取后的停机飞机由原属方自动挑最近且无危险的本方基地',
+  AXIS_BASE_HEX, [sovietCaptor], 'soviet', {}, null, null)
+runScenario('transports-auto', '默认策略：运输队夺取后按 id 顺序如数分配，余下整队自动位移到最近的射程内格',
+  TRUCK_HEX, [axisCaptor], 'axis', {}, (state) => {
+    state.units[sovietTruck] = { ...state.units[sovietTruck], hex: TRUCK_HEX, transportCargoTokens: 4 }
+  }, null)
 
 const fixture = { version: 1, scenarioId: '08-korsun-pocket', seed, fingerprint: data.fingerprint, scenarios }
 await mkdir(dirname(resolve(output)), { recursive: true })

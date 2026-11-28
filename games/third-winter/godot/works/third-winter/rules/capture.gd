@@ -65,7 +65,7 @@ static func capture_at(state: Dictionary, side: String, hex_id: String) -> Dicti
 ## resolveScorpionEntry：进入格后记录控制、结算即时夺取物，必要时挂起位移待决。
 ## ids 为进入格的单位；route 为后续路线（自动位移排序用，本轮只透传给等待实现的部分）。
 static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: Array, data: Dictionary,
-		after_combat := false, _route: Array = []) -> Dictionary:
+		after_combat := false, route: Array = [], manual := false) -> Dictionary:
 	var next := record_control(state, side, hex_id, data)
 	var objects := capture_at(next, side, hex_id)
 	var dump: Variant = objects.dump
@@ -181,7 +181,102 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 	settled["hedgehogs"] = hedgehogs
 	settled["capture"] = capture
 	settled["captureHistory"] = history
+	# 默认策略（无 captureResolution='manual'）由原属方自动排序结清位移；手动态才挂窗口。
+	if capture != null and not manual:
+		var order := automatic_order(capture, settled, data, route)
+		if order.has("error"):
+			return Result.failure(str(order.get("error", "")), str(order.get("message", "")))
+		var automatic: Dictionary = settle(settled, str(objects.owner), order, data)
+		if not automatic.ok:
+			return automatic
+		return Result.success(automatic.value)
 	return Result.success(settled)
+
+
+## automaticScorpionCaptureOrder：默认策略下由原属方自动排序位移——先避开危险，
+## 再取距离近的，最后按 id 字典序。危险 = 2×（夺取方战斗算子所在格）+ 1×（还在路线上的格）。
+static func automatic_order(capture: Dictionary, state: Dictionary, data: Dictionary,
+		route: Array = []) -> Dictionary:
+	var captor := str(capture.get("captor", ""))
+	var blocked: Dictionary = {}
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.units[id]
+		if str(unit.get("side", "")) == captor and unit.get("combat") == true:
+			blocked[str(unit.get("hex", ""))] = true
+	var route_hexes: Dictionary = {}
+	for at: Variant in route:
+		route_hexes[str(at)] = true
+	var from := str(capture.get("hex", ""))
+	var aircraft: Array = []
+	for entry: Dictionary in capture.get("aircraft", []):
+		var bases: Array = []
+		var off_map := false
+		for target: Dictionary in entry.get("destinations", []):
+			if str(target.get("kind", "")) == "hex":
+				bases.append(str(target.get("hex", "")))
+			else:
+				off_map = true
+		var pick := _nearest_base(bases, from, blocked, route_hexes)
+		var destination: Variant = null
+		if pick != "":
+			destination = {"kind": "hex", "hex": pick}
+		elif off_map:
+			destination = {"kind": "off-map-air"}
+		else:
+			var first: Array = entry.get("destinations", [])
+			destination = first[0] if not first.is_empty() else null
+		if destination == null:
+			return {"error": "capture_settle_aircraft", "message": "飞机没有可用的位移落点"}
+		aircraft.append({"id": str(entry.get("id", "")), "destination": destination})
+	var all_hexes: Array = (data.get("view", {}).get("mapGraph", {}).get("neighbors", {}) as Dictionary).keys()
+	var transports: Array = []
+	for group: Dictionary in capture.get("transports", []):
+		var kind := str(group.get("kind", ""))
+		var candidates: Array = []
+		for at: Variant in all_hexes:
+			if can_displace(data, kind, from, str(at)):
+				candidates.append(str(at))
+		var destination := _nearest_base(candidates, from, blocked, route_hexes)
+		var points := int(group.get("points", 0))
+		var tokens := int(group.get("tokens", 0))
+		var members: Array = (group.get("members", []) as Array).duplicate(true)
+		members.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a.get("id", "")) < str(b.get("id", "")))
+		for member: Dictionary in members:
+			var member_points := int(member.get("points", 0))
+			var member_tokens := int(member.get("tokens", 0))
+			var taken_points := mini(points, member_points)
+			var taken_tokens := mini(tokens, member_tokens)
+			points -= taken_points
+			tokens -= taken_tokens
+			var choice := {"id": str(member.get("id", "")), "takenPoints": taken_points,
+				"takenTokens": taken_tokens}
+			if taken_points < member_points or taken_tokens < member_tokens:
+				if destination == "":
+					return {"error": "capture_settle_displacement",
+						"message": "剩余运输队找不到射程内的位移格"}
+				choice["displacedTo"] = destination
+			transports.append(choice)
+	return {"aircraft": aircraft, "transports": transports}
+
+
+## 自动排序用的最近格：危险低优先、距离近次之、id 字典序兜底。
+static func _nearest_base(candidates: Array, from: String, blocked: Dictionary,
+		route_hexes: Dictionary) -> String:
+	var best := ""
+	var best_danger := 99
+	var best_distance := 999999
+	for at: String in candidates:
+		var danger := (2 if blocked.has(at) else 0) + (1 if route_hexes.has(at) else 0)
+		var distance := ReinforcementBoard.hex_distance(from, at)
+		if danger > best_danger:
+			continue
+		if danger == best_danger and (distance > best_distance or (distance == best_distance and at >= best)):
+			continue
+		best = at
+		best_danger = danger
+		best_distance = distance
+	return best
 
 
 ## recordScorpionGroundControl：进入有控制规则的格时记下控制方（只增不减，换手直接改写）。

@@ -293,9 +293,9 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 		if str(stack.get("hex", "")) == str(combat.get("target", "")):
 			return Result.failure("stacking_limit", "进击后目标格超出堆叠上限（%d/10 RE）" % int(stack.get("re", 0)))
 	# 进格夺取（resolveScorpionEntry 口径，afterCombat=true）：地面控制、补给堆、刺猬、
-	# 机场与运输队窗口；飞机与 Extender 位移、运输队分配仍在 capture.gd 里显式拒绝。
+	# 机场与运输队窗口；战斗夹具按手动策略（captureResolution='manual'）生成，故此处挂窗口等 settle。
 	var target := str(combat.get("target", ""))
-	var entry_res: Dictionary = Capture.resolve_entry(advanced, side, target, entrants, data, true)
+	var entry_res: Dictionary = Capture.resolve_entry(advanced, side, target, entrants, data, true, [], true)
 	if not entry_res.ok:
 		return entry_res
 	advanced = entry_res.value

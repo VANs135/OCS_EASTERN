@@ -34,11 +34,11 @@ static func _compare_scenario(ctx: Dictionary, scenario: Dictionary, bundle: Dic
 	var steps: Array = scenario.get("steps", [])
 	var state: Dictionary = scenario.get("base", {}).duplicate(true)
 	var entrants: Array = scenario.get("entrants", [])
-	var side := str(scenario.get("outcome", {}).get("captorSide", ""))
+	var side := str(scenario.get("side", ""))
 	if side == "":
-		side = "soviet" if label == "airbase-flip" else "axis"
+		side = str(scenario.get("outcome", {}).get("captorSide", ""))
 	var res: Dictionary = Capture.resolve_entry(state, side, str(scenario.get("hex", "")), entrants,
-		bundle, false)
+		bundle, false, [], str(scenario.get("policy", "auto")) == "manual")
 	if steps.is_empty():
 		expect.call(not res.ok and res.get("errorCode") == "capture_attack_capable",
 			"%s 预备单位独自进格被拒绝" % label)
@@ -106,7 +106,7 @@ static func _settle_rejections(ctx: Dictionary, fixture: Dictionary, bundle: Dic
 		return
 	var entrants: Array = scenario.get("entrants", [])
 	var entry: Dictionary = Capture.resolve_entry(scenario.get("base", {}).duplicate(true), "axis",
-		str(scenario.get("hex", "")), entrants, bundle, false)
+		str(scenario.get("hex", "")), entrants, bundle, false, [], true)
 	expect.call(entry.ok and entry.value.get("capture") != null, "运输队窗口按手动策略挂起")
 	if not entry.ok or entry.value.get("capture") == null:
 		return
@@ -154,7 +154,7 @@ static func _session_guard(ctx: Dictionary, fixture: Dictionary, bundle: Diction
 		return
 	var state: Dictionary = scenario.get("base", {}).duplicate(true)
 	var entry: Dictionary = Capture.resolve_entry(state, "axis", str(scenario.get("hex", "")),
-		scenario.get("entrants", []), bundle, false)
+		scenario.get("entrants", []), bundle, false, [], true)
 	if not entry.ok:
 		expect.call(false, "守卫用例前置夺取窗口可建立")
 		return
