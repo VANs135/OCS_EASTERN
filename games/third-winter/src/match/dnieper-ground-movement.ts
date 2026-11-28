@@ -6,7 +6,7 @@ import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
-import { resolveCampaignEntryCapture } from './campaign-entry-capture.ts'
+import { resolveCampaignEntryCapture, type CampaignEntryAirBase } from './campaign-entry-capture.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
@@ -24,7 +24,7 @@ export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campa
 
 export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
-  catalog: ReadonlyMap<string, Definition<BackupUnit>>) {
+  catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
@@ -66,7 +66,7 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     crossingAt: (_state, _id, from, to) => terrain.crossingAt(from, to),
     entryRequiresResolution: () => false,
     resolveEntry: (state, side, hex, ids) => resolveCampaignEntryCapture(state, side, hex, ids,
-      { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true }),
+      { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }),
     railOnly: hq.railOnly,
     // OCS 4.8a：段末必须满足每格 10 RE 上限；超堆叠返回 blocker，交给调用方整枚
     // 战斗算子移除（本板只报告，不擅自替玩家选择损失）。
