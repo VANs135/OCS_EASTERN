@@ -62,8 +62,9 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
       postureBenefitAt: posture.postureBenefitAt,
       frontOfHex: posture.frontOfHex,
       // 9.14b/9.14e 的非交互进格夺取；9.14c/9.14f 仍需各自的交互窗口。
-      resolveEntry: (state: Readonly<CampaignTurnState>, side: 'axis' | 'soviet', hex: string, ids: readonly string[]) =>
-        resolveCampaignEntryCapture(state, side, hex, ids, { attackCapable: sources.geometry.isCombatUnit }),
+      resolveEntry: (state: Readonly<CampaignTurnState>, side: 'axis' | 'soviet', hex: string, ids: readonly string[],
+        afterCombat = false) =>
+        resolveCampaignEntryCapture(state, side, hex, ids, { attackCapable: sources.geometry.isCombatUnit }, afterCombat),
       ...(fortress ? { fortressExitRefusal: fortress.exitRefusal } : {}),
     },
     groundMovement: { railOnly: hq.railOnly, profileOf: movement.profileOf, moveProfile: movement.moveProfile,

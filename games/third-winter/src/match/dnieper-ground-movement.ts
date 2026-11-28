@@ -65,8 +65,8 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     terrainAt: (hex) => terrain.terrainAt(hex),
     crossingAt: (_state, _id, from, to) => terrain.crossingAt(from, to),
     entryRequiresResolution: () => false,
-    resolveEntry: (state, side, hex, ids) => resolveCampaignEntryCapture(state, side, hex, ids,
-      { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }),
+    resolveEntry: (state, side, hex, ids, afterCombat = false) => resolveCampaignEntryCapture(state, side, hex, ids,
+      { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
     // OCS 4.8a：段末必须满足每格 10 RE 上限；超堆叠返回 blocker，交给调用方整枚
     // 战斗算子移除（本板只报告，不擅自替玩家选择损失）。

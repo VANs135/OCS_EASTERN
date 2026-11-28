@@ -22,16 +22,18 @@ export interface CampaignEntryCaptureBoard {
   airBase?: CampaignEntryAirBase
 }
 
-/** 按 9.14b → 9.14e →（可选）9.14f 的顺序结算；任一对象不存在时原样返回。 */
+/** 按 9.14b → 9.14e →（可选）9.14f 的顺序结算；任一对象不存在时原样返回。
+ *  afterCombat 只在战斗后推进进格时为 true，给 9.14f 的飞机损失骰加 +2。 */
 export function resolveCampaignEntryCapture(state: Readonly<CampaignTurnState>, side: Side, hex: string,
-  ids: readonly string[], board: CampaignEntryCaptureBoard): CampaignTurnState {
+  ids: readonly string[], board: CampaignEntryCaptureBoard, afterCombat = false): CampaignTurnState {
   const afterDump = captureCampaignDump(state, side, hex, ids, board)
   const afterHedgehog = captureCampaignHedgehog(afterDump, side, hex, ids, {
     attackCapable: board.attackCapable,
     printed: board.printedHedgehog,
   })
   const afterAirBase = board.airBase
-    ? captureCampaignAirBase(afterHedgehog, side, hex, ids, board.airBase.board, board.airBase.options)
+    ? captureCampaignAirBase(afterHedgehog, side, hex, ids, board.airBase.board,
+      { ...board.airBase.options, advance: afterCombat || board.airBase.options?.advance === true })
     : afterHedgehog
   return side === 'soviet'
     ? settleCampaignAirstripCapture(afterAirBase, (candidate) =>

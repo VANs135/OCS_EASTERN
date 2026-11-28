@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { createRngState } from '@ocs-eastern/series/rng'
+import { createRngState, rollDie } from '@ocs-eastern/series/rng'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
@@ -25,6 +25,16 @@ async function scenario01() {
   return { map, playable, catalog, setup, setupRaw }
 }
 const terrain = { terrainAt: () => [], crossingAt: () => ({ barrier: 'none', routes: [] }) }
+function seedWithDicePair(total, skip) {
+  for (let seed = 1; seed < 100000; seed += 1) {
+    let rng = createRngState(seed)
+    for (let index = 0; index < skip; index += 1) rng = rollDie(rng).rng
+    const first = rollDie(rng)
+    const second = rollDie(first.rng)
+    if (first.value + second.value === total) return seed
+  }
+  throw new Error(`No seed produces a 2d6 total of ${total} after ${skip} dice`)
+}
 const distance = (map, from, to) => {
   const start = map.resolveHex(from)
   const target = map.resolveHex(to)
@@ -92,4 +102,50 @@ test('scenario 01 ground entry captures the real B20.29 airbase and transfers it
   assert.equal(refused.airBases.find((candidate) => candidate.hex === base.hex).side, 'soviet')
   for (const id of aircraftIds) assert.equal(refused.counters[id].location.hex, base.hex)
   assert.equal(refused, refusedState)
+})
+
+test('scenario 01 post-combat advance adds the 9.14f +2 and spares the real aircraft', async () => {
+  const loaded = await scenario01()
+  const state = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
+  const base = state.airBases.find((candidate) => candidate.side === 'soviet' &&
+    candidate.hex === loaded.playable.resolveHex('B20.29'))
+  const destination = state.airBases.find((candidate) => candidate.side === 'soviet' &&
+    candidate.hex === loaded.playable.resolveHex('B54.32'))
+  assert.ok(base && destination)
+  const aircraftIds = Object.keys(state.counters).filter((id) => state.counters[id].side === 'soviet' &&
+    state.counters[id].kind === 'aircraft' && state.counters[id].location.kind === 'map' &&
+    state.counters[id].location.hex === base.hex)
+  assert.equal(aircraftIds.length, 4)
+  assert.equal(state.counters[aircraftIds[0]].active, true)
+  const attackerRow = loaded.setup.counters.find((counter) => counter.ref === 'Ge 302 Ers Bn')
+  const attackerId = Object.keys(state.counters).find((id) => state.counters[id].side === 'axis' &&
+    state.counters[id].definition === attackerRow.definition)
+  const airBaseBoard = { map: loaded.playable,
+    attackCapable(_state, id) {
+      const attack = loaded.catalog.definitions.get(state.counters[id]?.definition ?? '')?.source.faces.combat?.stats.attack
+      return typeof attack === 'number' && attack > 0
+    },
+    rangeOf(_state, id) {
+      const range = loaded.catalog.definitions.get(state.counters[id]?.definition ?? '')?.source.faces.combat?.stats.range
+      return typeof range === 'number' ? range : undefined
+    },
+    distance: (from, to) => distance(loaded.playable, from, to) }
+  const board = dnieperGroundMovementBoard(loaded.playable, terrain, loaded.catalog.definitions,
+    { board: airBaseBoard, options: { destination: destination.hex } })
+  // B20.29 also holds a real 1T Soviet dump, so 9.14b consumes the first die before 9.14f.
+  const seed = seedWithDicePair(3, 1)
+  const entered = { ...state, rng: createRngState(seed), counters: { ...state.counters,
+    [attackerId]: { ...state.counters[attackerId], location: { kind: 'map', hex: base.hex } } } }
+  const first = aircraftIds[0]
+  const baseSteps = state.counters[first].stepsLost ?? 0
+
+  const movement = board.resolveEntry?.(entered, 'axis', base.hex, [attackerId], false) ?? entered
+  assert.equal(movement.counters[first].stepsLost ?? 0, baseSteps + 1)
+  const postCombat = board.resolveEntry?.(entered, 'axis', base.hex, [attackerId], true) ?? entered
+  assert.equal(postCombat.counters[first].stepsLost ?? 0, baseSteps)
+  for (const after of [movement, postCombat]) {
+    assert.equal(after.airBases.find((candidate) => candidate.hex === base.hex).side, 'axis')
+    assert.equal(after.counters[first].location.hex, destination.hex)
+    assert.equal(after.counters[first].active, false)
+  }
 })
