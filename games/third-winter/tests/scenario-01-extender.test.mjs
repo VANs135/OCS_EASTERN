@@ -8,6 +8,7 @@ import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { dnieperOpeningChoices, prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
+import { dnieperExtenderBoard } from '../src/match/dnieper-extender.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { applyCampaignTurn } from '../src/match/campaign-match.ts'
 import { campaignExtenderCollapseDestinations, campaignExtenderCollapseOptions, campaignExtenderHexOptions,
@@ -191,4 +192,33 @@ test('scenario 01 real Axis extender collapses to a traced hex and flips to 5 tr
     groundMovement: { ...converted.groundMovement, moved: [extender.id] } }, 'axis',
   { type: 'collapse-campaign-extender', id: extender.id, destination }, board),
   /already acted/)
+})
+
+test('scenario 01 production extender board forms and flips to the real 5-point Axis truck', async () => {
+  const loaded = await scenario01()
+  const choices = dnieperOpeningChoices(loaded)
+  const trucks = choices.find((choice) => choice.kind === 'transport' && truckDefinition(choice.definition))
+  assert.ok(trucks)
+  const opening = prepareDnieperBoard(loaded)
+  const state = openCampaignMatch(opening, createRngState(1)).state
+  const truckIds = Object.keys(state.counters)
+    .filter((id) => id.startsWith(`01-optional:${trucks.id}:`))
+    .slice(0, 5)
+  const hex = loaded.playable.resolveHex('B41.06')
+  const counters = { ...state.counters }
+  for (const id of truckIds) counters[id] = { ...counters[id], location: { kind: 'map', hex } }
+  const base = { ...state, counters,
+    cursor: { first: 'soviet', phasing: 'axis', phase: 'movement' }, movementSegment: 'movement' }
+  const board = dnieperExtenderBoard(loaded.playable, loaded.catalog.definitions)
+  const options = campaignExtenderHexOptions(base, 'axis', hex, board)
+  assert.equal(options.options.find((option) => option.kind === 'truck')?.consumedPoints, 5)
+  const converted = convertCampaignExtender(base, 'axis',
+    { type: 'convert-campaign-extender', hex, kind: 'truck', count: 1 }, board)
+  const flipped = flipCampaignExtender(converted, 'axis',
+    { type: 'flip-campaign-extender', id: converted.extenders[0].id }, board)
+  const placed = Object.entries(flipped.counters).filter(([id]) => id.startsWith('extender:transport:axis:truck:'))
+  assert.equal(placed.length, 1)
+  assert.equal(placed[0][1].transportPoints, 5)
+  assert.equal(placed[0][1].definition, 'transport:id:tp_007')
+  assert.equal(placed[0][1].location.hex, hex)
 })
