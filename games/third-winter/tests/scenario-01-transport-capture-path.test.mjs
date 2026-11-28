@@ -10,6 +10,7 @@ import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { applyCampaignTurn, openCampaignMatch } from '../src/match/campaign-match.ts'
+import { campaignGroundMovementOptions } from '../src/match/campaign-ground-movement.ts'
 import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
 
 const ROOT='D:/war game/OCS各作数据库/OCS第三个冬天'
@@ -17,7 +18,7 @@ const SCENARIO='01-dnepr-battles'
 const read=async(...p)=>JSON.parse((await readFile(join(ROOT,...p),'utf8')).replace(/^\uFEFF/,''))
 async function load(){ const [hexes,edges,catalog,setupRaw]=await Promise.all([read('地图数据库','map_hexes.json'),read('地图数据库','map_edges.json'),loadThirdWinterV2Units(f=>read('data',f)),read('scenarios',SCENARIO,'setup.json')]); const geometry=indexTtwCampaignMap(hexes,edges); const playable=campaignMapInPlayArea(geometry,ttwCampaignPlayArea(SCENARIO)); const terrain=campaignTerrain(playable); const setup=prepareCampaignSetup(setupRaw,catalog.aliases,geometry,playable); return {map:geometry,catalog,setup,setupRaw,playable,terrain} }
 
-test('scenario 01 9.14c queues captures along the whole move path in entry order', async()=>{
+test('scenario 01 9.14c queues captures and lets the captured transport move once in the same phase', async()=>{
   const loaded=await load()
   const base=openCampaignMatch(prepareDnieperBoard(loaded),createRngState(1)).state
   const first=loaded.playable.resolveHex('B35.17'); const second=loaded.playable.resolveHex('B35.18')
@@ -33,7 +34,9 @@ test('scenario 01 9.14c queues captures along the whole move path in entry order
   for(const id of wagonIds) counters[id]={...counters[id],location:{kind:'map',hex:second}}
   const state={...base,counters,cursor:{first:'soviet',phasing:'axis',phase:'movement'},movementSegment:'movement',weather:base.opening.weather}
   const boards=dnieperCampaignBoards(loaded,{hasTrace:()=>true})
-  const moved=boards.groundMovement?.afterMove?.(state,'axis',{path:[first,second],movers:[{id:attackerId,combat:true,stepsLeft:0}],placements:[{id:attackerId,hex:second}]})??state
+  // 9.14c 发生在进入格已清理之后；移除该格原有苏军战斗单位，避免后续运输点移动被敌方战斗单位拦住。
+  const noCombat={...state,counters:Object.fromEntries(Object.entries(state.counters).filter(([,c])=>!(c.side==='soviet'&&c.kind!=='transport'&&c.location.kind==='map'&&(loaded.playable.resolveHex(c.location.hex)??c.location.hex)===first)))}
+  const moved=boards.groundMovement?.afterMove?.(noCombat,'axis',{path:[first,second],movers:[{id:attackerId,combat:true,stepsLeft:0}],placements:[{id:attackerId,hex:second}]})??noCombat
   assert.equal(moved.transportCapture.hex,first)
   assert.equal(moved.transportCaptureQueue.length,1)
   assert.equal(moved.transportCaptureQueue[0].hex,second)
@@ -48,4 +51,13 @@ test('scenario 01 9.14c queues captures along the whole move path in entry order
   assert.equal(firstSettled.transportCaptureQueue,undefined)
   const secondSettled=applyCampaignTurn(firstSettled,'soviet',{type:'resolve-campaign-transport-capture',choices:choose(firstSettled.transportCapture)},{transportCapture:boards.transportCapture})
   assert.equal(secondSettled.transportCapture,undefined)
+  const captured=Object.entries(secondSettled.counters).find(([,c])=>c.side==='axis'&&c.kind==='transport'&&c.location.kind==='map'&&(loaded.playable.resolveHex(c.location.hex)??c.location.hex)===first)
+  assert.ok(captured)
+  const target=loaded.playable.resolveHex('B34.17')
+  assert.ok(target)
+  const options=campaignGroundMovementOptions(secondSettled,'axis',boards.groundMovement)
+  assert.ok(options?.availableIds.includes(captured[0]),'captured transport must be available in the same movement phase')
+  const transportMoved=applyCampaignTurn(secondSettled,'axis',{type:'move-campaign-ground',movers:[{id:captured[0]}],path:[target]},{groundMovement:boards.groundMovement})
+  assert.equal(transportMoved.counters[captured[0]].location.hex,target)
+  assert.throws(()=>applyCampaignTurn(transportMoved,'axis',{type:'move-campaign-ground',movers:[{id:captured[0]}],path:[loaded.playable.neighbors(target).find(n=>n!==first&&loaded.playable.availableHexes.has(n))]},{groundMovement:boards.groundMovement}),/counter-cannot-spend-mp/)
 })
