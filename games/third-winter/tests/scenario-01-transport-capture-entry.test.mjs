@@ -10,8 +10,8 @@ import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { applyCampaignTurn, openCampaignMatch } from '../src/match/campaign-match.ts'
-import { dnieperGroundMovementBoard } from '../src/match/dnieper-ground-movement.ts'
-import { dnieperTransportCaptureBoard } from '../src/match/dnieper-transport-capture.ts'
+import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
+import { projectCampaignMatch } from '../src/view/campaign-match-view.ts'
 
 const ROOT='D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO='01-dnepr-battles'
@@ -31,12 +31,16 @@ test('scenario 01 real B35.17 transports auto-open 9.14c on ground entry and set
   const counters={...base.counters}; for(const id of sovietCombat) delete counters[id]
   counters[attackerId]={...counters[attackerId],location:{kind:'map',hex}}
   const state={...base,cursor:{first:'soviet',phasing:'axis',phase:'movement'},movementSegment:'movement',weather:base.opening.weather,counters,groundMovement:{moved:[],zocLocks:[]}}
-  const transport=dnieperTransportCaptureBoard(loaded.playable,loaded.catalog.definitions)
-  const board=dnieperGroundMovementBoard(loaded.playable,loaded.terrain,loaded.catalog.definitions,undefined,transport)
+  const boards=dnieperCampaignBoards(loaded,{hasTrace:()=>true})
+  const transport=boards.transportCapture
+  const board=boards.groundMovement
   const moved=board.afterMove?.(state,'axis',{path:[hex],movers:[{id:attackerId,combat:true,stepsLeft:0}],placements:[{id:attackerId,hex}]}) ?? state
   assert.equal(moved.counters[attackerId].location.hex,hex)
   assert.ok(moved.transportCapture,'entering with a combat unit opens the 9.14c window')
   assert.equal(moved.transportCapture.captor,'axis'); assert.equal(moved.transportCapture.owner,'soviet')
+  const projected=projectCampaignMatch({state:moved,revision:0},'soviet',boards)
+  assert.equal(projected.transportCapture.groups[0].kind,'trucks')
+  assert.equal(projectCampaignMatch({state:moved,revision:0},'axis',boards).transportCapture,null)
   const kinds=moved.transportCapture.groups.map(g=>g.kind); assert.deepEqual(kinds,['trucks','wagons'])
   const choices=moved.transportCapture.groups.map(group=>{
     const ids=[]; let points=0
@@ -59,6 +63,3 @@ test('scenario 01 real B35.17 transports auto-open 9.14c on ground entry and set
   assert.throws(()=>applyCampaignTurn(moved,'axis',{type:'resolve-campaign-transport-capture',choices},{transportCapture:transport}),
     /Only the owning player/)
 })
-
-
-
