@@ -78,6 +78,19 @@ static func run(ctx: Dictionary) -> void:
 	var menu: Array = ScorpionView.menu_entries(_state(catalog), "soviet", {"unitId": "tp2"}, bundle)
 	expect.call(_count_type(menu, "repack-transport") == 1,
 		"空载运输算子出行 · 实 %d" % _count_type(menu, "repack-transport"))
+	var loaded_menu_state := _state(catalog)
+	loaded_menu_state.units.tp2.transportCargoTokens = 2
+	var loaded_menu: Array = ScorpionView.menu_entries(loaded_menu_state, "soviet", {"unitId": "tp2"}, bundle)
+	var loaded_rows: Array = _actions_of(loaded_menu, "repack-transport")
+	expect.call(loaded_rows.size() == 3, "2T 货载按 1+1 分盒有三种装法 · 实 %d" % loaded_rows.size())
+	var all_keep := true
+	for action: Dictionary in loaded_rows:
+		var tokens := 0
+		for division: Dictionary in action.get("divisions", []):
+			tokens += int(division.get("tokens", 0))
+		if tokens != 2:
+			all_keep = false
+	expect.call(all_keep, "每种装法都保留全部 2T 货载")
 
 
 static func _state(catalog: Dictionary) -> Dictionary:
@@ -101,12 +114,16 @@ static func _state(catalog: Dictionary) -> Dictionary:
 
 
 static func _count_type(menu: Array, type_name: String) -> int:
-	var count := 0
+	return _actions_of(menu, type_name).size()
+
+
+static func _actions_of(menu: Array, type_name: String) -> Array:
+	var rows: Array = []
 	for row: Dictionary in menu:
 		for action: Dictionary in row.get("actions", []):
 			if str(action.get("type", "")) == type_name:
-				count += 1
-	return count
+				rows.append(action)
+	return rows
 
 
 static func _read_json(relative: String) -> Dictionary:

@@ -1310,11 +1310,12 @@ static func _append_repack_rows(state: Dictionary, side: String, selection: Dict
 		return
 	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
 	if unit.is_empty() or unit.get("combat") == true or unit.get("organicTruck") != null \
-			or unit.get("extender") != null or int(TransportPoints.tokens(unit)) != 0:
+			or unit.get("extender") != null:
 		return
 	var total := TransportPoints.points(unit, data)
 	if total <= 1:
 		return
+	var cargo := TransportPoints.tokens(unit)
 	var catalog: Dictionary = data.get("view", {}).get("catalog", {})
 	var denominations: Array = []
 	for key: String in catalog.get("definitions", {}):
@@ -1343,23 +1344,50 @@ static func _append_repack_rows(state: Dictionary, side: String, selection: Dict
 	for parts: Array in partitions:
 		if parts.size() < 2:
 			continue
-		var divisions: Array = []
-		var labels: Array = []
 		var valid := true
 		for count: int in parts:
 			if TransportPoints.regular_definition(catalog, unit, count).is_empty():
 				valid = false
 				break
-			divisions.append({"points": count, "tokens": 0})
-			labels.append(str(count))
 		if not valid:
 			continue
-		menu.append({"label": "重新打包 %s：%d 点 → %s" % [_tail(unit_id), total, "+".join(labels)],
-			"group": "运输", "actions": [{"type": "repack-transport", "unitIds": [unit_id],
-				"divisions": divisions}]})
-		emitted += 1
-		if emitted >= 8:
-			return
+		## 货载分到哪几个盒是玩家的选择，侧栏不代选：逐种装法都列成独立条目（上限 24 条）。
+		var splits: Array = []
+		_transport_token_splits(cargo, parts, 0, [], splits)
+		var points_label_parts: Array = []
+		for count: int in parts:
+			points_label_parts.append(str(count))
+		var points_label: String = "+".join(points_label_parts)
+		for split: Array in splits:
+			var divisions: Array = []
+			var load_label: Array = []
+			for index in parts.size():
+				var load := int(split[index])
+				divisions.append({"points": int(parts[index]), "tokens": load})
+				load_label.append("%dT" % load)
+			var label := "重新打包 %s：%d 点 → %s" % [_tail(unit_id), total, points_label]
+			if cargo > 0:
+				label += "（%dT 分载：%s）" % [cargo, "+".join(load_label)]
+			menu.append({"label": label, "group": "运输",
+				"actions": [{"type": "repack-transport", "unitIds": [unit_id], "divisions": divisions}]})
+			emitted += 1
+			if emitted >= 24:
+				return
+
+
+## 把 `total` 吨货载分到各盒，每盒上限为点数 × 4；生成会按盒序穷举，总数交给规则层复核。
+static func _transport_token_splits(total: int, parts: Array, index: int, picked: Array, out: Array) -> void:
+	var capacity := int(parts[index]) * 4
+	if index == parts.size() - 1:
+		if total <= capacity:
+			var done: Array = picked.duplicate()
+			done.append(total)
+			out.append(done)
+		return
+	for take in range(0, mini(capacity, total) + 1):
+		picked.append(take)
+		_transport_token_splits(total - take, parts, index + 1, picked, out)
+		picked.pop_back()
 
 
 ## 非递增的整数分拆，避免 2+1 与 1+2 重复；上限 8 套由调用方截断。
