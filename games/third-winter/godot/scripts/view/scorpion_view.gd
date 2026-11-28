@@ -21,6 +21,7 @@ const TransportPoints := preload("res://works/third-winter/rules/transport_point
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
+const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1137,6 +1138,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 		_append_capture_menu(state, side, data, menu)
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
+	_append_air_refit_menu(state, side, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
 	_append_overrun_rows(state, side, selection, data, menu)
 	_append_overrun_continue_rows(state, side, selection, data, menu)
@@ -1207,6 +1209,17 @@ static func _append_unit_menu(state: Dictionary, side: String, selection: Dictio
 	if unit.get("reserve") != null and phase != "movement":
 		menu.append({"label": "释放预备队", "group": "预备队",
 			"actions": [{"type": "release-reserve", "unitId": uid}]})
+
+
+## OCS v4.3 §2.2 / §14.2 — 飞机整备阶段逐架列出本方机场的 Inactive 飞机；首架带 1T 机场费，
+## 同一机场再整备则免费。机场被敌方 ZOC 封锁或名额已满时不出行。
+static func _append_air_refit_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
+	if str(state.get("cursor", {}).get("phase", "")) != "aircraft-refit":
+		return
+	for option: Dictionary in AirRefit.base_options(state, side, data):
+		menu.append({"label": "整备 %s · %s%s" % [str(option.hex), _tail(str(option.id)),
+			"" if option.paid else " · 1T"], "group": "飞机整备",
+			"actions": [{"type": "refit-aircraft", "id": str(option.id), "hex": str(option.hex)}]})
 
 
 ## OCS 6.1 — the move rows of desktop `moveChoices`: the clicked hex (or an explicit path) is offered

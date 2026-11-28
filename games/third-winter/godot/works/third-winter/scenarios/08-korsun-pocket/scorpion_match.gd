@@ -22,6 +22,7 @@ const Crt := preload("res://scripts/rules/series/crt.gd")
 const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
+const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -43,6 +44,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		if not data.has("deployment"):
 			return Result.failure("deployment_data_unavailable", "请重新生成包含部署数据的 08 数据包")
 		return Deployment.apply_action(state, actor, action, data)
+	if action.get("type") == "refit-aircraft":
+		return AirRefit.apply(state, actor, action, data)
 	# OCS v4.3 §2.2 — the Aircraft Refit Phase closes once stacking is legal.
 	# Only the off-map air box refit is free of the supply network; airbase refits still need it.
 	if action.get("type") == "complete-refit":
