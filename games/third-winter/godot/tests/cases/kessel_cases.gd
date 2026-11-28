@@ -75,6 +75,57 @@ static func run(ctx: Dictionary) -> void:
 		{"unitId": "kessel:hq:id:4151"}, bundle)
 	expect.call(_count_type(remove_menu, "remove-kessel-hq") == 1,
 		"选中盘上 Kessel 司令部时给出移除行")
+	_check_kessel_move(expect, bundle)
+
+
+static func _check_kessel_move(expect: Callable, bundle: Dictionary) -> void:
+	var state := _move_state(bundle)
+	var check: Dictionary = Kessel.move_check(state, "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1", "path": ["s3.11"]}, bundle)
+	expect.call(check.ok, "Kessel 司令部两格内、向西一格可行军 · " + str(check.get("errorCode", "")))
+	if not check.ok:
+		return
+	var moved: Dictionary = Kessel.move_apply(state, "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1", "path": ["s3.11"]}, bundle)
+	expect.call(moved.ok and str(moved.value.units["setup:land:id:3967:1"].hex) == "s3.11"
+		and moved.value.moved.has("setup:land:id:3967:1"), "Kessel 行军落格并记已动")
+	var east := Kessel.move_check(_move_state(bundle), "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1", "path": ["s5.11"]}, bundle)
+	expect.call(not east.ok and str(east.get("errorCode", "")) == "kessel_east",
+		"Kessel 行军不能向东 · " + str(east.get("errorCode", "")))
+	var far := Kessel.move_check(_move_state(bundle), "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1",
+			"path": ["s5.11", "s6.11"]}, bundle)
+	expect.call(not far.ok and str(far.get("errorCode", "")) == "kessel_distance",
+		"离开司令部两格即拒绝 · " + str(far.get("errorCode", "")))
+	var spent := _move_state(bundle)
+	spent.moved = ["setup:land:id:3967:1"]
+	var after_move := Kessel.move_check(spent, "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1", "path": ["s3.11"]}, bundle)
+	expect.call(not after_move.ok and str(after_move.get("errorCode", "")) == "kessel_unit",
+		"本阶段已动的算子不能再 Kessel 行军")
+	var barrage := _move_state(bundle)
+	barrage.barrage = {"target": "s3.11"}
+	var after_barrage := Kessel.move_check(barrage, "axis",
+		{"unitId": "setup:land:id:3967:1", "headquartersId": "setup:hq:id:4150:1", "path": ["s3.11"]}, bundle)
+	expect.call(not after_barrage.ok and str(after_barrage.get("errorCode", "")) == "kessel_barrage",
+		"本阶段已有炮击时不能再 Kessel 行军")
+	var menu: Array = ScorpionView.menu_entries(_move_state(bundle), "axis",
+		{"unitId": "setup:land:id:3967:1", "hex": "s3.11"}, bundle)
+	expect.call(_count_type(menu, "kessel-move") == 1, "侧栏选中邻格时给出 Kessel 行军行")
+
+
+static func _move_state(bundle: Dictionary) -> Dictionary:
+	var state := _state(bundle)
+	state.cursor = {"turn": 1, "phasing": "axis", "phase": "movement"}
+	state.turn.step = {"kind": "player-turn"}
+	state.moved = []
+	state.groundActivity = {"airlifted": [], "spent": {}}
+	state.groundCaptureMove = null
+	state.capture = null
+	state.barrage = null
+	state.barrageHistory = []
+	return state
 
 
 static func _state(bundle: Dictionary) -> Dictionary:

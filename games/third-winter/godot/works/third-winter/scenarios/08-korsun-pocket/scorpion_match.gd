@@ -65,6 +65,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return TransportPoints.repack(state, actor, action, data)
 	if action.get("type") in ["place-kessel-hq", "remove-kessel-hq"]:
 		return Kessel.apply(state, actor, action, data)
+	if action.get("type") == "kessel-move":
+		return Kessel.move_apply(state, actor, action, data)
 	if action.get("type") == "complete-movement":
 		return SupplyPhase.complete_movement(state, actor, data)
 	if action.get("type") == "check-attrition":

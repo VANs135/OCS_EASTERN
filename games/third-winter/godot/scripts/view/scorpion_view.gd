@@ -1136,6 +1136,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
+	_append_kessel_move_rows(state, side, selection, data, menu)
 	_append_transport_fuel_menu(state, side, selection, data, menu)
 	_append_repack_rows(state, side, selection, data, menu)
 	_append_kessel_rows(state, side, selection, data, menu)
@@ -1260,6 +1261,51 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
 	## OCS 12.5c(C) — 独立单位可以用已加油司令部投送：只列还在投程内、本阶段没换格投过的司令部。
 	_append_headquarters_throw_rows(state, side, unit_id, unit, path, ledger, menu)
+
+
+## TTW 2.3a(B) — 选中轴心步行战斗算子后再点邻格，若整段通过 Kessel 特规校验，额外给一条
+## 「Kessel 行军到 X」；普通移动行与它并列，由玩家自己选。
+static func _append_kessel_move_rows(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	if side != "axis" or str(state.get("cursor", {}).get("phase", "")) != "movement":
+		return
+	var unit_id := ""
+	var ids: Array = selection.get("unitIds", [])
+	if selection.get("unitId") != null:
+		unit_id = str(selection.unitId)
+	elif ids.size() == 1:
+		unit_id = str(ids[0])
+	if unit_id.is_empty():
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side or str(unit.get("mobility", "")) != "leg":
+		return
+	var headquarters_id := ""
+	for slot: Dictionary in Kessel.slots(state, data):
+		if not str(slot.get("id", "")).is_empty():
+			headquarters_id = str(slot.id)
+			break
+	if headquarters_id.is_empty():
+		return
+	var from := str(unit.get("hex", ""))
+	var path: Array = []
+	var requested: Variant = selection.get("path")
+	if requested is Array and not (requested as Array).is_empty():
+		for hex: Variant in requested:
+			path.append(str(hex))
+	elif selection.get("hex") != null:
+		var target := str(selection.hex)
+		if target != from and _neighbors(data).get(from, []).has(target):
+			path = [target]
+	if path.is_empty():
+		return
+	var checked := Kessel.move_check(state, side, {"unitId": unit_id, "headquartersId": headquarters_id,
+		"path": path}, data)
+	if not checked.ok:
+		return
+	menu.append({"label": "Kessel 行军到 %s" % str(path[path.size() - 1]), "group": "Kessel",
+		"actions": [{"type": "kessel-move", "unitId": unit_id, "headquartersId": headquarters_id,
+			"path": path}]})
 
 
 static func _append_headquarters_throw_rows(state: Dictionary, side: String, unit_id: String, unit: Dictionary,
