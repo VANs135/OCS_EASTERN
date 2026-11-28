@@ -23,19 +23,33 @@ static func run(ctx: Dictionary) -> void:
 		expect.call(false, "夺取面板用例缺少 airbase-flip 场景")
 		return
 	var entry: Dictionary = Capture.resolve_entry(scenario.get("base", {}).duplicate(true), "soviet",
-		str(scenario.get("hex", "")), scenario.get("entrants", []), bundle, false, [], true)
+		str(scenario.get("hex", "")), scenario.get("entrants", []), bundle, false, [], "manual")
 	expect.call(entry.ok, "夺取面板前置窗口可建立")
 	if not entry.ok:
 		return
 	var pending: Dictionary = entry.value
 	expect.call(pending.get("capture") != null, "夺取面板前置为手动窗口")
+	## 归属是必然的：机场已经在进格时翻给夺取方，窗口只等位移安排。
+	var flipped := false
+	for base: Dictionary in pending.get("airBases", []):
+		if str(base.get("hex", "")) == str(scenario.get("hex", "")) and str(base.get("side", "")) == "soviet":
+			flipped = true
+	expect.call(flipped, "机场归属在进格时已自动改属夺取方，不等玩家确认")
+	expect.call(Capture.needs_choice({"aircraft": [{"id": "a", "destinations": [{"kind": "off-map-air"}]}]}) == false,
+		"单落点飞机不需要玩家选择")
+	expect.call(Capture.needs_choice({"aircraft": [{"id": "a", "destinations": [{"kind": "hex", "hex": "s1.01"}, {"kind": "off-map-air"}]}]}) == true,
+		"多落点飞机需要玩家选择")
+	expect.call(Capture.needs_choice({"aircraft": [], "transports": [{"kind": "trucks", "members": []}]}) == true,
+		"运输队分配需要玩家选择")
+	expect.call(Capture.needs_choice({"aircraft": [], "extenders": [{"id": "e"}]}) == true,
+		"延补队崩塌需要玩家选择")
 	var owner := str((pending.get("capture", {}) as Dictionary).get("owner", ""))
 	expect.call(owner == "axis", "机场夺取窗口归原属方轴心")
 	## 原属方面板：只有结算行，且行载荷就是一份完整 settle-capture。
 	var owner_menu: Array = ScorpionView.menu_entries(pending, owner, {}, bundle)
 	expect.call(owner_menu.size() == 1, "夺取窗口待决时面板只列一项")
 	var option: Dictionary = owner_menu[0] if not owner_menu.is_empty() else {}
-	expect.call(str(option.get("label", "")).begins_with("结算夺取"), "面板给出结算夺取行 · " + str(option.get("label", "")))
+	expect.call(str(option.get("label", "")).begins_with("安排夺取位移"), "面板给出位移安排行 · " + str(option.get("label", "")))
 	var actions: Array = option.get("actions", [])
 	expect.call(actions.size() == 1 and str(actions[0].get("type", "")) == "settle-capture",
 		"结算行载荷是 settle-capture")

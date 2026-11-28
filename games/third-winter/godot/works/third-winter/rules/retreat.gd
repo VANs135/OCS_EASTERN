@@ -329,7 +329,7 @@ static func _retreat_step(state: Dictionary, side: String, route: Dictionary, in
 	# 9.14 的口径是移动时机，即使这一步属于战斗后撤退。
 	var route_path: Array = route.get("path", [])
 	var entry_res: Dictionary = Capture.resolve_entry(next, side, to, moving, data, false,
-		route_path.slice(index + 1), true)
+		route_path.slice(index + 1), "manual")
 	if not entry_res.ok:
 		return entry_res
 	next = entry_res.value

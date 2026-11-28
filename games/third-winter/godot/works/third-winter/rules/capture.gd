@@ -65,7 +65,7 @@ static func capture_at(state: Dictionary, side: String, hex_id: String) -> Dicti
 ## resolveScorpionEntry：进入格后记录控制、结算即时夺取物，必要时挂起位移待决。
 ## ids 为进入格的单位；route 为后续路线（自动位移排序用，本轮只透传给等待实现的部分）。
 static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: Array, data: Dictionary,
-		after_combat := false, route: Array = [], manual := true) -> Dictionary:
+		after_combat := false, route: Array = [], policy := "player") -> Dictionary:
 	var next := record_control(state, side, hex_id, data)
 	var objects := capture_at(next, side, hex_id)
 	var dump: Variant = objects.dump
@@ -181,17 +181,35 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 	settled["hedgehogs"] = hedgehogs
 	settled["capture"] = capture
 	settled["captureHistory"] = history
-	# 默认手动：飞机落点、运输队分配都是玩家的选择，挂窗口等 settle-capture。
-	# 只有显式要求自动（AI/夹具）时才用 automatic_order 一次排完。
-	if capture != null and not manual:
-		var order := automatic_order(capture, settled, data, route)
-		if order.has("error"):
-			return Result.failure(str(order.get("error", "")), str(order.get("message", "")))
-		var automatic: Dictionary = settle(settled, str(objects.owner), order, data)
-		if not automatic.ok:
-			return automatic
-		return Result.success(automatic.value)
+	# 夺取本身是必然发生的：控制、补给堆、机场、刺猬在进格时就已改属，窗口只用来安排位移。
+	# policy 三态：player（默认）只在真有位移选择时挂窗口；manual 一律挂窗口（TS 手动夹具口径）；
+	# auto 一律按 automatic_order 结清（AI/夹具）。
+	if capture != null:
+		var mode := str(policy)
+		var has_choice := needs_choice(capture)
+		if mode == "auto" or (mode == "player" and not has_choice):
+			var order := automatic_order(capture, settled, data, route)
+			if order.has("error"):
+				if mode == "auto":
+					return Result.failure(str(order.get("error", "")), str(order.get("message", "")))
+			else:
+				var automatic: Dictionary = settle(settled, str(objects.owner), order, data)
+				if not automatic.ok:
+					return automatic
+				return Result.success(automatic.value)
 	return Result.success(settled)
+
+
+## 窗口里是否真的有需要玩家拿主意的位移：多落点飞机、运输队分配、延补队崩塌。
+static func needs_choice(capture: Dictionary) -> bool:
+	if not (capture.get("transports", []) as Array).is_empty():
+		return true
+	if not (capture.get("extenders", []) as Array).is_empty():
+		return true
+	for entry: Dictionary in capture.get("aircraft", []):
+		if (entry.get("destinations", []) as Array).size() > 1:
+			return true
+	return false
 
 
 ## automaticScorpionCaptureOrder：默认策略下由原属方自动排序位移——先避开危险，

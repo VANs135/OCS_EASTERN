@@ -1301,18 +1301,18 @@ static func _append_capture_menu(state: Dictionary, side: String, data: Dictiona
 	var hex_id := str(capture.get("hex", ""))
 	if str(capture.get("owner", "")) != side:
 		var owner_label: String = SIDE_NAMES.get(str(capture.get("owner", "")), str(capture.get("owner", "")))
-		menu.append({"label": "等待%s结算夺取 %s" % [owner_label, hex_id], "group": "夺取",
+		menu.append({"label": "等待%s安排夺取位移 %s" % [owner_label, hex_id], "group": "位移",
 			"actions": []})
 		return
 	var order := Capture.automatic_order(capture, state, data)
 	if order.has("error"):
-		menu.append({"label": "夺取 %s · 需人工分配（面板待设计）" % hex_id, "group": "夺取",
+		menu.append({"label": "夺取位移 %s · 需人工分配（面板待设计）" % hex_id, "group": "位移",
 			"actions": []})
 		return
 	var aircraft: Array = order.get("aircraft", [])
 	var transports: Array = order.get("transports", [])
 	var summary := "%d 枚飞机、%d 支运输队" % [aircraft.size(), transports.size()]
-	menu.append({"label": "结算夺取 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "夺取",
+	menu.append({"label": "安排夺取位移 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "位移",
 		"actions": [{"type": "settle-capture", "aircraft": aircraft, "transports": transports}]})
 
 
