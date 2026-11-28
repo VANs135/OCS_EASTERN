@@ -66,12 +66,12 @@ export function beginCampaignTransportCapture(state: Readonly<CampaignTurnState>
   }
 }
 
-/** 9.14c：进格自动挂起窗口。只对进入方自己的战斗单位触发；已有窗口时不覆盖。 */
+/** 9.14c：进格自动挂起窗口。按原文只对进入方自己的可攻击单位触发；已有窗口时不覆盖。 */
 export function beginCampaignTransportCaptureOnEntry(state: Readonly<CampaignTurnState>, captor: Side, hex: string,
   ids: readonly string[], board: CampaignTransportCaptureBoard,
-  combatUnit: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
   if (state.transportCapture) return state
-  if (!ids.some((id) => state.counters[id]?.side === captor && combatUnit(state, id))) return state
+  if (!ids.some((id) => state.counters[id]?.side === captor && attackCapable(state, id))) return state
   const owner: Side = captor === 'axis' ? 'soviet' : 'axis'
   if (!board.transports(state, owner, hex).length) return state
   let rng = state.rng
@@ -84,6 +84,29 @@ export function beginCampaignTransportCaptureOnEntry(state: Readonly<CampaignTur
   return { ...state, rng, transportCapture: capture }
 }
 
+/** 9.14c：一次 move 的整条路径逐格检查；已存在的待决窗口保留在原位，后续格排入队列。 */
+export function beginCampaignTransportCapturesForPath(state: Readonly<CampaignTurnState>, captor: Side,
+  path: readonly string[], ids: readonly string[], board: CampaignTransportCaptureBoard,
+  attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  if (!ids.some((id) => state.counters[id]?.side === captor && attackCapable(state, id))) return state
+  const captures: CampaignTransportCapture[] = []
+  const seen = new Set<string>()
+  let next: CampaignTurnState = state
+  for (const hex of path) {
+    if (seen.has(hex)) continue
+    seen.add(hex)
+    const built = beginCampaignTransportCaptureOnEntry({ ...next, transportCapture: undefined, transportCaptureQueue: [] },
+      captor, hex, ids, board, attackCapable)
+    if (!built.transportCapture) continue
+    captures.push(built.transportCapture)
+    next = { ...next, rng: built.rng }
+  }
+  if (!captures.length) return state
+  const pending = [...(state.transportCapture ? [state.transportCapture] : []),
+    ...(state.transportCaptureQueue ?? []), ...captures]
+  return { ...next, transportCapture: pending[0], transportCaptureQueue: pending.slice(1) }
+}
+
 /** UI 只读投影：待决组、原主可选的整枚计数器、组级掷骰结果与位移候选。不替玩家预设选择。 */
 export function campaignTransportCaptureOptions(state: Readonly<CampaignTurnState>, viewer: Side,
   board?: CampaignTransportCaptureBoard) {
@@ -93,6 +116,7 @@ export function campaignTransportCaptureOptions(state: Readonly<CampaignTurnStat
     captor: capture.captor,
     owner: capture.owner,
     hex: capture.hex,
+    queued: state.transportCaptureQueue?.length ?? 0,
     groups: capture.groups.map((group) => ({
       kind: group.kind,
       die: group.die,
@@ -143,5 +167,7 @@ export function settleCampaignTransportCapture(state: Readonly<CampaignTurnState
       })
     }
   }
-  return next
+  const queue = [...(state.transportCaptureQueue ?? [])]
+  const promoted = queue.shift()
+  return { ...next, transportCapture: promoted, transportCaptureQueue: queue.length ? queue : undefined }
 }

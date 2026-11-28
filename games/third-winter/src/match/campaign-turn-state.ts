@@ -174,6 +174,8 @@ export interface CampaignTurnState extends CampaignBoardState {
   airfieldReducedAt?: Readonly<Record<string, number>>
   /** OCS 9.14c：运输点夺取窗口；原主选定被夺取计数器与位移格前阻塞。 */
   transportCapture?: import('./campaign-transport-capture.ts').CampaignTransportCapture
+  /** OCS 9.14c：同一 move 路径上后续格的待决窗口（按进入顺序）。 */
+  transportCaptureQueue?: import('./campaign-transport-capture.ts').CampaignTransportCapture[]
   /** OCS 12.7a：在图延补器（翻转普通运输点数产生；throw 半径 20/10）。 */
   extenders?: readonly import('./campaign-extender.ts').CampaignExtender[]
   /** OCS 12.7a：延补器编号计数器（同格多枚唯一）。 */
