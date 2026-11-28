@@ -4,6 +4,7 @@ const Result := preload("res://scripts/core/result.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
 const Fuel := preload("res://works/third-winter/rules/fuel.gd")
+const Capture := preload("res://works/third-winter/rules/capture.gd")
 
 
 ## OCS 6.1 and 14.8c — one normal single-counter ground move of src/match/scorpion-movement.ts.
@@ -20,6 +21,9 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 	var fuel_paid := false
 	var dump_id := str(action.get("fuelDumpId", ""))
 	if not dump_id.is_empty():
+		## TS `fuelScorpionMovement`：不需要付油（含批量油覆盖）的算子被硬塞油源是错误，不是免费加油。
+		if Fuel.has_bulk_fuel(state, unit_id):
+			return Result.failure("fuel_not_needed", "这枚算子已被批量油覆盖，不必再付油")
 		var fueled := Fuel.fuel_with_dump(state, actor, unit_id, dump_id, data)
 		if not fueled.ok:
 			return fueled
@@ -34,7 +38,20 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 	spent_book[unit_id] = int(spent_book.get(unit_id, 0)) + spent
 	activity.spent = spent_book
 	state.groundActivity = activity
-	state.units[unit_id].hex = from
+	var entered := from
+	state.units[unit_id].hex = entered
+	## 9.14 / TS `resolveScorpionMoveEntries`：逐格过一遍进格夺取，路径中途挂起必须停在该格。
+	## `resolve_entry` 返回新状态（不就地改），所以整条链按返回值往下走，最后以它为准。
+	var working := state
+	for index in path.size():
+		var step_res := Capture.resolve_entry(working, actor, str(path[index]), [unit_id], data, false,
+			path.slice(index + 1))
+		if not step_res.ok:
+			return step_res
+		working = step_res.value
+		if working.get("capture") != null and index != path.size() - 1:
+			return Result.failure("capture_route_end", "本次移动必须以待决夺取格为终点")
+	state = working
 	var moved: Array = state.get("moved", [])
 	var next_moved: Array = moved.duplicate()
 	next_moved.append(unit_id)
@@ -67,7 +84,9 @@ static func check(state: Dictionary, actor: String, unit_id: String, path: Array
 	if allowance <= 0:
 		return _refuse("movement_allowance", "该算子没有可用移动力")
 	# OCS 6.1 — a combat counter with a mechanised face needs fuel before it can use that face.
-	if not fuel_paid and unit.get("combat") == true and str(unit.get("mobility")) != "leg" and unit.get("fueled") != true:
+	# 12.5c — 批量油标记覆盖的算子不必再逐枚付油（`hasScorpionBulkFuel`）。
+	if not fuel_paid and unit.get("combat") == true and str(unit.get("mobility")) != "leg" \
+			and unit.get("fueled") != true and not Fuel.has_bulk_fuel(state, unit_id):
 		return _refuse("movement_fuel", "机械化战斗面需要先加油")
 	var moved: Array = state.get("moved", [])
 	if moved.has(unit_id):

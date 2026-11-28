@@ -30,6 +30,7 @@ static func run(ctx: Dictionary) -> void:
 		"pieces": [],
 		"moved": [],
 		"railControl": {},
+		"rng": {"seed": 19440126, "state": 3682571752, "drawCount": 0},
 	}
 	var blocked := _blocked_hexes(state, bundle, "axis")
 	var picked := _pick_unit(state, bundle, blocked)
@@ -68,7 +69,47 @@ static func run(ctx: Dictionary) -> void:
 	(thaw["turn"]["weather"] as Dictionary)["ground"] = "thaw"
 	var thaw_menu: Array = ScorpionView.menu_entries(thaw, "axis", {"unitId": unit_id, "hex": str(expected[0])}, bundle)
 	expect.call(_move_offers(thaw_menu).is_empty(), "解冻天气不列移动行")
+	_capture_on_entry(ctx, bundle, state.duplicate(true), blocked)
 	_fuel_rows(ctx, bundle, state, blocked)
+
+
+## 9.14 — 走到敌方补给堆格必须当场挂起夺取窗口，结算后堆消失、历史留痕。
+static func _capture_on_entry(ctx: Dictionary, bundle: Dictionary, state: Dictionary, blocked: Array) -> void:
+	var expect: Callable = ctx.expect
+	var graph: Dictionary = bundle.get("view", {}).get("mapGraph", {})
+	var neighbors: Dictionary = graph.get("neighbors", {})
+	## 初设里未必有「攻击单位贴着敌堆」的局面，这里把一个合格单位摆到邻格、再在邻格放一堆敌方补给，
+	## 只补局面不碰规则：刻意造出的正是 9.14「走进有敌堆的格」。
+	for id: String in state.get("units", {}):
+		var unit: Dictionary = state.units[id]
+		if str(unit.get("side", "")) != "axis" or unit.get("attackCapable") != true \
+				or unit.get("reserve") != null or int(unit.get("allowance", 0)) <= 0:
+			continue
+		for near: Variant in neighbors.get(str(unit.get("hex", "")), []):
+			var target := str(near)
+			if blocked.has(target) or (state.get("dumps", {}) as Dictionary).has("soviet:hex:" + target):
+				continue
+			var probe := state.duplicate(true)
+			probe.units[id].fueled = true
+			probe.dumps["soviet:hex:" + target] = {"side": "soviet", "tokens": 2, "location": "on-map"}
+			if not GroundMove.check(probe, "axis", id, [target], bundle).ok:
+				continue
+			var res := _submit(probe, bundle, {"type": "ground-move", "unitId": id, "path": [target]})
+			expect.call(bool(res.get("ok", false)), "踩敌堆的移动成功并挂起夺取 · "
+				+ str(res.get("errorCode", "")))
+			if not res.get("ok", false):
+				return
+			var next: Dictionary = res.value.record.state
+			expect.call(next.get("capture") == null, "只有补给堆的夺取当场结清，不留待决窗口")
+			expect.call(not (next.get("dumps", {}) as Dictionary).has("soviet:hex:" + target),
+				"夺取后敌方补给堆立即消失")
+			var history: Array = next.get("captureHistory", [])
+			expect.call(history.size() == 1 and str((history[0] as Dictionary).get("hex", "")) == target
+				and (history[0] as Dictionary).get("dump") != null, "夺取历史记下该格与补给堆结果")
+			expect.call(next.get("moved", []).has(id), "进格夺取后算子仍计入本阶段已动")
+			expect.call(str(next.units.get(id, {}).get("hex", "")) == target, "算子停在夺取格")
+			return
+	expect.call(false, "初设里找不到可贴着敌方补给堆的攻击单位")
 
 
 ## 机械面：需油单位只列带 `fuelDumpId` 的行，付 1T 后能走、油源少 1T；不需要油时回到普通行。
@@ -119,6 +160,21 @@ static func _fuel_rows(ctx: Dictionary, bundle: Dictionary, state: Dictionary, b
 	var fueled_offers: Array = _move_offers(fueled_menu)
 	expect.call(fueled_offers.size() > 0 and fueled_offers[0].get("fuelDumpId") == null,
 		"已加油的算子恢复普通移动行")
+	## 批量油标记覆盖：同样不收第二笔，普通行直接可走。
+	var bulk := state.duplicate(true)
+	bulk["formationFuel"] = [{"side": "axis", "formation": str(state.units[unit_id].get("formation", "")),
+		"recipients": [unit_id]}]
+	var bulk_menu: Array = ScorpionView.menu_entries(bulk, "axis", {"unitId": unit_id, "hex": fuel_hex}, bundle)
+	var bulk_offers: Array = _move_offers(bulk_menu)
+	expect.call(bulk_offers.size() > 0 and bulk_offers[0].get("fuelDumpId") == null, "批量油覆盖时不列付油行")
+	var bulk_row := {"type": "ground-move", "unitId": unit_id, "path": [fuel_hex]}
+	var bulk_res := _submit(bulk, bundle, bulk_row)
+	expect.call(bool(bulk_res.get("ok", false)), "批量油覆盖可无油直接走 · "
+		+ str(bulk_res.get("errorCode", "")))
+	var over_bulk := _submit(bulk, bundle, {"type": "ground-move", "unitId": unit_id,
+		"path": [fuel_hex], "fuelDumpId": str(row.get("fuelDumpId", ""))})
+	expect.call(not over_bulk.ok and str(over_bulk.get("errorCode", "")) == "fuel_not_needed",
+		"批量油覆盖的算子再塞油源被拒")
 	## 不需要油的算子被硬塞油源：规则拒，且不让油白流。
 	var wrong := _submit(state, bundle, {"type": "ground-move", "unitId": unit_id,
 		"path": [fuel_hex], "fuelDumpId": "axis:hex:zz.99"})
