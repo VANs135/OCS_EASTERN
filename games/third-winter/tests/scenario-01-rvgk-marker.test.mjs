@@ -45,8 +45,9 @@ test('scenario 01 RVGK marker rail movement is restricted to Soviet broad gauge 
   assert.equal(boards.rvgkMarker.detrainable(turn, 'B59.9'), true)
   assert.equal(boards.rvgkMarker.detrainable(turn, 'B44.19'), false)
 
-  assert.equal(boards.rvgkMarker.railRoute?.(turn, 'B43.20', 'B59.9'), undefined,
-    'B43.20 is on the German standard-gauge side, so a Soviet marker may not rail from it')
+  assert.equal(boards.rvgkMarker.railRoute?.(turn, 'B43.20', 'B59.9')?.length, 23,
+    'B43.20 is on the northern-edge Soviet broad-gauge line, so RVGK-2 can rail to B59.9')
+  assert.equal(boards.rvgkMarker.railRoute?.(turn, 'B43.20', 'B59.9')?.[0], 'B43.20')
   const broad = boards.rvgkMarker.railRoute?.(turn, 'D60.19', 'D56.18')
   assert.equal(broad?.length, 5,
     'a real Soviet broad-gauge route exists from D60.19')
@@ -54,7 +55,9 @@ test('scenario 01 RVGK marker rail movement is restricted to Soviet broad gauge 
   assert.equal(broad?.at(-1), 'D56.18')
   assert.equal(boards.rvgkMarker.railCapacityRemaining(turn), 7)
 
-  assert.throws(() => move(turn, boards, 'rvgk-2', 'B59.9'), /connected railway/)
+  const moved = move(turn, boards, 'rvgk-2', 'B59.9')
+  assert.equal(moved.rvgkMarkers['rvgk-2'], 'B59.9')
+  assert.equal(boards.rvgkMarker.railCapacityRemaining(moved), 2, 'RVGK marker rail move spends 5 RE')
 })
 
 test('scenario 01 RVGK marker refuses non-detrainable, inside Axis 10 and wrong phase', async () => {

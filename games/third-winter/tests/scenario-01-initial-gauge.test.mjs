@@ -28,13 +28,15 @@ async function load() {
   return { catalog, setup, setupRaw, map, playable, terrain }
 }
 
-test('scenario 01 initial gauge follows the book Soviet Railhead paths, not a flood fill', async () => {
+test('scenario 01 initial gauge traces Soviet east/north rail edge entries, including the B43.20 branch', async () => {
   const loaded = await load()
   const gauges = dnieperInitialRailGauge({ map: loaded.playable, railAt: loaded.terrain.railAt })
   const counts = { broad: 0, standard: 0 }
   for (const gauge of Object.values(gauges)) counts[gauge]++
 
-  assert.deepEqual(counts, { broad: 142, standard: 1689 })
+  assert.deepEqual(counts, { broad: 289, standard: 1542 })
+  assert.equal(gauges[edgeKey('B43.20', 'B44.19')], 'broad',
+    'RVGK-2 start lies on the northern-edge Soviet rail line, not a standard-gauge spur')
   assert.equal(gauges[edgeKey('B32.18', 'B32.19')], 'broad')
   assert.equal(gauges[edgeKey('B33.18', 'B32.18')], 'broad', 'east through B48.16 is converted')
   assert.equal(gauges[edgeKey('B32.18', 'B32.17')], 'standard', 'south towards B31.13 is not converted')
