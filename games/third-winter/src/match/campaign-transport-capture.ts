@@ -27,6 +27,8 @@ export interface CampaignTransportCaptureBoard {
   map: CampaignGroundMap
   /** 六角距离；不可达返回 Infinity。 */
   distance(from: string, to: string): number
+  /** 可供 UI 枚举的图内格；缺省时投影不列位移候选。 */
+  hexes?: readonly string[]
   transports(state: Readonly<CampaignTurnState>, owner: Side, hex: string): readonly CampaignTransportCaptureItem[]
   /** 按点/T 落成一方运输计数器；具体面额由绑定层决定。 */
   placeTransport(state: Readonly<CampaignTurnState>, side: Side, facts: CampaignTransportCaptureFacts): CampaignTurnState
@@ -60,6 +62,30 @@ export function beginCampaignTransportCapture(state: Readonly<CampaignTurnState>
       const items = entries.filter((item) => item.kind === kind)
       return items.length ? [buildTransportCaptureGroup(kind, roll(), items)] : []
     }),
+  }
+}
+
+/** UI 只读投影：待决组、原主可选的整枚计数器、组级掷骰结果与位移候选。不替玩家预设选择。 */
+export function campaignTransportCaptureOptions(state: Readonly<CampaignTurnState>, viewer: Side,
+  board?: CampaignTransportCaptureBoard) {
+  const capture = state.transportCapture
+  if (!capture || !board || viewer !== capture.owner) return null
+  return {
+    captor: capture.captor,
+    owner: capture.owner,
+    hex: capture.hex,
+    groups: capture.groups.map((group) => ({
+      kind: group.kind,
+      die: group.die,
+      totalPoints: group.totalPoints,
+      totalTokens: group.totalTokens,
+      capturedPoints: group.capturedPoints,
+      capturedTokens: group.capturedTokens,
+      items: group.items.map((item) => ({ id: item.id, points: item.points, tokens: item.tokens })),
+      displacedTo: board.hexes
+        ? transportDisplacementCandidates(capture.hex, board.hexes, board.distance, group.kind)
+        : [],
+    })),
   }
 }
 

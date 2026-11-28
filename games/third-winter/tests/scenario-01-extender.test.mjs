@@ -10,8 +10,8 @@ import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/
 import { dnieperOpeningChoices, prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { applyCampaignTurn } from '../src/match/campaign-match.ts'
-import { campaignExtenderCollapseDestinations, campaignExtenderHexOptions, collapseCampaignExtender,
-  convertCampaignExtender, flipCampaignExtender } from '../src/match/campaign-extender.ts'
+import { campaignExtenderCollapseDestinations, campaignExtenderCollapseOptions, campaignExtenderHexOptions,
+  collapseCampaignExtender, convertCampaignExtender, flipCampaignExtender } from '../src/match/campaign-extender.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -161,6 +161,9 @@ test('scenario 01 real Axis extender collapses to a traced hex and flips to 5 tr
   const destination = loaded.playable.resolveHex('B42.06')
   const choicesForCollapse = campaignExtenderCollapseDestinations(converted, 'axis', extender.id, board)
   assert.equal(choicesForCollapse.includes(destination), true, 'B42.06 is inside the real truck range and traced')
+  const collapseOptions = campaignExtenderCollapseOptions(converted, 'axis', board)
+  assert.equal(collapseOptions.extenders.length, 1)
+  assert.equal(collapseOptions.extenders[0].destinations.includes(destination), true)
 
   const collapsed = collapseCampaignExtender(converted, 'axis',
     { type: 'collapse-campaign-extender', id: extender.id, destination }, board)

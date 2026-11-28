@@ -158,6 +158,7 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   }
   if (action.type === 'resolve-campaign-transport-capture') {
     if (!state.transportCapture) throw new Error('There is no pending transport capture')
+    if (actor !== state.transportCapture.owner) throw new Error('Only the owning player chooses transport capture outcomes')
     if (!context.transportCapture) throw new Error('Campaign transport capture requires a transport board')
     return settleCampaignTransportCapture(state, state.transportCapture, action.choices, context.transportCapture)
   }

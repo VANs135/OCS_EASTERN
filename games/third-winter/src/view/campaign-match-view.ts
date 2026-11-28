@@ -17,6 +17,8 @@ import { campaignRailLoading, campaignRailStatus, previewCampaignRailTransport }
 import { campaignRailheads } from '../match/campaign-rail-network.ts'
 import { campaignSupplyDecision } from '../match/campaign-supply-phase.ts'
 import { campaignSteOptions } from '../match/campaign-special-truck-extender.ts'
+import { campaignExtenderCollapseOptions } from '../match/campaign-extender.ts'
+import { campaignTransportCaptureOptions } from '../match/campaign-transport-capture.ts'
 import type { TransportCampaignRail } from '../match/campaign-rail-transport.ts'
 import { activeCampaignFerryHex } from '../match/campaign-movement-board.ts'
 import type { CampaignMatch } from '../match/campaign-match.ts'
@@ -75,6 +77,8 @@ export function projectCampaignMatch(record: Readonly<Pick<CampaignMatch, 'state
     actor: campaignGroundMovementActor(pending), segment: state.movementSegment, movement: null,
     marchResponse: projectMarchInterruption(pending, viewer) }
   const player = { ...base, first: cursor.first, phasing: cursor.phasing, actor: actingSide(cursor.phasing, cursor.phase),
+    transportCapture: campaignTransportCaptureOptions(state, viewer, context.transportCapture),
+    extenderCollapse: campaignExtenderCollapseOptions(state, viewer, context.extenderWork),
     aircraftConsolidation: campaignAircraftConsolidationOptions(state, viewer, context) }
   if (cursor.phase === 'aircraft-refit') return { ...player, refit: campaignRefitOptions(state, viewer, context) }
   if (cursor.phase === 'supply') return { ...player, supply: campaignSupplyDecision(state, viewer, context) }

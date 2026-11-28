@@ -9,7 +9,8 @@ import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { applyCampaignTurn, openCampaignMatch } from '../src/match/campaign-match.ts'
-import { beginCampaignTransportCapture } from '../src/match/campaign-transport-capture.ts'
+import { beginCampaignTransportCapture, campaignTransportCaptureOptions } from '../src/match/campaign-transport-capture.ts'
+import { projectCampaignMatch } from '../src/view/campaign-match-view.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -58,9 +59,15 @@ test('scenario 01 real truck points settle 9.14c with owner choice and displacem
   assert.ok(axisDefinition)
 
   let serial = 0
+  let distanceFrom
+  let distanceMap
   const board = {
     map: playable,
-    distance(from, to) { return distances(map, from).get(to) ?? Infinity },
+    distance(from, to) {
+      if (distanceFrom !== from) { distanceFrom = from; distanceMap = distances(map, from) }
+      return distanceMap.get(to) ?? Infinity
+    },
+    hexes: [...playable.availableHexes],
     transports(state, owner, hex) {
       return Object.entries(state.counters).filter(([, counter]) => counter.kind === 'transport' &&
         counter.side === owner && counter.location.kind === 'map' && counter.location.hex === hex &&
@@ -83,9 +90,20 @@ test('scenario 01 real truck points settle 9.14c with owner choice and displacem
   const window = { ...state, transportCapture: capture }
   const adjacent = playable.neighbors(hex).find((candidate) => playable.availableHexes.has(candidate))
   assert.ok(adjacent)
-  const settled = applyCampaignTurn(window, 'axis', { type: 'resolve-campaign-transport-capture',
+  const options = campaignTransportCaptureOptions(window, 'soviet', board)
+  assert.equal(options.groups.length, 1)
+  assert.equal(options.groups[0].items.length, 2)
+  assert.equal(options.groups[0].capturedPoints, 1)
+  assert.equal(options.groups[0].displacedTo.includes(adjacent), true)
+  assert.equal(campaignTransportCaptureOptions(window, 'axis', board), null)
+  const settled = applyCampaignTurn(window, 'soviet', { type: 'resolve-campaign-transport-capture',
     choices: [{ kind: 'trucks', capturedIds: [trucks[0][0]], displacedTo: adjacent }] }, { transportCapture: board })
   assert.equal(settled.transportCapture, undefined)
+  const projected = projectCampaignMatch({ state: { ...window,
+    cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' } }, revision: 0 },
+  'soviet', { transportCapture: board })
+  assert.equal(projected.transportCapture.groups[0].kind, 'trucks')
+  assert.equal(projected.transportCapture.groups[0].capturedPoints, 1)
   assert.equal(settled.counters[trucks[0][0]], undefined)
   assert.equal(settled.counters[trucks[1][0]], undefined)
   const capturedCounters = Object.entries(settled.counters).filter(([, counter]) => counter.kind === 'transport' &&
@@ -98,12 +116,12 @@ test('scenario 01 real truck points settle 9.14c with owner choice and displacem
   assert.equal(displacedCounters.length, 1)
   assert.equal(displacedCounters[0][1].transportPoints, 1)
 
-  assert.throws(() => applyCampaignTurn(window, 'axis', { type: 'resolve-campaign-transport-capture',
+  assert.throws(() => applyCampaignTurn(window, 'soviet', { type: 'resolve-campaign-transport-capture',
     choices: [] }, { transportCapture: board }), /one transport capture outcome/)
-  assert.throws(() => applyCampaignTurn(window, 'axis', { type: 'resolve-campaign-transport-capture',
+  assert.throws(() => applyCampaignTurn(window, 'soviet', { type: 'resolve-campaign-transport-capture',
     choices: [{ kind: 'trucks', capturedIds: [trucks[0][0], trucks[1][0]], displacedTo: adjacent }] },
   { transportCapture: board }), /match the group dice result/)
-  assert.throws(() => applyCampaignTurn(window, 'axis', { type: 'resolve-campaign-transport-capture',
+  assert.throws(() => applyCampaignTurn(window, 'soviet', { type: 'resolve-campaign-transport-capture',
     choices: [{ kind: 'trucks', capturedIds: [trucks[0][0]] }] }, { transportCapture: board }),
   /in-range displacement/)
 })

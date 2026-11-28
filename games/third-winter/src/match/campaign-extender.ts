@@ -153,6 +153,17 @@ export function campaignExtenderCollapseDestinations(state: Readonly<CampaignTur
   return destinations
 }
 
+/** UI 只读投影：本方未行动延补队及其崩溃落点；不替玩家选择落点。 */
+export function campaignExtenderCollapseOptions(state: Readonly<CampaignTurnState>, side: Side,
+  board?: CampaignExtenderBoard) {
+  if (!board || !collapseWindow(state, side)) return null
+  const moved = new Set(state.groundMovement?.moved ?? [])
+  const extenders = (state.extenders ?? []).filter((extender) => extender.side === side && !moved.has(extender.id))
+    .map((extender) => ({ id: extender.id, kind: extender.kind, hex: extender.hex, range: extender.range,
+      destinations: campaignExtenderCollapseDestinations(state, side, extender.id, board) }))
+  return extenders.length ? { extenders } : null
+}
+
 /** 12.7f：玩家选择崩溃落点；延补器翻回 5 点普通运输点数并记为已行动。 */
 export function collapseCampaignExtender(state: Readonly<CampaignTurnState>, side: Side,
   action: Extract<CampaignExtenderAction, { type: 'collapse-campaign-extender' }>,
