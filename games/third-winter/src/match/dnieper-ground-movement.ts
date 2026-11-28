@@ -1,7 +1,7 @@
 // 剧本 01 普通地面移动板：真实地图、地形、单位机动档与 9.14b/9.14e 进格夺取。
 // 09 的工厂把进格夺取固定成“不需要解析”；01 必须保留 resolveEntry，让进格后
-// 的 dump/hedgehog 夺取真实发生。补给 trace 已在板内接道路/HQ 与边缘源；铁路段
-// 待 01 轨距台账核准，4.8a 段末堆叠另由调用方补 board。
+// 的 dump/hedgehog 夺取真实发生。补给 trace 已接道路/HQ、边缘源与剧本 01 书明轨距；
+// 4.8a 段末堆叠另由调用方补 board。
 
 import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
@@ -17,6 +17,8 @@ import { beginCampaignForcedExtenderCollapsesForPath } from './campaign-extender
 import type { CampaignExtenderBoard } from './campaign-extender.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
+import { dnieperRailNetwork } from './dnieper-initial-gauge.ts'
+import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
 import { campaignOverstackedHexes } from './campaign-stacking.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
@@ -35,9 +37,11 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
   catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase,
   transportCapture?: CampaignTransportCaptureBoard, extenderWork?: CampaignExtenderBoard,
-  edgeSourcesForTurn?: (turn: number) => Readonly<Record<'axis' | 'soviet', readonly string[]>>) {
+  edgeSourcesForTurn?: (turn: number) => Readonly<Record<'axis' | 'soviet', readonly string[]>>,
+  railheads?: readonly DnieperRailhead[]) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
   const printedRail = printedRailHexes(map)
+  const railNetwork = railheads?.length ? dnieperRailNetwork({ map, railAt: terrain.railAt }, railheads) : undefined
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
     hqKind: definition.source.hqKind,
@@ -72,6 +76,7 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
   }
   return createCampaignOrdinaryMovementBoard({
     map,
+    railNetwork,
     profileOf,
     moveProfile: profiles.moveProfile,
     terrainAt: (hex) => terrain.terrainAt(hex),
@@ -93,7 +98,7 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
         headquarters: campaignThrowHeadquarters(state, definitions)
           .filter((headquarter) => headquarter.id !== undefined && state.counters[headquarter.id]?.side === side),
         detrainable: (hex) => printedRail.has(hex),
-        railCanTrace: () => false,
+        railCanTrace: (from, to) => railheads?.length ? terrain.railAt(from, to) !== undefined : false,
         extenders: Object.values(state.counters).flatMap((counter) => counter.side === side &&
           counter.location.kind === 'map' && counter.specialTruckExtender
           ? [{ hex: counter.location.hex, range: counter.specialTruckExtender.range, mobility: 'truck' as const }]

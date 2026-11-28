@@ -11,6 +11,7 @@ import { dnieperGroundMovementBoard, dnieperStackingBoard } from './dnieper-grou
 import { dnieperTransportCaptureBoard } from './dnieper-transport-capture.ts'
 import { dnieperExtenderBoard } from './dnieper-extender.ts'
 import { dnieperEdgeSupplySources } from './dnieper-edge-supply.ts'
+import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import { campaignFortressBoards } from './campaign-fortress-board.ts'
 import type { CampaignFortressHooks } from './campaign-fortress-board.ts'
 
@@ -22,6 +23,8 @@ export interface DnieperCampaignBoardsInput {
   map: TtwCampaignMapIndex
   terrain: Terrain
   catalog: { definitions: ReadonlyMap<string, Definition<BackupUnit>> }
+  /** 01 印刷 Railhead；给出时启用书明轨距与铁路 trace。 */
+  railheads?: readonly DnieperRailhead[]
 }
 
 export interface DnieperCampaignBoardsOptions {
@@ -41,7 +44,7 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
     groundMovement?.traceSupply?.(state, side)?.network.hasTrace(hex, 'truck') === true)
   const extenderWork = dnieperExtenderBoard(input.playable, input.catalog.definitions, { hasTrace })
   groundMovement = dnieperGroundMovementBoard(input.playable, input.terrain, input.catalog.definitions,
-    options.airBase, transportCapture, extenderWork, edgeSupplySourcesForTurn)
+    options.airBase, transportCapture, extenderWork, edgeSupplySourcesForTurn, input.railheads)
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   const fortressBoard = dnieperFortressBoards(input)
   return { groundMovement, transportCapture, extenderWork, stacking, fortressBoard, edgeSupplySourcesForTurn }
