@@ -17,7 +17,7 @@ import { workCampaignHedgehog } from './campaign-hedgehogs.ts'
 import { settleCampaignStacking } from './campaign-stacking.ts'
 import { declareCampaignFortress } from './campaign-fortress.ts'
 import { workCampaignAirfield } from './campaign-airfield.ts'
-import { convertCampaignExtender, flipCampaignExtender } from './campaign-extender.ts'
+import { collapseCampaignExtender, convertCampaignExtender, flipCampaignExtender } from './campaign-extender.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -155,11 +155,12 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
     if (!context.airfieldWork) throw new Error('Campaign airfield work requires an airfield board')
     return workCampaignAirfield(state, actor, action, context.airfieldWork)
   }
-  if (action.type === 'convert-campaign-extender' || action.type === 'flip-campaign-extender') {
+  if (action.type === 'convert-campaign-extender' || action.type === 'flip-campaign-extender' ||
+    action.type === 'collapse-campaign-extender') {
     if (!context.extenderWork) throw new Error('Campaign extender work requires an extender board')
-    return action.type === 'convert-campaign-extender'
-      ? convertCampaignExtender(state, actor, action, context.extenderWork)
-      : flipCampaignExtender(state, actor, action, context.extenderWork)
+    if (action.type === 'convert-campaign-extender') return convertCampaignExtender(state, actor, action, context.extenderWork)
+    if (action.type === 'flip-campaign-extender') return flipCampaignExtender(state, actor, action, context.extenderWork)
+    return collapseCampaignExtender(state, actor, action, context.extenderWork)
   }
   if (state.groundMovement?.interruption) throw new Error('Campaign ground movement awaits a response')
   // OCS 20.0d：段末/阶段末先结清强制吸收义务；未结清则开吸收窗阻塞推进。
