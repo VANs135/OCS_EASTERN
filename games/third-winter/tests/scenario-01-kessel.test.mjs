@@ -10,6 +10,7 @@ import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { applyCampaignTurn, openCampaignMatch } from '../src/match/campaign-match.ts'
+import { campaignGroundMovementOptions } from '../src/match/campaign-ground-movement.ts'
 import { removeCampaignKessel } from '../src/match/campaign-kessel-placement.ts'
 import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
 
@@ -91,6 +92,16 @@ test('scenario 01 Kessel free move uses the real Kessel HQ, stops eastward, and 
   assert.deepEqual(moved.counters[KESSEL].location, { kind: 'map', hex: 'B41.6' })
   assert.equal(moved.kesselFreeMove?.turn, 1)
 
+  const moveMode = {
+    ...turnOne,
+    counters: { ...turnOne.counters, [KESSEL]: { ...turnOne.counters[KESSEL], mode: 'move' } },
+  }
+  const movedInMoveMode = applyCampaignTurn(moveMode, 'axis',
+    { type: 'kessel-campaign-free-move', counterId: KESSEL, path: ['B41.6'] },
+    { groundMovement: boards.groundMovement, kesselBoard: boards.kesselBoard })
+  assert.equal(campaignGroundMovementOptions(movedInMoveMode, 'axis', boards.groundMovement).availableIds.includes(KESSEL), false,
+    'the free move consumes the HQ normal movement for this phase')
+
   assert.throws(() => applyCampaignTurn(turnOne, 'axis',
     { type: 'kessel-campaign-free-move', counterId: KESSEL, path: ['B43.6'] },
     { groundMovement: boards.groundMovement, kesselBoard: boards.kesselBoard }), /no-further-east/)
@@ -98,6 +109,10 @@ test('scenario 01 Kessel free move uses the real Kessel HQ, stops eastward, and 
     { type: 'kessel-campaign-free-move', counterId: KESSEL, path: ['B42.6', 'B42.7', 'B41.7', 'B41.6', 'B41.5'] },
     { groundMovement: boards.groundMovement, kesselBoard: boards.kesselBoard }), /four hexes/)
   assert.throws(() => applyCampaignTurn(moved, 'axis',
+    { type: 'kessel-campaign-free-move', counterId: KESSEL, path: ['B41.5'] },
+    { groundMovement: boards.groundMovement, kesselBoard: boards.kesselBoard }), /already moved/)
+  const ledgerOnly = { ...moved, groundMovement: { ...moved.groundMovement, moved: [] } }
+  assert.throws(() => applyCampaignTurn(ledgerOnly, 'axis',
     { type: 'kessel-campaign-free-move', counterId: KESSEL, path: ['B41.5'] },
     { groundMovement: boards.groundMovement, kesselBoard: boards.kesselBoard }), /one Kessel HQ/)
 })

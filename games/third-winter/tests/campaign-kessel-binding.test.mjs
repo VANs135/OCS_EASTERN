@@ -29,8 +29,8 @@ test('Kessel free move ≤4 hexes within 2, no further east, one Kessel per turn
   const west = move(game(), ['9', '8'])
   assert.equal(west.state.counters.kessel.location.hex, '8')
   assert.equal(west.state.kesselFreeMove.turn, 1)
-  // a second Kessel benefit in the same turn is refused
-  assert.throws(() => move(west, ['7']), /one Kessel HQ/)
+  // a second Kessel benefit in the same turn is refused (free move consumed its movement)
+  assert.throws(() => move(west, ['7']), /already moved/)
   // moving further east is refused
   assert.throws(() => move(game(), ['11', '12']), /no-further-east/)
   // more than four hexes is refused

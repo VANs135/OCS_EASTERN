@@ -50,5 +50,11 @@ export function applyCampaignKesselFreeMove(state: Readonly<CampaignTurnState>, 
   const end = path[path.length - 1]!
   return { ...state,
     counters: { ...state.counters, [action.counterId]: { ...counter, location: { kind: 'map', hex: end } } },
+    // §2.3a B：免费移动替代该 HQ 本阶段的常规移动，不能先免费再走一次常规 MA。
+    groundMovement: {
+      ...state.groundMovement,
+      moved: [...new Set([...(state.groundMovement?.moved ?? []), action.counterId])],
+      zocLocks: state.groundMovement?.zocLocks ?? [],
+    },
     kesselFreeMove: { turn: state.turn, kesselId: action.counterId } }
 }
