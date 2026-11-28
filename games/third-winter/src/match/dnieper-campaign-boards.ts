@@ -1,5 +1,5 @@
 // 剧本 01 的最小生产盘面装配：地面移动、道路/HQ/铁路 trace、9.14c 运输点夺取、
-// 9.14d 强制崩溃、12.7 延补队、2.4a 要塞铁路限制与 4.8a 堆叠。战斗、空军、增援等仍由调用方注入，
+// 9.14d 强制崩溃、12.7 延补队、2.4a 要塞铁路限制、4.8a 堆叠、2.3a Kessel 放置/免费移动。战斗、空军、增援等仍由调用方注入，
 // 避免用测试夹具冒充完整会话。
 import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
@@ -15,6 +15,7 @@ import { dnieperRailBoard } from './dnieper-rail-board.ts'
 import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import { campaignFortressBoards } from './campaign-fortress-board.ts'
 import type { CampaignFortressHooks } from './campaign-fortress-board.ts'
+import { dnieperKesselBoard, dnieperKesselPlacementBoard } from './dnieper-kessel.ts'
 
 type Playable = ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>
 type Terrain = ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>
@@ -35,7 +36,7 @@ export interface DnieperCampaignBoardsOptions {
 
 /** 01 的移动/后勤生产板集合；返回片段可直接展开进 CampaignTurnContext。 */
 export function dnieperCampaignBoards(input: DnieperCampaignBoardsInput, options: DnieperCampaignBoardsOptions = {}):
-Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork' | 'stacking' | 'fortressBoard' | 'railTransport'> & {
+Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork' | 'stacking' | 'fortressBoard' | 'railTransport' | 'kesselPlacement' | 'kesselBoard'> & {
   edgeSupplySourcesForTurn: (turn: number, state?: import('./campaign-turn-state.ts').CampaignTurnState) => Readonly<Record<Side, readonly string[]>>
 } {
   const transportCapture = dnieperTransportCaptureBoard(input.playable, input.catalog.definitions)
@@ -50,7 +51,12 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   const fortressBoard = dnieperFortressBoards(input)
   const railTransport = dnieperRailBoard({ map: input.playable, exitRefusal: fortressBoard.exitRefusal })
-  return { groundMovement, transportCapture, extenderWork, stacking, fortressBoard, railTransport, edgeSupplySourcesForTurn }
+  const kesselPlacement = dnieperKesselPlacementBoard(input.playable, input.catalog.definitions)
+  const kesselBoard = dnieperKesselBoard(input.playable, input.terrain, input.catalog.definitions)
+  return {
+    groundMovement, transportCapture, extenderWork, stacking, fortressBoard, railTransport,
+    kesselPlacement, kesselBoard, edgeSupplySourcesForTurn,
+  }
 }
 
 /** 01 真实要塞池：8 枚德军要塞＋1 枚罗军要塞，已上盘的 4 枚由 `fortressUnit` 自动排除。 */

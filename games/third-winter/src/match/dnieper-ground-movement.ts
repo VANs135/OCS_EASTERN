@@ -9,7 +9,9 @@ import type { Mobility } from '@ocs-eastern/series/ground-map'
 import { ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
+import { campaignCounterGroundMode } from './campaign-ground-position.ts'
 import { campaignThrowHeadquarters } from './campaign-hq-supply.ts'
+import { kesselSupplyHeadquarters } from './campaign-kessel-trace.ts'
 import { resolveCampaignEntryCapture, type CampaignEntryAirBase } from './campaign-entry-capture.ts'
 import { beginCampaignTransportCapturesForPath } from './campaign-transport-capture.ts'
 import type { CampaignTransportCaptureBoard } from './campaign-transport-capture.ts'
@@ -110,8 +112,23 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
         sources: new Set<string>(),
         controlled: new Set(Object.entries(state.hexControl ?? {})
           .filter(([, owner]) => owner === side).map(([hex]) => hex)),
-        headquarters: campaignThrowHeadquarters(state, definitions)
-          .filter((headquarter) => headquarter.id !== undefined && state.counters[headquarter.id]?.side === side),
+        headquarters: [
+          ...campaignThrowHeadquarters(state, definitions),
+          ...kesselSupplyHeadquarters(state, {
+            isKesselHq: (current, id) => {
+              const counter = current.counters[id]
+              return counter?.mode !== 'strat'
+                && definitions[counter?.definition ?? '']?.source.abilities?.includes('kessel_supply') === true
+            },
+            throwRangeOf: (current, id) => {
+              const counter = current.counters[id]
+              const definition = definitions[counter?.definition ?? '']
+              if (!counter || !definition) return undefined
+              return definition.source.faces[campaignCounterGroundMode(counter, true).face]?.stats.dropRange
+            },
+            mobilityOf: () => 'leg',
+          }),
+        ].filter((headquarter) => headquarter.id !== undefined && state.counters[headquarter.id]?.side === side),
         detrainable: (hex) => detrainableSites.has(hex),
         railCanTrace: (from, to) => railheads?.length ? terrain.railAt(from, to) !== undefined : false,
         extenders: Object.values(state.counters).flatMap((counter) => counter.side === side &&
