@@ -16,6 +16,7 @@ const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const Fuel := preload("res://works/third-winter/rules/fuel.gd")
+const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
@@ -1135,6 +1136,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
 	_append_transport_fuel_menu(state, side, selection, data, menu)
+	_append_repack_rows(state, side, selection, data, menu)
 	_append_engage_menu(state, side, selection, data, menu)
 	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
@@ -1295,6 +1297,91 @@ static func _append_transport_fuel_menu(state: Dictionary, side: String, selecti
 	var tail := transport_id.substr(transport_id.rfind(":") + 1)
 	menu.append({"label": "由暂驻运输队 %s 加油（1T）" % tail, "group": "加油",
 		"actions": [{"type": "fuel-from-paused-transport", "unitId": unit_id, "transportId": transport_id}]})
+
+
+## OCS 13.2c — 普通运输算子可把同格同型的点数重新打包成印值分母。只列空载情形：
+## 有货载时怎么分到各盒是玩家选择，规则层已支持带 tokens 的 `repack-transport`，界面不代选。
+static func _append_repack_rows(state: Dictionary, side: String, selection: Dictionary, data: Dictionary,
+		menu: Array) -> void:
+	if not TransportPoints.window(state, side):
+		return
+	var unit_id := _selected_unit_id(selection)
+	if unit_id.is_empty():
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or unit.get("combat") == true or unit.get("organicTruck") != null \
+			or unit.get("extender") != null or int(TransportPoints.tokens(unit)) != 0:
+		return
+	var total := TransportPoints.points(unit, data)
+	if total <= 1:
+		return
+	var catalog: Dictionary = data.get("view", {}).get("catalog", {})
+	var denominations: Array = []
+	for key: String in catalog.get("definitions", {}):
+		var row: Dictionary = catalog.definitions[key]
+		if str(row.get("kind", "")) != "transport" or str(row.get("side", "")) != side \
+				or (row.get("abilities", []) as Array).has("organic_truck") \
+				or int(row.get("transport", 0)) <= 0:
+			continue
+		var profile_value: Variant = row.get("moveProfile")
+		if not profile_value is Dictionary:
+			continue
+		var profile: Dictionary = profile_value
+		if str(profile.get("mobility", "")) != str(unit.get("mobility", "")) \
+				or int(profile.get("allowance", 0)) != int(unit.get("allowance", 0)):
+			continue
+		var denom := int(row.get("transport"))
+		if not denominations.has(denom):
+			denominations.append(denom)
+	if denominations.is_empty():
+		return
+	denominations.sort()
+	denominations.reverse()
+	var partitions: Array = []
+	_transport_partitions(total, denominations, 0, [], partitions)
+	var emitted := 0
+	for parts: Array in partitions:
+		if parts.size() < 2:
+			continue
+		var divisions: Array = []
+		var labels: Array = []
+		var valid := true
+		for count: int in parts:
+			if TransportPoints.regular_definition(catalog, unit, count).is_empty():
+				valid = false
+				break
+			divisions.append({"points": count, "tokens": 0})
+			labels.append(str(count))
+		if not valid:
+			continue
+		menu.append({"label": "重新打包 %s：%d 点 → %s" % [_tail(unit_id), total, "+".join(labels)],
+			"group": "运输", "actions": [{"type": "repack-transport", "unitIds": [unit_id],
+				"divisions": divisions}]})
+		emitted += 1
+		if emitted >= 8:
+			return
+
+
+## 非递增的整数分拆，避免 2+1 与 1+2 重复；上限 8 套由调用方截断。
+static func _transport_partitions(remaining: int, denominations: Array, start: int, picked: Array,
+		out: Array) -> void:
+	if remaining == 0:
+		out.append(picked.duplicate())
+		return
+	for index in range(start, denominations.size()):
+		var count: int = int(denominations[index])
+		if count > remaining:
+			continue
+		picked.append(count)
+		_transport_partitions(remaining - count, denominations, index, picked, out)
+		picked.pop_back()
+
+
+static func _selected_unit_id(selection: Dictionary) -> String:
+	if selection.get("unitId") != null:
+		return str(selection.unitId)
+	var ids: Array = selection.get("unitIds", [])
+	return str(ids[0]) if ids.size() == 1 else ""
 
 
 static func _append_bulk_fuel_rows(state: Dictionary, side: String, unit_id: String, unit: Dictionary,
