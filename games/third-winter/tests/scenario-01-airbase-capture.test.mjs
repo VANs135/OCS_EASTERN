@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { createRngState } from '@ocs-eastern/series/rng'
+import { createRngState, rollDie } from '@ocs-eastern/series/rng'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
@@ -46,28 +46,38 @@ const distance = (map, from, to) => {
   return Infinity
 }
 
+function seedWithFirstTwoDice(total) {
+  for (let seed = 1; seed < 100000; seed += 1) {
+    const first = rollDie(createRngState(seed))
+    const second = rollDie(first.rng)
+    if (first.value + second.value === total) return seed
+  }
+  throw new Error(`No seed produces a first 2d6 total of ${total}`)
+}
+
 test('scenario 01 real Soviet airbase is captured and its real aircraft transfers inactive', async () => {
   const loaded = await scenario01()
   const opening = prepareDnieperBoard(loaded)
   const state = openCampaignMatch(opening, createRngState(1)).state
   const base = state.airBases.find((candidate) => candidate.side === 'soviet' &&
-    Object.values(state.counters).some((counter) => counter.side === 'soviet' && counter.kind === 'aircraft' &&
-      counter.location.kind === 'map' && counter.location.hex === candidate.hex))
-  assert.ok(base, '01 has a Soviet airbase with at least one real aircraft')
+    candidate.hex === loaded.playable.resolveHex('B20.29'))
+  assert.ok(base, '01 has the reviewed Soviet airbase B20.29')
   const aircraftIds = Object.keys(state.counters).filter((id) => state.counters[id].side === 'soviet' &&
     state.counters[id].kind === 'aircraft' && state.counters[id].location.kind === 'map' &&
     state.counters[id].location.hex === base.hex)
+  assert.equal(aircraftIds.length, 4)
   const aircraft = state.counters[aircraftIds[0]]
   const range = loaded.catalog.definitions.get(aircraft.definition)?.source.faces.combat?.stats.range
   assert.ok(typeof range === 'number' && range > 0, 'the real aircraft has a printed range')
   const rangeOf = (id) => loaded.catalog.definitions.get(state.counters[id]?.definition ?? '')
     ?.source.faces.combat?.stats.range
   const destination = state.airBases.find((candidate) => candidate.side === 'soviet' &&
-    candidate.hex !== base.hex && aircraftIds.every((id) => {
-      const printed = rangeOf(id)
-      return typeof printed === 'number' && distance(loaded.playable, base.hex, candidate.hex) <= printed * 2
-    }))
-  assert.ok(destination, '01 has another Soviet airbase within twice every aircraft range')
+    candidate.hex === loaded.playable.resolveHex('B54.32'))
+  assert.ok(destination, '01 has the reviewed transfer airbase B54.32')
+  for (const id of aircraftIds) {
+    const printed = rangeOf(id)
+    assert.ok(typeof printed === 'number' && distance(loaded.playable, base.hex, destination.hex) <= printed * 2)
+  }
 
   const attacker = loaded.setup.counters.find((counter) => counter.ref === 'Ge 302 Ers Bn')
   assert.ok(attacker)
@@ -77,6 +87,16 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
   assert.ok(attackerHex, 'the real base has a real neighbor')
   const placed = { ...state, counters: { ...state.counters,
     [attackerId]: { ...state.counters[attackerId], location: { kind: 'map', hex: attackerHex } } } }
+  let expectedRng = state.rng
+  const expectedSteps = new Map()
+  for (const id of aircraftIds) {
+    assert.equal(state.counters[id].stepsLost ?? 0, 0)
+    const first = rollDie(expectedRng)
+    const second = rollDie(first.rng)
+    expectedRng = second.rng
+    const modifier = state.counters[id].active === true ? 2 : 0
+    expectedSteps.set(id, first.value + second.value + modifier <= 6 ? 1 : 0)
+  }
 
   const airBaseBoard = {
     map: loaded.playable,
@@ -94,11 +114,13 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
     { destination: destination.hex })
 
   assert.equal(after.airBases.find((candidate) => candidate.hex === base.hex).side, 'axis')
-  const moved = after.counters[aircraftIds[0]]
-  assert.equal(moved.location.kind, 'map')
-  assert.equal(moved.location.hex, destination.hex)
-  assert.equal(moved.active, false)
-  assert.ok((moved.stepsLost ?? 0) <= 1)
+  for (const id of aircraftIds) {
+    const moved = after.counters[id]
+    assert.equal(moved.location.kind, 'map')
+    assert.equal(moved.location.hex, destination.hex)
+    assert.equal(moved.active, false)
+    assert.equal(moved.stepsLost ?? 0, expectedSteps.get(id))
+  }
   assert.throws(() => captureCampaignAirBase(placed, 'axis', base.hex, [attackerId], airBaseBoard),
     /Choose a transfer airbase/)
 
@@ -122,4 +144,14 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
     distance: () => Infinity,
   })
   for (const id of aircraftIds) assert.equal(destroyed.counters[id].location.kind, 'dead-pile')
+
+  // 空军基地夺取表：同一次 2d6 在“激活 +2”下损失，在“战后推进再 +2”下不损失。
+  const advanceSeed = seedWithFirstTwoDice(4)
+  const first = rollDie(createRngState(advanceSeed))
+  const second = rollDie(first.rng)
+  assert.equal(first.value + second.value + 2 <= 6, true)
+  assert.equal(first.value + second.value + 4 <= 6, false)
+  const advanced = captureCampaignAirBase({ ...placed, rng: createRngState(advanceSeed) },
+    'axis', base.hex, [attackerId], airBaseBoard, { destination: destination.hex, advance: true })
+  assert.equal(advanced.counters[aircraftIds[0]].stepsLost ?? 0, 0)
 })
