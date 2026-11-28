@@ -1995,6 +1995,7 @@ static func _append_retreat_pending(waiting: Dictionary, state: Dictionary, data
 	var kind := str(request.get("kind", ""))
 	if kind == "retreat-route":
 		var units: Array = request.get("units", [])
+		var side := str(request.get("side", ""))
 		for path: Array in request.get("options", []):
 			var action: Dictionary = stored.duplicate(true)
 			action["retreats"] = [{"group": "group:0", "units": units.duplicate(),
@@ -2002,6 +2003,18 @@ static func _append_retreat_pending(waiting: Dictionary, state: Dictionary, data
 			menu.append({"label": "撤退 %d 格 → %s" % [int(request.get("distance", path.size())),
 				str(path[-1] if path.size() > 0 else "")],
 				"group": "地面战斗", "actions": [action]})
+			for parent_id: String in units:
+				var choices: Array = Breakdown.retreat_options(state, side, parent_id, data, units)
+				for option: Dictionary in choices:
+					var split_action: Dictionary = stored.duplicate(true)
+					var definition := str(option.get("definition", ""))
+					split_action["retreats"] = [{"group": "group:0", "units": units.duplicate(),
+						"path": path.duplicate(),
+						"breakdowns": [{"parentId": parent_id, "definitions": [definition]}]}]
+					menu.append({"label": "撤退 %d 格 + 拆出 %s · %s → %s" % [
+						int(request.get("distance", path.size())), str(option.get("name", definition)),
+						_unit_name(state, parent_id, data), str(path[-1] if path.size() > 0 else "")],
+						"group": "地面战斗", "actions": [split_action]})
 		return
 	var step := int(request.get("step", 0))
 	var group := str(request.get("group", ""))

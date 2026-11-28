@@ -111,6 +111,14 @@ static func advance_options(state: Dictionary, side: String, parent_id: String, 
 	return _options_raw(state, side, parent_id, data)
 
 
+## OCS 20.0a 第三窗口 — 战后撤退前，撤退堆里的多步单位也可拆出，拆分单位随堆沿路线撤退。
+static func retreat_options(state: Dictionary, side: String, parent_id: String, data: Dictionary,
+		departing: Array) -> Array:
+	if not departing.has(parent_id):
+		return []
+	return _options_raw(state, side, parent_id, data)
+
+
 static func _clone(state: Dictionary, parent: Dictionary, definition: String, data: Dictionary) -> Dictionary:
 	var faces: Dictionary = (data.get("view", {}).get("catalog", {}).get("faces", {}) as Dictionary).get(
 		definition, {})

@@ -5,7 +5,6 @@ extends RefCounted
 ## 判定与数值只对照 TS 语义，不做推演。
 ##
 ## 已知缺口（以 Result.failure + 待决描述返回，不伪造结果）：
-## - 折断（breakdown）分队随撤退 detachment 落地；
 ## - 残部落点选择（DG 单位被迫损一步后生成残部的候选格）；
 ## - 进格夺取的飞机/Extender/运输队分配（窗口本身已按 capture.gd 掷骰挂起）；
 ## - Kessel 司令部离场返还。
@@ -17,6 +16,8 @@ const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
+const GroundModeActions := preload("res://works/third-winter/rules/ground_mode_actions.gd")
+const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
 
 ## 每条路线选择窗口最多铺开的合法终点数。
 const ROUTE_OPTION_LIMIT := 24
@@ -118,9 +119,13 @@ static func retreat(state: Dictionary, side: String, involved: Array, distance: 
 		var truck := _validate_truck(route, units)
 		if not truck.ok:
 			return truck
-		if route.get("breakdowns", []).size() > 0:
-			return Result.failure("retreat_breakdown", "折断分队随撤退落地本轮未实现")
 		routes.append(route)
+	var checked: Dictionary = state
+	for route: Dictionary in routes:
+		var prepared := _prepare_route(checked, side, route, data)
+		if not prepared.ok:
+			return prepared
+		checked = prepared.value.state
 	var groups: Dictionary = {}
 	for route: Dictionary in routes:
 		groups[str(route.get("group", ""))] = true
@@ -264,8 +269,12 @@ static func _retreat_mode_result(unit: Dictionary, side: String, origin: String,
 		return Result.failure("retreat_eligible", "撤退堆必须同格出发且只含合格友方算子")
 	if unit.get("moveMode", false) == true or (unit.get("headquarters") == null and int(unit.get("allowance", 0)) > 0):
 		return Result.success(unit)
+	var definition_id := str(unit.get("definition", ""))
+	var projected: Variant = GroundModeActions.project_face(unit, definition_id, "move", data)
+	if projected is Dictionary and int(projected.get("allowance", 0)) > 0:
+		return Result.success(projected)
 	var definition: Dictionary = data.get("view", {}).get("catalog", {}).get("definitions", {}) \
-			.get(str(unit.get("definition", "")), {})
+			.get(definition_id, {})
 	var profile: Dictionary = definition.get("moveFaceProfile", {})
 	var alt_allowance: int = int(profile.get("allowance", 0))
 	if alt_allowance <= 0:
@@ -275,6 +284,32 @@ static func _retreat_mode_result(unit: Dictionary, side: String, origin: String,
 	if profile.get("mobility") != null:
 		alternate["mobility"] = str(profile.get("mobility"))
 	return Result.success(alternate)
+
+
+## prepareRoute：撤退堆整堆切到移动面，再按顺序拆出拆分单位；拆出者加入撤退堆。
+static func _prepare_route(state: Dictionary, side: String, route: Dictionary,
+		data: Dictionary) -> Dictionary:
+	var setup: Dictionary = state.get("units", {}).duplicate(true)
+	var origin := str(route.get("origin", ""))
+	for id: String in route.get("units", []):
+		var mode := _retreat_mode_result(setup.get(id, {}), side, origin, data)
+		if not mode.ok:
+			return mode
+		setup[id] = mode.value
+
+	var prepared_state := state.duplicate(true)
+	prepared_state["units"] = setup
+
+	var split := Breakdown.detach_orders(prepared_state, side, route.get("breakdowns", []),
+		route.get("units", []), data)
+	if not split.ok:
+		return split
+
+	var prepared_route: Dictionary = route.duplicate(true)
+	prepared_route.erase("breakdowns")
+	prepared_route["units"] = (route.get("units", []) as Array).duplicate()
+	prepared_route["units"].append_array(split.value.get("detachedIds", []))
+	return Result.success({"state": split.value.state, "route": prepared_route})
 
 
 ## followRetreat：按进度逐堆逐格推进；夺取/胜利挂起时返回待决进度。
@@ -293,6 +328,13 @@ static func _follow(state: Dictionary, progress: Dictionary, combat: Dictionary,
 	for i: int in range(next_route, worked.size()):
 		var first_step: int = next_step if i == next_route else 0
 		var route: Dictionary = worked[i]
+		if first_step == 0:
+			var prepared := _prepare_route(settled, side, route, data)
+			if not prepared.ok:
+				return prepared
+			settled = prepared.value.state
+			route = prepared.value.route
+			worked[i] = route
 		for step: int in range(first_step, route.get("path", []).size()):
 			var step_res := _retreat_step(settled, side, route, step, raw_set, data)
 			if not step_res.ok:
