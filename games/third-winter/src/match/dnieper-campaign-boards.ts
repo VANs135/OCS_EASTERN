@@ -11,6 +11,7 @@ import { dnieperGroundMovementBoard, dnieperStackingBoard } from './dnieper-grou
 import { dnieperTransportCaptureBoard } from './dnieper-transport-capture.ts'
 import { dnieperExtenderBoard } from './dnieper-extender.ts'
 import { dnieperEdgeSupplySources, dnieperEdgeSupplySourcesForState } from './dnieper-edge-supply.ts'
+import { dnieperRailBoard } from './dnieper-rail-board.ts'
 import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import { campaignFortressBoards } from './campaign-fortress-board.ts'
 import type { CampaignFortressHooks } from './campaign-fortress-board.ts'
@@ -34,7 +35,7 @@ export interface DnieperCampaignBoardsOptions {
 
 /** 01 的移动/后勤生产板集合；返回片段可直接展开进 CampaignTurnContext。 */
 export function dnieperCampaignBoards(input: DnieperCampaignBoardsInput, options: DnieperCampaignBoardsOptions = {}):
-Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork' | 'stacking' | 'fortressBoard'> & {
+Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork' | 'stacking' | 'fortressBoard' | 'railTransport'> & {
   edgeSupplySourcesForTurn: (turn: number, state?: import('./campaign-turn-state.ts').CampaignTurnState) => Readonly<Record<Side, readonly string[]>>
 } {
   const transportCapture = dnieperTransportCaptureBoard(input.playable, input.catalog.definitions)
@@ -48,7 +49,8 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
     options.airBase, transportCapture, extenderWork, edgeSupplySourcesForTurn, input.railheads)
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   const fortressBoard = dnieperFortressBoards(input)
-  return { groundMovement, transportCapture, extenderWork, stacking, fortressBoard, edgeSupplySourcesForTurn }
+  const railTransport = dnieperRailBoard({ map: input.playable })
+  return { groundMovement, transportCapture, extenderWork, stacking, fortressBoard, railTransport, edgeSupplySourcesForTurn }
 }
 
 /** 01 真实要塞池：8 枚德军要塞＋1 枚罗军要塞，已上盘的 4 枚由 `fortressUnit` 自动排除。 */
