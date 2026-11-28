@@ -1,6 +1,6 @@
-// 剧本 01 的最小生产盘面装配：只装地面移动、道路/HQ 补给 trace、9.14c 运输点夺取、
-// 9.14d 强制崩溃、12.7 延补队与 4.8a 堆叠。战斗、空军、增援等仍由调用方注入，
-// 避免用测试夹具冒充完整会话；铁路 trace 因 01 尚无核准轨距台账暂未开。
+// 剧本 01 的最小生产盘面装配：地面移动、道路/HQ/铁路 trace、9.14c 运输点夺取、
+// 9.14d 强制崩溃、12.7 延补队、2.4a 要塞铁路限制与 4.8a 堆叠。战斗、空军、增援等仍由调用方注入，
+// 避免用测试夹具冒充完整会话。
 import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
 import type { TtwCampaignMapIndex } from '../import/campaign-map-index.ts'
