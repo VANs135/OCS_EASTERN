@@ -1134,6 +1134,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
+	_append_transport_fuel_menu(state, side, selection, data, menu)
 	_append_engage_menu(state, side, selection, data, menu)
 	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
@@ -1226,6 +1227,43 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 		var tail := dump_id.substr(dump_id.rfind(":") + 1)
 		menu.append({"label": "移动到 %s · %s 支付 1T" % [str(path[path.size() - 1]), tail], "group": "移动",
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
+
+
+## OCS 12.5c(C) — 暂驻运输队给选中算子付 1T（`fuel-from-paused-transport`）。
+## 只有运输队真的停在 `groundActivity.transport` 时才出行；能否抽到、够不够 T 由规则层复核。
+static func _append_transport_fuel_menu(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	if str(state.get("cursor", {}).get("phase", "")) != "movement":
+		return
+	var paused: Variant = state.get("groundActivity", {}).get("transport")
+	if paused == null or not paused is Dictionary:
+		return
+	var transport_id := str((paused as Dictionary).get("unitId", ""))
+	if transport_id.is_empty():
+		return
+	var unit_id := ""
+	var ids: Array = selection.get("unitIds", [])
+	if selection.get("unitId") != null:
+		unit_id = str(selection.unitId)
+	elif ids.size() == 1:
+		unit_id = str(ids[0])
+	if unit_id.is_empty() or unit_id == transport_id:
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side:
+		return
+	if not Fuel.needs_fuel(unit, side) or Fuel.has_bulk_fuel(state, unit_id):
+		return
+	var transport: Dictionary = state.get("units", {}).get(transport_id, {})
+	if transport.is_empty() or str(transport.get("side", "")) != side:
+		return
+	var ledger := SpPayment.new(state, side, data)
+	var source: Dictionary = ledger.source(transport_id)
+	if (source.get("truck", {}) as Dictionary).is_empty() or int(source.get("tokens", 0)) < Fuel.SINGLE_UNIT_FUEL_COST:
+		return
+	var tail := transport_id.substr(transport_id.rfind(":") + 1)
+	menu.append({"label": "由暂驻运输队 %s 加油（1T）" % tail, "group": "加油",
+		"actions": [{"type": "fuel-from-paused-transport", "unitId": unit_id, "transportId": transport_id}]})
 
 
 static func _neighbors(data: Dictionary) -> Dictionary:

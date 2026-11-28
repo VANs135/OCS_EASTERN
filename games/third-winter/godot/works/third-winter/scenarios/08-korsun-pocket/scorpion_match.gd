@@ -1,5 +1,6 @@
 extends RefCounted
 
+const Fuel := preload("res://works/third-winter/rules/fuel.gd")
 const CommandLog := preload("res://scripts/core/command_log.gd")
 const Deployment := preload("deployment.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
@@ -49,6 +50,9 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
 	if action.get("type") == "ground-move":
 		return GroundMove.apply(state, actor, action, data)
+	if action.get("type") == "fuel-from-paused-transport":
+		return Fuel.fuel_from_transport(state, actor, str(action.get("unitId", "")),
+			str(action.get("transportId", "")), data)
 	if action.get("type") == "complete-movement":
 		return SupplyPhase.complete_movement(state, actor, data)
 	if action.get("type") == "check-attrition":
