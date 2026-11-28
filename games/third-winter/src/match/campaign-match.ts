@@ -14,6 +14,7 @@ import { moveCampaignLuftflotte } from './campaign-luftflotte-placement.ts'
 import { moveCampaignRvgkMarker } from './campaign-rvgk-marker.ts'
 import { applyCampaignArmyGroupDrm, applyCampaignArmyGroupSp, applyCampaignHqSupplyCarry } from './campaign-axis-hq.ts'
 import { workCampaignHedgehog } from './campaign-hedgehogs.ts'
+import { settleCampaignStacking } from './campaign-stacking.ts'
 import { declareCampaignFortress } from './campaign-fortress.ts'
 import { workCampaignAirfield } from './campaign-airfield.ts'
 import { convertCampaignExtender, flipCampaignExtender } from './campaign-extender.ts'
@@ -73,6 +74,10 @@ export function submitCampaignMatch(record: Readonly<CampaignMatch>, actor: Side
 
 export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Side,
   action: CampaignTurnAction, context: CampaignTurnContext): CampaignTurnState {
+  if (action.type === 'settle-campaign-stacking') {
+    if (!context.stacking) throw new Error('Campaign stacking board is unavailable')
+    return settleCampaignStacking(state, actor, action, context.stacking)
+  }
   if (action.type === 'resolve-campaign-bridge-demolition' || action.type === 'resume-campaign-ground-march') {
     return applyCampaignMarchResponse(state, actor, action, context.groundMovement)
   }

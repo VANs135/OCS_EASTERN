@@ -207,6 +207,7 @@ export type CampaignTurnAction = CampaignPreTurnAction | CampaignReinforcementPh
   | CampaignSupplyAction | CompleteCampaignLateSegment | CampaignSteAction | RefitCampaignAircraft | CampaignBarrageAction | CampaignCombatAction
   | CampaignAirMissionAction
   | CampaignBreakdownAction
+  | import('./campaign-stacking.ts').CampaignStackingAction
   | { type: 'complete-campaign-refit' | 'complete-campaign-movement-phase' | 'complete-campaign-exploitation' | 'complete-campaign-cleanup' }
   | SetCampaignFrontPosture
   | SpendCampaignBarrageMarker
@@ -259,6 +260,7 @@ export interface CampaignTurnContext {
   aircraftConsolidation?: CampaignAircraftConsolidationBoard
   aircraftRefit?: CampaignRefitBoard
   airMission?: CampaignAirMissionBoard
+  stacking?: import('./campaign-stacking.ts').CampaignStackingBoard
   thawTiming?: CampaignThawTiming
   /** The work-specific stage rules certify resolution of applicable opening and closing obligations. */
   reinforcementBlockers?: (state: Readonly<CampaignTurnState>, stage: 'opening' | 'closing') => readonly string[]

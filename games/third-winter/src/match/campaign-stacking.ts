@@ -57,6 +57,8 @@ export function campaignOverstackedHexes(state: Readonly<CampaignTurnState>, sid
  */
 export function settleCampaignStacking(state: Readonly<CampaignTurnState>, side: Side,
   action: CampaignStackingAction, board: CampaignStackingBoard): CampaignTurnState {
+  if (!('phasing' in state.cursor) || state.cursor.phase !== 'movement' || state.cursor.phasing !== side ||
+    state.movementSegment !== 'movement') throw new Error('Stacking is settled at the end of your movement segment')
   const hex = board.map.resolveHex(action.hex)
   if (!hex) throw new Error('Choose an on-map overstacked hex')
   const stack = campaignOverstackedHexes(state, side, board).find((candidate) => candidate.hex === hex)

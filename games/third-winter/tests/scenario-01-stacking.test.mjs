@@ -8,9 +8,9 @@ import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
-import { openCampaignMatch } from '../src/match/campaign-match.ts'
-import { campaignMovementProfiles } from '../src/match/campaign-movement-profiles.ts'
-import { campaignOverstackedHexes, settleCampaignStacking } from '../src/match/campaign-stacking.ts'
+import { openCampaignMatch, applyCampaignTurn } from '../src/match/campaign-match.ts'
+import { dnieperStackingBoard } from '../src/match/dnieper-ground-movement.ts'
+import { campaignOverstackedHexes } from '../src/match/campaign-stacking.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -43,26 +43,24 @@ test('scenario 01 real divisions settle 4.8a by removing a whole chosen counter'
   })
   const counters = { ...opened.counters }
   for (const id of ids) counters[id] = { ...counters[id], location: { kind: 'map', hex } }
-  const state = { ...opened, counters }
-  const profiles = campaignMovementProfiles(Object.fromEntries(loaded.catalog.definitions))
-  const board = {
-    map: loaded.playable,
-    combatOf: (current, id) => profiles.profileOf(current, id)?.combat === true,
-    losses: {
-      stepsOf: (current, id) => current.counters[id]?.location.kind === 'map'
-        ? current.counters[id].currentRe : undefined,
-    },
-  }
+  const state = { ...opened, counters, cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' },
+    movementSegment: 'movement' }
+  const board = dnieperStackingBoard(loaded.playable, loaded.catalog.definitions)
   const stack = campaignOverstackedHexes(state, 'soviet', board).find((candidate) => candidate.hex === hex)
   assert.ok(stack)
   assert.equal(stack.re, 13)
   assert.deepEqual(new Set(stack.candidates.map((candidate) => candidate.unitId)), new Set(ids))
+  assert.throws(() => applyCampaignTurn(opened, 'soviet', { type: 'settle-campaign-stacking', hex,
+    unitIds: [ids[0]] }, { reinforcement: {}, stacking: board }),
+  /Stacking is settled at the end of your movement segment/)
 
-  assert.throws(() => settleCampaignStacking(state, 'soviet', { type: 'settle-campaign-stacking', hex,
-    unitIds: [ids[3]] }, board), /Choose enough whole combat units to reach 10 RE/)
-  const after = settleCampaignStacking(state, 'soviet', { type: 'settle-campaign-stacking', hex,
-    unitIds: [ids[0]] }, board)
+  assert.throws(() => applyCampaignTurn(state, 'soviet', { type: 'settle-campaign-stacking', hex,
+    unitIds: [ids[3]] }, { reinforcement: {}, stacking: board }),
+  /Choose enough whole combat units to reach 10 RE/)
+  const after = applyCampaignTurn(state, 'soviet', { type: 'settle-campaign-stacking', hex,
+    unitIds: [ids[0]] }, { reinforcement: {}, stacking: board })
   assert.equal(after.counters[ids[0]].location.kind, 'dead-pile')
   assert.equal(after.counters[ids[0]].currentRe, 0)
   for (const id of ids.slice(1)) assert.equal(after.counters[id].location.hex, hex)
+  assert.equal(campaignOverstackedHexes(after, 'soviet', board).length, 0)
 })

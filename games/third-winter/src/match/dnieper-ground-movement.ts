@@ -9,6 +9,17 @@ import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
 import { resolveCampaignEntryCapture } from './campaign-entry-capture.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
+import type { CampaignStackingBoard } from './campaign-stacking.ts'
+
+/** 01 的 4.8a 结算板：真实战斗 profile＋整枚移除进 Dead Pile 的损失事实。 */
+export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
+  catalog: ReadonlyMap<string, Definition<BackupUnit>>): CampaignStackingBoard {
+  const profiles = campaignMovementProfiles(Object.fromEntries(catalog))
+  return { map,
+    combatOf: (state, id) => profiles.profileOf(state, id)?.combat === true,
+    losses: { stepsOf: (state, id) => state.counters[id]?.location.kind === 'map'
+      ? state.counters[id].currentRe : undefined } }
+}
 
 export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
