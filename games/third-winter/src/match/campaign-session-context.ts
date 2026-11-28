@@ -72,6 +72,7 @@ export function campaignSessionHooks(sources: CampaignSessionSources) {
       ...(afterMove ? { afterMove } : {}) },
     railTransport: { hqRail: hq.hqRail, ...(fortress ? { exitRefusal: fortress.exitRefusal } : {}) },
     ...(fortress ? { fortressBoard: fortress } : {}),
+    stacking: { map: sources.geometry.map, combatOf: sources.geometry.isCombatUnit, losses },
     luftflottePlacement: { siteFacts: geometry.siteFacts, sovietCombatWithin10: geometry.sovietCombatWithin10 },
     rvgkMarker: { detrainable: geometry.detrainable, routeWithin10AxisCombat: geometry.routeWithin10AxisCombat, mapOf: geometry.mapOf },
     rvgkAxisCombatUnit: (state: Readonly<CampaignTurnState>, id: string) =>

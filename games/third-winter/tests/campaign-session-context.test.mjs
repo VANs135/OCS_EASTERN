@@ -58,4 +58,9 @@ test('session hooks wire HQ/movement/geometry/posture factories into board fragm
   assert.equal(hooks.rvgkMarker.mapOf('20'), 'A')
   assert.equal(hooks.rvgkMarker.detrainable(s, '12'), true)
   assert.equal(hooks.luftflottePlacement.siteFacts(s, '20').villageCityOrFriendlyAirBase, true)
+  // 4.8a stacking fragment uses the same map, combat filter and loss surface
+  assert.equal(hooks.stacking.map, map)
+  assert.equal(hooks.stacking.combatOf(s, 'inf'), true)
+  assert.equal(hooks.stacking.combatOf(s, 'a-army'), false)
+  assert.equal(hooks.stacking.losses.stepsOf(s, 'inf'), 1)
 })
