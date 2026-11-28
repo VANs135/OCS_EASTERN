@@ -1915,6 +1915,7 @@ static func _append_barrage_declare_menu(state: Dictionary, side: String, select
 	var fired: Array = resolved.get("batteries", [])
 	var payments: Array = []
 	var ledger := SpPayment.new(state, side, data)
+	var fired_batteries: Array = fired if not fired.is_empty() else batteries
 	if cost > 0:
 		var picked := ""
 		for source: Dictionary in ledger.available(battery_units):
@@ -1922,12 +1923,52 @@ static func _append_barrage_declare_menu(state: Dictionary, side: String, select
 				picked = str(source.get("dumpId", ""))
 				break
 		if picked.is_empty():
+			## 直接抽源不行时仍可由一支共同司令部投送：全体炮组须能经同一支司令部抽同一堆。
+			var hq_rows := _barrage_headquarters_rows(state, side, target, fired_batteries, battery_units, ledger, cost)
+			if hq_rows.is_empty():
+				return
+			for row: Dictionary in hq_rows:
+				menu.append(row)
 			return
 		payments.append({"dumpId": str(picked), "tokens": cost})
 	menu.append({"label": "炮击 %s · %d 门 · %dT" % [target, batteries.size(), cost], "group": "射击",
 		"actions": [{"type": "declare-artillery-barrage", "target": target,
-			"batteries": fired if not fired.is_empty() else batteries,
+			"batteries": fired_batteries,
 			"supply": {"kind": "direct", "payments": payments}}]})
+	if cost > 0:
+		for row: Dictionary in _barrage_headquarters_rows(state, side, target, fired_batteries, battery_units,
+				ledger, cost):
+			menu.append(row)
+
+
+## OCS 12.6 / 5.11 — 多方炮组可经同一支司令部抽同一堆补给支付；逐 (HQ, 堆) 组合列一行，
+## 规则层仍按 `kind:"hq"` + `hqId` 复核全体炮组的投送关系。最多 6 行，避免侧栏过长。
+static func _barrage_headquarters_rows(state: Dictionary, side: String, target: String, batteries: Array,
+		battery_units: Array, ledger: RefCounted, cost: int) -> Array:
+	var rows: Array = []
+	for hq_id: String in state.get("units", {}):
+		var hq: Dictionary = state.units[hq_id]
+		var flag: Variant = hq.get("headquarters")
+		if str(hq.get("side", "")) != side or not (flag is Dictionary or (flag is bool and flag == true)):
+			continue
+		for dump_id: String in state.get("dumps", {}):
+			var dump: Dictionary = state.dumps[dump_id]
+			if str(dump.get("side", "")) != side or int(dump.get("tokens", 0)) < cost:
+				continue
+			var usable := true
+			for battery: Dictionary in battery_units:
+				if not ledger.can_use(battery, dump_id, {"headquartersId": hq_id}):
+					usable = false
+					break
+			if not usable:
+				continue
+			rows.append({"label": "炮击 %s · 司令部 %s 经 %s（%dT）" % [target, _tail(hq_id), _tail(dump_id), cost],
+				"group": "射击", "actions": [{"type": "declare-artillery-barrage", "target": target,
+					"batteries": batteries, "supply": {"kind": "hq", "hqId": hq_id,
+						"payments": [{"dumpId": dump_id, "tokens": cost}]}}]})
+			if rows.size() >= 6:
+				return rows
+	return rows
 
 
 static func _terrain_name(terrain: String) -> String:

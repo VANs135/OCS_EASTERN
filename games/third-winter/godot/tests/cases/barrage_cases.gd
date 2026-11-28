@@ -96,6 +96,19 @@ static func _check_menu_payment(ctx: Dictionary, state: Dictionary, data: Dictio
 		total += int(payment.get("tokens", 0))
 	expect.call(total == cost and cost > 0,
 		"08 炮击 %s 侧栏按整轮齐射费用支付（%d/%dT）" % [case_id, total, cost])
+	var hq_row: Dictionary = {}
+	for candidate: Dictionary in menu:
+		for entry: Dictionary in candidate.get("actions", []):
+			if str(entry.get("type", "")) == "declare-artillery-barrage" \
+					and str(entry.get("supply", {}).get("kind", "")) == "hq":
+				hq_row = entry
+				break
+		if not hq_row.is_empty():
+			break
+	expect.call(not hq_row.is_empty(), "08 炮击 %s 侧栏给出经共同司令部支付行" % case_id)
+	if not hq_row.is_empty():
+		var paid: Dictionary = Barrage.apply(state.duplicate(true), "soviet", hq_row, data)
+		expect.call(paid.ok, "08 炮击 %s 共同司令部支付可宣告 · %s" % [case_id, str(paid.get("errorCode", ""))])
 
 
 static func _check_reject(ctx: Dictionary, state: Dictionary, data: Dictionary, action: Dictionary,
