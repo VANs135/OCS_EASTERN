@@ -66,3 +66,40 @@ test('scenario 01 real Soviet engineering HQ and its real 4 SP build a hedgehog'
   assert.throws(() => workCampaignHedgehog(state, 'soviet', { ...build, payments: [{ hex: site, tokens: 4 }] }, board),
     /Hedgehog work requires exactly 8 transport points/)
 })
+
+test('scenario 01 real Soviet engineer upgrades B13.17 to Level 2 next turn', async () => {
+  const loaded = await scenario01()
+  const opened = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
+  const site = loaded.playable.resolveHex('B13.17')
+  const engineerRow = loaded.setup.counters.find((counter) => counter.ref === 'Sov HQ 40th Army')
+  const engineerId = Object.keys(opened.counters).find((id) => opened.counters[id].side === 'soviet' &&
+    opened.counters[id].definition === engineerRow.definition && opened.counters[id].location.kind === 'map')
+  const state = { ...opened, cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' },
+    movementSegment: 'movement', groundMovement: { moved: [], zocLocks: [] } }
+  const profiles = campaignMovementProfiles(Object.fromEntries(loaded.catalog.definitions))
+  const board = { map: loaded.playable,
+    worker(current, id) {
+      const counter = current.counters[id]
+      if (!counter || counter.location.kind !== 'map') return undefined
+      const engineering = loaded.catalog.definitions.get(counter.definition)?.source.abilities?.includes('engineering') === true
+      return { hex: counter.location.hex, combat: profiles.profileOf(current, id)?.combat === true,
+        stationary: !(current.groundMovement?.moved ?? []).includes(id),
+        re: counter.currentRe ?? 1, engineerAt: (hex) => hex === counter.location.hex && engineering }
+    } }
+  const build = { type: 'work-campaign-hedgehog', operation: 'build', hex: site, unitIds: [engineerId],
+    payments: [{ hex: site, tokens: 8 }] }
+  const level1 = workCampaignHedgehog(state, 'soviet', build, board)
+  assert.equal(level1.hedgehogs[site]?.level, 1)
+  assert.throws(() => workCampaignHedgehog(level1, 'soviet', build, board), /hedgehog-once-per-turn/)
+
+  // 下一回合从真实 HQ 补给堆再投 8T；真实工程 HQ 就地升到 §1.1b 上限 Level 2。
+  const next = { ...level1, turn: level1.turn + 1,
+    supplyDumps: { ...level1.supplyDumps, soviet: { ...level1.supplyDumps.soviet, [site]: 8 } } }
+  const level2 = workCampaignHedgehog(next, 'soviet', build, board)
+  assert.equal(level2.hedgehogs[site]?.level, 2)
+  assert.equal(level2.supplyDumps.soviet[site] ?? 0, 0)
+  assert.equal(level2.hedgehogBuiltAt[site], next.turn)
+  const next2 = { ...level2, turn: level2.turn + 1,
+    supplyDumps: { ...level2.supplyDumps, soviet: { ...level2.supplyDumps.soviet, [site]: 8 } } }
+  assert.throws(() => workCampaignHedgehog(next2, 'soviet', build, board), /hedgehog-level-illegal/)
+})

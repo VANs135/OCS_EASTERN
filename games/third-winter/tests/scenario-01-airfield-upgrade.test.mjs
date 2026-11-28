@@ -74,3 +74,49 @@ test('scenario 01 real Soviet Front HQ upgrades the real B17.29 airbase', async 
   assert.throws(() => workCampaignAirfield(state, 'soviet', { ...upgrade, payments: [{ hex: payHex, tokens: 3 }] }, board),
     /Airfield work requires exactly 4 transport points/)
 })
+
+test('scenario 01 real Front HQ upgrades B17.29 from Level 2 to Level 3 next turn', async () => {
+  const loaded = await scenario01()
+  const opened = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
+  const site = loaded.playable.resolveHex('B17.29')
+  const payHex = loaded.playable.resolveHex('B16.28')
+  const engineerRow = loaded.setup.counters.find((counter) => counter.ref === 'Sov HQ 1st Ukr Front')
+  const engineerId = Object.keys(opened.counters).find((id) => opened.counters[id].side === 'soviet' &&
+    opened.counters[id].definition === engineerRow.definition && opened.counters[id].location.kind === 'map')
+  const state = { ...opened, cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' },
+    movementSegment: 'movement', groundMovement: { moved: [], zocLocks: [] } }
+  const withinTwo = (from, to) => {
+    if (from === to) return true
+    const seen = new Set([from])
+    let frontier = [from]
+    for (let depth = 0; depth < 2; depth++) {
+      frontier = frontier.flatMap((hex) => loaded.playable.neighbors(hex)).filter((hex) => !seen.has(hex))
+      for (const hex of frontier) seen.add(hex)
+      if (seen.has(to)) return true
+    }
+    return false
+  }
+  const board = { map: loaded.playable,
+    worker(current, id) {
+      const counter = current.counters[id]
+      if (!counter || counter.location.kind !== 'map') return undefined
+      const engineering = loaded.catalog.definitions.get(counter.definition)?.source.abilities?.includes('engineering') === true
+      return { hex: counter.location.hex, combat: true, stationary: !(current.groundMovement?.moved ?? []).includes(id),
+        re: counter.currentRe ?? 1, engineerAt: (hex) => engineering && withinTwo(counter.location.hex, hex) }
+    } }
+  const upgrade = { type: 'work-campaign-airfield', operation: 'build', hex: site, unitIds: [engineerId],
+    payments: [{ hex: payHex, tokens: 4 }] }
+  const level2 = workCampaignAirfield(state, 'soviet', upgrade, board)
+  assert.equal(level2.airBases.find((base) => base.hex === site)?.level, 2)
+
+  const next = { ...level2, turn: level2.turn + 1,
+    supplyDumps: { ...level2.supplyDumps, soviet: { ...level2.supplyDumps.soviet, [payHex]: 4 } } }
+  const level3 = workCampaignAirfield(next, 'soviet', upgrade, board)
+  assert.equal(level3.airBases.find((base) => base.hex === site)?.level, 3)
+  assert.equal(level3.supplyDumps.soviet[payHex] ?? 0, 0)
+  assert.equal(level3.airfieldBuiltAt[site], next.turn)
+
+  const next2 = { ...level3, turn: level3.turn + 1,
+    supplyDumps: { ...level3.supplyDumps, soviet: { ...level3.supplyDumps.soviet, [payHex]: 4 } } }
+  assert.throws(() => workCampaignAirfield(next2, 'soviet', upgrade, board), /airfield-max-level/)
+})
