@@ -191,6 +191,9 @@ static func repack(state: Dictionary, side: String, action: Dictionary, data: Di
 	var entered := false
 	if paused != null:
 		entered = bool((paused as Dictionary).get("enteredHex", false))
+	var stock := _assert_stock(state.get("units", {}), units, side, data)
+	if not stock.ok:
+		return stock
 	state["units"] = units
 	state["nextTransportSerial"] = serial
 	state["moved"] = kept_moved
@@ -201,6 +204,63 @@ static func repack(state: Dictionary, side: String, action: Dictionary, data: Di
 	state["overrunMarch"] = null
 	state["groundCaptureMove"] = null
 	return Result.success(state)
+
+
+## `assertTransportStock`：只查计数增加的方向；老存档超过后来配置的上限仍可继续往下拆。
+static func _assert_stock(before: Dictionary, after: Dictionary, side: String, data: Dictionary) -> Dictionary:
+	var rows: Array = data.get("view", {}).get("transportRows", [])
+	var has_limit := false
+	for row: Variant in rows:
+		if row is Dictionary and (row as Dictionary).get("limit") != null:
+			has_limit = true
+			break
+	if not has_limit:
+		return Result.success(true)
+	var limits := {}
+	for row: Variant in rows:
+		if row is Dictionary and (row as Dictionary).get("limit") != null:
+			limits[_row_key(row)] = int(row.get("limit", 0))
+	var used_before := _unit_stock(before, side, data)
+	var used_after := _unit_stock(after, side, data)
+	for key: String in used_after:
+		if not limits.has(key):
+			continue
+		var limit := int(limits[key])
+		var was := int(used_before.get(key, 0))
+		var now := int(used_after[key])
+		if now > limit and now > was:
+			return Result.failure("transport_stock", "运输计数器库存超限：%s（%d/%d）" % [key, now, limit])
+	return Result.success(true)
+
+
+static func _unit_stock(units: Dictionary, side: String, data: Dictionary) -> Dictionary:
+	var counts := {}
+	for id: String in units:
+		var unit: Dictionary = units[id]
+		if str(unit.get("side", "")) != side or unit.get("combat") == true or unit.get("organicTruck") != null:
+			continue
+		var key := _definition_key(_definition(data, str(unit.get("definition", ""))))
+		if not key.is_empty():
+			counts[key] = int(counts.get(key, 0)) + 1
+	return counts
+
+
+static func _definition_key(definition: Dictionary) -> String:
+	if str(definition.get("kind", "")) != "transport":
+		return ""
+	var profile: Variant = definition.get("moveProfile")
+	if not profile is Dictionary:
+		return ""
+	var count := int(definition.get("transport", 0))
+	if count <= 0:
+		return ""
+	return "%s:%s:%d:%d" % [str(definition.get("side", "")), str((profile as Dictionary).get("mobility", "")),
+		int((profile as Dictionary).get("allowance", 0)), count]
+
+
+static func _row_key(row: Dictionary) -> String:
+	return "%s:%s:%d:%d" % [str(row.get("side", "")), str(row.get("mobility", "")),
+		int(row.get("allowance", 0)), int(row.get("points", 0))]
 
 
 static func _definition(data: Dictionary, key: String) -> Dictionary:

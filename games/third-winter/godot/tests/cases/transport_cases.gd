@@ -60,6 +60,21 @@ static func run(ctx: Dictionary) -> void:
 			"continueWith": 1}, bundle)
 	expect.call(resumed.ok and str(resumed.value.groundActivity.transport.unitId) == "transport:soviet:1",
 		"正在移动的运输队可续跑新盒 · " + str(resumed.get("errorCode", "")))
+	var capped: Dictionary = bundle.duplicate(true)
+	for row: Dictionary in capped.view.transportRows:
+		if str(row.get("side", "")) == "soviet" and int(row.get("points", 0)) == 1:
+			row["limit"] = 2
+	var stock_state := _state(capped.view.catalog)
+	var over_stock: Dictionary = TransportPoints.repack(stock_state, "soviet",
+		{"unitIds": ["tp2"], "divisions": [{"points": 1, "tokens": 0}, {"points": 1, "tokens": 0}]}, capped)
+	expect.call(not over_stock.ok and str(over_stock.get("errorCode", "")) == "transport_stock",
+		"拆出超过 1 点计数器上限被拒 · " + str(over_stock.get("errorCode", "")))
+	for row: Dictionary in capped.view.transportRows:
+		if str(row.get("side", "")) == "soviet" and int(row.get("points", 0)) == 1:
+			row["limit"] = 3
+	var in_stock: Dictionary = TransportPoints.repack(_state(capped.view.catalog), "soviet",
+		{"unitIds": ["tp2"], "divisions": [{"points": 1, "tokens": 0}, {"points": 1, "tokens": 0}]}, capped)
+	expect.call(in_stock.ok, "库存上限以内可拆 · " + str(in_stock.get("errorCode", "")))
 	var menu: Array = ScorpionView.menu_entries(_state(catalog), "soviet", {"unitId": "tp2"}, bundle)
 	expect.call(_count_type(menu, "repack-transport") == 1,
 		"空载运输算子出行 · 实 %d" % _count_type(menu, "repack-transport"))
