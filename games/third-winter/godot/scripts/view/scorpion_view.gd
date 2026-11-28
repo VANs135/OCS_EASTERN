@@ -16,6 +16,7 @@ const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const Fuel := preload("res://works/third-winter/rules/fuel.gd")
+const Capture := preload("res://works/third-winter/rules/capture.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1127,6 +1128,10 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	var menu: Array = []
 	if state.get("kind") != "playing" or state.get("victory") != null:
 		return menu
+	# 夺取窗口是阻塞状态：面板只给结算，其它命令等窗口结清（会话层同样会拒）。
+	if state.get("capture") != null:
+		_append_capture_menu(state, side, data, menu)
+		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
 	_append_engage_menu(state, side, selection, data, menu)
@@ -1287,6 +1292,28 @@ static func _append_engage_menu(state: Dictionary, side: String, selection: Dict
 		menu.append({"label": "攻击 %s · 动用部队储备" % target, "group": "攻击",
 			"actions": [{"type": "declare-combat", "target": target, "attackers": [unit_id],
 				"payments": [], "internalUnitIds": [unit_id]}]})
+
+
+## 夺取窗口（手动）：临时简化 UI——玩家点一下，按候选顺序把飞机落点与运输队分配填好再提交。
+## 正式选点面板待设计；这里只保证窗口不被自动代选、也不卡死。
+static func _append_capture_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
+	var capture: Dictionary = state.capture
+	var hex_id := str(capture.get("hex", ""))
+	if str(capture.get("owner", "")) != side:
+		var owner_label: String = SIDE_NAMES.get(str(capture.get("owner", "")), str(capture.get("owner", "")))
+		menu.append({"label": "等待%s结算夺取 %s" % [owner_label, hex_id], "group": "夺取",
+			"actions": []})
+		return
+	var order := Capture.automatic_order(capture, state, data)
+	if order.has("error"):
+		menu.append({"label": "夺取 %s · 需人工分配（面板待设计）" % hex_id, "group": "夺取",
+			"actions": []})
+		return
+	var aircraft: Array = order.get("aircraft", [])
+	var transports: Array = order.get("transports", [])
+	var summary := "%d 枚飞机、%d 支运输队" % [aircraft.size(), transports.size()]
+	menu.append({"label": "结算夺取 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "夺取",
+		"actions": [{"type": "settle-capture", "aircraft": aircraft, "transports": transports}]})
 
 
 ## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，

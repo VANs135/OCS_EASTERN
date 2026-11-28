@@ -75,7 +75,10 @@ static func _continue_retreat(ctx: Dictionary, fixture: Dictionary, bundle: Dict
 	expect.call(not none.ok and none.get("errorCode") == "combat_missing",
 		"无战斗局面经会话入口拒绝继续撤退")
 	var menu: Array = ScorpionView.menu_entries(pending, "axis", {}, bundle)
-	expect.call(_has_action(menu, "continue-combat-retreat"), "侧栏给出继续撤退条目")
+	expect.call(not _has_action(menu, "continue-combat-retreat"),
+		"夺取窗口待决时侧栏只给结算夺取，撤退条目暂不列")
+	var after_window: Array = ScorpionView.menu_entries(no_capture, "axis", {}, bundle)
+	expect.call(_has_action(after_window, "continue-combat-retreat"), "窗口结清后侧栏给出继续撤退条目")
 
 
 ## 刺猬作业：菜单条目直接作为命令载荷提交；首格 16T 支 8T 立 1 级刺猬。
