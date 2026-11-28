@@ -11,6 +11,8 @@ import type { CampaignRailNetwork } from './campaign-rail-network.ts'
 import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 export interface CampaignSupplyFacts extends Pick<SupplyNetworkPosition, 'sources' | 'controlled' | 'headquarters' | 'extenders'> {
+  /** Scenario edge sources for this side and turn. Omit to use the opening snapshot in state. */
+  edgeSources?: readonly string[]
   /** Printed or currently created unload facility. The network derives its supply connection. */
   detrainable: SupplyNetworkBoard['detrainable']
   /** Legacy network binding for boards without normalized rail edges. */
@@ -32,7 +34,7 @@ export function campaignTraceSupply(state: Readonly<CampaignTurnState>, side: Si
   const { map, railNetwork } = board
   const ground = campaignGroundPosition(state, side, map, board.profileOf)
   if (!ground || (!railNetwork && !facts.railCanTrace)) return undefined
-  const edgeSources = state.edgeSupplySources?.[side] ?? []
+  const edgeSources = facts.edgeSources ?? state.edgeSupplySources?.[side] ?? []
   const sources = [...facts.sources, ...edgeSources].map((hex) => map.resolveHex(hex))
   const controlled = [...facts.controlled].map((hex) => map.resolveHex(hex))
   const headquarters = [...facts.headquarters, ...(side === 'axis' ? facts.kesselHeadquarters ?? [] : [])]

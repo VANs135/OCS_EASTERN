@@ -278,6 +278,8 @@ export interface CampaignTurnContext {
   lateSegmentEndBlockers?: (state: Readonly<CampaignTurnState>, actor: Side, segment: CampaignLateSegment) => readonly string[] | undefined
   cleanupEndBlockers?: (state: Readonly<CampaignTurnState>, side: Side) => readonly string[] | undefined
   roundEnd?: (cleaned: Readonly<CampaignTurnState>) => CampaignRoundEnd | undefined
+  /** Scenario map-edge supply sources for a turn; the cleanup phase refreshes the opening snapshot from this. */
+  edgeSupplySourcesForTurn?: (turn: number) => Readonly<Record<Side, readonly string[]>>
   /** 剧本终局 VP 结算（清理阶段 roundEnd 返回 ended 时写入 scenarioVictory；绑定层注入）。 */
   scenarioVictory?: (cleaned: Readonly<CampaignTurnState>) => CampaignScenarioVictory | undefined
   /** TTW §3.4a：弹幕标记目标格几何校验（邻接苏军战斗单位＋已编属 HQ 指挥半径内 throw）；绑定层注入。 */

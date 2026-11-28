@@ -1,11 +1,15 @@
 // 剧本 01 普通地面移动板：真实地图、地形、单位机动档与 9.14b/9.14e 进格夺取。
 // 09 的工厂把进格夺取固定成“不需要解析”；01 必须保留 resolveEntry，让进格后
-// 的 dump/hedgehog 夺取真实发生。补给 trace 与 4.8a 段末堆叠另由调用方补 board。
+// 的 dump/hedgehog 夺取真实发生。补给 trace 已在板内接道路/HQ 与边缘源；铁路段
+// 待 01 轨距台账核准，4.8a 段末堆叠另由调用方补 board。
 
 import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
+import type { Mobility } from '@ocs-eastern/series/ground-map'
+import { ttwOrdinaryTerrainCost } from '../ttw/ground-terrain.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
+import { campaignThrowHeadquarters } from './campaign-hq-supply.ts'
 import { resolveCampaignEntryCapture, type CampaignEntryAirBase } from './campaign-entry-capture.ts'
 import { beginCampaignTransportCapturesForPath } from './campaign-transport-capture.ts'
 import type { CampaignTransportCaptureBoard } from './campaign-transport-capture.ts'
@@ -15,6 +19,7 @@ import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.t
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
 import { campaignOverstackedHexes } from './campaign-stacking.ts'
+import type { CampaignTurnState } from './campaign-turn-state.ts'
 
 /** 01 的 4.8a 结算板：真实战斗 profile＋整枚移除进 Dead Pile 的损失事实。 */
 export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
@@ -29,8 +34,10 @@ export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campa
 export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
   catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase,
-  transportCapture?: CampaignTransportCaptureBoard, extenderWork?: CampaignExtenderBoard) {
+  transportCapture?: CampaignTransportCaptureBoard, extenderWork?: CampaignExtenderBoard,
+  edgeSourcesForTurn?: (turn: number) => Readonly<Record<'axis' | 'soviet', readonly string[]>>) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
+  const printedRail = printedRailHexes(map)
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
     hqKind: definition.source.hqKind,
@@ -73,6 +80,26 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     resolveEntry: (state, side, hex, ids, afterCombat = false) => resolveCampaignEntryCapture(state, side, hex, ids,
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
+    // 生产补给 trace：2.1a/3.1a 的边缘源已在 `state.edgeSupplySources`，这里补地形成本、
+    // 当前控制格、常规 HQ 投送与在图延补队。01 尚无核准的轨距台账，所以先不开铁路段；
+    // 道路/直接 trace 与 HQ trace 是真实数据，不把未核准轨距冒充可用。
+    supply: {
+      traceCost: (state, from, to, mobility) => dnieperTraceCost(terrain, state, from, to, mobility),
+      facts: (state, side) => ({
+        edgeSources: edgeSourcesForTurn?.(state.turn)?.[side],
+        sources: new Set<string>(),
+        controlled: new Set(Object.entries(state.hexControl ?? {})
+          .filter(([, owner]) => owner === side).map(([hex]) => hex)),
+        headquarters: campaignThrowHeadquarters(state, definitions)
+          .filter((headquarter) => headquarter.id !== undefined && state.counters[headquarter.id]?.side === side),
+        detrainable: (hex) => printedRail.has(hex),
+        railCanTrace: () => false,
+        extenders: Object.values(state.counters).flatMap((counter) => counter.side === side &&
+          counter.location.kind === 'map' && counter.specialTruckExtender
+          ? [{ hex: counter.location.hex, range: counter.specialTruckExtender.range, mobility: 'truck' as const }]
+          : []),
+      }),
+    },
     // OCS 9.14d：同路径先检查敌方延补队，按进入顺序挂起强制崩溃窗口；无合法落点则原地翻面。
     // 9.14c：随后逐格检查敌方运输点，按进入顺序挂起原主选择窗口。两者都不替玩家选择。
     afterMove: transportCapture || extenderWork ? (state, side, move) => {
@@ -91,3 +118,29 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     endBlockers: (state, side) => stackingBlockers(state, side),
   })
 }
+
+function printedRailHexes(map: PlayableMap): ReadonlySet<string> {
+  const hexes = new Set<string>()
+  for (const hex of map.availableHexes) {
+    for (const to of map.neighbors(hex)) {
+      const rail = map.connection(hex, to)?.sourceEdges.some((edge) => edge.rail_present === true) === true
+      if (!rail) continue
+      hexes.add(hex)
+      hexes.add(to)
+    }
+  }
+  return hexes
+}
+
+function dnieperTraceCost(terrain: DnieperTerrain, state: Readonly<CampaignTurnState>, from: string, to: string,
+  mobility: Mobility) {
+  const ground = state.weather?.ground
+  if (ground !== 'dry' && ground !== 'freeze' && ground !== 'mud') return null
+  const crossing = terrain.crossingAt(from, to)
+  const terrains = terrain.terrainAt(to)
+  if (!crossing || crossing.barrier === 'volga' || !terrains?.length) return null
+  return ttwOrdinaryTerrainCost(terrains, crossing, mobility, ground)
+}
+
+type PlayableMap = Parameters<typeof dnieperGroundMovementBoard>[0]
+type DnieperTerrain = Parameters<typeof dnieperGroundMovementBoard>[1]

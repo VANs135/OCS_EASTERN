@@ -9,6 +9,10 @@ import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { dnieperEdgeSupplySources } from '../src/match/dnieper-edge-supply.ts'
+import { openCampaignMatch } from '../src/match/campaign-match.ts'
+import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
+import { completeCampaignCleanup } from '../src/match/campaign-cleanup-phase.ts'
+import { createRngState } from '@ocs-eastern/series/rng'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -71,3 +75,70 @@ test('scenario 01 edge supply sources follow 2.1a/3.1a map edges and dated hando
   assert(turn40.soviet.includes('A42.35'))
   assert(turn40.axis.includes('A19.35'), 'road hexes west of Rovno remain Axis')
 })
+
+test('scenario 01 production trace consumes the edge sources and keeps real in/out units distinct', async () => {
+  const loaded = await load()
+  const opening = prepareDnieperBoard(loaded)
+  const state = openCampaignMatch(opening, createRngState(2)).state
+  const boards = dnieperCampaignBoards(loaded)
+
+  assert.deepEqual(boards.edgeSupplySourcesForTurn(1), initialFor(loaded))
+  assert.deepEqual(boards.edgeSupplySourcesForTurn(5), dnieperEdgeSupplySources(loaded.map, 5))
+
+  const axisTrace = boards.groundMovement.traceSupply(state, 'axis')
+  const sovietTrace = boards.groundMovement.traceSupply(state, 'soviet')
+  assert.ok(axisTrace)
+  assert.ok(sovietTrace)
+
+  const axisKorosten = Object.entries(state.counters).find(([, counter]) => counter.side === 'axis' &&
+    counter.location.kind === 'map' && counter.location.hex === loaded.playable.resolveHex('A50.34'))
+  const sovietEast = Object.entries(state.counters).find(([, counter]) => counter.side === 'soviet' &&
+    counter.location.kind === 'map' && counter.location.hex === loaded.playable.resolveHex('B62.31'))
+  const axisDepth = Object.entries(state.counters).find(([, counter]) => counter.definition === 'land:id:4055')
+  const sovietDepth = Object.entries(state.counters).find(([, counter]) => counter.definition === 'land:id:2070')
+  assert.ok(axisKorosten, 'real Axis unit on A50.34')
+  assert.ok(sovietEast, 'real Soviet unit on B62.31')
+  assert.ok(axisDepth, 'real Ge 302 Ers Bn')
+  assert.ok(sovietDepth, 'real Sov 50 Rifle Div')
+
+  const axisUnit = axisTrace.ground.friendly.get(axisKorosten[0])
+  const sovietUnit = sovietTrace.ground.friendly.get(sovietEast[0])
+  assert.ok(axisUnit)
+  assert.ok(sovietUnit)
+  assert.equal(axisTrace.network.hasTrace(axisUnit.hex, axisUnit.profile.drawMobility), true,
+    'A50.34 is an Axis edge source')
+  assert.equal(sovietTrace.network.hasTrace(sovietUnit.hex, sovietUnit.profile.drawMobility), true,
+    'B62.31 is a Soviet edge source')
+
+  const axisDeep = axisTrace.ground.friendly.get(axisDepth[0])
+  const sovietDeep = sovietTrace.ground.friendly.get(sovietDepth[0])
+  assert.ok(axisDeep)
+  assert.ok(sovietDeep)
+  assert.equal(axisTrace.network.hasTrace(axisDeep.hex, axisDeep.profile.drawMobility), false,
+    'D35.29 is beyond the initial Axis road trace')
+  assert.equal(sovietTrace.network.hasTrace(sovietDeep.hex, sovietDeep.profile.drawMobility), false,
+    'D59.29 is beyond the initial Soviet road trace')
+})
+
+test('scenario 01 cleanup refreshes the edge source snapshot for the next turn', () => {
+  let asked
+  const refreshed = { axis: ['A50.34'], soviet: ['B62.31'] }
+  const cleaned = completeCampaignCleanup({
+    turn: 1, when: { scenarioId: '01-dnepr-battles', date: '1943-09-26' },
+    cursor: { first: 'axis', phasing: 'soviet', phase: 'cleanup' }, counters: {},
+  }, 'soviet', {
+    cleanupEndBlockers: () => [],
+    roundEnd: () => ({ kind: 'continue', date: '1943-10-01' }),
+    edgeSupplySourcesForTurn: (turn) => {
+      asked = turn
+      return refreshed
+    },
+  })
+  assert.equal(asked, 2)
+  assert.equal(cleaned.turn, 2)
+  assert.deepEqual(cleaned.edgeSupplySources, refreshed)
+})
+
+function initialFor(loaded) {
+  return dnieperEdgeSupplySources(loaded.map, 1)
+}
