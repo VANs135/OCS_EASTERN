@@ -54,6 +54,14 @@ test('scenario 01 railheads are the only broad-gauge junctions and B16.35 has no
   assert.deepEqual(network.initialGaugeJunctions, railheads.map(({ hex }) => hex))
   assert.equal(network.edge('B16.28', 'B17.29')?.gauge, 'broad')
   assert.equal(network.edge('B16.35', 'B15.35')?.gauge ?? 'standard', 'standard')
+  // 书明 Railhead 是苏军端头：图内可查的端头必须一侧苏军宽轨、另一侧德军标准轨。
+  for (const hex of railheads.map(({ hex }) => hex).filter((hex) => hex !== 'B16.35')) {
+    const gauges = loaded.playable.neighbors(hex)
+      .map((next) => network.edge(hex, next)?.gauge)
+      .filter(Boolean)
+    assert.ok(gauges.includes('broad'), `${hex} has a Soviet broad-gauge side`)
+    assert.ok(gauges.includes('standard'), `${hex} has a German standard-gauge side`)
+  }
 })
 
 test('scenario 01 opening control covers settlements/VP sites, not railhead-only points or ordinary rail hexes', async () => {
