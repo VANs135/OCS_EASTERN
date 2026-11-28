@@ -23,6 +23,7 @@ const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
 const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
+const Extender := preload("res://works/third-winter/rules/extender.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1145,6 +1146,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	_append_air_refit_menu(state, side, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
 	_append_breakdown_menu(state, side, selection, data, menu)
+	_append_extender_menu(state, side, selection, data, menu)
 	_append_overrun_rows(state, side, selection, data, menu)
 	_append_overrun_continue_rows(state, side, selection, data, menu)
 	_append_kessel_move_rows(state, side, selection, data, menu)
@@ -1226,6 +1228,26 @@ static func _append_breakdown_menu(state: Dictionary, side: String, selection: D
 		menu.append({"label": "拆出 %s · 1 步" % str(option.name), "group": "拆分",
 			"actions": [{"type": "detach-breakdown", "parentId": parent_id,
 				"definitions": [str(option.definition)]}]})
+
+
+## OCS 12.7e — 延补队崩溃：本方移动阶段、未行动，落点须在射程内且有补给 trace。
+static func _append_extender_menu(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	var unit_id := _selected_unit_id(selection)
+	if unit_id.is_empty():
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side or unit.get("extender") == null:
+		return
+	if str(state.get("cursor", {}).get("phase", "")) != "movement" \
+			or (state.get("moved", []) as Array).has(unit_id):
+		return
+	var plans: Array = Extender.displacements(state, side, [unit_id], data)
+	if plans.is_empty():
+		return
+	for destination: String in (plans[0].get("destinations", []) as Array):
+		menu.append({"label": "延补队崩溃 → %s" % destination, "group": "延补队",
+			"actions": [{"type": "collapse-extender", "unitId": unit_id, "destination": destination}]})
 
 
 ## OCS 20.0d — 段末吸收窗口：只列义务清单里的母单位与拆分单位，玩家逐条并回。
@@ -1779,9 +1801,13 @@ static func _append_capture_menu(state: Dictionary, side: String, data: Dictiona
 			return
 	var filled: Array = order.get("aircraft", [])
 	var transports: Array = order.get("transports", [])
+	var extenders: Array = order.get("extenders", [])
 	var summary := "%d 枚飞机、%d 支运输队" % [filled.size(), transports.size()]
+	if not extenders.is_empty():
+		summary += "、%d 枚延补队" % extenders.size()
 	menu.append({"label": "安排夺取位移 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "位移",
-		"actions": [{"type": "settle-capture", "aircraft": filled, "transports": transports}]})
+		"actions": [{"type": "settle-capture", "aircraft": filled, "transports": transports,
+			"extenders": extenders}]})
 
 
 static func _capture_combinations(entries: Array, index: int, picked: Array, out: Array, limit: int) -> void:

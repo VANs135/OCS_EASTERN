@@ -24,6 +24,7 @@ const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
 const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
+const Extender := preload("res://works/third-winter/rules/extender.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -65,6 +66,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return Breakdown.detach(state, actor, action, data)
 	if action.get("type") == "absorb-breakdown":
 		return Breakdown.absorb(state, actor, action, data)
+	if action.get("type") == "collapse-extender":
+		return Extender.collapse(state, actor, action, data)
 	if action.get("type") == "ground-move":
 		return GroundMove.apply(state, actor, action, data)
 	if action.get("type") == "fuel-from-paused-transport":

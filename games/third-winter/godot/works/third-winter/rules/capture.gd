@@ -1,13 +1,14 @@
 extends RefCounted
 
 ## TTW Scorpion 进格夺取（src/match/scorpion-capture.ts）。
-## 可夺取物：敌方补给堆、空军基地、停机飞机、非战斗运输队（含 Extender）与敌方工事。
+## 可夺取物：敌方补给堆、空军基地、停机飞机、非战斗运输队（含延补队）与敌方工事。
 ## 本轮范围：地面控制记录、补给堆掷骰、工事降级、机场易手/苏军拆跑道、运输队夺取窗口与夺取历史。
-## 飞机位移、Extender 崩塌位移与运输队结算尚未实现，遇到时返回明确失败码而不是猜数值。
+## 飞机位移、延补队崩溃位移与运输队结算按 TS 同序处理。
 
 const Result := preload("res://scripts/core/result.gd")
 const Rng := preload("res://scripts/core/rng.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
+const Extender := preload("res://works/third-winter/rules/extender.gd")
 
 ## capturePercent（packages/series/src/tables/capture.ts），按骰面前 1–6 取百分比。
 const CAPTURE_PERCENT := {
@@ -81,9 +82,23 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 	var captor := _assert_captor(next, side, ids)
 	if not captor.ok:
 		return captor
+	var extender_ids: Array = []
 	for id: String in transports:
 		if next.get("units", {}).get(id, {}).get("extender") is Dictionary:
-			return Result.failure("capture_extender_unimplemented", "Extender 崩塌位移尚未实现")
+			extender_ids.append(id)
+	var extender_plans: Array = Extender.displacements(next, str(objects.owner), extender_ids, data)
+	var pending_extenders: Array = []
+	var displaced_extenders := {}
+	for plan: Dictionary in extender_plans:
+		var destinations: Array = plan.get("destinations", [])
+		if destinations.is_empty():
+			# TS 9.14d：射程内没有补给落点时，在原格翻回运输队，随后按普通运输队夺取。
+			next = Extender.flip_in_place(next, str(plan.get("id", "")), hex_id)
+		else:
+			pending_extenders.append(plan)
+			displaced_extenders[str(plan.get("id", ""))] = true
+	if not displaced_extenders.is_empty():
+		transports = transports.filter(func(id): return not displaced_extenders.has(str(id)))
 	var range_error := _assert_air_ranges(aircraft, data)
 	if not range_error.ok:
 		return range_error
@@ -161,11 +176,15 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 		hedgehog_after = {"side": side, "level": 1} if int(hedgehog.get("level", 0)) == 2 else null
 		hedgehogs[hex_id] = hedgehog_after
 	var capture: Variant = null
-	if not displaced_aircraft.is_empty() or not groups.is_empty():
+	if not displaced_aircraft.is_empty() or not groups.is_empty() or not pending_extenders.is_empty():
 		capture = {"hex": hex_id, "captor": side, "owner": str(objects.owner),
 			"aircraft": displaced_aircraft, "transports": groups}
+		if not pending_extenders.is_empty():
+			capture["extenders"] = pending_extenders
 	var history: Array = (next.get("captureHistory", []) as Array).duplicate(true)
 	var report := {"hex": hex_id, "captor": side, "aircraft": aircraft_report, "transports": groups}
+	if not extender_plans.is_empty():
+		report["extenders"] = extender_plans
 	if dump_result != null:
 		report["dump"] = dump_result
 	if hedgehog is Dictionary:
@@ -276,7 +295,14 @@ static func automatic_order(capture: Dictionary, state: Dictionary, data: Dictio
 						"message": "剩余运输队找不到射程内的位移格"}
 				choice["displacedTo"] = destination
 			transports.append(choice)
-	return {"aircraft": aircraft, "transports": transports}
+	var extenders: Array = []
+	for entry: Dictionary in capture.get("extenders", []):
+		var destinations: Array = entry.get("destinations", [])
+		var destination := _nearest_base(destinations, from, blocked, route_hexes)
+		if destination == "":
+			return {"error": "capture_settle_extender", "message": "延补队没有可用的崩溃落点"}
+		extenders.append({"id": str(entry.get("id", "")), "destination": destination})
+	return {"aircraft": aircraft, "transports": transports, "extenders": extenders}
 
 
 ## 自动排序用的最近格：危险低优先、距离近次之、id 字典序兜底。
@@ -338,10 +364,22 @@ static func settle(state: Dictionary, side: String, action: Dictionary, data: Di
 		if not _destination_allowed(allowed, destination):
 			return Result.failure("capture_settle_aircraft", "飞机落点须在印刷航程内的本方基地")
 	var extenders: Array = capture.get("extenders", [])
-	if not extenders.is_empty():
-		return Result.failure("capture_settle_extender", "Extender 崩塌位移尚不可分配")
-	if not (action.get("extenders", []) as Array).is_empty():
-		return Result.failure("capture_settle_choice", "该窗口没有 Extender 可分配")
+	var extender_choices: Array = action.get("extenders", [])
+	var selected_extenders := {}
+	for choice: Dictionary in extender_choices:
+		var choice_id := str(choice.get("id", ""))
+		if selected_extenders.has(choice_id):
+			return Result.failure("capture_settle_extender", "同一延补队不能重复选择崩溃落点")
+		var allowed: Array = []
+		for pending_entry: Dictionary in extenders:
+			if str(pending_entry.get("id", "")) == choice_id:
+				allowed = pending_entry.get("destinations", [])
+				break
+		if not allowed.has(_hex_id(str(choice.get("destination", "")))):
+			return Result.failure("capture_settle_extender", "延补队崩溃落点须在射程内且有补给")
+		selected_extenders[choice_id] = _hex_id(str(choice.get("destination", "")))
+	if extender_choices.size() != extenders.size() or selected_extenders.size() != extenders.size():
+		return Result.failure("capture_settle_extender", "须为每枚溃散延补队各选一个合法落点")
 	var groups: Array = capture.get("transports", [])
 	var choices: Array = action.get("transports", [])
 	var count := 0
@@ -408,6 +446,8 @@ static func settle(state: Dictionary, side: String, action: Dictionary, data: Di
 	settled["dumps"] = pending.dumps
 	settled["moved"] = pending.moved
 	settled["capture"] = null
+	for choice_id: String in selected_extenders:
+		settled = Extender.flip_in_place(settled, choice_id, str(selected_extenders[choice_id]))
 	if not aircraft.is_empty():
 		var pieces: Array = (settled.get("pieces", []) as Array).duplicate(true)
 		var chosen: Dictionary = {}
@@ -430,6 +470,13 @@ static func settle(state: Dictionary, side: String, action: Dictionary, data: Di
 			latest["transportAllocation"] = choices
 		if not chosen_aircraft.is_empty():
 			latest["displacedAircraft"] = chosen_aircraft
+		if not extenders.is_empty():
+			var displaced: Array = []
+			for entry: Dictionary in extenders:
+				var record: Dictionary = entry.duplicate(true)
+				record["displacedTo"] = selected_extenders.get(str(entry.get("id", "")), "")
+				displaced.append(record)
+			latest["extenders"] = displaced
 		history[history.size() - 1] = latest
 		settled["captureHistory"] = history
 	return Result.success(settled)
@@ -535,6 +582,14 @@ static func _destination_allowed(allowed: Array, destination: Dictionary) -> boo
 		if str(entry.get("kind", "")) == "off-map-air" or str(entry.get("hex", "")) == str(destination.get("hex", "")):
 			return true
 	return false
+
+
+## 与 scorpionHexId 同形：s1.1 → s1.01，其它文本原样返回。
+static func _hex_id(source: String) -> String:
+	var match := RegEx.create_from_string("^s(\\d+)\\.(\\d{1,2})$").search(source)
+	if match == null:
+		return source
+	return "s%s.%s" % [match.get_string(1), match.get_string(2).pad_zeros(2)]
 
 
 static func _opponent(side: String) -> String:
