@@ -11,6 +11,7 @@ import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { campaignCityControl } from '../src/match/campaign-control.ts'
 import { campaignFortressBoards } from '../src/match/campaign-fortress-board.ts'
+import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
 import { declareCampaignFortress, settleCampaignFortressStatus } from '../src/match/campaign-fortress.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
@@ -64,4 +65,24 @@ test('scenario 01 Poltava fortress keeps its real Axis fortress unit inside and 
     { type: 'declare-campaign-fortress', city: 'Poltava', hex: 'B41.6', fortress: 'german' },
     { ...hooks, axisControlsCity: () => true, enemyCombatWithin2: () => true,
       fortressUnit: () => ({ definition: 'Ge Fortress', re: 1 }) }), /already a fortress/)
+})
+
+test('scenario 01 declares a real spare German fortress at Axis-held Kiev', async () => {
+  const loaded = await scenario01()
+  const base = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
+  const kiev = loaded.map.cityOf('B3.24')
+  assert.equal(kiev.city, 'Kiev')
+  const state = { ...base, hexControl: Object.fromEntries(kiev.hexes.map((hex) => [hex, 'axis'])) }
+  const boards = dnieperCampaignBoards(loaded)
+
+  // 01 上盘 4 枚德军要塞（Poltava），池中仍有 Ge Fortress 5-8。
+  assert.deepEqual(boards.fortressBoard.fortressUnit(state, 'german'), { definition: 'land:id:4513', re: 1 })
+  assert.equal(boards.fortressBoard.enemyCombatWithin2(state, 'Kiev'), true)
+
+  const declared = declareCampaignFortress(state, 'axis',
+    { type: 'declare-campaign-fortress', city: 'Kiev', hex: 'B3.24', fortress: 'german' }, boards.fortressBoard)
+  assert.equal(declared.counters['fortress:B3.24']?.definition, 'land:id:4513')
+  assert.equal(declared.counters['fortress:B3.24']?.currentRe, 1)
+  assert.equal(declared.hedgehogs?.['B3.24']?.level, 1)
+  assert.equal(declared.fortresses?.some(({ city }) => city === 'Kiev'), true)
 })
