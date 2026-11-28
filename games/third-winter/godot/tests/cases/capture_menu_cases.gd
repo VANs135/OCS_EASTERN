@@ -55,22 +55,48 @@ static func run(ctx: Dictionary) -> void:
 		"结算行载荷是 settle-capture")
 	if actions.size() != 1:
 		return
-	## 只有一枚飞机要选落点时：面板把每个落点列成一行，玩家点哪格就落哪格。
-	var lone: Dictionary = _single_aircraft_choice(pending)
+	## 需要选落点的飞机少、组合不多时：面板把每套组合列一行，玩家点哪行就按哪套安置。
+	var lone: Dictionary = _flexible_choice(pending, 1)
 	if not lone.is_empty():
 		var lone_menu: Array = ScorpionView.menu_entries(lone, owner, {}, bundle)
 		var bases: Array = (lone.get("capture", {}).get("aircraft", []) as Array)[0].get("destinations", [])
 		expect.call(lone_menu.size() == bases.size(), "单机多落点面板按候选列出 %d 行 · 实 %d" % [bases.size(), lone_menu.size()])
+		var total := (lone.get("capture", {}).get("aircraft", []) as Array).size()
+		var seen: Array = []
 		for row: Dictionary in lone_menu:
 			var row_actions: Array = row.get("actions", [])
 			expect.call(row_actions.size() == 1 and str(row_actions[0].get("type", "")) == "settle-capture",
 				"单机落点行载荷是 settle-capture · " + str(row.get("label", "")))
-		if not lone_menu.is_empty():
-			var first_action: Dictionary = (lone_menu[0].get("actions", []) as Array)[0]
-			var payload: Array = first_action.get("aircraft", [])
+			var payload: Array = row_actions[0].get("aircraft", [])
+			expect.call(payload.size() == total, "单机落点行安置全部 %d 枚飞机 · 实 %d" % [total, payload.size()])
 			var lone_id := str(((lone.get("capture", {}) as Dictionary).get("aircraft", []) as Array)[0].get("id", ""))
-			expect.call(payload.size() == 1 and str((payload[0] as Dictionary).get("id", "")) == lone_id,
-				"单机落点行只安置那一枚飞机 · " + lone_id)
+			for item: Dictionary in payload:
+				if str(item.get("id", "")) == lone_id:
+					seen.append(str(item.get("destination", {}).get("hex", "off")))
+		var distinct := seen.duplicate()
+		for value: String in seen:
+			if distinct.count(value) > 1:
+				distinct.erase(value)
+		expect.call(distinct.size() == bases.size(), "单机落点行确实给出不同落点 · %d 种" % distinct.size())
+	var twin: Dictionary = _flexible_choice(pending, 2)
+	if not twin.is_empty():
+		var twin_menu: Array = ScorpionView.menu_entries(twin, owner, {}, bundle)
+		expect.call(twin_menu.size() == 4, "两枚飞机各两落点组合出 4 行 · 实 %d" % twin_menu.size())
+		var pairs: Array = []
+		for row: Dictionary in twin_menu:
+			var row_actions: Array = row.get("actions", [])
+			var payload: Array = row_actions[0].get("aircraft", []) if not row_actions.is_empty() else []
+			var flexible_pairs: Array = []
+			var ids := _flexible_ids(twin)
+			for item: Dictionary in payload:
+				if ids.has(str(item.get("id", ""))):
+					flexible_pairs.append(str(item.get("id", "")) + "=" + str(item.get("destination", {}).get("hex", "off")))
+			pairs.append("|".join(flexible_pairs))
+		var unique_pairs := pairs.duplicate()
+		for value: String in pairs:
+			if unique_pairs.count(value) > 1:
+				unique_pairs.erase(value)
+		expect.call(unique_pairs.size() == 4, "四行各自一套落点组合 · %d 种" % unique_pairs.size())
 	var submitted: Dictionary = _submit(pending, owner, actions[0], bundle)
 	expect.call(submitted.ok, "点结算行后窗口结清 · " + str(submitted.get("errorCode", "")))
 	if not submitted.ok:
@@ -84,23 +110,33 @@ static func run(ctx: Dictionary) -> void:
 		expect.call((other_menu[0].get("actions", []) as Array).is_empty(), "非原属方没有可提交载荷")
 
 
-static func _single_aircraft_choice(pending: Dictionary) -> Dictionary:
+static func _flexible_choice(pending: Dictionary, count: int) -> Dictionary:
 	var copy: Dictionary = pending.duplicate(true)
 	var capture: Variant = copy.get("capture")
 	if capture == null or not capture is Dictionary:
 		return {}
 	var aircraft: Array = (capture as Dictionary).get("aircraft", [])
-	if aircraft.is_empty():
+	if aircraft.size() < count:
 		return {}
-	var entry: Dictionary = (aircraft[0] as Dictionary).duplicate(true)
 	var hex_target := str((capture as Dictionary).get("hex", ""))
 	if hex_target == "":
 		return {}
-	entry["destinations"] = [{"kind": "hex", "hex": hex_target}, {"kind": "off-map-air"}]
-	(capture as Dictionary)["aircraft"] = [entry]
+	for index in range(count):
+		var entry: Dictionary = (aircraft[index] as Dictionary).duplicate(true)
+		entry["destinations"] = [{"kind": "hex", "hex": hex_target}, {"kind": "off-map-air"}]
+		aircraft[index] = entry
+	(capture as Dictionary)["aircraft"] = aircraft
 	(capture as Dictionary)["transports"] = []
 	(capture as Dictionary)["extenders"] = []
 	return copy
+
+
+static func _flexible_ids(pending: Dictionary) -> Array:
+	var ids: Array = []
+	for entry: Dictionary in (pending.get("capture", {}) as Dictionary).get("aircraft", []):
+		if (entry.get("destinations", []) as Array).size() > 1:
+			ids.append(str(entry.get("id", "")))
+	return ids
 
 
 static func _submit(state: Dictionary, seat: String, action: Dictionary, bundle: Dictionary) -> Dictionary:

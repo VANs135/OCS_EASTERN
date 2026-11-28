@@ -1318,25 +1318,42 @@ static func _append_capture_menu(state: Dictionary, side: String, data: Dictiona
 			complete = false
 		if (entry.get("destinations", []) as Array).size() > 1:
 			flexible.append(entry)
-	# 只有一枚飞机需要选落点时，直接把每个候选列成一行，玩家点哪格就落哪格。
-	if complete and groups.is_empty() and (capture.get("extenders", []) as Array).is_empty() and flexible.size() == 1:
-		var chosen: Dictionary = flexible[0]
-		var tail := str(chosen.get("id", "")).substr(str(chosen.get("id", "")).rfind(":") + 1)
-		for target: Dictionary in chosen.get("destinations", []):
-			var entries: Array = []
-			for entry: Dictionary in aircraft:
-				var pick: Dictionary = target
-				if str(entry.get("id", "")) != str(chosen.get("id", "")):
-					pick = (entry.get("destinations", []) as Array)[0]
-				entries.append({"id": str(entry.get("id", "")), "destination": pick})
-			menu.append({"label": "安置飞机 %s → %s" % [tail, _destination_name(target)], "group": "位移",
-				"actions": [{"type": "settle-capture", "aircraft": entries, "transports": []}]})
-		return
+	# 需要选落点的飞机组合不多时，把每种组合各列一行，玩家点哪行就按哪套落点安置。
+	if complete and groups.is_empty() and (capture.get("extenders", []) as Array).is_empty() and not flexible.is_empty():
+		var combos: Array = []
+		_capture_combinations(aircraft, 0, [], combos, 8)
+		if combos.size() <= 8:
+			var flexible_ids: Array = []
+			for entry: Dictionary in flexible:
+				flexible_ids.append(str(entry.get("id", "")))
+			for combo: Array in combos:
+				var parts: Array = []
+				for row: Dictionary in combo:
+					if not flexible_ids.has(str(row.get("id", ""))):
+						continue
+					var tail := str(row.get("id", "")).substr(str(row.get("id", "")).rfind(":") + 1)
+					parts.append("%s → %s" % [tail, _destination_name(row.get("destination", {}) as Dictionary)])
+				menu.append({"label": "安置夺取飞机 %s" % " · ".join(parts), "group": "位移",
+					"actions": [{"type": "settle-capture", "aircraft": combo, "transports": []}]})
+			return
 	var filled: Array = order.get("aircraft", [])
 	var transports: Array = order.get("transports", [])
 	var summary := "%d 枚飞机、%d 支运输队" % [filled.size(), transports.size()]
 	menu.append({"label": "安排夺取位移 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "位移",
 		"actions": [{"type": "settle-capture", "aircraft": filled, "transports": transports}]})
+
+
+static func _capture_combinations(entries: Array, index: int, picked: Array, out: Array, limit: int) -> void:
+	if out.size() > limit:
+		return
+	if index >= entries.size():
+		out.append(picked.duplicate(true))
+		return
+	var entry: Dictionary = entries[index]
+	for target: Variant in entry.get("destinations", []):
+		picked.append({"id": str(entry.get("id", "")), "destination": target})
+		_capture_combinations(entries, index + 1, picked, out, limit)
+		picked.pop_back()
 
 
 static func _destination_name(target: Dictionary) -> String:
