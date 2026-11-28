@@ -72,11 +72,10 @@ static func at_start_of_move(state: Dictionary, side: String, parent_id: String)
 	return true
 
 
-## 单母单位的可拆候选；返回 side/pool/definition/action，玩家逐条选。
-static func options(state: Dictionary, side: String, parent_id: String, data: Dictionary) -> Array:
+## 单母单位的可拆候选；窗口由调用方先校验（开始移动／战后推进）。
+static func _options_raw(state: Dictionary, side: String, parent_id: String, data: Dictionary) -> Array:
 	var parent: Dictionary = (state.get("units", {}) as Dictionary).get(parent_id, {})
-	if parent.is_empty() or str(parent.get("side", "")) != side or not at_start_of_move(state, side, parent_id) \
-			or not can_detach(parent, 1):
+	if parent.is_empty() or str(parent.get("side", "")) != side or not can_detach(parent, 1):
 		return []
 	var pool := parent_pool(state, parent_id, data)
 	if pool.is_empty():
@@ -96,6 +95,20 @@ static func options(state: Dictionary, side: String, parent_id: String, data: Di
 			"name": str((data.get("view", {}).get("catalog", {}).get("definitions", {}) as Dictionary)
 				.get(definition, {}).get("name", definition))})
 	return rows
+
+
+static func options(state: Dictionary, side: String, parent_id: String, data: Dictionary) -> Array:
+	if not at_start_of_move(state, side, parent_id):
+		return []
+	return _options_raw(state, side, parent_id, data)
+
+
+## OCS 20.0a 第二窗口 — 战后推进前，攻方存活参战者也可拆出，拆分单位随进击进格。
+static func advance_options(state: Dictionary, side: String, parent_id: String, data: Dictionary,
+		departing: Array) -> Array:
+	if not departing.has(parent_id):
+		return []
+	return _options_raw(state, side, parent_id, data)
 
 
 static func _clone(state: Dictionary, parent: Dictionary, definition: String, data: Dictionary) -> Dictionary:
@@ -122,43 +135,74 @@ static func _clone(state: Dictionary, parent: Dictionary, definition: String, da
 	return counter
 
 
+## 开始移动窗口的单条命令。战后推进与撤退用 `detach_orders`，不再重复库存/AR/池校验。
 static func detach(state: Dictionary, side: String, action: Dictionary, data: Dictionary) -> Dictionary:
 	var parent_id := str(action.get("parentId", ""))
-	var parent: Dictionary = (state.get("units", {}) as Dictionary).get(parent_id, {})
-	if parent.is_empty() or str(parent.get("side", "")) != side:
-		return Result.failure("breakdown_parent", "请选择本方多步单位")
 	if not at_start_of_move(state, side, parent_id):
 		return Result.failure("breakdown_window", "拆分只能在开始移动时进行")
-	var pool := parent_pool(state, parent_id, data)
-	if pool.is_empty():
-		return Result.failure("breakdown_pool", "该单位没有拆分池")
-	var definitions: Array = action.get("definitions", [])
-	if definitions.is_empty() or definitions.size() > int(parent.get("printedRe", 0)) - int(parent.get("stepsLost", 0)) - 1:
-		return Result.failure("breakdown_count", "拆分数量超过母单位可留下的步数")
-	var available := options(state, side, parent_id, data)
-	var legal := {}
-	for row: Dictionary in available:
-		legal[str(row.definition)] = true
-	var units: Dictionary = state.get("units", {})
-	var detached_ids: Array = state.get("breakdownDetached", [])
-	for definition: Variant in definitions:
-		var key := str(definition)
-		if not legal.has(key):
-			return Result.failure("breakdown_choice", "请选择本池、本行动值以内的拆分单位")
-		var counter := _clone(state, parent, key, data)
-		if counter.is_empty():
-			return Result.failure("breakdown_face", "拆分单位没有可部署面")
-		var id := _free_id(state, key)
-		units[id] = counter
-		detached_ids.append(id)
-		legal.erase(key)
-		if copy_count({"units": units, "pieces": state.get("pieces", [])}, key, data) <= 0:
+	var result := _detach_orders(state, side, [action], [parent_id], data)
+	if not result.ok:
+		return result
+	return Result.success(result.value.state)
+
+
+## OCS 20.0a 战后推进窗口：orders 为 [{parentId, definitions}]，departing 为参战进击的存活攻方。
+static func detach_orders(state: Dictionary, side: String, orders: Array, departing: Array,
+		data: Dictionary) -> Dictionary:
+	return _detach_orders(state, side, orders, departing, data)
+
+
+static func _detach_orders(state: Dictionary, side: String, orders: Array, departing: Array,
+		data: Dictionary) -> Dictionary:
+	var working: Dictionary = state.duplicate(true)
+	var units: Dictionary = working.get("units", {})
+	var seen := {}
+	var created: Array = []
+	var departing_set := {}
+	for id: Variant in departing:
+		departing_set[str(id)] = true
+	for order_value: Variant in orders:
+		if not order_value is Dictionary:
+			return Result.failure("breakdown_order", "拆分命令格式不正确")
+		var order: Dictionary = order_value
+		var parent_id := str(order.get("parentId", ""))
+		if seen.has(parent_id):
+			return Result.failure("breakdown_duplicate", "每个母单位每窗口只能拆一次")
+		if not departing_set.has(parent_id):
+			return Result.failure("breakdown_departing", "该单位不在本窗口的出发/进击名单")
+		var parent: Dictionary = units.get(parent_id, {})
+		if parent.is_empty() or str(parent.get("side", "")) != side:
+			return Result.failure("breakdown_parent", "请选择本方多步单位")
+		var pool := parent_pool(working, parent_id, data)
+		if pool.is_empty():
+			return Result.failure("breakdown_pool", "该单位没有拆分池")
+		var definitions: Array = order.get("definitions", [])
+		if definitions.is_empty() or not can_detach(parent, definitions.size()):
+			return Result.failure("breakdown_count", "拆分数量超过母单位可留下的步数")
+		var legal := {}
+		for row: Dictionary in _options_raw(working, side, parent_id, data):
+			legal[str(row.definition)] = true
+		for definition: Variant in definitions:
+			var key := str(definition)
+			if not legal.has(key):
+				return Result.failure("breakdown_choice", "请选择本池、本行动值以内的拆分单位")
+			var counter := _clone(working, parent, key, data)
+			if counter.is_empty():
+				return Result.failure("breakdown_face", "拆分单位没有可部署面")
+			var id := _free_id(working, key)
+			units[id] = counter
+			created.append(id)
 			legal.erase(key)
-	parent["stepsLost"] = int(parent.get("stepsLost", 0)) + definitions.size()
-	units[parent_id] = parent
-	state["units"] = units
-	state["breakdownDetached"] = detached_ids
-	return Result.success(state)
+			if copy_count(working, key, data) <= 0:
+				legal.erase(key)
+		parent["stepsLost"] = int(parent.get("stepsLost", 0)) + definitions.size()
+		units[parent_id] = parent
+		seen[parent_id] = true
+	working["units"] = units
+	var detached_ids: Array = working.get("breakdownDetached", [])
+	detached_ids.append_array(created)
+	working["breakdownDetached"] = detached_ids
+	return Result.success({"state": working, "detachedIds": created})
 
 
 ## 吸收资格：母单位有损失但未打光，拆分单位 AR 不低于母单位，模式/补给旗标一致。

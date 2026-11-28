@@ -1976,6 +1976,13 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 				if state.get("units", {}).has(id):
 					menu.append({"label": "推进 1 枚 · %s" % _unit_name(state, id, data), "group": "地面战斗",
 						"actions": [{"type": "advance-after-combat", "unitIds": [id]}]})
+					# OCS 20.0a 第二窗口：该攻方可在推进前拆出，拆分单位随同进格。
+					for option: Dictionary in Breakdown.advance_options(state, side, id, data,
+							combat.get("attackers", [])):
+						menu.append({"label": "推进并拆出 %s · %s" % [str(option.name),
+							_unit_name(state, id, data)], "group": "地面战斗",
+							"actions": [{"type": "advance-after-combat", "unitIds": [id],
+								"breakdowns": [{"parentId": id, "definitions": [str(option.definition)]}]}]})
 		"continue-combat-retreat":
 			menu.append({"label": "继续撤退 · 原地续跑", "group": "地面战斗",
 				"actions": [{"type": "continue-combat-retreat"}]})

@@ -3,7 +3,7 @@ extends RefCounted
 ## OCS v4.3 §9.7–9.13 战斗结算与进击（src/match/scorpion-combat-result.ts、series/tables/ground-combat.ts）。
 ## 掷骰行＝2d6 + 攻方 AR − 守方 AR − 工事等级；先算 odds 取列，再按 surprise/shift 移位。
 ## 撤退与 continue-combat-retreat 由 retreat.gd 承接（路径合法性、ZOC/DG/被迫损、续跑进度）。
-## 突袭（overrun）收尾已接：守方清空自动进格，未清空保留余量；拆分订单仍未实现。
+## 突袭（overrun）收尾已接：守方清空自动进格，未清空保留余量；突袭拆分订单仍未接。
 
 const Result := preload("res://scripts/core/result.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
@@ -13,6 +13,7 @@ const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const Retreat := preload("res://works/third-winter/rules/retreat.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
+const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
 
 ## 战斗结果侧栏一次最多铺开的合法分配行数；超出时优先保留「不吃选项」与「吃满选项」。
 const RESOLVE_OPTION_LIMIT := 24
@@ -280,15 +281,22 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 			return Result.failure("combat_advance_survivor", "只有存活攻方单位可以进击")
 	if combat.get("kind") == "overrun":
 		return Result.failure("overrun_auto_advance", "突袭由结算自动进格，不需要进击命令")
+	var split_state: Dictionary = state
+	var detached: Array = []
 	if orders.size() > 0:
-		return Result.failure("breakdown_unimplemented", "拆分单位随进击离场本轮未实现")
+		var split := Breakdown.detach_orders(state, side, orders, ids, data)
+		if not split.ok:
+			return split
+		split_state = split.value.state
+		detached = split.value.detachedIds
 	var entrants: Array = ids.duplicate()
-	var units: Dictionary = state.get("units", {}).duplicate(true)
+	entrants.append_array(detached)
+	var units: Dictionary = split_state.get("units", {}).duplicate(true)
 	for id: String in entrants:
 		var moved: Dictionary = units[id].duplicate(true)
 		moved["hex"] = str(combat.get("target", ""))
 		units[id] = moved
-	var advanced := state.duplicate(true)
+	var advanced := split_state.duplicate(true)
 	advanced["units"] = units
 	advanced["combat"] = null
 	var illegal: Array = Stacking.overstacked_hexes(advanced, side)
