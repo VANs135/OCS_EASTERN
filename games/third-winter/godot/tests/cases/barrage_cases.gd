@@ -8,6 +8,7 @@ extends RefCounted
 
 const JsonFile := preload("res://scripts/data/json_file.gd")
 const Barrage := preload("res://works/third-winter/rules/barrage.gd")
+const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 const FIXTURE_REL := "../../../dist/godot/08-barrage.json"
 const EPSILON := 1e-9
@@ -32,6 +33,7 @@ static func run(ctx: Dictionary) -> void:
 			_check_reject(ctx, state, data, actions[0], reject, case_id)
 		else:
 			_check_accepted(ctx, state, data, actions, case.get("steps", []), case_id)
+			_check_menu_payment(ctx, state, data, actions[0], case_id)
 
 
 static func _build_data(fixture: Dictionary) -> Dictionary:
@@ -63,6 +65,37 @@ static func _check_accepted(ctx: Dictionary, state: Dictionary, data: Dictionary
 		state = result.value
 		var after: Dictionary = steps[index].get("after", {})
 		_compare_slice(ctx, state, after, "%s 第 %d 步" % [case_id, index + 1])
+
+
+static func _check_menu_payment(ctx: Dictionary, state: Dictionary, data: Dictionary,
+		action: Dictionary, case_id: String) -> void:
+	var expect: Callable = ctx.expect
+	if str(action.get("type", "")) != "declare-artillery-barrage":
+		return
+	var target := str(action.get("target", ""))
+	var menu: Array = ScorpionView.menu_entries(state, "soviet", {"hex": target}, data)
+	var row: Dictionary = {}
+	for candidate: Dictionary in menu:
+		for entry: Dictionary in candidate.get("actions", []):
+			if str(entry.get("type", "")) == "declare-artillery-barrage":
+				row = entry
+				break
+		if not row.is_empty():
+			break
+	expect.call(not row.is_empty(), "08 炮击 %s 侧栏给出炮击条目" % case_id)
+	if row.is_empty():
+		return
+	var preview: Dictionary = Barrage.volley_preview(state, "soviet",
+		{"target": target, "batteries": row.get("batteries", [])}, data)
+	if preview.get("ok", false) != true:
+		expect.call(false, "08 炮击 %s 侧栏齐射可预演 · %s" % [case_id, str(preview.get("errorMessage", ""))])
+		return
+	var cost := int(preview.value.get("cost", 0))
+	var total := 0
+	for payment: Dictionary in row.get("supply", {}).get("payments", []):
+		total += int(payment.get("tokens", 0))
+	expect.call(total == cost and cost > 0,
+		"08 炮击 %s 侧栏按整轮齐射费用支付（%d/%dT）" % [case_id, total, cost])
 
 
 static func _check_reject(ctx: Dictionary, state: Dictionary, data: Dictionary, action: Dictionary,

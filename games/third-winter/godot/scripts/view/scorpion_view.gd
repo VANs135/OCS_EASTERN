@@ -1800,17 +1800,30 @@ static func _append_barrage_declare_menu(state: Dictionary, side: String, select
 			batteries.append({"unitId": id})
 	if batteries.is_empty():
 		return
-	var first_id := str(batteries[0].get("unitId", ""))
-	var first_preview := Barrage.volley_preview(state, side,
-		{"target": target, "batteries": [{"unitId": first_id}]}, data)
-	var cost := int(first_preview.get("cost", 0))
+	var battery_units: Array = []
+	for battery: Dictionary in batteries:
+		battery_units.append(state.get("units", {}).get(str(battery.get("unitId", "")), {}))
+	## 费用按整轮齐射的强度列决定，单门预演可能落在更低的列；支付也必须由同一堆供应全部炮组。
+	var volley := Barrage.volley_preview(state, side, {"target": target, "batteries": batteries}, data)
+	if volley.get("ok", false) != true:
+		return
+	var resolved: Dictionary = volley.value
+	var cost := int(resolved.get("cost", 0))
+	var fired: Array = resolved.get("batteries", [])
 	var payments: Array = []
 	var ledger := SpPayment.new(state, side, data)
-	var sources: Array = ledger.available([state.get("units", {}).get(first_id, {})])
-	if not sources.is_empty() and cost > 0:
-		payments.append({"dumpId": str(sources[0].get("dumpId", "")), "tokens": cost})
+	if cost > 0:
+		var picked := ""
+		for source: Dictionary in ledger.available(battery_units):
+			if int(source.get("tokens", 0)) >= cost:
+				picked = str(source.get("dumpId", ""))
+				break
+		if picked.is_empty():
+			return
+		payments.append({"dumpId": str(picked), "tokens": cost})
 	menu.append({"label": "炮击 %s · %d 门 · %dT" % [target, batteries.size(), cost], "group": "射击",
-		"actions": [{"type": "declare-artillery-barrage", "target": target, "batteries": batteries,
+		"actions": [{"type": "declare-artillery-barrage", "target": target,
+			"batteries": fired if not fired.is_empty() else batteries,
 			"supply": {"kind": "direct", "payments": payments}}]})
 
 
