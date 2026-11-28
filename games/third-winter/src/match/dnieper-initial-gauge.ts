@@ -24,6 +24,8 @@ const SOVIET_PATH_ENDPOINTS: readonly (readonly [string, string])[] = [
   ['D62.27', 'D55.26'],
   // Map B
   ['B46.3', 'B51.2'],
+  // 书作 “through D59.29 and B57.07, including the line between B59.29 and B57.07”；
+  // 地图库在 B59.29 无铁路、也没有到 B57.7 的直连边，故落到可核实的图内终点 B57.7（经 B56.6）。
   ['B51.2', 'B57.7'],
   ['B32.18', 'B25.34'],
   ['B32.18', 'B48.16'],
