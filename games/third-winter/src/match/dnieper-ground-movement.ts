@@ -7,6 +7,8 @@ import type { BackupUnit } from '../import/unit-backup.ts'
 import { campaignHqHooks } from './campaign-hq-boards.ts'
 import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
 import { resolveCampaignEntryCapture, type CampaignEntryAirBase } from './campaign-entry-capture.ts'
+import { beginCampaignTransportCaptureOnEntry } from './campaign-transport-capture.ts'
+import type { CampaignTransportCaptureBoard } from './campaign-transport-capture.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
@@ -24,7 +26,8 @@ export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campa
 
 export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
-  catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase) {
+  catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase,
+  transportCapture?: CampaignTransportCaptureBoard) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
@@ -68,6 +71,20 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     resolveEntry: (state, side, hex, ids, afterCombat = false) => resolveCampaignEntryCapture(state, side, hex, ids,
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
+    // OCS 9.14c：落点有敌方运输点时自动挂起原主选择窗口；不替玩家选被夺取计数器或位移格。
+    afterMove: transportCapture ? (state, side, move) => {
+      if (state.transportCapture) return state
+      let next = state
+      for (const placement of move.placements ?? []) {
+        if (state.counters[placement.id]?.side !== side) continue
+        const profile = profiles.profileOf(state, placement.id)
+        if (profile?.combat !== true) continue
+        next = beginCampaignTransportCaptureOnEntry(next, side, placement.hex, [placement.id], transportCapture,
+          (current, id) => profiles.profileOf(current, id)?.combat === true)
+        if (next.transportCapture) break
+      }
+      return next
+    } : undefined,
     // OCS 4.8a：段末必须满足每格 10 RE 上限；超堆叠返回 blocker，交给调用方整枚
     // 战斗算子移除（本板只报告，不擅自替玩家选择损失）。
     endBlockers: (state, side) => stackingBlockers(state, side),

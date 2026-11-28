@@ -1,6 +1,7 @@
 // OCS 9.14c：运输点夺取的交互窗口。组级掷骰与原主算子级选择复用 series，
 // 本文件只负责 01/战役层的计数器落位与位移校验。
 
+import { rollDie } from '@ocs-eastern/series/rng'
 import type { Side } from '@ocs-eastern/series/state-types'
 import type { Die } from '@ocs-eastern/series/dice'
 import { buildTransportCaptureGroup, transportDisplacementCandidates, validateTransportCaptureChoice } from
@@ -63,6 +64,24 @@ export function beginCampaignTransportCapture(state: Readonly<CampaignTurnState>
       return items.length ? [buildTransportCaptureGroup(kind, roll(), items)] : []
     }),
   }
+}
+
+/** 9.14c：进格自动挂起窗口。只对进入方自己的战斗单位触发；已有窗口时不覆盖。 */
+export function beginCampaignTransportCaptureOnEntry(state: Readonly<CampaignTurnState>, captor: Side, hex: string,
+  ids: readonly string[], board: CampaignTransportCaptureBoard,
+  combatUnit: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  if (state.transportCapture) return state
+  if (!ids.some((id) => state.counters[id]?.side === captor && combatUnit(state, id))) return state
+  const owner: Side = captor === 'axis' ? 'soviet' : 'axis'
+  if (!board.transports(state, owner, hex).length) return state
+  let rng = state.rng
+  const capture = beginCampaignTransportCapture(state, captor, owner, hex, board, () => {
+    const rolled = rollDie(rng)
+    rng = rolled.rng
+    return rolled.value
+  })
+  if (!capture.groups.length) return state
+  return { ...state, rng, transportCapture: capture }
 }
 
 /** UI 只读投影：待决组、原主可选的整枚计数器、组级掷骰结果与位移候选。不替玩家预设选择。 */
