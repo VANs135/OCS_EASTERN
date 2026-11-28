@@ -33,6 +33,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	if state.get("kind") == "playing" and state.get("capture") != null \
 			and str(action.get("type", "")) != "settle-capture":
 		return Result.failure("capture_pending", "须先结算待决的进格夺取")
+	if state.get("pendingCombat") is Dictionary and str(action.get("type", "")) != "resolve-combat":
+		return Result.failure("combat_pending", "须先为被消灭的师选择残部落点")
 	if action.get("type") == "settle-capture":
 		return Capture.settle(state, actor, action, data)
 	if action.get("type") in ["base-aircraft", "place-setup-alert", "choose-setup-loss", "confirm-setup"]:
@@ -144,13 +146,41 @@ static func _combat_result_command(state: Dictionary, actor: String, action: Dic
 	var board := _combat_board(data)
 	match str(action.get("type", "")):
 		"resolve-combat":
-			return _unwrap_match_state(CombatResult.resolve(state, actor, action, data, board))
+			return _resolve_combat_command(state, actor, action, data, board)
 		"advance-after-combat":
 			return _unwrap_match_state(CombatResult.advance(state, actor, action.get("unitIds", []), data, board,
 				action.get("breakdowns", [])))
 		"continue-combat-retreat":
 			return _unwrap_match_state(CombatResult.continue_retreat(state, actor, action, data, board))
 	return Result.failure("unsupported_action", "该战斗结果命令尚未接入原生 08 对局")
+
+
+## `resolve-combat` 遇到多落点残部时，把规则层的 `pending` 存成会话级待决窗口；
+## 下一次同一条损失序列带上所选落点重放，成功后清窗口。规则层本身仍保持原子性。
+static func _resolve_combat_command(state: Dictionary, actor: String, action: Dictionary,
+		data: Dictionary, board: Dictionary) -> Dictionary:
+	var waiting: Variant = state.get("pendingCombat")
+	if waiting is Dictionary:
+		var saved: Dictionary = waiting.get("action", {})
+		if action.get("lossOrder", []) != saved.get("lossOrder", []) \
+				or int(action.get("optionLosses", 0)) != int(saved.get("optionLosses", 0)) \
+				or action.get("ignoreDefenderOption", false) != saved.get("ignoreDefenderOption", false):
+			return Result.failure("combat_pending", "待决残部须沿用原损失序列，只补落点")
+	var resolved: Dictionary = CombatResult.resolve(state, actor, action, data, board)
+	if not resolved.ok:
+		var pending: Variant = resolved.get("pending")
+		if pending is Dictionary and str(pending.get("kind", "")) == "combat-remnant":
+			var holding := state.duplicate(true)
+			holding["pendingCombat"] = {"actor": actor, "action": action.duplicate(true),
+				"pending": pending.duplicate(true)}
+			return Result.success(holding)
+		return resolved
+	var unwrapped: Dictionary = _unwrap_match_state(resolved)
+	if unwrapped.ok:
+		var next: Variant = unwrapped.value
+		if next is Dictionary and next.has("pendingCombat"):
+			next.erase("pendingCombat")
+	return unwrapped
 
 
 ## CombatResult.resolve/advance 返回 {state, granted/advanced/entrants} 包装；对局记录只落盘面状态，解包出 state。

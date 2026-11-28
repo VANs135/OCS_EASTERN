@@ -1870,6 +1870,21 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 	var decision: Dictionary = Combat.decision(combat)
 	if decision.is_empty() or str(decision.get("actor", "")) != side:
 		return
+	var waiting: Variant = state.get("pendingCombat")
+	if waiting is Dictionary:
+		if str(waiting.get("actor", "")) != side:
+			return
+		var request: Dictionary = waiting.get("pending", {})
+		var division := str(request.get("divisionId", ""))
+		for hex: String in request.get("candidates", []):
+			var stored: Dictionary = waiting.get("action", {})
+			var action: Dictionary = stored.duplicate(true)
+			var remnants: Array = action.get("remnants", []).duplicate(true)
+			remnants.append({"divisionId": division, "hex": hex})
+			action["remnants"] = remnants
+			menu.append({"label": "残部 %s → %s" % [_unit_name(state, division, data), hex],
+				"group": "地面战斗", "actions": [action]})
+		return
 	var action_type := str(decision.get("actionType", ""))
 	var attacker := str(combat.get("attacker", ""))
 	var involved: Array = combat.get("attackers", []) if side == attacker else combat.get("defenders", [])

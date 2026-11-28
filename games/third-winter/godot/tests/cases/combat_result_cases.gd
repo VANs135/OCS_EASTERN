@@ -6,6 +6,7 @@ const JsonFile := preload("res://scripts/data/json_file.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
+const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
 
 const BUNDLE_REL := "../../../dist/godot/08-opening-data.json"
 const ATTACKER := "setup:land:id:2069:1"
@@ -72,6 +73,50 @@ static func run(ctx: Dictionary) -> void:
 			placed = str(remnant.get("hex", "")) == remnant_hex \
 				and now.get("units", {}).has(str(remnant.get("remnantId", "")))
 	expect.call(placed, "残部落在所选格并进入盘面")
+	_check_session_pending(expect, bundle)
+
+
+## 会话层：不带残部选择的 resolve-combat 不丢状态，先生成待决窗口；选中后重放并清窗。
+static func _check_session_pending(expect: Callable, bundle: Dictionary) -> void:
+	var state := _state(bundle)
+	var bare := {"type": "resolve-combat", "lossOrder": [DEFENDER, DEFENDER],
+		"optionLosses": 0, "ignoreDefenderOption": false, "retreats": [], "remnants": []}
+	var refused: Dictionary = ScorpionMatch._apply(state, "axis", bare, bundle)
+	expect.call(refused.ok, "会话把多落点残部失败转成待决窗口 · " + str(refused.get("errorCode", "")))
+	if not refused.ok:
+		return
+	var waiting: Dictionary = refused.value
+	expect.call(waiting.get("pendingCombat") is Dictionary, "状态带 pendingCombat")
+	expect.call(waiting.get("units", {}).has(DEFENDER), "待决窗口不改盘面")
+	var blocked: Dictionary = ScorpionMatch._apply(waiting, "axis", {"type": "pass-alert"}, bundle)
+	expect.call(not blocked.ok and str(blocked.get("errorCode", "")) == "combat_pending",
+		"待决残部时挡住其它命令")
+	var menu: Array = ScorpionView.menu_entries(waiting, "axis", {}, bundle)
+	expect.call(_count_type(menu, "resolve-combat") == 2, "待决窗口列出两个落点行")
+	var only_remnants := true
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			if str(action.get("type", "")) == "resolve-combat" \
+					and (action.get("remnants", []) as Array).is_empty():
+				only_remnants = false
+	expect.call(only_remnants, "待决窗口只列补落点命令")
+	var picked: Dictionary = {}
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			if str(action.get("type", "")) == "resolve-combat" and picked.is_empty():
+				picked = action
+				break
+		if not picked.is_empty():
+			break
+	expect.call(not picked.is_empty(), "可从待决窗口取一条落点命令")
+	if picked.is_empty():
+		return
+	var done: Dictionary = ScorpionMatch._apply(waiting, "axis", picked, bundle)
+	expect.call(done.ok, "待决落点重放可结算 · " + str(done.get("errorCode", "")))
+	if not done.ok:
+		return
+	expect.call(done.value.get("pendingCombat") == null, "结算成功后清待决窗口")
+	expect.call(not done.value.get("units", {}).has(DEFENDER), "重放后 198 师出盘")
 
 
 static func _state(bundle: Dictionary) -> Dictionary:
