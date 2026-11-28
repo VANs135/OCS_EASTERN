@@ -175,7 +175,7 @@ export function campaignForcedExtenderCollapseDestinations(state: Readonly<Campa
   return extender ? collapseDestinations(state, extender, board, false) : []
 }
 
-/** 9.14d：敌方可攻击单位进格，若延补队有合法崩溃落点则挂起原主窗口；无合法落点时不自动改盘。 */
+/** 9.14d：敌方可攻击单位进格；有合法落点则挂起原主窗口，无合法落点则原地翻面为 5 点运输点。 */
 export function beginCampaignForcedExtenderCollapseOnEntry(state: Readonly<CampaignTurnState>, captor: Side,
   hex: string, ids: readonly string[], board: CampaignExtenderBoard,
   attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
@@ -184,7 +184,12 @@ export function beginCampaignForcedExtenderCollapseOnEntry(state: Readonly<Campa
   const at = board.map.resolveHex(hex) ?? hex
   const extender = (state.extenders ?? []).find((item) => item.side === owner &&
     (board.map.resolveHex(item.hex) ?? item.hex) === at)
-  if (!extender || !campaignForcedExtenderCollapseDestinations(state, extender.id, board).length) return state
+  if (!extender) return state
+  if (!campaignForcedExtenderCollapseDestinations(state, extender.id, board).length) {
+    if (!board.hasTrace || !board.placeTransport) return state
+    const flipped = board.placeTransport(state, owner, { kind: extender.kind, points: 5, hex: at })
+    return { ...flipped, extenders: (flipped.extenders ?? []).filter((item) => item.id !== extender.id) }
+  }
   return { ...state, forcedExtenderCollapse: { id: extender.id, owner, captor, hex: at,
     kind: extender.kind, range: extender.range } }
 }
@@ -195,6 +200,7 @@ export function beginCampaignForcedExtenderCollapsesForPath(state: Readonly<Camp
   attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
   const pending: CampaignForcedExtenderCollapse[] = []
   const seen = new Set<string>()
+  let changed = false
   let next: CampaignTurnState = state
   for (const hex of path) {
     const at = board.map.resolveHex(hex) ?? hex
@@ -204,9 +210,10 @@ export function beginCampaignForcedExtenderCollapsesForPath(state: Readonly<Camp
       { ...next, forcedExtenderCollapse: undefined, forcedExtenderCollapseQueue: [] },
       captor, at, ids, board, attackCapable)
     if (built.forcedExtenderCollapse) pending.push(built.forcedExtenderCollapse)
-    next = { ...next, rng: built.rng }
+    if (built.counters !== next.counters || built.extenders !== next.extenders) changed = true
+    next = { ...next, counters: built.counters, extenders: built.extenders }
   }
-  if (!pending.length) return state
+  if (!pending.length && !changed) return state
   const all = [...(state.forcedExtenderCollapse ? [state.forcedExtenderCollapse] : []),
     ...(state.forcedExtenderCollapseQueue ?? []), ...pending]
   return { ...next, forcedExtenderCollapse: all[0], forcedExtenderCollapseQueue: all.slice(1) }

@@ -52,3 +52,30 @@ test('scenario 01 9.14d forces an extender collapse on enemy entry and only the 
   const point=Object.entries(settled.counters).find(([,c])=>c.side==='axis'&&c.kind==='transport'&&c.location.kind==='map'&&c.location.hex===loaded.playable.resolveHex('B42.06')&&c.transportPoints===5)
   assert.ok(point,'the collapsed extender flips to 5 real transport points')
 })
+
+test('scenario 01 9.14d flips the extender to 5 points and opens 9.14c when no traced destination exists', async()=>{
+  const loaded=await load(); const choices=dnieperOpeningChoices(loaded)
+  const trucks=choices.find(c=>c.kind==='transport'&&c.definition.endsWith('tp_003')); assert.ok(trucks)
+  const state=openCampaignMatch(prepareDnieperBoard(loaded),createRngState(1)).state
+  const truckIds=Object.keys(state.counters).filter(id=>id.startsWith(`01-optional:${trucks.id}:`)).slice(0,5); assert.equal(truckIds.length,5)
+  const hex=loaded.playable.resolveHex('B41.06')
+  const counters={...state.counters}
+  for(const id of truckIds) counters[id]={...counters[id],location:{kind:'map',hex}}
+  const attack=loaded.setup.counters.find(c=>c.ref==='Sov 53 MC Rgt'); assert.ok(attack)
+  const attackerId=Object.keys(state.counters).find(id=>state.counters[id].side==='soviet'&&state.counters[id].definition===attack.definition); assert.ok(attackerId)
+  counters[attackerId]={...counters[attackerId],location:{kind:'map',hex}}
+  const base={...state,counters,cursor:{first:'soviet',phasing:'axis',phase:'movement'},movementSegment:'movement'}
+  const noTrace=dnieperExtenderBoard(loaded.playable,loaded.catalog.definitions,{hasTrace:()=>false})
+  const converted=convertCampaignExtender(base,'axis',{type:'convert-campaign-extender',hex,kind:'truck',count:1},noTrace)
+  const boards=dnieperCampaignBoards(loaded,{hasTrace:()=>false})
+  const moved=boards.groundMovement?.afterMove?.(converted,'soviet',{path:[hex],
+    movers:[{id:attackerId,combat:true,stepsLeft:0}],placements:[{id:attackerId,hex}]})??converted
+  assert.equal(moved.forcedExtenderCollapse,undefined)
+  assert.equal(moved.extenders.length,0)
+  assert.equal(moved.transportCapture.owner,'axis')
+  assert.equal(moved.transportCapture.hex,hex)
+  assert.ok(moved.transportCapture.groups.reduce((sum,g)=>sum+g.totalPoints,0)>=5)
+  assert.ok(Object.entries(moved.counters).some(([,c])=>c.side==='axis'&&c.kind==='transport'&&
+    c.location.kind==='map'&&c.location.hex===hex&&c.transportPoints===5),
+    'the flipped extender is a real 5-point transport at the original hex')
+})

@@ -73,17 +73,17 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     resolveEntry: (state, side, hex, ids, afterCombat = false) => resolveCampaignEntryCapture(state, side, hex, ids,
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
-    // OCS 9.14c：整条 move 路径逐格检查敌方运输点，按进入顺序挂起原主选择窗口；
-    // 9.14d：同路径检查敌方延补队，按进入顺序挂起强制崩溃窗口。两者都不替玩家选择。
+    // OCS 9.14d：同路径先检查敌方延补队，按进入顺序挂起强制崩溃窗口；无合法落点则原地翻面。
+    // 9.14c：随后逐格检查敌方运输点，按进入顺序挂起原主选择窗口。两者都不替玩家选择。
     afterMove: transportCapture || extenderWork ? (state, side, move) => {
       const attackCapable = (current: Readonly<Parameters<typeof profiles.profileOf>[0]>, id: string) =>
         profiles.profileOf(current, id)?.attackCapable === true
       const ids = move.movers.map((mover) => mover.id)
-      let next = transportCapture
-        ? beginCampaignTransportCapturesForPath(state, side, move.path, ids, transportCapture, attackCapable)
+      let next = extenderWork
+        ? beginCampaignForcedExtenderCollapsesForPath(state, side, move.path, ids, extenderWork, attackCapable)
         : state
-      if (extenderWork) next = beginCampaignForcedExtenderCollapsesForPath(next, side, move.path, ids,
-        extenderWork, attackCapable)
+      if (transportCapture) next = beginCampaignTransportCapturesForPath(next, side, move.path, ids,
+        transportCapture, attackCapable)
       return next
     } : undefined,
     // OCS 4.8a：段末必须满足每格 10 RE 上限；超堆叠返回 blocker，交给调用方整枚
