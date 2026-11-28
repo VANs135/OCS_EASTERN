@@ -44,6 +44,13 @@ interface CampaignConnection {
   disputedFields: readonly ConnectionField[]
 }
 
+/** A map-edge connection that leaves the playable map, used by scenario supply-source rules. */
+export interface CampaignOpenEdge {
+  hex: string
+  road: boolean
+  rail: boolean
+}
+
 const orderedPair = (a: string, b: string): [string, string] => a < b ? [a, b] : [b, a]
 const knownTerrains = new Set<string>(terrainKinds)
 
@@ -100,10 +107,21 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   const sourceByPair = new Map<string, { endpoints: [string, string]; sourceEdges: SourceEdge[] }>()
   const pairsBySeamGroup = new Map<string, Set<string>>()
   const selfEdges: string[] = []
+  const openEdges: CampaignOpenEdge[] = []
+  const openEdgeKeys = new Set<string>()
   let openEndedEdges = 0
   for (const edge of edges.items) {
     const endpoints = [edge.hex_a, edge.hex_b].map((id) => id === null ? null : canonicalByHex.get(campaignHexKey(id)))
-    if (endpoints.includes(null)) openEndedEdges++
+    if (endpoints.includes(null)) {
+      openEndedEdges++
+      const [a, b] = endpoints
+      const hex = a ?? b
+      const key = `${hex}|${edge.road_present}|${edge.rail_present}`
+      if (hex && (edge.road_present || edge.rail_present) && !openEdgeKeys.has(key)) {
+        openEdgeKeys.add(key)
+        openEdges.push({ hex, road: edge.road_present, rail: edge.rail_present })
+      }
+    }
     if (endpoints.includes(undefined)) danglingEdges.push(edge.edge_key)
     const [a, b] = endpoints
     if (a && b) {
@@ -145,6 +163,7 @@ export function indexTtwCampaignMap(hexSource: unknown, edgeSource: unknown) {
   return {
     canonicalByHex,
     onMapHexes,
+    openEdges,
     cities,
     cityOf(hex: string): CampaignCitySite | undefined {
       const key = canonicalByHex.get(campaignHexKey(hex))

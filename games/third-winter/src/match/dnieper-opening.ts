@@ -12,6 +12,7 @@ import type { CampaignCounter } from './campaign-reinforcement-state.ts'
 import type { CampaignHedgehog } from './campaign-hedgehogs.ts'
 import type { CampaignAirBase } from './campaign-airfield.ts'
 import type { CampaignFortress } from './campaign-fortress.ts'
+import { dnieperEdgeSupplySources } from './dnieper-edge-supply.ts'
 import {
   buildCampaignOpeningChoices,
   resolveCampaignOpeningChoices,
@@ -241,5 +242,6 @@ export function prepareDnieperBoard(
   return { when: { scenarioId: '01-dnepr-battles', date }, turn: 1,
     opening: { weather: { ground: 'dry', flight: 'normal' }, first: 'soviet' },
     counters, supplyDumps, hedgehogs: initialHedgehogs, airBases: bases, fortresses, rvgkMarkers,
+    edgeSupplySources: dnieperEdgeSupplySources(map, 1),
     ...(initialRailheadMarkers.length ? { initialRailheadMarkers } : {}) }
 }
