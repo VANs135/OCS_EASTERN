@@ -1233,7 +1233,7 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 
 static func _append_headquarters_throw_rows(state: Dictionary, side: String, unit_id: String, unit: Dictionary,
 		path: Array, ledger: RefCounted, menu: Array) -> void:
-	if not str(unit.get("formation", "")).is_empty() or int(unit.get("printedRe", 1)) > 1:
+	if not Fuel.is_independent(unit):
 		return
 	var cursor: Dictionary = state.get("cursor", {})
 	for marker: Variant in state.get("headquartersFuel", []):
@@ -1330,18 +1330,15 @@ static func _append_bulk_fuel_rows(state: Dictionary, side: String, unit_id: Str
 			members.append(member)
 	if members.is_empty():
 		return
-	var direct_rows := 0
 	for source: Dictionary in ledger.available(members):
 		var dump_id := str(source.get("dumpId", ""))
 		if int(source.get("tokens", 0)) < Fuel.BULK_FUEL_COST:
 			continue
-		direct_rows += 1
 		menu.append({"label": "为编队 %s 买批量油（4T · %s）" % [formation, _tail(dump_id)], "group": "加油",
 			"actions": [{"type": "fuel-formation", "formation": formation,
 				"payments": [{"dumpId": dump_id, "tokens": Fuel.BULK_FUEL_COST}]}]})
-	## 编队也能由一支司令部投送：没有共用直接抽源时才列，全体成员须能经这支司令部抽同一堆油。
-	if direct_rows > 0:
-		return
+	## 编队也能由一支司令部投送：不压掉直接抽源，两类都作为合法候选列出，靠文案区分。
+	## 全体成员须能经这支司令部抽同一堆油（与规则层 `buy_formation_fuel` 同一判据）。
 	for hq_route: String in state.get("units", {}):
 		var hq: Dictionary = state.units[hq_route]
 		var route_flag: Variant = hq.get("headquarters")

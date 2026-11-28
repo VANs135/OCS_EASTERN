@@ -58,7 +58,8 @@ static func run(ctx: Dictionary) -> void:
 
 	## 批量油：编队行只列能喂满全编队的来源，规则层付 4T 并盖标记。
 	var bulk_menu: Array = ScorpionView.menu_entries(_state(), "soviet", {"unitId": "tank"}, bundle)
-	expect.call(_count_type(bulk_menu, "fuel-formation") == 1, "编队批量油出行 · 实 %d" % _count_type(bulk_menu, "fuel-formation"))
+	expect.call(_count_type(bulk_menu, "fuel-formation") >= 1, "编队批量油出行 · 实 %d" % _count_type(bulk_menu, "fuel-formation"))
+	expect.call(_has_hq_formation(bulk_menu), "编队批量油也列出司令部投送候选")
 	var paid_formation: Dictionary = Fuel.buy_formation_fuel(_state(), "soviet", "1st", "",
 		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
 	expect.call(paid_formation.ok, "编队批量油付账成功 · " + str(paid_formation.get("errorCode", "")))
@@ -137,6 +138,14 @@ static func run(ctx: Dictionary) -> void:
 	var unfunded: Dictionary = Fuel.fuel_with_headquarters(_state(), "soviet", "scout", "hq", bundle)
 	expect.call(not unfunded.ok and str(unfunded.get("errorCode", "")) == "fuel_headquarters_unfueled",
 		"没买批量油的司令部不能投送 · " + str(unfunded.get("errorCode", "")))
+	var missing_re := _state()
+	var missing_buy: Dictionary = Fuel.buy_headquarters_fuel(missing_re, "soviet", "hq",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	if missing_buy.ok:
+		missing_buy.value.units.scout.erase("printedRe")
+		var no_re: Dictionary = Fuel.fuel_with_headquarters(missing_buy.value, "soviet", "scout", "hq", bundle)
+		expect.call(not no_re.ok and str(no_re.get("errorCode", "")) == "fuel_independent",
+			"缺 printedRe 的数据不算独立单位 · " + str(no_re.get("errorCode", "")))
 
 
 static func _count_type(menu: Array, type_name: String) -> int:
@@ -146,6 +155,14 @@ static func _count_type(menu: Array, type_name: String) -> int:
 			if str(action.get("type", "")) == type_name:
 				count += 1
 	return count
+
+
+static func _has_hq_formation(menu: Array) -> bool:
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			if str(action.get("type", "")) == "fuel-formation" and not str(action.get("headquartersId", "")).is_empty():
+				return true
+	return false
 
 
 static func _has_fuel_row(menu: Array) -> bool:

@@ -45,11 +45,22 @@ static func fuel_with_dump(state: Dictionary, side: String, unit_id: String, dum
 	return Result.success(state)
 
 
-## OCS 12.5c(C) — 已加油司令部把油投给范围内的独立单位（`fuelScorpionMovement` 的 HQ 分支）。
-## 4T 早在买标记时付过，这里只记「本阶段从哪格投过」的锁：同一阶段换了格子就不能再投。
+## OCS 12.5c(C) — 只有无编队且印值 `printedRe <= 1` 的算子算独立单位（TS `isIndependent`）。
+## 缺 `printedRe` 的数据不放行：TS 里 `undefined <= 1` 为假，这里同样按“不独立”处理。
+static func is_independent(unit: Dictionary) -> bool:
+	if not str(unit.get("formation", "")).is_empty():
+		return false
+	var printed: Variant = unit.get("printedRe")
+	return (printed is int or printed is float) and int(printed) <= 1
+
+
 static func _is_headquarter(unit: Dictionary) -> bool:
 	var flag: Variant = unit.get("headquarters")
 	return flag is Dictionary or (flag is bool and flag == true)
+
+
+## OCS 12.5c(C) — 已加油司令部把油投给范围内的独立单位（`fuelScorpionMovement` 的 HQ 分支）。
+## 4T 早在买标记时付过，这里只记「本阶段从哪格投过」的锁：同一阶段换了格子就不能再投。
 static func fuel_with_headquarters(state: Dictionary, side: String, unit_id: String, headquarters_id: String,
 		data: Dictionary) -> Dictionary:
 	if state.get("kind") != "playing":
@@ -59,8 +70,7 @@ static func fuel_with_headquarters(state: Dictionary, side: String, unit_id: Str
 		return Result.failure("fuel_unit", "请选择本方的地面算子")
 	if not needs_fuel(unit, side) or has_bulk_fuel(state, unit_id):
 		return Result.failure("fuel_not_needed", "这枚算子不需要付油")
-	var formation := str(unit.get("formation", ""))
-	if not formation.is_empty() or int(unit.get("printedRe", 1)) > 1:
+	if not is_independent(unit):
 		return Result.failure("fuel_independent", "只有独立单位能接受司令部投送")
 	var hq: Dictionary = state.get("units", {}).get(headquarters_id, {})
 	if hq.is_empty() or not _is_headquarter(hq) or str(hq.get("side", "")) != side:
