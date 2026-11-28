@@ -65,7 +65,7 @@ static func capture_at(state: Dictionary, side: String, hex_id: String) -> Dicti
 ## resolveScorpionEntry：进入格后记录控制、结算即时夺取物，必要时挂起位移待决。
 ## ids 为进入格的单位；route 为后续路线（自动位移排序用，本轮只透传给等待实现的部分）。
 static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: Array, data: Dictionary,
-		after_combat := false, route: Array = [], manual := false) -> Dictionary:
+		after_combat := false, route: Array = [], manual := true) -> Dictionary:
 	var next := record_control(state, side, hex_id, data)
 	var objects := capture_at(next, side, hex_id)
 	var dump: Variant = objects.dump
@@ -181,7 +181,8 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 	settled["hedgehogs"] = hedgehogs
 	settled["capture"] = capture
 	settled["captureHistory"] = history
-	# 默认策略（无 captureResolution='manual'）由原属方自动排序结清位移；手动态才挂窗口。
+	# 默认手动：飞机落点、运输队分配都是玩家的选择，挂窗口等 settle-capture。
+	# 只有显式要求自动（AI/夹具）时才用 automatic_order 一次排完。
 	if capture != null and not manual:
 		var order := automatic_order(capture, settled, data, route)
 		if order.has("error"):

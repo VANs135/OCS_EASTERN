@@ -38,7 +38,7 @@ static func _compare_scenario(ctx: Dictionary, scenario: Dictionary, bundle: Dic
 	if side == "":
 		side = str(scenario.get("outcome", {}).get("captorSide", ""))
 	var res: Dictionary = Capture.resolve_entry(state, side, str(scenario.get("hex", "")), entrants,
-		bundle, false, [], str(scenario.get("policy", "auto")) == "manual")
+		bundle, false, [], str(scenario.get("policy", "manual")) != "auto")
 	if steps.is_empty():
 		expect.call(not res.ok and res.get("errorCode") == "capture_attack_capable",
 			"%s 预备单位独自进格被拒绝" % label)
