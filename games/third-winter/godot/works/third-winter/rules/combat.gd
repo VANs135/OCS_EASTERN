@@ -24,7 +24,12 @@ const PHASES := ["combat", "exploitation"]
 static func declare(state: Dictionary, actor: String, action: Dictionary, data: Dictionary,
 		board: Dictionary = {}) -> Dictionary:
 	var cursor: Dictionary = state.get("cursor", {})
-	if str(cursor.get("phasing", "")) != actor or not PHASES.has(str(cursor.get("phase", ""))) \
+	var overrun := str(action.get("kind", "")) == "overrun"
+	var phases: Array = PHASES.duplicate()
+	if overrun:
+		phases.append("movement")
+		phases.append("reaction")
+	if str(cursor.get("phasing", "")) != actor or not phases.has(str(cursor.get("phase", ""))) \
 			or state.get("combat") != null:
 		return Result.failure("combat_unavailable", "当前阶段不能宣告战斗")
 	var map_graph: Dictionary = data.get("view", {}).get("mapGraph", {})
@@ -32,7 +37,7 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 	if not map_graph.get("terrains", {}).has(target):
 		return Result.failure("combat_target", "目标格不在地图上：%s" % target)
 	var combat_targets: Array = state.get("combatTargets", [])
-	if combat_targets.has(target):
+	if combat_targets.has(target) and not overrun:
 		return Result.failure("combat_target_used", "该格本回合已被攻击")
 	var attackers: Array = action.get("attackers", [])
 	if attackers.is_empty():
@@ -42,7 +47,7 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 		if seen.has(id):
 			return Result.failure("combat_attacker_duplicate", "攻方名单重复：%s" % id)
 		seen[id] = true
-	if str(cursor.get("phase", "")) == "exploitation":
+	if str(cursor.get("phase", "")) == "exploitation" and not overrun:
 		var end_check := _assert_movement_end(state, actor, board)
 		if not end_check.ok:
 			return end_check
@@ -59,7 +64,7 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 		var mode := Modes.ground_mode_effect(CombatTerrain._ground_state(unit))
 		if mode.get("canAttack", true) != true:
 			return Result.failure("combat_attacker_eligible", "该模式单位不能攻击：%s" % id)
-		if state.get("combatAttackers", []).has(id):
+		if state.get("combatAttackers", []).has(id) and not overrun:
 			return Result.failure("combat_attacker_eligible", "该单位本回合已参战：%s" % id)
 		if str(cursor.get("phase", "")) == "exploitation" and unit.get("released", false) != true \
 				and (unit.get("exploit", false) != true or airlifted.has(id)):
@@ -95,10 +100,13 @@ static func declare(state: Dictionary, actor: String, action: Dictionary, data: 
 	next["combat"] = combat
 	next["overrunMarch"] = null
 	next["combatTargets"] = combat_targets.duplicate()
-	next.combatTargets.append(target)
-	next["combatAttackers"] = state.get("combatAttackers", []).duplicate()
-	for id: String in attackers:
-		next.combatAttackers.append(id)
+	if not overrun:
+		next.combatTargets.append(target)
+		next["combatAttackers"] = state.get("combatAttackers", []).duplicate()
+		for id: String in attackers:
+			next.combatAttackers.append(id)
+	else:
+		next["combatAttackers"] = state.get("combatAttackers", []).duplicate()
 	return Result.success(next)
 
 

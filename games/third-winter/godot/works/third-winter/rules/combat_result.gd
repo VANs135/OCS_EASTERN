@@ -1,10 +1,9 @@
 extends RefCounted
 
 ## OCS v4.3 §9.7–9.13 战斗结算与进击（src/match/scorpion-combat-result.ts、series/tables/ground-combat.ts）。
-## 掷骰行＝2d6 + 攻方 AR − 守方 AR − 刺猬等级；先算 odds 取列，再按 surprise/shift 移位。
+## 掷骰行＝2d6 + 攻方 AR − 守方 AR − 工事等级；先算 odds 取列，再按 surprise/shift 移位。
 ## 撤退与 continue-combat-retreat 由 retreat.gd 承接（路径合法性、ZOC/DG/被迫损、续跑进度）。
-## 本轮明确不实现：残部生成候选、突袭（overrun）、进格夺取结算（补给堆/运输队/刺猬/机场）；
-## 触发这些分支时返回明确 Result.failure 或待决描述，不伪造结果。
+## 突袭（overrun）收尾已接：守方清空自动进格，未清空保留余量；拆分订单仍未实现。
 
 const Result := preload("res://scripts/core/result.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
@@ -192,7 +191,7 @@ static func resolve(state: Dictionary, actor: String, action: Dictionary, data: 
 			empty = false
 			break
 	if combat.get("kind") == "overrun":
-		return Result.failure("overrun_unimplemented", "突袭追击本轮未实现")
+		return _finish_overrun(settled_state, combat, empty, data)
 	var advance: bool = empty and combat.get("attackerRetreated", false) != true \
 			and _has_survivor(settled_state, combat.get("attackers", []))
 	var next_combat: Variant = null
@@ -248,7 +247,7 @@ static func continue_retreat(state: Dictionary, actor: String, action: Dictionar
 			empty = false
 			break
 	if resolved.get("kind") == "overrun":
-		return Result.failure("overrun_unimplemented", "突袭追击本轮未实现")
+		return _finish_overrun(settled, resolved, empty, data)
 	var advance: bool = empty and resolved.get("attackerRetreated", false) != true \
 			and _has_survivor(settled, resolved.get("attackers", []))
 	var next_combat: Variant = null
@@ -276,7 +275,7 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 		if not state.get("units", {}).has(id) or not combat.get("attackers", []).has(id):
 			return Result.failure("combat_advance_survivor", "只有存活攻方单位可以进击")
 	if combat.get("kind") == "overrun":
-		return Result.failure("overrun_unimplemented", "突袭进击本轮未实现")
+		return Result.failure("overrun_auto_advance", "突袭由结算自动进格，不需要进击命令")
 	if orders.size() > 0:
 		return Result.failure("breakdown_unimplemented", "拆分单位随进击离场本轮未实现")
 	var entrants: Array = ids.duplicate()
@@ -301,6 +300,50 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 	advanced = entry_res.value
 	advanced["combat"] = null
 	return Result.success({"state": advanced, "entrants": entrants})
+
+
+## OCS 8.1g / 突袭收尾：守方清空且攻方未撤时全部存活者自动进格（无拆分订单），
+## 否则只清战斗、保留 `overrunMarch` 让幸存者用余量继续走。
+static func _finish_overrun(state: Dictionary, combat: Dictionary, empty: bool, data: Dictionary) -> Dictionary:
+	var march: Variant = state.get("overrunMarch")
+	if not (march is Dictionary):
+		return Result.failure("overrun_march", "突袭缺少余量账本")
+	var survivors: Array = []
+	var remaining := {}
+	for id: String in combat.get("attackers", []):
+		var unit: Variant = state.get("units", {}).get(id)
+		if unit == null:
+			continue
+		survivors.append(id)
+		remaining[id] = int((march as Dictionary).get("remaining", {}).get(id, unit.get("allowance", 0)))
+	var next: Dictionary = state.duplicate(true)
+	next["combat"] = null
+	if survivors.is_empty() or combat.get("attackerRetreated", false) == true:
+		next["overrunMarch"] = null
+		return Result.success({"state": next})
+	next["overrunMarch"] = {"remaining": remaining,
+		"enteredHex": (march as Dictionary).get("enteredHex", false) == true}
+	if not empty:
+		return Result.success({"state": next})
+	var target := str(combat.get("target", ""))
+	var units: Dictionary = next.get("units", {}).duplicate(true)
+	for id: String in survivors:
+		var moved: Dictionary = units[id].duplicate(true)
+		moved["hex"] = target
+		units[id] = moved
+	next["units"] = units
+	var illegal: Array = Stacking.overstacked_hexes(next, str(combat.get("attacker", "")))
+	for stack: Dictionary in illegal:
+		if str(stack.get("hex", "")) == target:
+			return Result.failure("overrun_stacking", "突袭进格后目标格超出堆叠上限（%d/10 RE）" % int(stack.get("re", 0)))
+	var entry_res: Dictionary = Capture.resolve_entry(next, str(combat.get("attacker", "")), target,
+		survivors, data, true, [], "manual")
+	if not entry_res.ok:
+		return entry_res
+	var entered: Dictionary = entry_res.value
+	entered["combat"] = null
+	entered["overrunMarch"] = {"remaining": remaining, "enteredHex": true}
+	return Result.success({"state": entered, "entrants": survivors})
 
 
 ## §9.10/§9.11b 结果义务：强制损失截断到剩余步数；选项损失不得超过 min(选项, 剩余−强制)。

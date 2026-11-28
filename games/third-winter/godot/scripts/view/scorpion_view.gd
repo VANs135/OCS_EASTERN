@@ -19,6 +19,7 @@ const Fuel := preload("res://works/third-winter/rules/fuel.gd")
 const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
+const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1136,6 +1137,8 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
+	_append_overrun_rows(state, side, selection, data, menu)
+	_append_overrun_continue_rows(state, side, selection, data, menu)
 	_append_kessel_move_rows(state, side, selection, data, menu)
 	_append_transport_fuel_menu(state, side, selection, data, menu)
 	_append_repack_rows(state, side, selection, data, menu)
@@ -1261,6 +1264,67 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
 	## OCS 12.5c(C) — 独立单位可以用已加油司令部投送：只列还在投程内、本阶段没换格投过的司令部。
 	_append_headquarters_throw_rows(state, side, unit_id, unit, path, ledger, menu)
+
+
+## 突袭（TTW 2.3a）：选中同格攻方后再点相邻敌格，给出「突袭 X · N 枚 · 3 MP · 堆 支付 T」。
+static func _append_overrun_rows(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	if not Overrun.window(state, side):
+		return
+	var ids: Array = []
+	if selection.get("unitIds") is Array:
+		for id: Variant in selection.unitIds:
+			ids.append(str(id))
+	elif selection.get("unitId") != null:
+		ids = [str(selection.unitId)]
+	if ids.is_empty() or selection.get("hex") == null:
+		return
+	var target := str(selection.hex)
+	var checked := Overrun.check(state, side, {"attackers": ids, "target": target}, data)
+	if not checked.ok:
+		return
+	var cost := 0
+	for id: String in ids:
+		cost += StepLoss.remaining(state.get("units", {}).get(id, {}))
+	if cost <= 0:
+		return
+	var attackers: Array = []
+	for id: String in ids:
+		attackers.append(state.get("units", {}).get(id, {}))
+	var ledger := SpPayment.new(state, side, data)
+	for source: Dictionary in ledger.available(attackers):
+		if int(source.get("tokens", 0)) < cost:
+			continue
+		var dump_id := str(source.get("dumpId", ""))
+		var payments: Array = []
+		for id: String in ids:
+			payments.append({"unitId": id, "dumpId": dump_id,
+				"tokens": StepLoss.remaining(state.get("units", {}).get(id, {}))})
+		menu.append({"label": "突袭 %s · %d 枚 · 3 MP · %s 支付 %dT" % [target, ids.size(),
+			_tail(dump_id), cost], "group": "突袭", "actions": [{"type": "declare-overrun",
+				"target": target, "attackers": ids, "payments": payments}]})
+		break
+
+
+static func _append_overrun_continue_rows(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	var march: Variant = state.get("overrunMarch")
+	if not (march is Dictionary) or state.get("combat") != null or state.get("capture") != null:
+		return
+	var unit_id := _selected_unit_id(selection)
+	if unit_id.is_empty() or not (march as Dictionary).get("remaining", {}).has(unit_id):
+		return
+	var from := str(state.get("units", {}).get(unit_id, {}).get("hex", ""))
+	if selection.get("hex") == null:
+		return
+	var target := str(selection.hex)
+	if target == from or not _neighbors(data).get(from, []).has(target):
+		return
+	var checked := Overrun.continue_check(state, side, {"path": [target]}, data)
+	if not checked.ok:
+		return
+	menu.append({"label": "继续突袭行军到 %s" % target, "group": "突袭",
+		"actions": [{"type": "continue-overrun-move", "path": [target]}]})
 
 
 ## TTW 2.3a(B) — 选中轴心步行战斗算子后再点邻格，若整段通过 Kessel 特规校验，额外给一条
@@ -1687,7 +1751,7 @@ static func _destination_name(target: Dictionary) -> String:
 	return "地图外"
 
 
-## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
+## OCS 13.3 — 工事作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
 ## 目标格取选中格，缺省取 worker 所在格；补给源只列能同时供所有 worker 追溯的那些。
 static func _append_hedgehog_menu(state: Dictionary, side: String, selection: Dictionary,
 		data: Dictionary, menu: Array) -> void:
@@ -1729,7 +1793,7 @@ static func _append_hedgehog_menu(state: Dictionary, side: String, selection: Di
 		var ledger := SpPayment.new(state, side, data)
 		_append_hedgehog_build_rows(menu, hex_id, worker_ids, ledger.available(workers))
 	if level_now > 0:
-		menu.append({"label": "拆除刺猬 · 格 %s" % hex_id, "group": "刺猬",
+		menu.append({"label": "拆除工事 · 格 %s" % hex_id, "group": "工事",
 			"actions": [{"type": "work-hedgehog", "operation": "reduce", "hex": hex_id,
 				"unitIds": worker_ids, "payments": []}]})
 
@@ -1759,7 +1823,7 @@ static func _append_hedgehog_build_rows(menu: Array, hex_id: String, worker_ids:
 		if seen.has(signature):
 			continue
 		seen[signature] = true
-		menu.append({"label": "构筑刺猬 · 格 %s（8T · %s）" % [hex_id, " + ".join(labels)], "group": "刺猬",
+		menu.append({"label": "构筑工事 · 格 %s（8T · %s）" % [hex_id, " + ".join(labels)], "group": "工事",
 			"actions": [{"type": "work-hedgehog", "operation": "build", "hex": hex_id,
 				"unitIds": worker_ids, "payments": plan}]})
 		emitted += 1

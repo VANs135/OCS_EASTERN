@@ -21,6 +21,7 @@ const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
+const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -96,6 +97,10 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	# TTW 08 预备三命令：进预备 / 退预备 / 反应或进击阶段释放预备。
 	if action.get("type") in ["mark-reserve", "leave-reserve", "release-reserve"]:
 		return _reserve_command(state, actor, action, data)
+	if action.get("type") == "declare-overrun":
+		return Overrun.declare(state, actor, action, data, _combat_board(data))
+	if action.get("type") == "continue-overrun-move":
+		return Overrun.continue_apply(state, actor, action, data)
 	# OCS v4.3 §9.5–9.13 正规战斗七步：宣告、守方补给、选行动值、选地形（攻/守方结算与进击见结果分支）。
 	if action.get("type") in ["declare-combat", "defend-combat", "select-combat-rating", "choose-combat-terrain"]:
 		return _combat_command(state, actor, action, data)

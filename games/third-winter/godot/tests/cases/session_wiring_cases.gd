@@ -1,6 +1,6 @@
 extends RefCounted
 
-## 会话接线用例：撤退续跑与刺猬作业经 `ScorpionMatch.submit` 的真实入口、以及侧栏菜单条目。
+## 会话接线用例：撤退续跑与工事作业经 `ScorpionMatch.submit` 的真实入口、以及侧栏菜单条目。
 ## 局面来自 08 撤退夹具（`suspended` 挂起场景）与 08 初设数据包（`s15.01` 轴心补给堆 16T、
 ## 两枚轴心战斗单位 `setup:land:id:4114:1` / `4072:1`）。
 ## 入口契约：static func run(ctx: Dictionary) -> void；ctx 提供 expect / compare / reject / state_slice / args。
@@ -81,7 +81,7 @@ static func _continue_retreat(ctx: Dictionary, fixture: Dictionary, bundle: Dict
 	expect.call(_has_action(after_window, "continue-combat-retreat"), "窗口结清后侧栏给出继续撤退条目")
 
 
-## 刺猬作业：菜单条目直接作为命令载荷提交；首格 16T 支 8T 立 1 级刺猬。
+## 工事作业：菜单条目直接作为命令载荷提交；首格 16T 支 8T 立 1 级工事。
 static func _hedgehog(ctx: Dictionary, bundle: Dictionary) -> void:
 	var expect: Callable = ctx.expect
 	var opening: Dictionary = bundle.get("opening", {})
@@ -97,11 +97,11 @@ static func _hedgehog(ctx: Dictionary, bundle: Dictionary) -> void:
 	}
 	var units: Dictionary = state.units
 	if not units.has(WORKER):
-		expect.call(false, "初设数据包含刺猬作业单位 %s" % WORKER)
+		expect.call(false, "初设数据包含工事作业单位 %s" % WORKER)
 		return
 	var menu: Array = ScorpionView.menu_entries(state, "axis", {"unitId": WORKER, "hex": BUILD_HEX}, bundle)
 	var build := _action_of(menu, "work-hedgehog", "build")
-	expect.call(not build.is_empty(), "侧栏在移动阶段给出构筑刺猬条目")
+	expect.call(not build.is_empty(), "侧栏在移动阶段给出构筑工事条目")
 	if build.is_empty():
 		return
 	expect.call(str(build.get("hex", "")) == BUILD_HEX
@@ -114,7 +114,7 @@ static func _hedgehog(ctx: Dictionary, bundle: Dictionary) -> void:
 	var next: Dictionary = res.value.record.state
 	var hedgehog: Dictionary = next.get("hedgehogs", {}).get(BUILD_HEX, {})
 	expect.call(str(hedgehog.get("side", "")) == "axis" and int(hedgehog.get("level", 0)) == 1,
-		"构筑后 s15.01 立起 1 级刺猬")
+		"构筑后 s15.01 立起 1 级工事")
 	expect.call(int(next.get("dumps", {}).get(BUILD_DUMP, {}).get("tokens", 0)) == 8,
 		"支走 8T 后补给堆剩 8T")
 	expect.call(next.get("moved", []).has(WORKER), "作业单位计入已动")
@@ -127,10 +127,10 @@ static func _hedgehog(ctx: Dictionary, bundle: Dictionary) -> void:
 	(wrong_phase["cursor"] as Dictionary)["phase"] = "combat"
 	var rejected := _submit(wrong_phase, bundle, "work-hedgehog", reduce)
 	expect.call(not rejected.ok and rejected.get("errorCode") == "hedgehog_phase",
-		"非移动阶段经会话入口拒绝刺猬作业")
+		"非移动阶段经会话入口拒绝工事作业")
 	var rejected_menu: Array = ScorpionView.menu_entries(wrong_phase, "axis",
 		{"unitId": WORKER, "hex": BUILD_HEX}, bundle)
-	expect.call(not _has_group(rejected_menu, "刺猬"), "非移动阶段侧栏不列刺猬作业")
+	expect.call(not _has_group(rejected_menu, "工事"), "非移动阶段侧栏不列工事作业")
 
 
 static func _submit(state: Dictionary, bundle: Dictionary, action_type: String, extra: Dictionary,
