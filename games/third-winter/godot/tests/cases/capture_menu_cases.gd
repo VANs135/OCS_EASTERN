@@ -55,6 +55,22 @@ static func run(ctx: Dictionary) -> void:
 		"结算行载荷是 settle-capture")
 	if actions.size() != 1:
 		return
+	## 只有一枚飞机要选落点时：面板把每个落点列成一行，玩家点哪格就落哪格。
+	var lone: Dictionary = _single_aircraft_choice(pending)
+	if not lone.is_empty():
+		var lone_menu: Array = ScorpionView.menu_entries(lone, owner, {}, bundle)
+		var bases: Array = (lone.get("capture", {}).get("aircraft", []) as Array)[0].get("destinations", [])
+		expect.call(lone_menu.size() == bases.size(), "单机多落点面板按候选列出 %d 行 · 实 %d" % [bases.size(), lone_menu.size()])
+		for row: Dictionary in lone_menu:
+			var row_actions: Array = row.get("actions", [])
+			expect.call(row_actions.size() == 1 and str(row_actions[0].get("type", "")) == "settle-capture",
+				"单机落点行载荷是 settle-capture · " + str(row.get("label", "")))
+		if not lone_menu.is_empty():
+			var first_action: Dictionary = (lone_menu[0].get("actions", []) as Array)[0]
+			var payload: Array = first_action.get("aircraft", [])
+			var lone_id := str(((lone.get("capture", {}) as Dictionary).get("aircraft", []) as Array)[0].get("id", ""))
+			expect.call(payload.size() == 1 and str((payload[0] as Dictionary).get("id", "")) == lone_id,
+				"单机落点行只安置那一枚飞机 · " + lone_id)
 	var submitted: Dictionary = _submit(pending, owner, actions[0], bundle)
 	expect.call(submitted.ok, "点结算行后窗口结清 · " + str(submitted.get("errorCode", "")))
 	if not submitted.ok:
@@ -66,6 +82,25 @@ static func run(ctx: Dictionary) -> void:
 	expect.call(other_menu.size() == 1, "非原属方面板也只有一项提示")
 	if not other_menu.is_empty():
 		expect.call((other_menu[0].get("actions", []) as Array).is_empty(), "非原属方没有可提交载荷")
+
+
+static func _single_aircraft_choice(pending: Dictionary) -> Dictionary:
+	var copy: Dictionary = pending.duplicate(true)
+	var capture: Variant = copy.get("capture")
+	if capture == null or not capture is Dictionary:
+		return {}
+	var aircraft: Array = (capture as Dictionary).get("aircraft", [])
+	if aircraft.is_empty():
+		return {}
+	var entry: Dictionary = (aircraft[0] as Dictionary).duplicate(true)
+	var hex_target := str((capture as Dictionary).get("hex", ""))
+	if hex_target == "":
+		return {}
+	entry["destinations"] = [{"kind": "hex", "hex": hex_target}, {"kind": "off-map-air"}]
+	(capture as Dictionary)["aircraft"] = [entry]
+	(capture as Dictionary)["transports"] = []
+	(capture as Dictionary)["extenders"] = []
+	return copy
 
 
 static func _submit(state: Dictionary, seat: String, action: Dictionary, bundle: Dictionary) -> Dictionary:

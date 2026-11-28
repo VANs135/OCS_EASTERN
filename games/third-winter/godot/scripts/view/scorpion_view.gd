@@ -1309,11 +1309,40 @@ static func _append_capture_menu(state: Dictionary, side: String, data: Dictiona
 		menu.append({"label": "夺取位移 %s · 需人工分配（面板待设计）" % hex_id, "group": "位移",
 			"actions": []})
 		return
-	var aircraft: Array = order.get("aircraft", [])
+	var aircraft: Array = capture.get("aircraft", [])
+	var groups: Array = capture.get("transports", [])
+	var flexible: Array = []
+	var complete := true
+	for entry: Dictionary in aircraft:
+		if (entry.get("destinations", []) as Array).is_empty():
+			complete = false
+		if (entry.get("destinations", []) as Array).size() > 1:
+			flexible.append(entry)
+	# 只有一枚飞机需要选落点时，直接把每个候选列成一行，玩家点哪格就落哪格。
+	if complete and groups.is_empty() and (capture.get("extenders", []) as Array).is_empty() and flexible.size() == 1:
+		var chosen: Dictionary = flexible[0]
+		var tail := str(chosen.get("id", "")).substr(str(chosen.get("id", "")).rfind(":") + 1)
+		for target: Dictionary in chosen.get("destinations", []):
+			var entries: Array = []
+			for entry: Dictionary in aircraft:
+				var pick: Dictionary = target
+				if str(entry.get("id", "")) != str(chosen.get("id", "")):
+					pick = (entry.get("destinations", []) as Array)[0]
+				entries.append({"id": str(entry.get("id", "")), "destination": pick})
+			menu.append({"label": "安置飞机 %s → %s" % [tail, _destination_name(target)], "group": "位移",
+				"actions": [{"type": "settle-capture", "aircraft": entries, "transports": []}]})
+		return
+	var filled: Array = order.get("aircraft", [])
 	var transports: Array = order.get("transports", [])
-	var summary := "%d 枚飞机、%d 支运输队" % [aircraft.size(), transports.size()]
+	var summary := "%d 枚飞机、%d 支运输队" % [filled.size(), transports.size()]
 	menu.append({"label": "安排夺取位移 %s · 按候选顺序填好（%s）" % [hex_id, summary], "group": "位移",
-		"actions": [{"type": "settle-capture", "aircraft": aircraft, "transports": transports}]})
+		"actions": [{"type": "settle-capture", "aircraft": filled, "transports": transports}]})
+
+
+static func _destination_name(target: Dictionary) -> String:
+	if str(target.get("kind", "")) == "hex":
+		return str(target.get("hex", ""))
+	return "地图外"
 
 
 ## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
