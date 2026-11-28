@@ -12,6 +12,10 @@ const CombatTerrain := preload("res://works/third-winter/rules/combat_terrain.gd
 const Stacking := preload("res://works/third-winter/rules/stacking.gd")
 const Retreat := preload("res://works/third-winter/rules/retreat.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
+const Remnants := preload("res://works/third-winter/rules/remnants.gd")
+
+## 战斗结果侧栏一次最多铺开的合法分配行数；超出时优先保留「不吃选项」与「吃满选项」。
+const RESOLVE_OPTION_LIMIT := 24
 
 
 ## 掷一局正规战斗。rolls 为 CombatRolls（绑本局 rng），按 TS 顺序抽 surprise(2d6)→shift(1d6)→combat(2d6)。
@@ -300,6 +304,141 @@ static func advance(state: Dictionary, side: String, ids: Array, data: Dictionar
 	advanced = entry_res.value
 	advanced["combat"] = null
 	return Result.success({"state": advanced, "entrants": entrants})
+
+
+## 战果侧栏：把当前一方的结果义务展开成合法的 `resolve-combat` action 列表。
+## 每个 action 已按 §9.11c 轮转规则排好 lossOrder；若某师会被消灭且残部有多个落点，
+## 再按落点组合展开（同一条 action 里带上 `remnants`）。无效状态或超限时返回空/截断列表。
+static func resolve_options(state: Dictionary, actor: String, data: Dictionary) -> Array:
+	var combat: Variant = state.get("combat")
+	if not (combat is Dictionary) or combat.get("roll") == null or combat.get("retreat") != null:
+		return []
+	var attacker_side := str(combat.get("attacker", ""))
+	var attacker: bool = str(combat.get("step", "")) == "attacker-result"
+	var expected := attacker_side if attacker else ("soviet" if attacker_side == "axis" else "axis")
+	if actor != expected:
+		return []
+	var ids: Array = combat.get("attackers", []) if attacker else combat.get("defenders", [])
+	var leader := str(combat.get("attackerLeader") if attacker else combat.get("defenderLeader"))
+	var result: Dictionary = combat.get("roll", {}).get("attacker" if attacker else "defender", {})
+	var units: Dictionary = state.get("units", {})
+	var available_by_id := {}
+	var available := 0
+	for id: String in ids:
+		var unit: Dictionary = units.get(id, {})
+		if unit.is_empty():
+			return []
+		var remaining := CombatLosses.remaining(unit)
+		available_by_id[id] = remaining
+		available += remaining
+	var mandatory: int = mini(available, int(result.get("loss", 0)))
+	var options: int = int(result.get("option", 0))
+	var max_options: int = mini(options, available - mandatory)
+	var ignore_allowed: bool = not attacker and combat.get("defenderMayIgnore", false) == true
+	var option_values: Array = [0]
+	if max_options > 0:
+		option_values.append(max_options)
+		for value in range(1, max_options):
+			option_values.append(value)
+	var choices: Array = []
+	for option_losses: int in option_values:
+		choices.append({"ignore": false, "optionLosses": option_losses})
+	if ignore_allowed and options > 0:
+		choices.append({"ignore": true, "optionLosses": 0})
+	var entries: Array = []
+	for choice: Dictionary in choices:
+		var obligations: Dictionary = _combat_obligations(result, available,
+			{"ignoreOption": choice.ignore, "optionLosses": choice.optionLosses})
+		if not obligations.ok:
+			continue
+		var required := int(obligations.value.totalLosses)
+		var orders: Array = _loss_orders(ids, leader, required, available_by_id, RESOLVE_OPTION_LIMIT)
+		for order: Array in orders:
+			if entries.size() >= RESOLVE_OPTION_LIMIT:
+				return entries
+			var assigned := {}
+			for id: String in order:
+				assigned[id] = int(assigned.get(id, 0)) + 1
+			var doomed: Array = []
+			for id: String in ids:
+				if int(available_by_id[id]) > 0 and int(assigned.get(id, 0)) >= int(available_by_id[id]):
+					doomed.append(id)
+			var remnant_plan: Dictionary = _remnant_plan(state, doomed, data)
+			for combo: Array in remnant_plan.combos:
+				if entries.size() >= RESOLVE_OPTION_LIMIT:
+					return entries
+				var action := {"type": "resolve-combat", "lossOrder": order.duplicate(true),
+					"optionLosses": int(choice.optionLosses),
+					"ignoreDefenderOption": bool(choice.ignore), "retreats": [],
+					"remnants": combo.duplicate(true)}
+				entries.append({"action": action, "totalLosses": required,
+					"optionLosses": int(choice.optionLosses), "ignore": bool(choice.ignore),
+					"retreatDistance": int(obligations.value.retreatDistance),
+					"doomed": doomed.duplicate(), "remnantsFor": remnant_plan.ids.duplicate(),
+					"remnants": combo.duplicate(true)})
+	return entries
+
+
+## §9.11c 轮转：第一点必须由 AR 领导单位承受；之后每一点只能落在累计点数最少且未耗尽的参战单位上。
+static func _loss_orders(ids: Array, leader: String, required: int, remaining: Dictionary,
+		limit: int) -> Array:
+	if required <= 0:
+		return [[]]
+	if leader == "" or not ids.has(leader):
+		return []
+	var assigned := {}
+	for id: String in ids:
+		assigned[id] = 0
+	var out: Array = []
+	_walk_loss_orders(out, [], assigned, ids, leader, required, remaining, limit)
+	return out
+
+
+static func _walk_loss_orders(out: Array, order: Array, assigned: Dictionary, ids: Array,
+		leader: String, required: int, remaining: Dictionary, limit: int) -> void:
+	if order.size() >= required:
+		out.append(order.duplicate(true))
+		return
+	if out.size() >= limit:
+		return
+	var least := 1 << 30
+	for id: String in ids:
+		if int(assigned[id]) < int(remaining[id]):
+			least = mini(least, int(assigned.get(id, 0)))
+	for id: String in ids:
+		if int(assigned[id]) >= int(remaining[id]) or int(assigned[id]) != least:
+			continue
+		if order.is_empty() and id != leader:
+			continue
+		order.append(id)
+		assigned[id] = int(assigned.get(id, 0)) + 1
+		_walk_loss_orders(out, order, assigned, ids, leader, required, remaining, limit)
+		assigned[id] = int(assigned.get(id, 0)) - 1
+		order.pop_back()
+
+
+## 多落点残部按组合展开；无可放置残部的被毁单位不进入 `ids`，单落点仍由规则层自动处理。
+static func _remnant_plan(state: Dictionary, doomed: Array, data: Dictionary) -> Dictionary:
+	var groups: Array = []
+	var ids: Array = []
+	for id: String in doomed:
+		var unit: Dictionary = state.get("units", {}).get(id, {})
+		var choices: Array = Remnants.destinations(state, unit, data)
+		if choices.is_empty():
+			continue
+		ids.append(id)
+		if choices.size() > 1:
+			groups.append({"divisionId": id, "choices": choices})
+	var combos: Array = [[]]
+	for group: Dictionary in groups:
+		var next: Array = []
+		for base: Array in combos:
+			for hex: String in group.choices:
+				var item: Array = base.duplicate(true)
+				item.append({"divisionId": str(group.divisionId), "hex": hex})
+				next.append(item)
+		combos = next
+	return {"ids": ids, "combos": combos}
 
 
 ## OCS 8.1g / 突袭收尾：守方清空且攻方未撤时全部存活者自动进格（无拆分订单），

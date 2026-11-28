@@ -7,6 +7,7 @@ extends RefCounted
 const HexLayout := preload("res://scripts/view/hex_layout.gd")
 const Reinforcement := preload("res://works/third-winter/rules/reinforcement.gd")
 const Combat := preload("res://works/third-winter/rules/combat.gd")
+const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const Barrage := preload("res://works/third-winter/rules/barrage.gd")
 const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
@@ -1892,9 +1893,10 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 				menu.append({"label": "选择%s，结算奇袭与战斗" % _terrain_name(terrain), "group": "地面战斗",
 					"actions": [{"type": "choose-combat-terrain", "terrain": terrain, "attackingTerrain": attacking}]})
 		"resolve-combat":
-			menu.append({"label": "结算战斗战果", "group": "地面战斗",
-				"actions": [{"type": "resolve-combat", "lossOrder": [], "optionLosses": 0,
-					"ignoreDefenderOption": false, "retreats": [], "remnants": []}]})
+			var options: Array = CombatResult.resolve_options(state, side, data)
+			for option: Dictionary in options:
+				menu.append({"label": _combat_result_label(state, option, data), "group": "地面战斗",
+					"actions": [option.action]})
 		"advance-after-combat":
 			menu.append({"label": "放弃战后推进", "group": "地面战斗",
 				"actions": [{"type": "advance-after-combat", "unitIds": []}]})
@@ -1905,6 +1907,38 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 		"continue-combat-retreat":
 			menu.append({"label": "继续撤退 · 原地续跑", "group": "地面战斗",
 				"actions": [{"type": "continue-combat-retreat"}]})
+
+
+## 战果行的可读摘要：损失步数、可选损失、后撤距离，以及会被消灭的师与其残部落点。
+static func _combat_result_label(state: Dictionary, entry: Dictionary, data: Dictionary) -> String:
+	var parts: Array = []
+	var losses := int(entry.get("totalLosses", 0))
+	if losses > 0:
+		parts.append("结算 %d 步" % losses)
+	else:
+		parts.append("结算无损失")
+	if int(entry.get("optionLosses", 0)) > 0:
+		parts.append("含 %d 可选" % int(entry.get("optionLosses", 0)))
+	if entry.get("ignore", false) == true:
+		parts.append("忽略选项")
+	if int(entry.get("retreatDistance", 0)) > 0:
+		parts.append("后撤 %d 格" % int(entry.get("retreatDistance", 0)))
+	var doomed: Array = entry.get("remnantsFor", [])
+	if not doomed.is_empty():
+		var remnants: Array = entry.get("remnants", [])
+		var segments: Array = []
+		for id: String in doomed:
+			var hex := ""
+			for remnant: Dictionary in remnants:
+				if str(remnant.get("divisionId", "")) == id:
+					hex = str(remnant.get("hex", ""))
+					break
+			var segment := _unit_name(state, id, data)
+			if hex != "":
+				segment += "→" + hex
+			segments.append(segment)
+		parts.append("残部 " + "、".join(segments))
+	return " · ".join(parts)
 
 
 static func _append_barrage_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:
