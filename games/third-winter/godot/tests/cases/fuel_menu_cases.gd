@@ -55,6 +55,54 @@ static func run(ctx: Dictionary) -> void:
 			"运输队油量 3→2 · 实 %d" % int(next.units.truck.get("transportCargoTokens", -1)))
 
 
+	## 批量油：编队行只列能喂满全编队的来源，规则层付 4T 并盖标记。
+	var bulk_menu: Array = ScorpionView.menu_entries(_state(), "soviet", {"unitId": "tank"}, bundle)
+	expect.call(_count_type(bulk_menu, "fuel-formation") == 1, "编队批量油出行 · 实 %d" % _count_type(bulk_menu, "fuel-formation"))
+	var paid_formation: Dictionary = Fuel.buy_formation_fuel(_state(), "soviet", "1st", "",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	expect.call(paid_formation.ok, "编队批量油付账成功 · " + str(paid_formation.get("errorCode", "")))
+	if paid_formation.ok:
+		var bulk: Dictionary = paid_formation.value
+		expect.call(Fuel.has_bulk_fuel(bulk, "tank") and Fuel.has_bulk_fuel(bulk, "inf"),
+			"批量油标记覆盖坦克与步兵")
+		expect.call(int((bulk.dumps["soviet:hex:s1.14"] as Dictionary).get("tokens", -1)) == 2,
+			"补给堆 6T→2T · 实 %d" % int((bulk.dumps["soviet:hex:s1.14"] as Dictionary).get("tokens", -1)))
+		var again: Dictionary = Fuel.buy_formation_fuel(bulk, "soviet", "1st", "",
+			[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+		expect.call(not again.ok and str(again.get("errorCode", "")) == "fuel_formation_active",
+			"同一编队不能重复盖批量油 · " + str(again.get("errorCode", "")))
+	## 司令部批量油：选中司令部才出行，付 4T 后盖 headquartersFuel。
+	var hq_menu: Array = ScorpionView.menu_entries(_state(), "soviet", {"unitId": "hq"}, bundle)
+	expect.call(_count_type(hq_menu, "fuel-headquarters") == 1, "司令部批量油出行 · 实 %d" % _count_type(hq_menu, "fuel-headquarters"))
+	var paid_hq: Dictionary = Fuel.buy_headquarters_fuel(_state(), "soviet", "hq",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	expect.call(paid_hq.ok, "司令部批量油付账成功 · " + str(paid_hq.get("errorCode", "")))
+	if paid_hq.ok:
+		var hq_state: Dictionary = paid_hq.value
+		expect.call(Fuel.has_bulk_fuel(hq_state, "hq"), "司令部拿到批量油标记")
+		expect.call((hq_state.get("headquartersFuel", []) as Array).size() == 1, "headquartersFuel 记一笔")
+		var hq_again: Dictionary = Fuel.buy_headquarters_fuel(hq_state, "soviet", "hq",
+			[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+		expect.call(not hq_again.ok and str(hq_again.get("errorCode", "")) == "fuel_headquarters_active",
+			"同一司令部不能重复盖批量油 · " + str(hq_again.get("errorCode", "")))
+	## 窗口：解冻时批量油被拒。
+	var thaw := _state()
+	thaw.turn.weather.ground = "thaw"
+	var thaw_buy: Dictionary = Fuel.buy_formation_fuel(thaw, "soviet", "1st", "",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	expect.call(not thaw_buy.ok and str(thaw_buy.get("errorCode", "")) == "fuel_window",
+		"解冻时不给批量油 · " + str(thaw_buy.get("errorCode", "")))
+
+
+static func _count_type(menu: Array, type_name: String) -> int:
+	var count := 0
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			if str(action.get("type", "")) == type_name:
+				count += 1
+	return count
+
+
 static func _has_fuel_row(menu: Array) -> bool:
 	for row: Dictionary in menu:
 		for action: Dictionary in row.get("actions", []):
@@ -70,13 +118,16 @@ static func _state() -> Dictionary:
 			"step": {"kind": "player-turn"}},
 		"cursor": {"turn": 1, "phasing": "soviet", "phase": "movement"},
 		"units": {
-			"tank": {"side": "soviet", "combat": true, "mobility": "tank", "hex": "s1.14",
+			"tank": {"side": "soviet", "combat": true, "mobility": "track", "hex": "s1.14",
 				"fueled": false, "formation": "1st", "allowance": 6},
+			"inf": {"side": "soviet", "combat": true, "mobility": "leg", "hex": "s1.14",
+				"fueled": false, "formation": "1st", "allowance": 3},
+			"hq": {"side": "soviet", "headquarters": true, "hex": "s1.14", "formation": "1st"},
 			"truck": {"side": "soviet", "hex": "s1.14", "transportCargoTokens": 3},
 		},
 		"groundActivity": {"transport": {"unitId": "truck"}},
 		"moved": [],
-		"dumps": {},
+		"dumps": {"soviet:hex:s1.14": {"side": "soviet", "location": "on-map", "tokens": 6}},
 	}
 
 

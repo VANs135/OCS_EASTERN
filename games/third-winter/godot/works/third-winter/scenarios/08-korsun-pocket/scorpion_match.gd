@@ -53,6 +53,12 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	if action.get("type") == "fuel-from-paused-transport":
 		return Fuel.fuel_from_transport(state, actor, str(action.get("unitId", "")),
 			str(action.get("transportId", "")), data)
+	if action.get("type") == "fuel-formation":
+		return Fuel.buy_formation_fuel(state, actor, str(action.get("formation", "")),
+			str(action.get("headquartersId", "")), action.get("payments", []), data)
+	if action.get("type") == "fuel-headquarters":
+		return Fuel.buy_headquarters_fuel(state, actor, str(action.get("headquartersId", "")),
+			action.get("payments", []), data)
 	if action.get("type") == "complete-movement":
 		return SupplyPhase.complete_movement(state, actor, data)
 	if action.get("type") == "check-attrition":

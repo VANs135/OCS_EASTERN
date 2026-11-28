@@ -1229,17 +1229,13 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
 
 
-## OCS 12.5c(C) — 暂驻运输队给选中算子付 1T（`fuel-from-paused-transport`）。
-## 只有运输队真的停在 `groundActivity.transport` 时才出行；能否抽到、够不够 T 由规则层复核。
+## OCS 12.5c — 暂驻运输队给选中算子付 1T（`fuel-from-paused-transport`），以及选中算子所在
+## 编队/司令部的批量油（`fuel-formation` / `fuel-headquarters`，4T）。行只列规则层允许的来源，
+## 真正扣账仍交给 fuel.gd 复核。
 static func _append_transport_fuel_menu(state: Dictionary, side: String, selection: Dictionary,
 		data: Dictionary, menu: Array) -> void:
-	if str(state.get("cursor", {}).get("phase", "")) != "movement":
-		return
-	var paused: Variant = state.get("groundActivity", {}).get("transport")
-	if paused == null or not paused is Dictionary:
-		return
-	var transport_id := str((paused as Dictionary).get("unitId", ""))
-	if transport_id.is_empty():
+	var phase := str(state.get("cursor", {}).get("phase", ""))
+	if not ["movement", "reaction", "exploitation"].has(phase):
 		return
 	var unit_id := ""
 	var ids: Array = selection.get("unitIds", [])
@@ -1247,23 +1243,77 @@ static func _append_transport_fuel_menu(state: Dictionary, side: String, selecti
 		unit_id = str(selection.unitId)
 	elif ids.size() == 1:
 		unit_id = str(ids[0])
-	if unit_id.is_empty() or unit_id == transport_id:
+	if unit_id.is_empty():
 		return
 	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
 	if unit.is_empty() or str(unit.get("side", "")) != side:
+		return
+	var ledger := SpPayment.new(state, side, data)
+	_append_bulk_fuel_rows(state, side, unit_id, unit, ledger, menu)
+	if phase != "movement":
+		return
+	var paused: Variant = state.get("groundActivity", {}).get("transport")
+	if paused == null or not paused is Dictionary:
+		return
+	var transport_id := str((paused as Dictionary).get("unitId", ""))
+	if transport_id.is_empty() or unit_id == transport_id:
 		return
 	if not Fuel.needs_fuel(unit, side) or Fuel.has_bulk_fuel(state, unit_id):
 		return
 	var transport: Dictionary = state.get("units", {}).get(transport_id, {})
 	if transport.is_empty() or str(transport.get("side", "")) != side:
 		return
-	var ledger := SpPayment.new(state, side, data)
 	var source: Dictionary = ledger.source(transport_id)
 	if (source.get("truck", {}) as Dictionary).is_empty() or int(source.get("tokens", 0)) < Fuel.SINGLE_UNIT_FUEL_COST:
 		return
 	var tail := transport_id.substr(transport_id.rfind(":") + 1)
 	menu.append({"label": "由暂驻运输队 %s 加油（1T）" % tail, "group": "加油",
 		"actions": [{"type": "fuel-from-paused-transport", "unitId": unit_id, "transportId": transport_id}]})
+
+
+static func _append_bulk_fuel_rows(state: Dictionary, side: String, unit_id: String, unit: Dictionary,
+		ledger: RefCounted, menu: Array) -> void:
+	if not Fuel.bulk_window(state, side):
+		return
+	var hq_id := unit_id if unit.get("headquarters") == true else ""
+	var formation := str(unit.get("formation", ""))
+	if hq_id.is_empty() and formation.is_empty():
+		return
+	if not hq_id.is_empty():
+		for marker: Variant in state.get("headquartersFuel", []):
+			if str((marker as Dictionary).get("id", "")) == hq_id:
+				return
+		for source: Dictionary in ledger.available([unit]):
+			var dump_id := str(source.get("dumpId", ""))
+			if int(source.get("tokens", 0)) < Fuel.BULK_FUEL_COST:
+				continue
+			menu.append({"label": "为司令部 %s 买批量油（4T · %s）" % [ _tail(hq_id), _tail(dump_id) ], "group": "加油",
+				"actions": [{"type": "fuel-headquarters", "headquartersId": hq_id,
+					"payments": [{"dumpId": dump_id, "tokens": Fuel.BULK_FUEL_COST}]}]})
+		return
+	for fuel: Variant in state.get("formationFuel", []):
+		if str((fuel as Dictionary).get("formation", "")) == formation \
+				and str((fuel as Dictionary).get("side", "")) == side:
+			return
+	var members: Array = []
+	for id: String in state.get("units", {}):
+		var member: Dictionary = state.units[id]
+		if member.get("combat") == true and str(member.get("side", "")) == side \
+				and str(member.get("formation", "")) == formation:
+			members.append(member)
+	if members.is_empty():
+		return
+	for source: Dictionary in ledger.available(members):
+		var dump_id := str(source.get("dumpId", ""))
+		if int(source.get("tokens", 0)) < Fuel.BULK_FUEL_COST:
+			continue
+		menu.append({"label": "为编队 %s 买批量油（4T · %s）" % [formation, _tail(dump_id)], "group": "加油",
+			"actions": [{"type": "fuel-formation", "formation": formation,
+				"payments": [{"dumpId": dump_id, "tokens": Fuel.BULK_FUEL_COST}]}]})
+
+
+static func _tail(id: String) -> String:
+	return id.substr(id.rfind(":") + 1)
 
 
 static func _neighbors(data: Dictionary) -> Dictionary:
