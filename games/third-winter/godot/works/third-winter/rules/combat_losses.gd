@@ -76,8 +76,12 @@ static func apply_losses(state: Dictionary, allocation: Dictionary, data: Dictio
 		current = lost.value
 		var headquarters: Variant = unit.get("headquarters")
 		if headquarters is Dictionary and headquarters.get("kessel") == true and not current.get("units", {}).has(id):
-			# 缺口：Kessel 司令部离场后的 kesselReturns 返还回合未结算。
-			pending_kessel.append({"unitId": id, "definition": str(unit.get("definition", ""))})
+			## TTW 2.3a：Kessel 司令部被毁或离场后三回合方可再放，返回账本随损失一起落盘。
+			var returns: Dictionary = current.get("kesselReturns", {}).duplicate()
+			returns[str(unit.get("definition", ""))] = int(current.get("turn", {}).get("number", 1)) + 3
+			current["kesselReturns"] = returns
+			pending_kessel.append({"unitId": id, "definition": str(unit.get("definition", "")),
+				"availableFromTurn": int(current.get("turn", {}).get("number", 1)) + 3})
 		var placed_remnant := false
 		if str(unit.get("side", "")) == "axis" and not current.get("units", {}).has(id):
 			## TTW 2.4d：合格轴心师打光即生成残部；非师级 / 非合格单位留在死人堆，不进残部。

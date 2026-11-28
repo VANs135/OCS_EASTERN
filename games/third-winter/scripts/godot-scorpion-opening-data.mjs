@@ -56,6 +56,10 @@ const counterIds = referencedIds.filter((id) => deployableDefinition(id))
 for (const remnantId of ['land:id:3999', 'land:id:4499']) {
   if (deployableDefinition(remnantId) && !counterIds.includes(remnantId)) counterIds.push(remnantId)
 }
+// Kessel slots deploy from the card even when no counter is on the opening board.
+for (const kesselId of ['hq:id:4150', 'hq:id:4151']) {
+  if (deployableDefinition(kesselId) && !counterIds.includes(kesselId)) counterIds.push(kesselId)
+}
 // Counter template each entry clones: the exact deployScorpionGroundCounter output with the hex
 // stripped, so the native session never re-derives ground profiles by hand.
 const counters = Object.fromEntries(counterIds.map((id) => {

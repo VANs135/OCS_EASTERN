@@ -18,6 +18,7 @@ const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const Fuel := preload("res://works/third-winter/rules/fuel.gd")
 const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
+const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1137,11 +1138,39 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	_append_move_menu(state, side, selection, data, menu)
 	_append_transport_fuel_menu(state, side, selection, data, menu)
 	_append_repack_rows(state, side, selection, data, menu)
+	_append_kessel_rows(state, side, selection, data, menu)
 	_append_engage_menu(state, side, selection, data, menu)
 	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
 	_append_barrage_menu(state, side, selection, data, menu)
 	return menu
+
+
+## TTW 2.3a / Q05 — 轴心增援阶段可把 Kessel 司令部放回有本方战斗算子的格，或把盘上的移除。
+static func _append_kessel_rows(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	if not Kessel.window(state, side):
+		return
+	var unit_id := _selected_unit_id(selection)
+	if not unit_id.is_empty():
+		var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+		var headquarters: Variant = unit.get("headquarters")
+		if headquarters is Dictionary and (headquarters as Dictionary).get("kessel") == true \
+				and str(unit.get("side", "")) == side:
+			menu.append({"label": "移除 Kessel 司令部 %s" % _tail(unit_id), "group": "Kessel",
+				"actions": [{"type": "remove-kessel-hq", "unitId": unit_id}]})
+			return
+	var hex := str(selection.get("hex", ""))
+	if hex.is_empty() and not unit_id.is_empty():
+		hex = str(state.get("units", {}).get(unit_id, {}).get("hex", ""))
+	if hex.is_empty():
+		return
+	for slot: Dictionary in Kessel.slots(state, data):
+		if not slot.get("ready", false):
+			continue
+		menu.append({"label": "部署 Kessel 司令部 %s · 格 %s" % [_tail(str(slot.definition)), hex],
+			"group": "Kessel", "actions": [{"type": "place-kessel-hq",
+				"definition": str(slot.definition), "hex": hex}]})
 
 
 static func _append_unit_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary, menu: Array) -> void:

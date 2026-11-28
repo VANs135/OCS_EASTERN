@@ -20,6 +20,7 @@ const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 const TransportPoints := preload("res://works/third-winter/rules/transport_points.gd")
+const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -62,6 +63,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 			action.get("payments", []), data)
 	if action.get("type") == "repack-transport":
 		return TransportPoints.repack(state, actor, action, data)
+	if action.get("type") in ["place-kessel-hq", "remove-kessel-hq"]:
+		return Kessel.apply(state, actor, action, data)
 	if action.get("type") == "complete-movement":
 		return SupplyPhase.complete_movement(state, actor, data)
 	if action.get("type") == "check-attrition":
