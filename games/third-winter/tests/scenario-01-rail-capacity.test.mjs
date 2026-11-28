@@ -9,7 +9,7 @@ import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
-import { openCampaignMatch } from '../src/match/campaign-match.ts'
+import { applyCampaignTurn, openCampaignMatch } from '../src/match/campaign-match.ts'
 import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
 import { applyCampaignRailTransport, campaignRailLoading, campaignRailStatus } from '../src/match/campaign-rail-transport.ts'
 import { dnieperRailCapacity } from '../src/match/dnieper-rail-capacity.ts'
@@ -114,6 +114,36 @@ test('scenario 01 real rail cargo rides the broad gauge and unloads only at a de
     'an ordinary rail hex is not a cargo unload site')
   assert.deepEqual(applyRefusal(turnSix, boards, ['D55.5', 'D54.5']), 'rail-wrong-gauge',
     'the standard-gauge approach is not usable by Soviet rail')
+})
+
+test('scenario 01 only a real rail repair unit may convert the entered rail hex', async () => {
+  const { state, boards } = await load()
+  const turnSix = {
+    ...state, turn: 6, weather: { ...state.weather, ground: 'dry' },
+    cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' }, movementSegment: 'movement',
+  }
+  assert.equal(boards.groundMovement.railNetwork.isRepairUnit(turnSix, 'campaign-setup:5'), true,
+    'Sov 4.Ukr Rail Repair carries rail_repair')
+  assert.equal(boards.groundMovement.railNetwork.isRepairUnit(turnSix, 'campaign-setup:4'), false,
+    'an ordinary land unit does not carry rail_repair')
+
+  const work = {
+    type: 'move-campaign-ground',
+    movers: [{ id: 'campaign-setup:5', railWork: [{ step: 1, connections: ['D53.5'] }] }],
+    path: ['D54.5'],
+  }
+  const settled = applyCampaignTurn(turnSix, 'soviet', work, { groundMovement: boards.groundMovement })
+  assert.deepEqual(settled.counters['campaign-setup:5'].location, { kind: 'map', hex: 'D54.5' })
+  assert.equal(settled.railGaugeByEdge['D54.5|D55.5'], 'broad',
+    'entry edge D55.5–D54.5 switches to Soviet broad gauge')
+  assert.equal(settled.railGaugeByEdge['D53.5|D54.5'], 'broad',
+    'the whole hex converts, including the outgoing edge toward D53.5')
+  assert.equal(settled.groundMovement.railConversionCount['campaign-setup:5'], 1)
+  assert.deepEqual(settled.groundMovement.railConvertedHexes, ['D54.5'])
+
+  assert.throws(() => applyCampaignTurn(turnSix, 'soviet', {
+    ...work, movers: [{ id: 'campaign-setup:4', railWork: [{ step: 1, connections: ['D53.5'] }] }],
+  }, { groundMovement: boards.groundMovement }), /rail-repair-unit-required/)
 })
 
 function applyRefusal(state, boards, path) {

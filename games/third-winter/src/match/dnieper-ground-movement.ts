@@ -48,7 +48,15 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
       detrainableSites.add(hex)
     }
   }
-  const railNetwork = railheads?.length ? dnieperRailNetwork({ map, railAt: terrain.railAt }, railheads) : undefined
+  const baseRailNetwork = railheads?.length ? dnieperRailNetwork({ map, railAt: terrain.railAt }, railheads) : undefined
+  const railNetwork = baseRailNetwork && {
+    ...baseRailNetwork,
+    // 13.3f：换轨只能由带 rail_repair 能力的铁路工兵执行，普通单位不能改轨距。
+    isRepairUnit: (state: Readonly<CampaignTurnState>, id: string) => {
+      const counter = state.counters[id]
+      return counter !== undefined && definitions[counter.definition]?.source.abilities?.includes('rail_repair') === true
+    },
+  }
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
     hqKind: definition.source.hqKind,

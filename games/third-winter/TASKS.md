@@ -206,6 +206,7 @@
 - [x] 2026-11-27，09 进格 9.14b dump 夺取接入移动板。`campaign-movement-board` 增加非交互 `resolveEntry` 钩子，`campaign-ground-march` 在每次进格后调用；新增 `campaign-dump-capture.ts` 只按 series 9.14b 向量表掷骰、扣除原主 dump、把夺取部分加到进入方。9.14c 运输点需要原主选择余部位移，9.14f 机场需要机损窗口，均未用自动猜测混入本钩子。09 实库 09.14b 可在进入敌方 dump 格时结算；无可攻击单位进入时不触发、不掷骰，空 dump 格不消耗 RNG。
 - [x] 2026-11-27，9.14e 工事夺取与 9.14b 组合为单一进格入口。`captureCampaignHedgehog` 只在敌方可攻击单位进入时触发：2 级工事降为进入方 1 级，1 级工事移除；友军进入、无可攻击单位、无工事均原样返回。`campaign-entry-capture.ts` 按 9.14b→9.14e 顺序组合，09 地面移动板与会话战斗板共用该入口；09 无印刷工事，当前不改变 09 开局，但通规夺取入口已补齐。3 例合成。
 - [x] 2026-11-27，9.14c 通规组级规则下沉 `packages/series`。新增 `transport-capture.ts`：按 MA>10/≤10 分卡车/马车组、组内先合计再按 series 夺取向量表取整（SP/T 同比例）、组内子集优先分配、原主勾选校验（重复/未知算子拒绝，拼不出表值时 `exact=false` 如实报告）、位移候选按 10/5 格且不被敌情/地形过滤。该层只给规则与默认方案；09 的实际运输点算子窗口、原主选择和余部位移落点仍待接，不能用自动位移冒充。
+- [x] 2026-11-27，01 铁路工兵换轨接入生产移动板。`dnieperGroundMovement` 的 `railNetwork` 新增 `isRepairUnit`，按真实算子定义 `abilities` 含 `rail_repair` 判定；`campaign-rail-conversion` 的 13.3f-B 整格换轨因此可用。实库 `D55.5` 的 `Sov 4.Ukr Rail Repair`（`campaign-setup:5`/`land:id:2497`）进入标准轨 `D54.5`，`D53.5|D54.5` 与 `D54.5|D55.5` 同时改宽轨；同格普通 `campaign-setup:4` 被 `rail-repair-unit-required` 拒绝。`tests/scenario-01-rail-capacity.test.mjs`。
 - [ ] 09 剩余绑定：HQ throw 补给与进格夺取/堆叠等移动义务；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头图标和双方预备库存接实际状态与 UI；完整 B9 七步仍不在本子集内。
 - [x] 按确认口径，08 的 `s5.16` 和 `s21.04` 分别有 2 点、3 点卡车及 9 SP、10 SP。开局具象补给合计 126T，实库审计分别校验卡车运输点数和补给。
 - [ ] 收敛其他地图接缝和河流数据待核。2026-11-25 的实库导入已不报 09 接缝缺失，仍有 135 条临时河边待目视确认，由项目方维护地图源。
