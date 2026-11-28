@@ -15,6 +15,7 @@ import { dnieperRailBoard } from './dnieper-rail-board.ts'
 import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import { campaignFortressBoards } from './campaign-fortress-board.ts'
 import type { CampaignFortressHooks } from './campaign-fortress-board.ts'
+import { campaignHqHooks, type CampaignHqCatalog } from './campaign-hq-boards.ts'
 import { dnieperKesselBoard, dnieperKesselPlacementBoard } from './dnieper-kessel.ts'
 
 type Playable = ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>
@@ -50,13 +51,29 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
     options.airBase, transportCapture, extenderWork, edgeSupplySourcesForTurn, input.railheads)
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   const fortressBoard = dnieperFortressBoards(input)
-  const railTransport = dnieperRailBoard({ map: input.playable, exitRefusal: fortressBoard.exitRefusal })
+  const railTransport = dnieperRailBoard({
+    map: input.playable,
+    exitRefusal: fortressBoard.exitRefusal,
+    hqRail: dnieperHqHooks(input.catalog.definitions).hqRail,
+  })
   const kesselPlacement = dnieperKesselPlacementBoard(input.playable, input.catalog.definitions)
   const kesselBoard = dnieperKesselBoard(input.playable, input.terrain, input.catalog.definitions)
   return {
     groundMovement, transportCapture, extenderWork, stacking, fortressBoard, railTransport,
     kesselPlacement, kesselBoard, edgeSupplySourcesForTurn,
   }
+}
+
+/** 01 真实 HQ 铁路事实：Army HQ 免起止站、Army Group HQ 仍需可卸载格；都按 1 RE。 */
+function dnieperHqHooks(definitions: ReadonlyMap<string, Definition<BackupUnit>>) {
+  const catalog: CampaignHqCatalog = Object.fromEntries([...definitions].map(([key, definition]) => [key, {
+    hqKind: definition.source.hqKind,
+    catalogKind: definition.kind,
+    railOnly: definition.source.railOnly,
+    railCapRe: definition.source.railCapRe,
+    mustBeCity: definition.source.mustBeCity,
+  }]))
+  return campaignHqHooks(catalog)
 }
 
 /** 01 真实要塞池：8 枚德军要塞＋1 枚罗军要塞，已上盘的 4 枚由 `fortressUnit` 自动排除。 */

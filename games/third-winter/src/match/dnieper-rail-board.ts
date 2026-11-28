@@ -10,6 +10,8 @@ export interface DnieperRailBoardInput {
   map: Pick<TtwCampaignMapIndex, 'neighbors'>
   /** TTW §2.4a：城内轴心单位不得自愿铁路出城。 */
   exitRefusal?: (state: import('./campaign-turn-state.ts').CampaignTurnState, id: string, from: string, to: string) => string | null
+  /** TTW §2.3b/c：轴心 Army/Army Group HQ 的铁路特例。 */
+  hqRail?: (state: import('./campaign-turn-state.ts').CampaignTurnState, id: string) => { railRe: number; waiveDetrainable: boolean } | undefined
 }
 
 export function dnieperRailBoard(input: DnieperRailBoardInput): CampaignRailBoard {
@@ -20,5 +22,6 @@ export function dnieperRailBoard(input: DnieperRailBoardInput): CampaignRailBoar
     trainbustingAt: (state, side, hex) =>
       inTrainbustingZone(state.trainbusting ?? [], side, hex, input.map.neighbors, 'rail'),
     ...(input.exitRefusal ? { exitRefusal: input.exitRefusal } : {}),
+    ...(input.hqRail ? { hqRail: input.hqRail } : {}),
   }
 }
