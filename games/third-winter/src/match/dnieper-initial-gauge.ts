@@ -73,6 +73,36 @@ export function dnieperRailNetwork(input: DnieperRailSource, railheads: readonly
   }
 }
 
+/**
+ * 剧本 01 开局铁路控制台账。普通格按项目约定不持久记账，但 OCS 13.3c 的铁路 trace
+ * 要在可卸载格（TTW 1.2b：所有有铁路格）通过时要求本方控制。开局战线按轨距落账：
+ * 宽轨段归苏军、标准轨段归德军；同一格两侧轨距相反（换轨点）则不写控制，除非该格
+ * 是剧本书明的 Railhead（以 Railhead 所属方为准）。这不是战斗占领记录，后续仍由
+ * `hexControl` 的夺取/清理更新覆盖。
+ */
+export function dnieperInitialRailControl(input: DnieperRailSource,
+  railheads: readonly DnieperRailhead[]): Record<string, 'axis' | 'soviet'> {
+  const gauges = dnieperInitialRailGauge(input)
+  const owners = new Map<string, Set<'axis' | 'soviet'>>()
+  const note = (hex: string, side: 'axis' | 'soviet') => {
+    const set = owners.get(hex) ?? new Set()
+    set.add(side)
+    owners.set(hex, set)
+  }
+  for (const from of input.map.availableHexes ?? []) {
+    for (const to of input.map.neighbors(from)) {
+      if (!input.railAt(from, to)) continue
+      const side = gauges[edgeKey(from, to)] === 'broad' ? 'soviet' : 'axis'
+      note(from, side)
+      note(to, side)
+    }
+  }
+  const control: Record<string, 'axis' | 'soviet'> = {}
+  for (const [hex, sides] of owners) if (sides.size === 1) control[hex] = [...sides][0]!
+  for (const marker of railheads) control[input.map.resolveHex(marker.hex) ?? marker.hex] = marker.side
+  return control
+}
+
 function railPath(map: DnieperRailSource['map'], railAt: DnieperRailSource['railAt'],
   railEdges: ReadonlySet<string>, from: string, to: string): readonly string[] | undefined {
   const pending = [from]

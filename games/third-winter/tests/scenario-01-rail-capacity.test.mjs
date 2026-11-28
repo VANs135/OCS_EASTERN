@@ -85,6 +85,8 @@ test('scenario 01 production rail board reports the dated capacity and opens onl
   const loadAtSix = campaignRailLoading(turnSix, 'soviet', atRailhead, boards.railTransport, boards.groundMovement)
   assert.equal(loadAtSix.ok, true)
   assert.equal(loadAtSix.remainingCapacity, 7.5)
+  assert.ok(loadAtSix.counters?.some((counter) => counter.id === 'campaign-setup:4'),
+    'D55.5 must offer the real Soviet land unit after the railhead control baseline')
 
   const combat = { ...turnSix, cursor: { first: 'soviet', phasing: 'soviet', phase: 'combat' } }
   assert.deepEqual(campaignRailLoading(combat, 'soviet', atRailhead, boards.railTransport, boards.groundMovement),

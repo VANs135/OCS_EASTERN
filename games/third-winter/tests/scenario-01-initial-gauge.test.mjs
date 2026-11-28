@@ -8,7 +8,7 @@ import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
-import { dnieperInitialRailGauge, dnieperRailNetwork } from '../src/match/dnieper-initial-gauge.ts'
+import { dnieperInitialRailControl, dnieperInitialRailGauge, dnieperRailNetwork } from '../src/match/dnieper-initial-gauge.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -50,4 +50,16 @@ test('scenario 01 railheads are the only broad-gauge junctions and B16.35 has no
   assert.deepEqual(network.initialGaugeJunctions, railheads.map(({ hex }) => hex))
   assert.equal(network.edge('B16.28', 'B17.29')?.gauge, 'broad')
   assert.equal(network.edge('B16.35', 'B15.35')?.gauge ?? 'standard', 'standard')
+})
+
+test('scenario 01 initial rail control follows the gauge, with book railheads authoritative', async () => {
+  const loaded = await load()
+  const railheads = ['D55.5', 'D55.9', 'D51.21', 'D55.26', 'B46.3', 'B32.18', 'B16.28', 'B16.35']
+    .map((hex) => ({ side: 'soviet', hex }))
+  const control = dnieperInitialRailControl({ map: loaded.playable, railAt: loaded.terrain.railAt }, railheads)
+
+  assert.equal(control['D55.5'], 'soviet', 'Soviet railhead control enables a cargo unload site')
+  assert.equal(control['D54.5'], 'axis', 'standard-gauge approach stays Axis')
+  assert.equal(control['B32.18'], 'soviet', 'railhead overrides the standard edge to B32.17')
+  assert.equal(control['B32.17'], 'axis')
 })
