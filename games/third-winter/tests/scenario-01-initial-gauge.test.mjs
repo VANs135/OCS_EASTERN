@@ -56,16 +56,17 @@ test('scenario 01 railheads are the only broad-gauge junctions and B16.35 has no
   assert.equal(network.edge('B16.35', 'B15.35')?.gauge ?? 'standard', 'standard')
 })
 
-test('scenario 01 opening control covers settlement/VP sites and Railheads, not ordinary rail hexes', async () => {
+test('scenario 01 opening control covers settlements/VP sites, not railhead-only points or ordinary rail hexes', async () => {
   const loaded = await load()
   const opening = prepareDnieperBoard(loaded)
-  const sites = dnieperControlSites({
-    citySites: loaded.map.cities,
-    railheads: opening.initialRailheadMarkers ?? [],
-  })
+  const sites = dnieperControlSites({ citySites: loaded.map.cities })
+  assert.equal(sites.size, 210)
   assert.deepEqual(new Set(Object.keys(opening.hexControl ?? {})), sites)
-  assert.ok(sites.size > 8, 'all settlement/VP hexes carry opening control')
-  assert.equal(opening.hexControl?.['D55.5'], 'soviet')
+  assert.equal(opening.hexControl?.['D55.5'], 'soviet',
+    'D55.5 is a Village settlement; its control comes from the settlement, not the railhead marker')
+  assert.equal(opening.hexControl?.['D51.21'], undefined, 'a railhead in the open is not control')
+  assert.equal(opening.hexControl?.['B32.18'], undefined, 'a railhead in the open is not control')
+  assert.equal(opening.hexControl?.['B16.28'], undefined, 'a railhead in the woods is not control')
   assert.equal(opening.hexControl?.['B41.6'], 'axis', 'Poltava starts Axis-held')
   for (const hex of ['B3.24', 'C55.4', 'C55.5', 'C56.4', 'A58.1', 'A41.12', 'A42.11', 'A14.22']) {
     assert.ok(opening.hexControl?.[hex], `${hex} is a victory-point city hex and must carry opening control`)

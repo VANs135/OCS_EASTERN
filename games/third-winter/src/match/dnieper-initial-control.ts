@@ -1,10 +1,11 @@
-// 剧本 01 的开局控制只落在“剧本指定地点”：可卸载聚落（城市格）与 Railhead，
-// 普通铁路格不逐格记账。剧本没有印刷完整战线，因此空白聚落按双方初设地面战斗单位的
-// 最近格距判归；平局归轴心，沿用 09 的无印刷战线口径。铁路通行本身仍由单位/ZOC/
-// 轨距阻断，换轨由铁路工兵处理，不由逐格控制代替。
+// 剧本 01 的开局控制只落在聚落（城市格/胜利点），普通铁路格和 Railhead 都不记账。
+// Railhead 是书明的苏军铁路端头/轨距变换位置，不是控制点；铁路端头另一侧即德军轨距端头，
+// 由 dnieper-initial-gauge.ts 按书明铁路段直接落成 broad/standard。
+// 剧本没有印刷完整战线，因此空白聚落按双方初设地面战斗单位的最近格距判归；
+// 平局归轴心，沿用 09 的无印刷战线口径。铁路通行本身仍由单位/ZOC/轨距阻断，
+// 换轨由铁路工兵处理，不由逐格控制代替。
 
 import type { Side } from '@ocs-eastern/series/state-types'
-import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 
 export interface DnieperInitialLandUnit {
   side: Side
@@ -13,28 +14,24 @@ export interface DnieperInitialLandUnit {
 
 export interface DnieperControlSiteSource {
   citySites: readonly { hexes: readonly string[] }[]
-  railheads: readonly DnieperRailhead[]
 }
 
-/** 只记录规则需要的控制点：聚落（可卸载/VP）与书明 Railhead。 */
+/** 只记录规则需要的控制点：聚落（可卸载/VP 城市），不含 Railhead。 */
 export function dnieperControlSites(input: DnieperControlSiteSource): ReadonlySet<string> {
   const sites = new Set<string>()
   for (const city of input.citySites) for (const hex of city.hexes) sites.add(hex)
-  for (const railhead of input.railheads) sites.add(railhead.hex)
   return sites
 }
 
 /**
- * 开局控制：Railhead 以标记所属方为准；聚落先取格内初设地面单位所属方；
- * 空白聚落按最近初设地面单位判归，平局归轴心。
+ * 开局控制：聚落先取格内初设地面单位所属方；空白聚落按最近初设地面单位判归，
+ * 平局归轴心。Railhead 不提供控制归属。
  */
 export function dnieperOpeningControl(input: DnieperControlSiteSource & {
   neighbors: (hex: string) => readonly string[]
   landUnits: readonly DnieperInitialLandUnit[]
 }): Record<string, Side> {
   const sites = dnieperControlSites(input)
-  const explicit = new Map<string, Side>()
-  for (const railhead of input.railheads) explicit.set(railhead.hex, railhead.side)
   const occupants = new Map<string, Set<Side>>()
   for (const unit of input.landUnits) {
     const sides = occupants.get(unit.hex) ?? new Set<Side>()
@@ -49,8 +46,7 @@ export function dnieperOpeningControl(input: DnieperControlSiteSource & {
 
   const control: Record<string, Side> = {}
   for (const hex of sites) {
-    const owner = explicit.get(hex)
-      ?? singleOccupant(occupants.get(hex))
+    const owner = singleOccupant(occupants.get(hex))
       ?? (distances ? closerSide(hex, distances) : undefined)
     if (owner) control[hex] = owner
   }

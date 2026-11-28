@@ -231,7 +231,7 @@ export function prepareDnieperBoard(
     add(`01-alert:${index + 1}`, { ...setupCounter(def, 'axis', hexOf(map, draw.hex, 'alert')), definition: def.key })
   }
 
-  // 普通格不持久记录控制；只写剧本指定地点：可卸载/VP 聚落与书明 Railhead。
+  // 普通格不持久记录控制；只写剧本指定聚落（可卸载/VP 城市格）。Railhead 是苏军铁路端头/轨距变换点，不提供控制。
   // 铁路通行由单位/ZOC/轨距阻断，换轨由铁路工兵处理，不靠逐格控制台账。
   const initialRailheadMarkers = rows(setupRaw.markers).filter((marker) => marker.ref === 'Railhead')
     .map((marker) => ({ side: marker.side as Side, hex: markerHex(map, marker, 'railhead') }))
@@ -241,7 +241,6 @@ export function prepareDnieperBoard(
       : [])
   const initialControl = dnieperOpeningControl({
     citySites: map.cities,
-    railheads: initialRailheadMarkers,
     neighbors: (hex) => data.playable?.neighbors(hex) ?? map.neighbors(hex),
     landUnits: initialLandUnits,
   })
