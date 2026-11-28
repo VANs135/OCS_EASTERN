@@ -1,7 +1,8 @@
-// 进入敌军格的非交互夺取组合：9.14b dump + 9.14e 工事 + 可选 9.14f 机场。
+// 进入敌军格的非交互夺取组合：9.14b dump + 9.14e 工事 + 可选 9.14f 机场 + TTW 2.2h 跑道回池。
 // 9.14c 运输点仍需交互窗口；9.14f 需要玩家提交幸存飞机落点，由调用方把机场板与落点放进 board.airBase。
 
 import type { Side } from '@ocs-eastern/series/state-types'
+import { settleCampaignAirstripCapture } from './campaign-airfield.ts'
 import type { CampaignAirBaseCaptureBoard, CampaignAirBaseCaptureOptions } from './campaign-airbase-capture.ts'
 import { captureCampaignAirBase } from './campaign-airbase-capture.ts'
 import { captureCampaignDump } from './campaign-dump-capture.ts'
@@ -29,7 +30,11 @@ export function resolveCampaignEntryCapture(state: Readonly<CampaignTurnState>, 
     attackCapable: board.attackCapable,
     printed: board.printedHedgehog,
   })
-  return board.airBase
+  const afterAirBase = board.airBase
     ? captureCampaignAirBase(afterHedgehog, side, hex, ids, board.airBase.board, board.airBase.options)
     : afterHedgehog
+  return side === 'soviet'
+    ? settleCampaignAirstripCapture(afterAirBase, (candidate) =>
+      candidate === hex && ids.some((id) => board.attackCapable(afterAirBase, id)))
+    : afterAirBase
 }

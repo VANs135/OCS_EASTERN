@@ -10,7 +10,8 @@ import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { campaignMovementProfiles } from '../src/match/campaign-movement-profiles.ts'
-import { workCampaignAirfield, settleCampaignAirstripCapture } from '../src/match/campaign-airfield.ts'
+import { workCampaignAirfield } from '../src/match/campaign-airfield.ts'
+import { resolveCampaignEntryCapture } from '../src/match/campaign-entry-capture.ts'
 import { scorpionAirstripPool } from '../src/match/scorpion-airfield-work.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
@@ -57,19 +58,16 @@ test('scenario 01 Soviet attack occupation returns the real Air Strip to the poo
   assert.equal(scorpionAirstripPool(built, loaded.catalog).length, 5)
   const withAttacker = { ...built, counters: { ...built.counters,
     [attackerId]: { ...built.counters[attackerId], location: { kind: 'map', hex: site } } } }
-  const captured = settleCampaignAirstripCapture(withAttacker, (hex) =>
-    Object.entries(withAttacker.counters).some(([id, counter]) => counter.side === 'soviet' &&
-      counter.location.kind === 'map' && counter.location.hex === hex &&
-      profiles.profileOf(withAttacker, id)?.attackCapable === true))
+  const entryBoard = (current) => ({ attackCapable: (_state, id) =>
+    profiles.profileOf(current, id)?.attackCapable === true, printedHedgehog: () => null })
+  const captured = resolveCampaignEntryCapture(withAttacker, 'soviet', site, [attackerId],
+    entryBoard(withAttacker))
   assert.deepEqual(captured.airBases.find((base) => base.hex === site), { hex: site, side: 'axis', level: 0 })
   assert.equal(scorpionAirstripPool(captured, loaded.catalog).length, 6)
 
   const withTruck = { ...built, counters: { ...built.counters,
     [truckId]: { ...built.counters[truckId], location: { kind: 'map', hex: site } } } }
-  const refused = settleCampaignAirstripCapture(withTruck, (hex) =>
-    Object.entries(withTruck.counters).some(([id, counter]) => counter.side === 'soviet' &&
-      counter.location.kind === 'map' && counter.location.hex === hex &&
-      profiles.profileOf(withTruck, id)?.attackCapable === true))
+  const refused = resolveCampaignEntryCapture(withTruck, 'soviet', site, [truckId], entryBoard(withTruck))
   assert.equal(refused, withTruck)
   assert.equal(refused.airBases.find((base) => base.hex === site)?.strip, stripKey)
 })
