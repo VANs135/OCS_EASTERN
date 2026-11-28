@@ -10,7 +10,7 @@ import type { CampaignEntryAirBase } from './campaign-entry-capture.ts'
 import { dnieperGroundMovementBoard, dnieperStackingBoard } from './dnieper-ground-movement.ts'
 import { dnieperTransportCaptureBoard } from './dnieper-transport-capture.ts'
 import { dnieperExtenderBoard } from './dnieper-extender.ts'
-import { dnieperEdgeSupplySources } from './dnieper-edge-supply.ts'
+import { dnieperEdgeSupplySources, dnieperEdgeSupplySourcesForState } from './dnieper-edge-supply.ts'
 import type { DnieperRailhead } from './dnieper-initial-gauge.ts'
 import { campaignFortressBoards } from './campaign-fortress-board.ts'
 import type { CampaignFortressHooks } from './campaign-fortress-board.ts'
@@ -35,10 +35,11 @@ export interface DnieperCampaignBoardsOptions {
 /** 01 的移动/后勤生产板集合；返回片段可直接展开进 CampaignTurnContext。 */
 export function dnieperCampaignBoards(input: DnieperCampaignBoardsInput, options: DnieperCampaignBoardsOptions = {}):
 Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork' | 'stacking' | 'fortressBoard'> & {
-  edgeSupplySourcesForTurn: (turn: number) => Readonly<Record<Side, readonly string[]>>
+  edgeSupplySourcesForTurn: (turn: number, state?: import('./campaign-turn-state.ts').CampaignTurnState) => Readonly<Record<Side, readonly string[]>>
 } {
   const transportCapture = dnieperTransportCaptureBoard(input.playable, input.catalog.definitions)
-  const edgeSupplySourcesForTurn = (turn: number) => dnieperEdgeSupplySources(input.map, turn)
+  const edgeSupplySourcesForTurn = (turn: number, state?: import('./campaign-turn-state.ts').CampaignTurnState) =>
+    state ? dnieperEdgeSupplySourcesForState(input.map, { ...state, turn }) : dnieperEdgeSupplySources(input.map, turn)
   let groundMovement: ReturnType<typeof dnieperGroundMovementBoard> | undefined
   const hasTrace = options.hasTrace ?? ((state: import('./campaign-turn-state.ts').CampaignTurnState, side: Side, hex: string) =>
     groundMovement?.traceSupply?.(state, side)?.network.hasTrace(hex, 'truck') === true)

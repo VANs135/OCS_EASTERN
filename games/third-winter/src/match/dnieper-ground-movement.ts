@@ -37,7 +37,7 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
   catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase,
   transportCapture?: CampaignTransportCaptureBoard, extenderWork?: CampaignExtenderBoard,
-  edgeSourcesForTurn?: (turn: number) => Readonly<Record<'axis' | 'soviet', readonly string[]>>,
+  edgeSourcesForTurn?: (turn: number, state?: Readonly<CampaignTurnState>) => Readonly<Record<'axis' | 'soviet', readonly string[]>>,
   railheads?: readonly DnieperRailhead[]) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
   const printedRail = printedRailHexes(map)
@@ -86,12 +86,12 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
     // 生产补给 trace：2.1a/3.1a 的边缘源已在 `state.edgeSupplySources`，这里补地形成本、
-    // 当前控制格、常规 HQ 投送与在图延补队。01 尚无核准的轨距台账，所以先不开铁路段；
-    // 道路/直接 trace 与 HQ trace 是真实数据，不把未核准轨距冒充可用。
+    // 当前控制格、常规 HQ 投送与在图延补队；铁路用 01 书明轨距。D17.01 被苏军攻占后
+    // D 图南缘提前转苏，由调用方传入的 `edgeSourcesForTurn` 按当前 `hexControl` 重算。
     supply: {
       traceCost: (state, from, to, mobility) => dnieperTraceCost(terrain, state, from, to, mobility),
       facts: (state, side) => ({
-        edgeSources: edgeSourcesForTurn?.(state.turn)?.[side],
+        edgeSources: edgeSourcesForTurn?.(state.turn, state)?.[side],
         sources: new Set<string>(),
         controlled: new Set(Object.entries(state.hexControl ?? {})
           .filter(([, owner]) => owner === side).map(([hex]) => hex)),

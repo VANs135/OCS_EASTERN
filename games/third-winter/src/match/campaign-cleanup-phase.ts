@@ -35,7 +35,7 @@ export function completeCampaignCleanup(state: Readonly<CampaignTurnState>, side
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result.date) || !Number.isFinite(date.getTime()) ||
     date.toISOString().slice(0, 10) !== result.date || result.date <= state.when.date) throw new Error('Invalid next campaign date')
   const nextTurn = state.turn + 1
-  const edgeSupplySources = context.edgeSupplySourcesForTurn?.(nextTurn)
+  const edgeSupplySources = context.edgeSupplySourcesForTurn?.(nextTurn, settled)
   return { ...settled, turn: nextTurn, when: { ...state.when, date: result.date }, opening: undefined, weather: null,
     ...(edgeSupplySources ? { edgeSupplySources } : {}),
     cursor: { phase: 'pre-turn', segment: 'weather' } }

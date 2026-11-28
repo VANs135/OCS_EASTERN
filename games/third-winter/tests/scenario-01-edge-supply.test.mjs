@@ -8,7 +8,7 @@ import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
-import { dnieperEdgeSupplySources } from '../src/match/dnieper-edge-supply.ts'
+import { dnieperEdgeSupplySources, dnieperEdgeSupplySourcesForState } from '../src/match/dnieper-edge-supply.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
 import { completeCampaignCleanup } from '../src/match/campaign-cleanup-phase.ts'
@@ -120,8 +120,25 @@ test('scenario 01 production trace consumes the edge sources and keeps real in/o
     'D59.29 is beyond the initial Soviet road trace')
 })
 
+test('scenario 01 loses the D south Axis sources as soon as D17.01 falls', async () => {
+  const loaded = await load()
+  const d1701 = loaded.playable.resolveHex('D17.01')
+  const held = dnieperEdgeSupplySourcesForState(loaded.map, { turn: 1 })
+  const captured = dnieperEdgeSupplySourcesForState(loaded.map, { turn: 1, hexControl: { [d1701]: 'soviet' } })
+  const dated = dnieperEdgeSupplySources(loaded.map, 32)
+
+  assert.deepEqual([held.axis.length, held.soviet.length], [59, 21])
+  assert.deepEqual([captured.axis.length, captured.soviet.length], [50, 30])
+  assert(!captured.axis.includes('D17.0'), 'D south edge no longer feeds the Axis')
+  assert(captured.soviet.includes('D17.0'), 'D south edge feeds the Soviets early')
+  assert.deepEqual([dated.axis.length, dated.soviet.length], [46, 34], 'turn 32 already has D south Soviet')
+  assert.deepEqual(dnieperEdgeSupplySourcesForState(loaded.map, { turn: 32, hexControl: { [d1701]: 'soviet' } }), dated,
+    'early capture must not double-count the dated handover')
+})
+
 test('scenario 01 cleanup refreshes the edge source snapshot for the next turn', () => {
   let asked
+  let askedState
   const refreshed = { axis: ['A50.34'], soviet: ['B62.31'] }
   const cleaned = completeCampaignCleanup({
     turn: 1, when: { scenarioId: '01-dnepr-battles', date: '1943-09-26' },
@@ -129,12 +146,14 @@ test('scenario 01 cleanup refreshes the edge source snapshot for the next turn',
   }, 'soviet', {
     cleanupEndBlockers: () => [],
     roundEnd: () => ({ kind: 'continue', date: '1943-10-01' }),
-    edgeSupplySourcesForTurn: (turn) => {
+    edgeSupplySourcesForTurn: (turn, state) => {
       asked = turn
+      askedState = state
       return refreshed
     },
   })
   assert.equal(asked, 2)
+  assert.equal(askedState.turn, 1, 'cleanup passes the settled board so D17.01 control is visible')
   assert.equal(cleaned.turn, 2)
   assert.deepEqual(cleaned.edgeSupplySources, refreshed)
 })

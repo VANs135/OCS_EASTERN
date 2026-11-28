@@ -9,6 +9,11 @@ export interface DnieperEdgeSupplySources {
   soviet: readonly string[]
 }
 
+export interface DnieperEdgeSupplyOptions {
+  /** 剧本 §5.0a：D17.01 被苏军攻占后，D 图南缘轴心源提前转苏，不等第 32 回合。 */
+  dSouthAxisHeld?: boolean
+}
+
 interface ParsedHex {
   panel: string
   col: number
@@ -34,8 +39,10 @@ function editionForTurn(turn: number) {
  * 2.1a：轴心北缘 A、西缘 A/C、南缘 C、1943 年 D 南缘、B2.35（仅 9 月）。
  * 3.1a：苏军 B/D 东缘、B 北缘 B16.35 以东、以及按日期换手的 B2.35/A50/A25 等。
  */
-export function dnieperEdgeSupplySources(map: TtwCampaignMapIndex, turn: number): DnieperEdgeSupplySources {
+export function dnieperEdgeSupplySources(map: TtwCampaignMapIndex, turn: number,
+  options: DnieperEdgeSupplyOptions = {}): DnieperEdgeSupplySources {
   const edition = editionForTurn(turn)
+  const dSouthAxisHeld = !edition.dSouthSoviet && options.dSouthAxisHeld !== false
   const axis = new Set<string>()
   const soviet = new Set<string>()
 
@@ -53,11 +60,13 @@ export function dnieperEdgeSupplySources(map: TtwCampaignMapIndex, turn: number)
     // 轴心：A/C 西缘、C 南缘、1943 年 D 南缘。
     if (panel === 'A' && col === 1) axis.add(edge.hex)
     if (panel === 'C' && (col === 1 || row === 0)) axis.add(edge.hex)
-    if (panel === 'D' && row === 0 && !edition.dSouthSoviet) axis.add(edge.hex)
+    if (panel === 'D' && row === 0) {
+      if (dSouthAxisHeld) axis.add(edge.hex)
+      else soviet.add(edge.hex)
+    }
     // 苏军：B/D 东缘、B 北缘 B16.35 以东。
     if ((panel === 'B' || panel === 'D') && col === 62) soviet.add(edge.hex)
     if (panel === 'B' && row === 35 && col >= 16) soviet.add(edge.hex)
-    if (panel === 'D' && row === 0 && edition.dSouthSoviet) soviet.add(edge.hex)
   }
 
   // 规则点名的非/半边缘格。A50.34 是 Korosten 城格；A50.35 由 A 北缘分割覆盖。
@@ -79,4 +88,11 @@ export function dnieperEdgeSupplySources(map: TtwCampaignMapIndex, turn: number)
   named('B16.35', 'soviet')
 
   return { axis: [...axis].sort(), soviet: [...soviet].sort() }
+}
+
+/** 读当前盘面的 D17.01 归属；未写控制时按轴心仍持有。 */
+export function dnieperEdgeSupplySourcesForState(map: TtwCampaignMapIndex,
+  state: Readonly<{ turn: number; hexControl?: Readonly<Record<string, Side>> }>): DnieperEdgeSupplySources {
+  const owner = state.hexControl?.['D17.1'] ?? state.hexControl?.['D17.01']
+  return dnieperEdgeSupplySources(map, state.turn, { dSouthAxisHeld: owner !== 'soviet' })
 }
