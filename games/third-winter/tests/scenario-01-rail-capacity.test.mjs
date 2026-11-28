@@ -11,7 +11,7 @@ import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
 import { openCampaignMatch } from '../src/match/campaign-match.ts'
 import { dnieperCampaignBoards } from '../src/match/dnieper-campaign-boards.ts'
-import { campaignRailLoading, campaignRailStatus } from '../src/match/campaign-rail-transport.ts'
+import { applyCampaignRailTransport, campaignRailLoading, campaignRailStatus } from '../src/match/campaign-rail-transport.ts'
 import { dnieperRailCapacity } from '../src/match/dnieper-rail-capacity.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
@@ -77,7 +77,7 @@ test('scenario 01 production rail board reports the dated capacity and opens onl
   const atRailhead = loaded.playable.resolveHex('D55.5')
   const turnSix = {
     ...state, turn: 6, cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' },
-    movementSegment: 'movement', hexControl: { ...state.hexControl, [atRailhead]: 'soviet' },
+    movementSegment: 'movement',
   }
 
   assert.deepEqual(campaignRailStatus(turnSix, 'soviet', boards.railTransport),
@@ -92,3 +92,38 @@ test('scenario 01 production rail board reports the dated capacity and opens onl
   assert.deepEqual(campaignRailLoading(combat, 'soviet', atRailhead, boards.railTransport, boards.groundMovement),
     { ok: false, reason: 'window-closed' })
 })
+
+test('scenario 01 real rail cargo rides the broad gauge and unloads only at a designated site', async () => {
+  const { state, boards } = await load()
+  const turnSix = {
+    ...state, turn: 6, cursor: { first: 'soviet', phasing: 'soviet', phase: 'movement' },
+    movementSegment: 'movement',
+  }
+  const broadPath = ['D55.5', 'D56.5', 'D56.6', 'D56.7', 'D55.8', 'D55.9']
+  const action = {
+    type: 'transport-campaign-rail', path: broadPath,
+    counterIds: ['campaign-setup:4', 'campaign-setup:5'],
+    moveFaceIds: ['campaign-setup:4', 'campaign-setup:5'], supplyTokens: 0,
+  }
+  const settled = applyCampaignRailTransport(turnSix, 'soviet', action, boards.railTransport, boards.groundMovement)
+  assert.deepEqual(settled.counters['campaign-setup:4'].location, { kind: 'map', hex: 'D55.9' })
+  assert.deepEqual(settled.counters['campaign-setup:5'].location, { kind: 'map', hex: 'D55.9' })
+  assert.equal(settled.groundMovement?.railCapacitySpent, 1.5, '0.5 RE + 1 RE charged against turn 6 capacity')
+
+  assert.deepEqual(applyRefusal(turnSix, boards, ['D55.5', 'D56.5', 'D56.6']), 'rail-unloading-unavailable',
+    'an ordinary rail hex is not a cargo unload site')
+  assert.deepEqual(applyRefusal(turnSix, boards, ['D55.5', 'D54.5']), 'rail-wrong-gauge',
+    'the standard-gauge approach is not usable by Soviet rail')
+})
+
+function applyRefusal(state, boards, path) {
+  try {
+    applyCampaignRailTransport(state, 'soviet', {
+      type: 'transport-campaign-rail', path,
+      counterIds: ['campaign-setup:4'], moveFaceIds: ['campaign-setup:4'], supplyTokens: 0,
+    }, boards.railTransport, boards.groundMovement)
+    return 'settled'
+  } catch (error) {
+    return String(error.message).replace('Campaign rail transport: ', '')
+  }
+}
