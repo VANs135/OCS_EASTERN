@@ -1,6 +1,6 @@
 extends RefCounted
 
-## OCS 13.2c — 构筑刺猬的 8T 可由多个补给堆拼；侧栏只列真实可付的组合，规则层仍复核总额。
+## OCS 13.2c — 构筑工事的 8T 可由多个补给堆拼；侧栏只列真实可付的组合，规则层仍复核总额。
 
 const JsonFile := preload("res://scripts/data/json_file.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
@@ -10,7 +10,7 @@ const BUNDLE_REL := "../../../dist/godot/08-opening-data.json"
 
 static func run(ctx: Dictionary) -> void:
 	var expect: Callable = ctx.expect
-	expect.call(_many_source_rows(), "两个 4T 堆能拼出构筑刺猬条目")
+	expect.call(_many_source_rows(), "两个 4T 堆能拼出构筑工事条目")
 
 
 static func _many_source_rows() -> bool:

@@ -325,7 +325,7 @@ static func _retreat_step(state: Dictionary, side: String, route: Dictionary, in
 	next["units"] = next_units
 	if disorganize_hex:
 		_disorganize_hex(next_units, to, side)
-	# 进格夺取（resolveScorpionEntry 口径）：地面控制、补给堆、刺猬、机场与运输队窗口。
+	# 进格夺取（resolveScorpionEntry 口径）：地面控制、补给堆、工事、机场与运输队窗口。
 	# 9.14 的口径是移动时机，即使这一步属于战斗后撤退。
 	var route_path: Array = route.get("path", [])
 	var entry_res: Dictionary = Capture.resolve_entry(next, side, to, moving, data, false,

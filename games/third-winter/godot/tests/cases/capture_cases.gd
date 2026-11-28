@@ -2,7 +2,7 @@ extends RefCounted
 
 ## 08 进格夺取规则对照用例。期望值来自 dist/godot/08-capture.json
 ## （scripts/godot-capture.mjs 用 TS 引擎在同一份伪造局面上跑 resolveScorpionEntry /
-## settleScorpionCapture：补给堆夺取骰、刺猬降级、机场翻面、停机飞机位移、运输队窗口与
+## settleScorpionCapture：补给堆夺取骰、工事降级、机场翻面、停机飞机位移、运输队窗口与
 ## 明确的配属结算、预备单位夺取拒绝）。
 ## 入口契约：static func run(ctx: Dictionary) -> void；ctx 提供 expect / compare / reject / state_slice / args。
 
@@ -59,7 +59,7 @@ static func _compare_scenario(ctx: Dictionary, scenario: Dictionary, bundle: Dic
 	_compare_state(ctx, settled.value, settle.get("state", {}), label + " settle")
 
 
-## 状态切片：算子（含夺得算子）、补给堆、机场、刺猬、飞机、控制、窗口与历史逐项对照。
+## 状态切片：算子（含夺得算子）、补给堆、机场、工事、飞机、控制、窗口与历史逐项对照。
 static func _compare_state(ctx: Dictionary, state: Dictionary, expected: Dictionary, label: String) -> void:
 	var expect: Callable = ctx.expect
 	# 夹具只切出相关算子（进格单位、被夺取运输队与夺得算子），盘面其余算子不参与对照。
@@ -72,7 +72,7 @@ static func _compare_state(ctx: Dictionary, state: Dictionary, expected: Diction
 	expect.call(unit_ok, label + " 算子切片")
 	expect.call(_same(state.get("dumps", {}), expected.get("dumps", {})), label + " 补给堆")
 	expect.call(_same(state.get("airBases", []), expected.get("airBases", [])), label + " 机场")
-	expect.call(_same(state.get("hedgehogs", {}), expected.get("hedgehogs", {})), label + " 刺猬")
+	expect.call(_same(state.get("hedgehogs", {}), expected.get("hedgehogs", {})), label + " 工事")
 	expect.call(_same(state.get("pieces", []), expected.get("pieces", [])), label + " 飞机与死人堆")
 	expect.call(_same(state.get("railControl", {}), expected.get("railControl", {})), label + " 地面控制")
 	expect.call(_same(state.get("capture"), expected.get("capture")), label + " 夺取窗口")

@@ -1,7 +1,7 @@
 extends RefCounted
 
-## OCS v4.3 §13.8d / §16.0b–c 与 TTW §1.1b 刺猬（scorpion-hedgehogs.ts）。
-## 规则层：刺猬等级取值、0–4 合法性口径、构筑/拆除条件与对战斗/炮击的影响口径。
+## OCS v4.3 §13.8d / §16.0b–c 与 TTW §1.1b 工事（scorpion-hedgehogs.ts）。
+## 规则层：工事等级取值、0–4 合法性口径、构筑/拆除条件与对战斗/炮击的影响口径。
 ## 不改数据、不接 UI；战斗与炮击模块各自消费本模块给出的等级与口径常量。
 
 const Result := preload("res://scripts/core/result.gd")
@@ -14,7 +14,7 @@ const MAX_LEVEL := 4
 const BUILD_COST := 8
 
 
-## scorpionHedgehogLevel：盘面刺猬等级；无盘面记录时回退 fallback（可调用），再缺省 0。
+## scorpionHedgehogLevel：盘面工事等级；无盘面记录时回退 fallback（可调用），再缺省 0。
 static func level(state: Dictionary, hex_id: String, fallback: Variant = null) -> int:
 	var hedgehogs: Variant = state.get("hedgehogs")
 	if hedgehogs != null and hedgehogs is Dictionary and hedgehogs.has(hex_id):
@@ -27,7 +27,7 @@ static func level(state: Dictionary, hex_id: String, fallback: Variant = null) -
 	return 0
 
 
-## 战斗/炮击口径：刺猬等级必须是 0–4 整数（scorpion-combat.ts / scorpion-barrage.ts 校验）。
+## 战斗/炮击口径：工事等级必须是 0–4 整数（scorpion-combat.ts / scorpion-barrage.ts 校验）。
 static func is_valid_level(value: Variant) -> bool:
 	if not (value is int or value is float):
 		return false
@@ -35,52 +35,52 @@ static func is_valid_level(value: Variant) -> bool:
 	return level_value >= 0 and level_value <= MAX_LEVEL
 
 
-## 战斗口径：刺猬等级 > 0 时守方反坦克 ≥2（scorpion-combat.ts antiTank 取值）。
+## 战斗口径：工事等级 > 0 时守方反坦克 ≥2（scorpion-combat.ts antiTank 取值）。
 static func anti_tank(level_value: int) -> int:
 	return 2 if level_value > 0 else 0
 
 
-## 炮击口径：刺猬等级 > 0 时炮击列向有利方向移 1 格（scorpion-barrage.ts hedgehog_shift）。
+## 炮击口径：工事等级 > 0 时炮击列向有利方向移 1 格（scorpion-barrage.ts hedgehog_shift）。
 static func barrage_shift(level_value: int) -> float:
 	return -1.0 if level_value > 0 else 0.0
 
 
-## workScorpionHedgehog：构筑（build）或拆除（reduce）刺猬。
+## workScorpionHedgehog：构筑（build）或拆除（reduce）工事。
 ## action: { operation: 'build'|'reduce', hex, unitIds: string[], payments?: [{dumpId, tokens}] }。
 ## 返回 Result.success(state)；资格/支付/工人不合法时 Result.failure。
 static func work(state: Dictionary, side: String, action: Dictionary, data: Dictionary,
 		_board: Variant = null) -> Dictionary:
 	var cursor: Dictionary = state.get("cursor", {})
 	if str(cursor.get("phase", "")) != "movement" or str(cursor.get("phasing", "")) != side:
-		return Result.failure("hedgehog_phase", "刺猬作业只能在本方移动阶段进行")
+		return Result.failure("hedgehog_phase", "工事作业只能在本方移动阶段进行")
 	var operation := str(action.get("operation", ""))
 	if operation != "build" and operation != "reduce":
-		return Result.failure("hedgehog_operation", "刺猬作业只能是构筑或拆除")
+		return Result.failure("hedgehog_operation", "工事作业只能是构筑或拆除")
 	var hex_id := _hex_id(str(action.get("hex", "")))
 	var graph: Dictionary = data.get("view", {}).get("mapGraph", {})
 	if not graph.get("terrains", {}).has(hex_id):
-		return Result.failure("hedgehog_hex", "刺猬作业格不在地图上：%s" % hex_id)
+		return Result.failure("hedgehog_hex", "工事作业格不在地图上：%s" % hex_id)
 	var hedgehogs: Dictionary = state.get("hedgehogs", {})
 	var current: Variant = hedgehogs.get(hex_id)
 	var current_level := level(state, hex_id)
 	var building := operation == "build"
 	if current != null and str(current.get("side", "")) != side:
-		return Result.failure("hedgehog_owner", "该格刺猬属于另一方")
+		return Result.failure("hedgehog_owner", "该格工事属于另一方")
 	if current == null and current_level > 0:
-		return Result.failure("hedgehog_owner", "该格已有他方刺猬等级")
+		return Result.failure("hedgehog_owner", "该格已有他方工事等级")
 	if not building and current == null:
-		return Result.failure("hedgehog_reduce", "只能拆除本方格上的刺猬")
+		return Result.failure("hedgehog_reduce", "只能拆除本方格上的工事")
 	if building and current_level >= 2:
-		return Result.failure("hedgehog_level", "刺猬等级已达上限，不能再构筑")
+		return Result.failure("hedgehog_level", "工事等级已达上限，不能再构筑")
 	for id: String in state.get("units", {}):
 		var unit: Dictionary = state.units[id]
 		if str(unit.get("side", "")) != side and str(unit.get("hex", "")) == hex_id:
-			return Result.failure("hedgehog_hex", "敌方单位所在格不能作业刺猬")
+			return Result.failure("hedgehog_hex", "敌方单位所在格不能作业工事")
 	# 每回合每格只能以此方式变动一次等级。
 	var log_key := "hedgehogBuiltAt" if building else "hedgehogReducedAt"
 	var log: Dictionary = state.get(log_key, {})
 	if log.get(hex_id) == cursor.get("turn"):
-		return Result.failure("hedgehog_once_per_turn", "该格刺猬等级本回合已变动过一次")
+		return Result.failure("hedgehog_once_per_turn", "该格工事等级本回合已变动过一次")
 	var unit_ids: Array = action.get("unitIds", [])
 	if unit_ids.is_empty() or unit_ids.size() != _distinct(unit_ids).size():
 		return Result.failure("hedgehog_workers", "须选择互不重复的作业单位")
@@ -88,7 +88,7 @@ static func work(state: Dictionary, side: String, action: Dictionary, data: Dict
 	for id: String in unit_ids:
 		var worker := _stationary_worker(state, side, str(id))
 		if worker.is_empty():
-			return Result.failure("hedgehog_workers", "刺猬作业须由静止的战斗模式合格单位承担")
+			return Result.failure("hedgehog_workers", "工事作业须由静止的战斗模式合格单位承担")
 		workers.append(worker)
 	var local: bool = true
 	var local_re := 0
@@ -104,7 +104,7 @@ static func work(state: Dictionary, side: String, action: Dictionary, data: Dict
 	var payments: Array = action.get("payments", [])
 	var cost := BUILD_COST if building else 0
 	if _total_tokens(payments) != cost:
-		return Result.failure("hedgehog_cost", "刺猬%s须恰付 %dT" % ["构筑" if building else "拆除", cost])
+		return Result.failure("hedgehog_cost", "工事%s须恰付 %dT" % ["构筑" if building else "拆除", cost])
 	var ledger: Variant = null
 	if payments.size() > 0:
 		ledger = SupplyPayment.new(state, side, data)

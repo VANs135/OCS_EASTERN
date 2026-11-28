@@ -308,7 +308,7 @@ static func _airlifted(state: Dictionary) -> Array:
 static func _hedgehog_level(state: Dictionary, target: String, board: Dictionary) -> Variant:
 	var hedgehogs: Dictionary = state.get("hedgehogs", {})
 	if hedgehogs.has(target):
-		# TS 在刺猬被削到 0 级时留 null 条目；null 等价 0 级，不能当字典取 level。
+		# TS 在工事被削到 0 级时留 null 条目；null 等价 0 级，不能当字典取 level。
 		var entry: Variant = hedgehogs[target]
 		return int(entry.get("level", 0)) if entry is Dictionary else 0
 	var hedgehog_at: Variant = board.get("hedgehogAt")
@@ -317,7 +317,7 @@ static func _hedgehog_level(state: Dictionary, target: String, board: Dictionary
 	return 0
 
 
-## exploitation 阶段收尾检查：预备单位不得留在刺猬格；目标格堆叠不得超限。
+## exploitation 阶段收尾检查：预备单位不得留在工事格；目标格堆叠不得超限。
 static func _assert_movement_end(state: Dictionary, actor: String, board: Dictionary = {}) -> Dictionary:
 	var reserve_hexes: Array = []
 	for id: String in state.get("units", {}):
@@ -328,9 +328,9 @@ static func _assert_movement_end(state: Dictionary, actor: String, board: Dictio
 		if not reserve_hexes.has(hex):
 			reserve_hexes.append(hex)
 	for hex: String in reserve_hexes:
-		# 0 级（含 TS 的 null 条目）不算刺猬格。
+		# 0 级（含 TS 的 null 条目）不算工事格。
 		if int(_hedgehog_level(state, hex, board)) > 0:
-			return Result.failure("reserve_hedgehog", "预备单位不能留在刺猬格：%s" % hex)
+			return Result.failure("reserve_hedgehog", "预备单位不能留在工事格：%s" % hex)
 	var illegal: Array = Stacking.overstacked_hexes(state, actor)
 	if not illegal.is_empty():
 		return Result.failure("stacking_limit", "移动收尾存在超堆叠格")

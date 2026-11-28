@@ -107,7 +107,7 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	# 战斗结果：攻/守方结算、战后推进与挂起撤退续跑。
 	if action.get("type") in ["resolve-combat", "advance-after-combat", "continue-combat-retreat"]:
 		return _combat_result_command(state, actor, action, data)
-	# OCS 13.3 刺猬作业：构筑（8T）/ 拆除（0T），限本方移动阶段。
+	# OCS 13.3 工事作业：构筑（8T）/ 拆除（0T），限本方移动阶段。
 	if action.get("type") == "work-hedgehog":
 		return Hedgehogs.work(state, actor, action, data)
 	# OCS 10.0 地面炮兵炮击：声明 / 选地形 / 分配射击损失。

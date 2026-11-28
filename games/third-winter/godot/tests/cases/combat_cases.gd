@@ -129,7 +129,7 @@ static func _check_fractional_odds(ctx: Dictionary, table: Dictionary) -> void:
 			"半强度按原始比值取列（2.5:2 → 1:1）")
 
 
-## 刺猬 0 级在盘上是 null 条目（削平后保留键），不得当字典取 level。
+## 工事 0 级在盘上是 null 条目（削平后保留键），不得当字典取 level。
 static func _check_hedgehog_null(ctx: Dictionary, fixture: Dictionary, bundle: Dictionary, board: Dictionary) -> void:
 	var expect: Callable = ctx.expect
 	var scenario: Dictionary = fixture.get("scenarios", [])[0] if fixture.get("scenarios", []).size() > 0 else {}
@@ -140,10 +140,10 @@ static func _check_hedgehog_null(ctx: Dictionary, fixture: Dictionary, bundle: D
 	state["hedgehogs"] = {target: null}
 	var declare_step: Dictionary = _step(scenario.get("steps", []), "declare")
 	var res: Dictionary = Combat.declare(state, "soviet", declare_step.get("action", {}), bundle, board)
-	expect.call(res.ok, "刺猬 0 级 null 条目可宣告战斗 · %s" % str(res.get("errorMessage", "")))
+	expect.call(res.ok, "工事 0 级 null 条目可宣告战斗 · %s" % str(res.get("errorMessage", "")))
 	if res.ok:
 		expect.call(int(res.value.get("combat", {}).get("hedgehog", -1)) == 0,
-			"刺猬 null 条目按 0 级参战")
+			"工事 null 条目按 0 级参战")
 
 
 static func _step(steps: Array, name: String) -> Dictionary:

@@ -207,7 +207,7 @@ games/third-winter/godot/
 
 
 
-* `modes.ts`（约 14 KB）：模式合法性、预备释放、阶段可动性、ZOC / 运输 / 工程 / 刺猬堆叠、战略结束补给的派生。
+* `modes.ts`（约 14 KB）：模式合法性、预备释放、阶段可动性、ZOC / 运输 / 工程 / 工事堆叠、战略结束补给的派生。
 
 * `supply-network.ts`（约 11 KB）+ `trace-path.ts`（约 4.3 KB）：补给网络和 Dijkstra/BFS；这是最需要性能验证的算法。
 

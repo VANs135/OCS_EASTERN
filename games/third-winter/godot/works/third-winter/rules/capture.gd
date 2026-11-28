@@ -1,8 +1,8 @@
 extends RefCounted
 
 ## TTW Scorpion 进格夺取（src/match/scorpion-capture.ts）。
-## 可夺取物：敌方补给堆、空军基地、停机飞机、非战斗运输队（含 Extender）与敌方刺猬。
-## 本轮范围：地面控制记录、补给堆掷骰、刺猬降级、机场易手/苏军拆跑道、运输队夺取窗口与夺取历史。
+## 可夺取物：敌方补给堆、空军基地、停机飞机、非战斗运输队（含 Extender）与敌方工事。
+## 本轮范围：地面控制记录、补给堆掷骰、工事降级、机场易手/苏军拆跑道、运输队夺取窗口与夺取历史。
 ## 飞机位移、Extender 崩塌位移与运输队结算尚未实现，遇到时返回明确失败码而不是猜数值。
 
 const Result := preload("res://scripts/core/result.gd")
@@ -181,7 +181,7 @@ static func resolve_entry(state: Dictionary, side: String, hex_id: String, ids: 
 	settled["hedgehogs"] = hedgehogs
 	settled["capture"] = capture
 	settled["captureHistory"] = history
-	# 夺取本身是必然发生的：控制、补给堆、机场、刺猬在进格时就已改属，窗口只用来安排位移。
+	# 夺取本身是必然发生的：控制、补给堆、机场、工事在进格时就已改属，窗口只用来安排位移。
 	# policy 三态：player（默认）只在真有位移选择时挂窗口；manual 一律挂窗口（TS 手动夹具口径）；
 	# auto 一律按 automatic_order 结清（AI/夹具）。
 	if capture != null:
@@ -541,7 +541,7 @@ static func _opponent(side: String) -> String:
 	return "soviet" if side == "axis" else "axis"
 
 
-## assertScorpionCaptor：格内有敌方物资/机场/刺猬时，须有一枚可进攻且非预备的进入单位。
+## assertScorpionCaptor：格内有敌方物资/机场/工事时，须有一枚可进攻且非预备的进入单位。
 static func _assert_captor(state: Dictionary, side: String, ids: Array) -> Dictionary:
 	for id: Variant in ids:
 		var unit: Dictionary = state.get("units", {}).get(str(id), {})
@@ -550,7 +550,7 @@ static func _assert_captor(state: Dictionary, side: String, ids: Array) -> Dicti
 		if unit.get("attackCapable") == true and unit.get("reserve") == null:
 			return Result.success(true)
 	return Result.failure("capture_attack_capable",
-		"进入有敌方物资、机场或刺猬的格需要一枚可进攻的单位")
+		"进入有敌方物资、机场或工事的格需要一枚可进攻的单位")
 
 
 ## rollScorpionTransportCapture：按卡车/车队分类各掷一枚夺取骰，返回分组窗口。

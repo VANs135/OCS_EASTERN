@@ -78,7 +78,7 @@ static func _declare(state: Dictionary, actor: String, action: Dictionary, data:
 	if busy or _acting_side(cursor) != actor or not _allows_source(phase, "artillery") \
 		or not _map_has_hex(data, target) or not target_exists or regular.has(target):
 		return Result.failure("barrage_phase", "炮兵每阶段只能在常规战斗前炮击一次敌方目标")
-	# OCS 5.11 / assertScorpionMovementEnd：非战斗阶段收口前先核堆叠（刺猬核查 08 无刺猬）。
+	# OCS 5.11 / assertScorpionMovementEnd：非战斗阶段收口前先核堆叠（工事核查 08 无工事）。
 	if phase != "combat":
 		var stacked := Stacking.assert_phase_stacking(state, actor)
 		if not stacked.ok:
@@ -183,7 +183,7 @@ static func _prepare_barrage(state: Dictionary, actor: String, action: Dictionar
 		return column
 	var hedgehog := _hedgehog_level(state, target)
 	if hedgehog < 0 or hedgehog > 4:
-		return Result.failure("barrage_battery", "刺猬等级无效")
+		return Result.failure("barrage_battery", "工事等级无效")
 	var barrage := {
 		"target": target, "defender": "soviet" if actor == "axis" else "axis",
 		"batteries": batteries, "strength": strength,

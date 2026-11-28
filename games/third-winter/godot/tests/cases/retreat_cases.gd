@@ -1,8 +1,8 @@
 extends RefCounted
 
-## 08 守方撤退与刺猬规则对照用例。期望值全部来自 dist/godot/08-retreat.json
+## 08 守方撤退与工事规则对照用例。期望值全部来自 dist/godot/08-retreat.json
 ## （scripts/godot-retreat.mjs 用 TS 引擎在同一份伪造局面上跑出：普通撤退、小河格边、
-## ZOC 被迫损、歼灭进死人堆、刺猬等级修正、夺取挂起与续跑拒绝）。
+## ZOC 被迫损、歼灭进死人堆、工事等级修正、夺取挂起与续跑拒绝）。
 ## 入口契约：static func run(ctx: Dictionary) -> void；ctx 提供 expect / compare / reject / state_slice / args。
 
 const JsonFile := preload("res://scripts/data/json_file.gd")
@@ -213,20 +213,20 @@ static func _reject_paths(ctx: Dictionary, bundle: Dictionary, board: Dictionary
 			"无 DG 候选时拒绝多余 ZOC 损步")
 
 
-## 刺猬纯规则口径：等级取值、0–4 合法性、反坦克与炮击移位。
+## 工事纯规则口径：等级取值、0–4 合法性、反坦克与炮击移位。
 static func _hedgehog_unit(ctx: Dictionary, _bundle: Dictionary, _board: Dictionary) -> void:
 	var expect: Callable = ctx.expect
 	var state := {"hedgehogs": {"s1.10": {"side": "axis", "level": 1}}}
-	expect.call(Hedgehogs.level(state, "s1.10") == 1, "读取盘面刺猬等级")
-	expect.call(Hedgehogs.level(state, "s1.11") == 0, "无刺猬格回退 0")
+	expect.call(Hedgehogs.level(state, "s1.10") == 1, "读取盘面工事等级")
+	expect.call(Hedgehogs.level(state, "s1.11") == 0, "无工事格回退 0")
 	expect.call(Hedgehogs.level(state, "s1.11", func(_hex: String) -> int: return 3) == 3,
 		"缺盘面记录时回退调用取值")
-	expect.call(Hedgehogs.is_valid_level(0) and Hedgehogs.is_valid_level(4), "刺猬等级 0–4 合法")
+	expect.call(Hedgehogs.is_valid_level(0) and Hedgehogs.is_valid_level(4), "工事等级 0–4 合法")
 	expect.call(not Hedgehogs.is_valid_level(-1) and not Hedgehogs.is_valid_level(5) \
 		and not Hedgehogs.is_valid_level("2"), "越界与非整数等级非法")
-	expect.call(Hedgehogs.anti_tank(1) == 2 and Hedgehogs.anti_tank(0) == 0, "刺猬反坦克口径")
+	expect.call(Hedgehogs.anti_tank(1) == 2 and Hedgehogs.anti_tank(0) == 0, "工事反坦克口径")
 	expect.call(absf(Hedgehogs.barrage_shift(2) + 1.0) <= 1e-9 and Hedgehogs.barrage_shift(0) == 0.0,
-		"刺猬炮击移位口径")
+		"工事炮击移位口径")
 
 
 static func _scenario_by_name(fixture: Dictionary, name: String) -> Dictionary:
