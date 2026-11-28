@@ -13,6 +13,8 @@ export interface CampaignRvgkMarkerBoard {
   detrainable(state: Readonly<CampaignTurnState>, hex: string): boolean
   /** 目标格或铁路路径是否落入轴心战斗单位 10 格内（Kessel 补给者已由调用方排除）。 */
   routeWithin10AxisCombat(state: Readonly<CampaignTurnState>, from: string, to: string): boolean
+  /** 沿本方可用铁路从 from 到 to 的安全路径（含两端）；给出时移动必须沿该路径。 */
+  railRoute?(state: Readonly<CampaignTurnState>, from: string, to: string): readonly string[] | undefined
   /** 格所属地图（A/B/C/D）。 */
   mapOf(hex: string): string | undefined
   /** 本次标记铁路移动的 RE 费用（缺省 5；多轨/Trainbusting 调整由调用方给出）。 */
@@ -32,6 +34,10 @@ export function moveCampaignRvgkMarker(state: Readonly<CampaignTurnState>, actor
   if (!from) throw new Error('The RVGK marker has no current hex')
   const target = board.resolveHex(action.hex)
   if (!target) throw new Error('Choose a resolvable target hex')
+  // §3.5a：标记本身只能沿铁路移动；给出 railRoute 时必须存在可用铁路路径。
+  if (board.railRoute && !board.railRoute(state, from, target)) {
+    throw new Error('RVGK marker must move along a connected railway')
+  }
   if (!rvgkMarkerRailValid({ detrainableEnd: board.detrainable(state, target),
     within10AxisCombat: board.routeWithin10AxisCombat(state, from, target) })) {
     throw new Error('RVGK marker must end in a detrainable hex, out of 10 hexes of Axis combat (into or through)')
