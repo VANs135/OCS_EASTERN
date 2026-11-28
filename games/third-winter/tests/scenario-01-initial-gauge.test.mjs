@@ -8,7 +8,8 @@ import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
 import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
-import { dnieperInitialRailControl, dnieperInitialRailGauge, dnieperRailNetwork } from '../src/match/dnieper-initial-gauge.ts'
+import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
+import { dnieperInitialRailGauge, dnieperRailNetwork } from '../src/match/dnieper-initial-gauge.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
 const SCENARIO = '01-dnepr-battles'
@@ -21,7 +22,9 @@ async function load() {
   ])
   const map = indexTtwCampaignMap(hexes, edges)
   const playable = campaignMapInPlayArea(map, ttwCampaignPlayArea(SCENARIO))
-  return { catalog, setupRaw, playable, terrain: campaignTerrain(playable) }
+  const terrain = campaignTerrain(playable)
+  const setup = prepareCampaignSetup(setupRaw, catalog.aliases, map, playable)
+  return { catalog, setup, setupRaw, map, playable, terrain }
 }
 
 test('scenario 01 initial gauge follows the book Soviet Railhead paths, not a flood fill', async () => {
@@ -52,14 +55,11 @@ test('scenario 01 railheads are the only broad-gauge junctions and B16.35 has no
   assert.equal(network.edge('B16.35', 'B15.35')?.gauge ?? 'standard', 'standard')
 })
 
-test('scenario 01 initial rail control follows the gauge, with book railheads authoritative', async () => {
+test('scenario 01 opening control records only the eight Railhead sites', async () => {
   const loaded = await load()
-  const railheads = ['D55.5', 'D55.9', 'D51.21', 'D55.26', 'B46.3', 'B32.18', 'B16.28', 'B16.35']
-    .map((hex) => ({ side: 'soviet', hex }))
-  const control = dnieperInitialRailControl({ map: loaded.playable, railAt: loaded.terrain.railAt }, railheads)
-
-  assert.equal(control['D55.5'], 'soviet', 'Soviet railhead control enables a cargo unload site')
-  assert.equal(control['D54.5'], 'axis', 'standard-gauge approach stays Axis')
-  assert.equal(control['B32.18'], 'soviet', 'railhead overrides the standard edge to B32.17')
-  assert.equal(control['B32.17'], 'axis')
+  const opening = prepareDnieperBoard(loaded)
+  assert.equal(Object.keys(opening.hexControl ?? {}).length, 8,
+    'ordinary rail hexes are not persisted as per-hex control')
+  assert.equal(opening.hexControl?.['D55.5'], 'soviet')
+  assert.equal(opening.hexControl?.['D54.5'], undefined, 'no control record for a plain rail hex')
 })

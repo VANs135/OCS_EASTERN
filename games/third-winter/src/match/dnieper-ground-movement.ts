@@ -40,7 +40,14 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
   edgeSourcesForTurn?: (turn: number, state?: Readonly<CampaignTurnState>) => Readonly<Record<'axis' | 'soviet', readonly string[]>>,
   railheads?: readonly DnieperRailhead[]) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
-  const printedRail = printedRailHexes(map)
+  // TTW 1.2b：可卸载点是地图 POI 与剧本书明的 Railhead，不是每条有铁路的格。
+  // 普通铁路格只按轨距/敌方单位与 ZOC 判通行，不持久记录逐格控制。
+  const detrainableSites = new Set<string>((railheads ?? []).map(({ hex }) => map.resolveHex(hex) ?? hex))
+  for (const hex of map.availableHexes) {
+    if (map.terrainAt(hex)?.some((terrain) => terrain === 'Minor City' || terrain === 'Major City')) {
+      detrainableSites.add(hex)
+    }
+  }
   const railNetwork = railheads?.length ? dnieperRailNetwork({ map, railAt: terrain.railAt }, railheads) : undefined
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
@@ -97,7 +104,7 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
           .filter(([, owner]) => owner === side).map(([hex]) => hex)),
         headquarters: campaignThrowHeadquarters(state, definitions)
           .filter((headquarter) => headquarter.id !== undefined && state.counters[headquarter.id]?.side === side),
-        detrainable: (hex) => printedRail.has(hex),
+        detrainable: (hex) => detrainableSites.has(hex),
         railCanTrace: (from, to) => railheads?.length ? terrain.railAt(from, to) !== undefined : false,
         extenders: Object.values(state.counters).flatMap((counter) => counter.side === side &&
           counter.location.kind === 'map' && counter.specialTruckExtender
@@ -122,19 +129,6 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     // 战斗算子移除（本板只报告，不擅自替玩家选择损失）。
     endBlockers: (state, side) => stackingBlockers(state, side),
   })
-}
-
-function printedRailHexes(map: PlayableMap): ReadonlySet<string> {
-  const hexes = new Set<string>()
-  for (const hex of map.availableHexes) {
-    for (const to of map.neighbors(hex)) {
-      const rail = map.connection(hex, to)?.sourceEdges.some((edge) => edge.rail_present === true) === true
-      if (!rail) continue
-      hexes.add(hex)
-      hexes.add(to)
-    }
-  }
-  return hexes
 }
 
 function dnieperTraceCost(terrain: DnieperTerrain, state: Readonly<CampaignTurnState>, from: string, to: string,

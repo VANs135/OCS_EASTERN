@@ -13,7 +13,6 @@ import type { CampaignHedgehog } from './campaign-hedgehogs.ts'
 import type { CampaignAirBase } from './campaign-airfield.ts'
 import type { CampaignFortress } from './campaign-fortress.ts'
 import { dnieperEdgeSupplySources } from './dnieper-edge-supply.ts'
-import { dnieperInitialRailControl } from './dnieper-initial-gauge.ts'
 import {
   buildCampaignOpeningChoices,
   resolveCampaignOpeningChoices,
@@ -25,8 +24,6 @@ interface DnieperSetupData {
   setupRaw: Record<string, unknown>
   catalog: Awaited<ReturnType<typeof import('../import/unit-v2.ts').loadThirdWinterV2Units>>
   map: TtwCampaignMapIndex
-  /** 可选：有地形数据时用它判轨距；缺省回退地图库的 rail_present 事实。 */
-  terrain?: { railAt(from: string, to: string): string | boolean | undefined }
   playable?: { resolveHex(printed: string): string | undefined; neighbors(hex: string): readonly string[]
     availableHexes: ReadonlySet<string> }
 }
@@ -233,15 +230,12 @@ export function prepareDnieperBoard(
     add(`01-alert:${index + 1}`, { ...setupCounter(def, 'axis', hexOf(map, draw.hex, 'alert')), definition: def.key })
   }
 
-  // 铁路端头格按剧本标记的所属方落初始控制；其余铁路格按开局轨距落账
-  // （宽轨苏军、标准轨德军，换轨点不写）。OCS 13.3c 的铁路 trace 经过可卸载格
-  // 时要求本方控制，而项目约定普通格不持久记录控制，因此这里只补开局控制基线。
+  // 普通格不持久记录控制；只写剧本指定地点。01 的铁路卸载点由 Railhead 标记指定，
+  // 其所属方就是该格的开局控制，后续仍由夺取/清理的 hexControl 覆盖。
   const initialRailheadMarkers = rows(setupRaw.markers).filter((marker) => marker.ref === 'Railhead')
     .map((marker) => ({ side: marker.side as Side, hex: markerHex(map, marker, 'railhead') }))
-  const railAt = data.terrain?.railAt ?? ((from: string, to: string) =>
-    map.connection(from, to)?.sourceEdges.some((edge) => edge.rail_present === true) ? true : undefined)
-  const initialControl = dnieperInitialRailControl({ map: data.playable ?? map, railAt },
-    initialRailheadMarkers)
+  const initialControl: Record<string, Side> = {}
+  for (const marker of initialRailheadMarkers) initialControl[marker.hex] = marker.side
   const rvgkMarkers: Record<string, string> = {}
   for (const marker of rows(setupRaw.markers)) {
     if (typeof marker.ref !== 'string' || !/^RVGK-[12] Marker$/.test(marker.ref)) continue
