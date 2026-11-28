@@ -212,6 +212,7 @@
 - [x] 2026-11-28，01 专规 2.3b/c 轴心 Army/Army Group HQ 铁路特例接入生产 transport。`dnieperRailBoard` 接受可选 `hqRail`，`dnieperCampaignBoards` 由真实 HQ 定义注入 `campaignHqHooks`。`B14.5`（Village，非可卸载格）的真实 `Ge HQ 8 Army`（`campaign-setup:747`/`hq:id:4149`）可登车并在普通铁路格 `B14.4` 卸车，按 1 RE 计、扣 1 运力；`A42.11` 的真实 `Ge HQ AGS`（`campaign-setup:745`/`hq:id:4322`）到普通铁路格 `A43.12` 被 `rail-unloading-unavailable` 拒绝，仍要求可卸载终点。`tests/scenario-01-hq-rail.test.mjs` 2/2。
 - [x] 2026-11-28，01 专规 3.5a RVGK 标记铁路移动接生产板。`dnieperRvgkMarkerBoard` 使用 01 真实 railNetwork、可卸载格（城市/Railhead）与邻接 10 格判定；RVGK-2 真实标记由 `B43.20` 沿 22 段铁路到 `B59.9`，扣 5 RE；`B44.19` 非可卸载、`D51.21` 轴心战斗单位 10 格内、低运力、非苏军移动阶段均拒绝。`tests/scenario-01-rvgk-marker.test.mjs` 2/2。
 - [x] 2026-11-28，按用户澄清收口 01 铁路端头语义：Railhead 不是控制点，而是书明苏军铁路端头/轨距变换位置，另一侧即德军轨距端头；开局控制改为只写 210 个聚落格，Railhead-only 的 `D51.21`/`B32.18`/`B16.28` 不再有控制记录；`D55.5` 仍因是 Village 聚落而保留聚落控制。初始轨距仍按 `Soviet Railheads` 书明路径 142 broad/1689 standard，不把端头本身当控制。`scenario-01-initial-gauge` 3/3、全量 673/673。
+- [x] 2026-11-28，01 德军标准轨铁路运输验收。真实 `C25.20` Minor City 的 `campaign-setup:423` 沿标准轨一站到 `C26.20`，按 1 RE 扣轴心 10 运力；普通标准轨 `C26.21` 作终点被 `rail-unloading-unavailable` 拒绝。该例与苏军宽轨/端头侧形成对照，`tests/scenario-01-axis-rail.test.mjs` 1/1、全量 674/674。
 - [ ] 09 剩余绑定：HQ throw 补给与进格夺取/堆叠等移动义务；资料库中 `Ge GD.PG Div`、`Ge Pz.Lehr Div`、`Ge 18.Art Div` 的编队编码为空，大日耳曼师 8 个算子暂不能按所属编队计分；铁路端头图标和双方预备库存接实际状态与 UI；完整 B9 七步仍不在本子集内。
 - [x] 按确认口径，08 的 `s5.16` 和 `s21.04` 分别有 2 点、3 点卡车及 9 SP、10 SP。开局具象补给合计 126T，实库审计分别校验卡车运输点数和补给。
 - [ ] 收敛其他地图接缝和河流数据待核。2026-11-25 的实库导入已不报 09 接缝缺失，仍有 135 条临时河边待目视确认，由项目方维护地图源。
