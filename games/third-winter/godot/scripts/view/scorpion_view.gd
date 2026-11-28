@@ -1330,13 +1330,36 @@ static func _append_bulk_fuel_rows(state: Dictionary, side: String, unit_id: Str
 			members.append(member)
 	if members.is_empty():
 		return
+	var direct_rows := 0
 	for source: Dictionary in ledger.available(members):
 		var dump_id := str(source.get("dumpId", ""))
 		if int(source.get("tokens", 0)) < Fuel.BULK_FUEL_COST:
 			continue
+		direct_rows += 1
 		menu.append({"label": "为编队 %s 买批量油（4T · %s）" % [formation, _tail(dump_id)], "group": "加油",
 			"actions": [{"type": "fuel-formation", "formation": formation,
 				"payments": [{"dumpId": dump_id, "tokens": Fuel.BULK_FUEL_COST}]}]})
+	## 编队也能由一支司令部投送：没有共用直接抽源时才列，全体成员须能经这支司令部抽同一堆油。
+	if direct_rows > 0:
+		return
+	for hq_route: String in state.get("units", {}):
+		var hq: Dictionary = state.units[hq_route]
+		var route_flag: Variant = hq.get("headquarters")
+		if str(hq.get("side", "")) != side or not (route_flag is Dictionary or (route_flag is bool and route_flag == true)):
+			continue
+		for dump_id: String in state.get("dumps", {}):
+			var dump: Dictionary = state.dumps[dump_id]
+			if str(dump.get("side", "")) != side or int(dump.get("tokens", 0)) < Fuel.BULK_FUEL_COST:
+				continue
+			var usable := true
+			for member: Dictionary in members:
+				if not ledger.can_use(member, dump_id, {"headquartersId": hq_route}):
+					usable = false
+					break
+			if usable:
+				menu.append({"label": "为编队 %s 买批量油（4T · 司令部 %s 经 %s）" % [formation, _tail(hq_route), _tail(dump_id)],
+					"group": "加油", "actions": [{"type": "fuel-formation", "formation": formation,
+						"headquartersId": hq_route, "payments": [{"dumpId": dump_id, "tokens": Fuel.BULK_FUEL_COST}]}]})
 
 
 static func _tail(id: String) -> String:

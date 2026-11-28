@@ -72,6 +72,13 @@ static func run(ctx: Dictionary) -> void:
 			[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
 		expect.call(not again.ok and str(again.get("errorCode", "")) == "fuel_formation_active",
 			"同一编队不能重复盖批量油 · " + str(again.get("errorCode", "")))
+	## 规则层允许编队批量油由一支司令部投送（不要求司令部自己先有标记）。
+	var via_hq: Dictionary = Fuel.buy_formation_fuel(_state(), "soviet", "1st", "hq",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	expect.call(via_hq.ok, "编队批量油可由司令部投送 · " + str(via_hq.get("errorCode", "")))
+	if via_hq.ok:
+		expect.call(Fuel.has_bulk_fuel(via_hq.value, "tank") and Fuel.has_bulk_fuel(via_hq.value, "inf"),
+			"司令部投送的批量油覆盖坦克与步兵")
 	## 司令部批量油：选中司令部才出行，付 4T 后盖 headquartersFuel。
 	var hq_menu: Array = ScorpionView.menu_entries(_state(), "soviet", {"unitId": "hq"}, bundle)
 	expect.call(_count_type(hq_menu, "fuel-headquarters") == 1, "司令部批量油出行 · 实 %d" % _count_type(hq_menu, "fuel-headquarters"))
@@ -162,7 +169,7 @@ static func _state() -> Dictionary:
 				"fueled": false, "formation": "1st", "allowance": 3},
 			"hq": {"side": "soviet", "combat": true,
 				"headquarters": {"throwRange": 5, "mobility": "truck", "kessel": false},
-				"hex": "s1.14", "formation": "1st", "mobility": "truck"},
+				"hex": "s1.14", "mobility": "truck"},
 			"scout": {"side": "soviet", "combat": true, "mobility": "track", "printedRe": 1,
 				"hex": "s1.14", "fueled": false, "allowance": 5},
 			"truck": {"side": "soviet", "hex": "s1.14", "transportCargoTokens": 3},
