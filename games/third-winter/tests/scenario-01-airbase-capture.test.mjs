@@ -78,7 +78,7 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
   const placed = { ...state, counters: { ...state.counters,
     [attackerId]: { ...state.counters[attackerId], location: { kind: 'map', hex: attackerHex } } } }
 
-  const after = captureCampaignAirBase(placed, 'axis', base.hex, [attackerId], {
+  const airBaseBoard = {
     map: loaded.playable,
     attackCapable(_state, id) {
       const definition = loaded.catalog.definitions.get(state.counters[id]?.definition ?? '')
@@ -89,7 +89,9 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
       return loaded.catalog.definitions.get(state.counters[id]?.definition ?? '')?.source.faces.combat?.stats.range ?? undefined
     },
     distance: (from, to) => distance(loaded.playable, from, to),
-  }, { destination: destination.hex })
+  }
+  const after = captureCampaignAirBase(placed, 'axis', base.hex, [attackerId], airBaseBoard,
+    { destination: destination.hex })
 
   assert.equal(after.airBases.find((candidate) => candidate.hex === base.hex).side, 'axis')
   const moved = after.counters[aircraftIds[0]]
@@ -97,6 +99,8 @@ test('scenario 01 real Soviet airbase is captured and its real aircraft transfer
   assert.equal(moved.location.hex, destination.hex)
   assert.equal(moved.active, false)
   assert.ok((moved.stepsLost ?? 0) <= 1)
+  assert.throws(() => captureCampaignAirBase(placed, 'axis', base.hex, [attackerId], airBaseBoard),
+    /Choose a transfer airbase/)
 
   const truck = loaded.setup.counters.find((counter) => counter.ref === 'Ge 23.Pz Truck')
   assert.ok(truck)
