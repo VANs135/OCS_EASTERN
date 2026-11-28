@@ -1129,6 +1129,7 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
+	_append_engage_menu(state, side, selection, data, menu)
 	_append_hedgehog_menu(state, side, selection, data, menu)
 	_append_combat_menu(state, side, data, menu)
 	_append_barrage_menu(state, side, selection, data, menu)
@@ -1227,6 +1228,65 @@ static func _neighbors(data: Dictionary) -> Dictionary:
 	if graph is Dictionary:
 		return graph
 	return {}
+
+
+## OCS 9.1 — the attack rows of desktop `engagementChoices`: neighbouring enemy combat hex, one row per
+## dump that can pay the unit's remaining steps, plus the internal-stocks row. Artillery and air-base
+## barrage stay out until the native barrage table knows facility targets.
+static func _append_engage_menu(state: Dictionary, side: String, selection: Dictionary,
+		data: Dictionary, menu: Array) -> void:
+	var phase := str(state.get("cursor", {}).get("phase", ""))
+	if phase != "combat" and phase != "exploitation":
+		return
+	if str(state.get("turn", {}).get("weather", {}).get("ground", "")) == "thaw":
+		return
+	var unit_id := ""
+	var ids: Array = selection.get("unitIds", [])
+	if selection.get("unitId") != null:
+		unit_id = str(selection.unitId)
+	elif ids.size() == 1:
+		unit_id = str(ids[0])
+	if unit_id.is_empty() or selection.get("hex") == null:
+		return
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side or unit.get("attackCapable") != true:
+		return
+	if (state.get("combatAttackers", []) as Array).has(unit_id):
+		return
+	var target := str(selection.hex)
+	var from := str(unit.get("hex", ""))
+	if target == from or not _neighbors(data).get(from, []).has(target):
+		return
+	var enemy := "soviet" if side == "axis" else "axis"
+	var has_target := false
+	for id: String in state.get("units", {}):
+		var other: Dictionary = state.units[id]
+		if str(other.get("side", "")) == enemy and other.get("combat") == true and str(other.get("hex", "")) == target:
+			has_target = true
+			break
+	if not has_target:
+		return
+	var tokens := int(unit.get("printedRe", 0)) - int(unit.get("stepsLost", 0))
+	if tokens <= 0:
+		return
+	var ledger := SpPayment.new(state, side, data)
+	var usable: Array = ledger.available([unit])
+	var total := 0
+	for source: Dictionary in usable:
+		total += int(source.get("tokens", 0))
+		if int(source.get("tokens", 0)) < tokens:
+			continue
+		var dump_id := str(source.get("dumpId", ""))
+		if not ledger.can_use(unit, dump_id):
+			continue
+		var tail := dump_id.substr(dump_id.rfind(":") + 1)
+		menu.append({"label": "攻击 %s · %s 支付 %dT" % [target, tail, tokens], "group": "攻击",
+			"actions": [{"type": "declare-combat", "target": target, "attackers": [unit_id],
+				"payments": [{"unitId": unit_id, "dumpId": dump_id, "tokens": tokens}]}]})
+	if str(unit.get("internalStocks", "")) != "exhausted" and total < tokens:
+		menu.append({"label": "攻击 %s · 动用部队储备" % target, "group": "攻击",
+			"actions": [{"type": "declare-combat", "target": target, "attackers": [unit_id],
+				"payments": [], "internalUnitIds": [unit_id]}]})
 
 
 ## OCS 13.3 — 刺猬作业（构筑 8T / 拆除 0T）：worker 由当前选中的静止战斗单位承担，
