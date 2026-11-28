@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { createRngState } from '@ocs-eastern/series/rng'
 import { indexTtwCampaignMap } from '../src/import/campaign-map-index.ts'
 import { prepareCampaignSetup } from '../src/import/campaign-setup.ts'
+import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
@@ -25,7 +26,7 @@ async function scenario01() {
   const map = indexTtwCampaignMap(hexes, edges)
   const playable = campaignMapInPlayArea(map, ttwCampaignPlayArea(SCENARIO))
   const setup = prepareCampaignSetup(setupRaw, catalog.aliases, map, playable)
-  return { map, playable, catalog, setup, setupRaw }
+  return { map, playable, catalog, setup, setupRaw, terrain: campaignTerrain(playable) }
 }
 
 test('scenario 01 Poltava fortress keeps its real Axis fortress unit inside and ends only when both hexes are Soviet', async () => {
@@ -51,6 +52,12 @@ test('scenario 01 Poltava fortress keeps its real Axis fortress unit inside and 
   assert.equal(hooks.exitRefusal(state, unitId, 'B41.6', 'B42.6'), null)
   assert.equal(hooks.exitRefusal(state, unitId, 'B41.6', 'B40.6'), 'fortress-city-no-exit')
   assert.equal(hooks.exitRefusal(state, unitId, 'B41.6', 'B41.5'), 'fortress-city-no-exit')
+
+  const boards = dnieperCampaignBoards(loaded)
+  assert.equal(boards.railTransport.exitRefusal?.(state, unitId, 'B41.6', 'B42.6'), null,
+    'rail movement between the two fortress-city hexes stays legal')
+  assert.equal(boards.railTransport.exitRefusal?.(state, unitId, 'B41.6', 'B40.6'), 'fortress-city-no-exit',
+    'production rail board carries §2.4a out of the fortress city')
 
   const oneSoviet = { ...state, hexControl: { 'B41.6': 'soviet' } }
   const partial = settleCampaignFortressStatus(oneSoviet,

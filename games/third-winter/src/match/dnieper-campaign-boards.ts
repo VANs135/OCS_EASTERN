@@ -49,7 +49,7 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
     options.airBase, transportCapture, extenderWork, edgeSupplySourcesForTurn, input.railheads)
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   const fortressBoard = dnieperFortressBoards(input)
-  const railTransport = dnieperRailBoard({ map: input.playable })
+  const railTransport = dnieperRailBoard({ map: input.playable, exitRefusal: fortressBoard.exitRefusal })
   return { groundMovement, transportCapture, extenderWork, stacking, fortressBoard, railTransport, edgeSupplySourcesForTurn }
 }
 
