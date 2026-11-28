@@ -3,8 +3,8 @@ extends RefCounted
 ## OCS 12.5c — the single-counter fuel throw of `fuelScorpionMovement`.
 ## 只有「战斗面 + 非腿机动 + 未加油」的算子才需要为一次移动付 1T；付过就把它标成 fueled，
 ## 阶段/补给/回合收尾处已经各自清标记（phase_flow / round / supply_phase）。
-## 批量加油（`fuel-formation` / `fuel-headquarters`）与「已加油司令部投送」还没移植：
-## 前者要编队标记与共用抽源，后者要 `headquartersFuel` 的 throw 锁源。
+## 批量加油（`fuel-formation` / `fuel-headquarters`，4T）与「已加油司令部投送」都在本文件：
+## 买标记时付费，投送时只查投程并把 `headquartersFuel` 的「本阶段从哪格投」锁上。
 
 const Result := preload("res://scripts/core/result.gd")
 const SpPayment := preload("res://works/third-winter/rules/sp_payment.gd")
@@ -42,6 +42,62 @@ static func fuel_with_dump(state: Dictionary, side: String, unit_id: String, dum
 	state.units = settled.units
 	state.dumps = settled.dumps
 	state.units[unit_id].fueled = true
+	return Result.success(state)
+
+
+## OCS 12.5c(C) — 已加油司令部把油投给范围内的独立单位（`fuelScorpionMovement` 的 HQ 分支）。
+## 4T 早在买标记时付过，这里只记「本阶段从哪格投过」的锁：同一阶段换了格子就不能再投。
+static func _is_headquarter(unit: Dictionary) -> bool:
+	var flag: Variant = unit.get("headquarters")
+	return flag is Dictionary or (flag is bool and flag == true)
+static func fuel_with_headquarters(state: Dictionary, side: String, unit_id: String, headquarters_id: String,
+		data: Dictionary) -> Dictionary:
+	if state.get("kind") != "playing":
+		return Result.failure("match_not_started", "请先开始 08 对局")
+	var unit: Dictionary = state.get("units", {}).get(unit_id, {})
+	if unit.is_empty() or str(unit.get("side", "")) != side:
+		return Result.failure("fuel_unit", "请选择本方的地面算子")
+	if not needs_fuel(unit, side) or has_bulk_fuel(state, unit_id):
+		return Result.failure("fuel_not_needed", "这枚算子不需要付油")
+	var formation := str(unit.get("formation", ""))
+	if not formation.is_empty() or int(unit.get("printedRe", 1)) > 1:
+		return Result.failure("fuel_independent", "只有独立单位能接受司令部投送")
+	var hq: Dictionary = state.get("units", {}).get(headquarters_id, {})
+	if hq.is_empty() or not _is_headquarter(hq) or str(hq.get("side", "")) != side:
+		return Result.failure("fuel_headquarters", "请选择本方的司令部")
+	var marker := {}
+	for fuel: Variant in state.get("headquartersFuel", []):
+		var row: Dictionary = fuel
+		if str(row.get("id", "")) == headquarters_id and str(row.get("side", "")) == side:
+			marker = row
+	if marker.is_empty():
+		return Result.failure("fuel_headquarters_unfueled", "这支司令部还没有批量油标记")
+	var used: Variant = marker.get("used")
+	if used != null and used is Dictionary:
+		var cursor: Dictionary = state.get("cursor", {})
+		var same_phase := int((used as Dictionary).get("turn", -1)) == int(cursor.get("turn", -2)) \
+			and str((used as Dictionary).get("phasing", "")) == str(cursor.get("phasing", "")) \
+			and str((used as Dictionary).get("phase", "")) == str(cursor.get("phase", ""))
+		if same_phase and str((used as Dictionary).get("hex", "")) != str(hq.get("hex", "")):
+			return Result.failure("fuel_headquarters_phase", "这支司令部本阶段已从另一格投过油")
+	var ledger := SpPayment.new(state, side, data)
+	if not ledger.in_throw_range(headquarters_id, str(unit.get("hex", ""))):
+		return Result.failure("fuel_headquarters_range", "该独立单位不在司令部投送范围内")
+	var markers: Array = []
+	for fuel: Variant in state.get("headquartersFuel", []):
+		var row: Dictionary = fuel
+		if str(row.get("id", "")) == headquarters_id and str(row.get("side", "")) == side:
+			var next: Dictionary = row.duplicate(true)
+			var cursor: Dictionary = state.get("cursor", {})
+			next["used"] = {"turn": int(cursor.get("turn", 0)), "phasing": str(cursor.get("phasing", "")),
+				"phase": str(cursor.get("phase", "")), "hex": str(hq.get("hex", ""))}
+			markers.append(next)
+		else:
+			markers.append(row)
+	state["headquartersFuel"] = markers
+	var moved: Dictionary = state.units[unit_id]
+	moved["fueled"] = true
+	state.units[unit_id] = moved
 	return Result.success(state)
 
 
@@ -106,7 +162,7 @@ static func buy_formation_fuel(state: Dictionary, side: String, formation: Strin
 			return Result.failure("fuel_formation_active", "该编队已有批量油标记")
 	if not headquarters_id.is_empty():
 		var hq: Dictionary = state.get("units", {}).get(headquarters_id, {})
-		if hq.is_empty() or hq.get("headquarters") != true or str(hq.get("side", "")) != side:
+		if hq.is_empty() or not _is_headquarter(hq) or str(hq.get("side", "")) != side:
 			return Result.failure("fuel_headquarters", "请选择本方的司令部")
 	elif _distinct_sources(payments) != 1:
 		return Result.failure("fuel_formation_source", "编队批量油要么单一直接抽源，要么由一支司令部投送")
@@ -148,7 +204,7 @@ static func buy_headquarters_fuel(state: Dictionary, side: String, headquarters_
 	if _total_tokens(payments) != BULK_FUEL_COST:
 		return Result.failure("fuel_bulk_cost", "批量油需要支付 4T")
 	var hq: Dictionary = state.get("units", {}).get(headquarters_id, {})
-	if hq.is_empty() or hq.get("headquarters") != true or str(hq.get("side", "")) != side:
+	if hq.is_empty() or not _is_headquarter(hq) or str(hq.get("side", "")) != side:
 		return Result.failure("fuel_headquarters", "请选择本方的司令部")
 	for marker: Variant in state.get("headquartersFuel", []):
 		if str((marker as Dictionary).get("id", "")) == headquarters_id:

@@ -79,6 +79,11 @@ func can_use(unit: Dictionary, id: String, method: Dictionary = {}) -> bool:
 	return _network.can_draw_dump(hex, str(from.hex), mobility)
 
 
+## OCS 12.5c(C) — 已加油司令部能否把油投到某个格子（TS `network.inThrowRange`）。
+func in_throw_range(headquarters_id: String, hex: String) -> bool:
+	return _network.in_throw_range(headquarters_id, hex)
+
+
 ## All sources that can feed every one of `units`, with the tokens each still holds.
 func available(units: Array, include_organic: bool = true) -> Array:
 	var prefix := "%s:hex:" % _side

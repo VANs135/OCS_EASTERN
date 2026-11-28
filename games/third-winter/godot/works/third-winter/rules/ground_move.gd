@@ -15,11 +15,12 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 	for hex: Variant in action.get("path", []):
 		path.append(str(hex))
 	## 桌面 `ground-move` 可以顺带付油：先按 TS `fuelScorpionMovement` 走单枚油源，
-	## 付完再校验路线；只认补给堆/运输车油源，已加油司令部投送还没原生。
-	if action.get("fuelHeadquartersId") != null:
-		return Result.failure("fuel_headquarters", "已加油司令部投送还没移植，请改用补给堆付油")
+	## 付完再校验路线；油源可以是补给堆/运输车，也可以是已加油司令部投送给独立单位。
+	var hq_id := str(action.get("fuelHeadquartersId", ""))
 	var fuel_paid := false
 	var dump_id := str(action.get("fuelDumpId", ""))
+	if not hq_id.is_empty() and not dump_id.is_empty():
+		return Result.failure("fuel_source", "一枚算子只选一个油源")
 	if not dump_id.is_empty():
 		## TS `fuelScorpionMovement`：不需要付油（含批量油覆盖）的算子被硬塞油源是错误，不是免费加油。
 		if Fuel.has_bulk_fuel(state, unit_id):
@@ -27,6 +28,13 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 		var fueled := Fuel.fuel_with_dump(state, actor, unit_id, dump_id, data)
 		if not fueled.ok:
 			return fueled
+		fuel_paid = true
+	elif not hq_id.is_empty():
+		if Fuel.has_bulk_fuel(state, unit_id):
+			return Result.failure("fuel_not_needed", "这枚算子已被批量油覆盖，不必再付油")
+		var thrown := Fuel.fuel_with_headquarters(state, actor, unit_id, hq_id, data)
+		if not thrown.ok:
+			return thrown
 		fuel_paid = true
 	var checked := check(state, actor, unit_id, path, data, fuel_paid)
 	if not checked.ok:

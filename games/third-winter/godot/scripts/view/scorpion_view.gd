@@ -1227,6 +1227,32 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 		var tail := dump_id.substr(dump_id.rfind(":") + 1)
 		menu.append({"label": "移动到 %s · %s 支付 1T" % [str(path[path.size() - 1]), tail], "group": "移动",
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
+	## OCS 12.5c(C) — 独立单位可以用已加油司令部投送：只列还在投程内、本阶段没换格投过的司令部。
+	_append_headquarters_throw_rows(state, side, unit_id, unit, path, ledger, menu)
+
+
+static func _append_headquarters_throw_rows(state: Dictionary, side: String, unit_id: String, unit: Dictionary,
+		path: Array, ledger: RefCounted, menu: Array) -> void:
+	if not str(unit.get("formation", "")).is_empty() or int(unit.get("printedRe", 1)) > 1:
+		return
+	var cursor: Dictionary = state.get("cursor", {})
+	for marker: Variant in state.get("headquartersFuel", []):
+		var row: Dictionary = marker
+		if str(row.get("side", "")) != side:
+			continue
+		var hq_id := str(row.get("id", ""))
+		var hq: Dictionary = state.get("units", {}).get(hq_id, {})
+		if hq.is_empty() or not ledger.in_throw_range(hq_id, str(unit.get("hex", ""))):
+			continue
+		var used: Variant = row.get("used")
+		if used != null and used is Dictionary:
+			var same_phase := int((used as Dictionary).get("turn", -1)) == int(cursor.get("turn", -2)) \
+				and str((used as Dictionary).get("phasing", "")) == str(cursor.get("phasing", "")) \
+				and str((used as Dictionary).get("phase", "")) == str(cursor.get("phase", ""))
+			if same_phase and str((used as Dictionary).get("hex", "")) != str(hq.get("hex", "")):
+				continue
+		menu.append({"label": "移动到 %s · 司令部 %s 投送" % [str(path[path.size() - 1]), _tail(hq_id)], "group": "移动",
+			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelHeadquartersId": hq_id}]})
 
 
 ## OCS 12.5c — 暂驻运输队给选中算子付 1T（`fuel-from-paused-transport`），以及选中算子所在
@@ -1275,7 +1301,8 @@ static func _append_bulk_fuel_rows(state: Dictionary, side: String, unit_id: Str
 		ledger: RefCounted, menu: Array) -> void:
 	if not Fuel.bulk_window(state, side):
 		return
-	var hq_id := unit_id if unit.get("headquarters") == true else ""
+	var hq_flag: Variant = unit.get("headquarters")
+	var hq_id := unit_id if hq_flag is Dictionary or (hq_flag is bool and hq_flag == true) else ""
 	var formation := str(unit.get("formation", ""))
 	if hq_id.is_empty() and formation.is_empty():
 		return

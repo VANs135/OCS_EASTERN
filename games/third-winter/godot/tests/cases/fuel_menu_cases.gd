@@ -5,6 +5,7 @@ extends RefCounted
 
 const JsonFile := preload("res://scripts/data/json_file.gd")
 const Fuel := preload("res://works/third-winter/rules/fuel.gd")
+const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
 const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 
 const BUNDLE_REL := "../../../dist/godot/08-opening-data.json"
@@ -94,6 +95,43 @@ static func run(ctx: Dictionary) -> void:
 		"解冻时不给批量油 · " + str(thaw_buy.get("errorCode", "")))
 
 
+	## 司令部投送：已加油司令部给独立单位，4T 已付过，只锁「本阶段从哪格投」。
+	var funded_hq: Dictionary = _state()
+	var hq_bought: Dictionary = Fuel.buy_headquarters_fuel(funded_hq, "soviet", "hq",
+		[{"dumpId": "soviet:hex:s1.14", "tokens": Fuel.BULK_FUEL_COST}], bundle)
+	expect.call(hq_bought.ok, "投送前置：司令部先买批量油 · " + str(hq_bought.get("errorCode", "")))
+	if hq_bought.ok:
+		var thrown: Dictionary = Fuel.fuel_with_headquarters(hq_bought.value, "soviet", "scout", "hq", bundle)
+		expect.call(thrown.ok, "司令部给独立单位投送成功 · " + str(thrown.get("errorCode", "")))
+		if thrown.ok:
+			var after: Dictionary = thrown.value
+			expect.call(after.units.scout.fueled == true, "投送后独立单位标 fueled")
+			var marker: Dictionary = (after.get("headquartersFuel", []) as Array)[0]
+			var used: Variant = marker.get("used")
+			expect.call(used is Dictionary and str((used as Dictionary).get("hex", "")) == "s1.14",
+				"投送锁记下司令部的格")
+			var inf_throw: Dictionary = Fuel.fuel_with_headquarters(after, "soviet", "tank", "hq", bundle)
+			expect.call(not inf_throw.ok and str(inf_throw.get("errorCode", "")) == "fuel_independent",
+				"编队内单位不能收司令部投送 · " + str(inf_throw.get("errorCode", "")))
+			var relocked: Dictionary = (after.duplicate(true))
+			relocked.units.scout.fueled = false
+			var locked_marker: Dictionary = (relocked.get("headquartersFuel", []) as Array)[0]
+			var used_lock: Dictionary = locked_marker["used"]
+			used_lock["hex"] = "s0.00"
+			var moved_throw: Dictionary = Fuel.fuel_with_headquarters(relocked, "soviet", "scout", "hq", bundle)
+			expect.call(not moved_throw.ok and str(moved_throw.get("errorCode", "")) == "fuel_headquarters_phase",
+				"同阶段换格投送被拒 · " + str(moved_throw.get("errorCode", "")))
+			var walk: Dictionary = (after.duplicate(true))
+			walk.units.scout.fueled = false
+			var walked: Dictionary = GroundMove.apply(walk, "soviet",
+				{"unitId": "scout", "path": ["s1.15"], "fuelHeadquartersId": "hq"}, bundle)
+			expect.call(walked.ok and str(walked.value.units.scout.hex) == "s1.15",
+				"走子带司令部投送落地 · " + str(walked.get("errorCode", "")))
+	var unfunded: Dictionary = Fuel.fuel_with_headquarters(_state(), "soviet", "scout", "hq", bundle)
+	expect.call(not unfunded.ok and str(unfunded.get("errorCode", "")) == "fuel_headquarters_unfueled",
+		"没买批量油的司令部不能投送 · " + str(unfunded.get("errorCode", "")))
+
+
 static func _count_type(menu: Array, type_name: String) -> int:
 	var count := 0
 	for row: Dictionary in menu:
@@ -122,7 +160,11 @@ static func _state() -> Dictionary:
 				"fueled": false, "formation": "1st", "allowance": 6},
 			"inf": {"side": "soviet", "combat": true, "mobility": "leg", "hex": "s1.14",
 				"fueled": false, "formation": "1st", "allowance": 3},
-			"hq": {"side": "soviet", "headquarters": true, "hex": "s1.14", "formation": "1st"},
+			"hq": {"side": "soviet", "combat": true,
+				"headquarters": {"throwRange": 5, "mobility": "truck", "kessel": false},
+				"hex": "s1.14", "formation": "1st", "mobility": "truck"},
+			"scout": {"side": "soviet", "combat": true, "mobility": "track", "printedRe": 1,
+				"hex": "s1.14", "fueled": false, "allowance": 5},
 			"truck": {"side": "soviet", "hex": "s1.14", "transportCargoTokens": 3},
 		},
 		"groundActivity": {"transport": {"unitId": "truck"}},
