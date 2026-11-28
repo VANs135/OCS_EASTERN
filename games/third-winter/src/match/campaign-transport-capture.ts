@@ -1,0 +1,102 @@
+// OCS 9.14c：运输点夺取的交互窗口。组级掷骰与原主算子级选择复用 series，
+// 本文件只负责 01/战役层的计数器落位与位移校验。
+
+import type { Side } from '@ocs-eastern/series/state-types'
+import type { Die } from '@ocs-eastern/series/dice'
+import { buildTransportCaptureGroup, transportDisplacementCandidates, validateTransportCaptureChoice } from
+  '@ocs-eastern/series/transport-capture'
+import type { TransportCaptureClass, TransportCaptureGroup } from '@ocs-eastern/series/transport-capture'
+import type { CampaignTurnState } from './campaign-turn-state.ts'
+import type { CampaignGroundMap } from './campaign-ground-position.ts'
+
+export interface CampaignTransportCaptureItem {
+  id: string
+  kind: TransportCaptureClass
+  points: number
+  tokens: number
+}
+
+export interface CampaignTransportCaptureFacts {
+  hex: string
+  kind: TransportCaptureClass
+  points: number
+  tokens: number
+}
+
+export interface CampaignTransportCaptureBoard {
+  map: CampaignGroundMap
+  /** 六角距离；不可达返回 Infinity。 */
+  distance(from: string, to: string): number
+  transports(state: Readonly<CampaignTurnState>, owner: Side, hex: string): readonly CampaignTransportCaptureItem[]
+  /** 按点/T 落成一方运输计数器；具体面额由绑定层决定。 */
+  placeTransport(state: Readonly<CampaignTurnState>, side: Side, facts: CampaignTransportCaptureFacts): CampaignTurnState
+}
+
+export interface CampaignTransportCapture {
+  captor: Side
+  owner: Side
+  hex: string
+  groups: readonly TransportCaptureGroup[]
+}
+
+export interface CampaignTransportCaptureChoice {
+  kind: TransportCaptureClass
+  capturedIds: readonly string[]
+  displacedTo?: string
+}
+
+export type CampaignTransportCaptureAction = {
+  type: 'resolve-campaign-transport-capture'
+  choices: readonly CampaignTransportCaptureChoice[]
+}
+
+/** 9.14c：进格夺取开始时按运输点类别掷骰，并挂起等待原主选择。 */
+export function beginCampaignTransportCapture(state: Readonly<CampaignTurnState>, captor: Side, owner: Side,
+  hex: string, board: CampaignTransportCaptureBoard, roll: () => Die): CampaignTransportCapture {
+  const entries = board.transports(state, owner, hex)
+  return {
+    captor, owner, hex,
+    groups: (['trucks', 'wagons'] as const).flatMap((kind) => {
+      const items = entries.filter((item) => item.kind === kind)
+      return items.length ? [buildTransportCaptureGroup(kind, roll(), items)] : []
+    }),
+  }
+}
+
+/** 9.14c：原主在每组内选被夺取的整枚计数器；余部必须落到射程内格。 */
+export function settleCampaignTransportCapture(state: Readonly<CampaignTurnState>,
+  capture: CampaignTransportCapture, choices: readonly CampaignTransportCaptureChoice[],
+  board: CampaignTransportCaptureBoard): CampaignTurnState {
+  const byKind = new Map(choices.map((choice) => [choice.kind, choice]))
+  if (choices.length !== capture.groups.length || byKind.size !== capture.groups.length) {
+    throw new Error('Choose exactly one transport capture outcome for each group')
+  }
+  const counters = { ...state.counters }
+  for (const group of capture.groups) {
+    const choice = byKind.get(group.kind)
+    if (!choice) throw new Error(`Missing transport capture choice for ${group.kind}`)
+    const plan = validateTransportCaptureChoice(group, choice.capturedIds)
+    if (!plan.exact) throw new Error('The captured counters must match the group dice result exactly')
+    const displaced = plan.displacedIds.length > 0
+    const destination = choice.displacedTo && board.map.resolveHex(choice.displacedTo)
+    if (displaced && (!destination || !transportDisplacementCandidates(capture.hex, [destination],
+      board.distance, group.kind).length)) {
+      throw new Error('Choose an in-range displacement hex for the remaining transports')
+    }
+    for (const item of group.items) delete counters[item.id]
+  }
+  let next: CampaignTurnState = { ...state, counters, transportCapture: undefined }
+  for (const group of capture.groups) {
+    const choice = byKind.get(group.kind)!
+    const plan = validateTransportCaptureChoice(group, choice.capturedIds)
+    const destination = choice.displacedTo && board.map.resolveHex(choice.displacedTo)
+    for (const item of group.items) {
+      const captured = plan.capturedIds.includes(item.id)
+      next = board.placeTransport(next, captured ? capture.captor : capture.owner, {
+        hex: captured ? capture.hex : destination!,
+        kind: group.kind, points: item.points, tokens: item.tokens,
+      })
+    }
+  }
+  return next
+}

@@ -18,6 +18,7 @@ import { settleCampaignStacking } from './campaign-stacking.ts'
 import { declareCampaignFortress } from './campaign-fortress.ts'
 import { workCampaignAirfield } from './campaign-airfield.ts'
 import { collapseCampaignExtender, convertCampaignExtender, flipCampaignExtender } from './campaign-extender.ts'
+import { settleCampaignTransportCapture } from './campaign-transport-capture.ts'
 import { barrageMarkerRecoveryTurn } from '../ttw/combat-special.ts'
 import { kirovogradOpening, kirovogradScenario } from '../ttw/campaign/kirovograd.ts'
 import { consolidateCampaignAircraft } from './campaign-aircraft-consolidation.ts'
@@ -154,6 +155,11 @@ export function applyCampaignTurn(state: Readonly<CampaignTurnState>, actor: Sid
   if (action.type === 'work-campaign-airfield') {
     if (!context.airfieldWork) throw new Error('Campaign airfield work requires an airfield board')
     return workCampaignAirfield(state, actor, action, context.airfieldWork)
+  }
+  if (action.type === 'resolve-campaign-transport-capture') {
+    if (!state.transportCapture) throw new Error('There is no pending transport capture')
+    if (!context.transportCapture) throw new Error('Campaign transport capture requires a transport board')
+    return settleCampaignTransportCapture(state, state.transportCapture, action.choices, context.transportCapture)
   }
   if (action.type === 'convert-campaign-extender' || action.type === 'flip-campaign-extender' ||
     action.type === 'collapse-campaign-extender') {
