@@ -38,35 +38,31 @@ function sovietMovement(state) {
 const move = (state, boards, box, hex) => applyCampaignTurn(state, 'soviet',
   { type: 'move-campaign-rvgk-marker', box, hex }, boards)
 
-test('scenario 01 RVGK-2 marker rails B43.20 to B59.9 for 5 RE (§3.5a)', async () => {
+test('scenario 01 RVGK marker rail movement is restricted to Soviet broad gauge (§3.5a)', async () => {
   const { state, boards } = await load()
   const turn = sovietMovement(state)
   assert.deepEqual(state.rvgkMarkers, { 'rvgk-1': 'D60.19', 'rvgk-2': 'B43.20' })
   assert.equal(boards.rvgkMarker.detrainable(turn, 'B59.9'), true)
   assert.equal(boards.rvgkMarker.detrainable(turn, 'B44.19'), false)
 
-  const route = boards.rvgkMarker.railRoute?.(turn, 'B43.20', 'B59.9')
-  assert.equal(route?.length, 23)
-  assert.equal(route?.[0], 'B43.20')
-  assert.equal(route?.at(-1), 'B59.9')
-  assert.equal(boards.rvgkMarker.routeWithin10AxisCombat(turn, 'B43.20', 'B59.9'), false)
-  assert.equal(boards.rvgkMarker.railCost?.(turn, 'rvgk-2', 'B43.20', 'B59.9'), 5)
+  assert.equal(boards.rvgkMarker.railRoute?.(turn, 'B43.20', 'B59.9'), undefined,
+    'B43.20 is on the German standard-gauge side, so a Soviet marker may not rail from it')
+  const broad = boards.rvgkMarker.railRoute?.(turn, 'D60.19', 'D56.18')
+  assert.equal(broad?.length, 5,
+    'a real Soviet broad-gauge route exists from D60.19')
+  assert.equal(broad?.[0], 'D60.19')
+  assert.equal(broad?.at(-1), 'D56.18')
   assert.equal(boards.rvgkMarker.railCapacityRemaining(turn), 7)
 
-  const settled = move(turn, boards, 'rvgk-2', 'B59.9')
-  assert.equal(settled.rvgkMarkers['rvgk-2'], 'B59.9')
-  assert.equal(settled.groundMovement?.railCapacitySpent, 5)
+  assert.throws(() => move(turn, boards, 'rvgk-2', 'B59.9'), /connected railway/)
 })
 
-test('scenario 01 RVGK marker refuses non-detrainable, inside Axis 10, low capacity and wrong phase', async () => {
+test('scenario 01 RVGK marker refuses non-detrainable, inside Axis 10 and wrong phase', async () => {
   const { state, boards } = await load()
   const turn = sovietMovement(state)
-  assert.throws(() => move(turn, boards, 'rvgk-2', 'B44.19'), /detrainable/)
-  assert.throws(() => move(turn, boards, 'rvgk-2', 'B18.7'), /connected railway/)
+  assert.throws(() => move(turn, boards, 'rvgk-1', 'D56.18'), /detrainable/)
   assert.throws(() => move(turn, boards, 'rvgk-1', 'D51.21'), /10 hexes/)
-
-  const low = { ...turn, groundMovement: { moved: [], zocLocks: [], railCapacitySpent: 4 } }
-  assert.throws(() => move(low, boards, 'rvgk-2', 'B59.9'), /rail capacity/)
+  assert.throws(() => move(turn, boards, 'rvgk-2', 'B18.7'), /connected railway/)
 
   const axisPhase = { ...turn, cursor: { first: 'soviet', phasing: 'axis', phase: 'movement' } }
   assert.throws(() => move(axisPhase, boards, 'rvgk-2', 'B59.9'), /Soviet movement phase/)

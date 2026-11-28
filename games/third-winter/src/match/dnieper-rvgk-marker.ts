@@ -1,8 +1,10 @@
-// TTW §3.5a RVGK 标记的生产板：铁路路径/轨距取 01 的 railNetwork，可卸载格取生产 trace，
+// TTW §3.5a RVGK 标记的生产板：铁路路径/轨距取 01 的 railNetwork，标记只沿苏军宽轨移动
+// （与所有铁路移动/铁路运输同一轨距限制）；可卸载格取生产 trace，
 // 10 格轴心战斗单位禁入用真实邻接判断；费用按 5 RE 起算并照常叠加 Trainbusting/多轨修正。
 
 import { inTrainbustingZone } from '@ocs-eastern/series/trainbusting'
 import { railCapacityCost } from '@ocs-eastern/series/rail-transport'
+import { ttwRailGauge } from '../ttw/campaign/rail-gauge.ts'
 import { campaignHexesWithin } from '../ttw/campaign/hex-range.ts'
 import type { RvgkBox } from '../ttw/rvgk.ts'
 import { campaignRailEdge } from './campaign-rail-network.ts'
@@ -40,12 +42,13 @@ export function dnieperRvgkMarkerBoard(input: DnieperRvgkMarkerBoardInput): Camp
       t === 'Minor City' || t === 'Major City') === true
   }
 
-  /** 沿铁路的 BFS；§3.5a 未限定轨距，按图纸铁路本身连通；avoid 给出时跳过其中的格（起点除外）。 */
+  /** 沿铁路的 BFS；§3.5a 未单独写轨距，但铁路移动统一只走本方轨距，RVGK 标记同样只走苏军宽轨。 */
   const railRoute = (state: Readonly<CampaignTurnState>, from: string, to: string, avoid?: ReadonlySet<string>) => {
     const start = playable.resolveHex(from)
     const target = playable.resolveHex(to)
     const network = groundMovement.railNetwork
     if (!start || !target || !network) return undefined
+    const gauge = ttwRailGauge('soviet')
     const queue = [start]
     const parent = new Map<string, string | undefined>([[start, undefined]])
     for (let i = 0; i < queue.length; i += 1) {
@@ -55,7 +58,7 @@ export function dnieperRvgkMarkerBoard(input: DnieperRvgkMarkerBoardInput): Camp
         if (parent.has(next)) continue
         if (avoid?.has(next)) continue
         const edge = campaignRailEdge(state, playable, network, hex, next)
-        if (!edge) continue
+        if (!edge || edge.gauge !== gauge) continue
         parent.set(next, hex)
         queue.push(next)
       }

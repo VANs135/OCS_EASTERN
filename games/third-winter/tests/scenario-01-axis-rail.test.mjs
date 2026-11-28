@@ -69,4 +69,11 @@ test('scenario 01 Axis rail rides the standard gauge between real cities and ref
 
   assert.equal(refuse(turn, boards, ['C25.20', 'C26.20', 'C26.21']), 'rail-unloading-unavailable',
     'an ordinary standard-gauge rail hex is not an Axis unload site')
+
+  const broad = {
+    ...turn,
+    railGaugeByEdge: { ...(state.railGaugeByEdge ?? {}), 'C25.20|C26.20': 'broad' },
+  }
+  assert.equal(refuse(broad, boards, ['C25.20', 'C26.20']), 'rail-wrong-gauge',
+    'Axis rail may not use a Soviet broad-gauge edge')
 })
