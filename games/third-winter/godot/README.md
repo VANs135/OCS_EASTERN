@@ -88,6 +88,8 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd
 
 08 实库验收先生成初设数据和 TypeScript 交互对照。生成器默认使用仓库 `dist` 图表，也可用第三个位置参数指定图表目录。对照包含开局、部署、右键菜单、移动、拒绝、续档及行动方切换。使用现有缓存时重新生成初设文件以取得机场、Alert 档案、控制点、地图拓扑以及视图所需的算子名/面/标记素材。无头测试读取两个同指纹文件，逐步重放修订 0 至 31，核对盘面、骰序、回执，并用同一交互序列驱动原生会话逐视图对照修订 0–30 的地图与侧栏投影；再结算 `complete-refit`、逐条重放四条增援命令，并把修订 32–37 的增援面板逐字段对照（headline、roster、动作文案、盒子、回合轨、Pax）。移动、交互投影和续档的原生对照仍待接入。
 
+08 视图对照中的拆分行依赖正式库 `scenarios/08-korsun-pocket/breakdowns.json`（父单位 43 条、计数器 6 条，均来自 `setup.pools.breakdown`）；重生成 `08-scorpion.json` 前确认该文件存在。
+
 ```powershell
 $ttwData = 'D:\war game\OCS各作数据库\OCS第三个冬天'
 node --experimental-strip-types games/third-winter/scripts/godot-scorpion-opening-data.mjs $ttwData
@@ -107,7 +109,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。`menu` 字段不参与对照，新增的界面入口只能落在 `menu`。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
 
-本轮各数值层与命令层都带独立夹具：`godot-combat-terrain.mjs`（967 条）、`godot-mode-commands.mjs`（78 行）、`godot-barrage.mjs`（9 例）、`godot-combat.mjs`（6 场景 43 步）、`godot-remnant-gen.mjs`（5 场景 6 步）、`godot-retreat.mjs`（6 场景 12 步）、`godot-capture.mjs`（6 场景 7 步）；用例放在 `tests/cases/<名>_cases.gd`，由 `tests/runner.gd` 扫描目录自动加载（每个文件暴露 `static func run(ctx)`，`ctx` 给出 `expect`/`compare`/`reject`/`state_slice` 与 `args`）。当前基线：六参数 **3151/3151**、两参数 **3123/3123**。战斗掷骰已回本局 `state.rng`（`combat_rolls.gd`，对照 TS `scorpionRolls`）：`surprise` 2 枚 → `surprise-shift` 1 枚（仅极端时）→ `combat` 2 枚，`offer` 只服务重掷回放与对照夹具。
+本轮各数值层与命令层都带独立夹具：`godot-combat-terrain.mjs`（967 条）、`godot-mode-commands.mjs`（78 行）、`godot-barrage.mjs`（9 例）、`godot-combat.mjs`（6 场景 43 步）、`godot-remnant-gen.mjs`（5 场景 6 步）、`godot-retreat.mjs`（6 场景 12 步）、`godot-capture.mjs`（6 场景 7 步）；用例放在 `tests/cases/<名>_cases.gd`，由 `tests/runner.gd` 扫描目录自动加载（每个文件暴露 `static func run(ctx)`，`ctx` 给出 `expect`/`compare`/`reject`/`state_slice` 与 `args`）。当前基线：六参数 **3179/3179**、两参数 **3151/3151**。战斗掷骰已回本局 `state.rng`（`combat_rolls.gd`，对照 TS `scorpionRolls`）：`surprise` 2 枚 → `surprise-shift` 1 枚（仅极端时）→ `combat` 2 枚，`offer` 只服务重掷回放与对照夹具。
 
 ## 已实现
 
@@ -141,7 +143,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
    撤退续跑（`continue-combat-retreat`，`retreat.gd` + `combat_result.gd` 的 `continue_retreat`）与工事作业（`work-hedgehog`，`hedgehogs.gd`）已接会话分派与侧栏：侧栏按选中的静止战斗单位给出「构筑工事 · 格 X（8T · <补给源>）」与「拆除工事」；8T 可由多堆拼付，侧栏列单源与 2–3 源组合（总量仍按 `payments` 复核），挂起撤退时给出「继续撤退 · 原地续跑」。战果要求后撤时，空路线先转成会话待决窗口：侧栏列满距离的合法终点；选定后若踩入 ZOC，再列被迫损步的 DG 单位；若损步打光师，再列残部落点。仍缺的是已挂起撤退改走其它格的续跑后缀，以及续跑阶段的同类选择。
    突袭（overrun，`overrun.gd`）已接会话分派与侧栏：移动/反应/进击段内，选中同格攻方后点相邻敌格出「突袭 X · N 枚 · 3 MP · 堆 支付 T」；宣告扣 3 MP 并记余量，守方清空后存活者自动进格，未清空则留原格并用余量出「继续突袭行军到 X」。战前移动前缀、逐枚 inline 加油与拆分订单仍未接。
    战果侧栏（`CombatResult.resolve_options`）按 §9.11c 展开合法损失序列：AR 领导先受第一点，其余按轮转取证；可选损失逐档列行，守方忽略选项单独一行。某师会被打光且残部有多个落点时，行内直接带 `remnants` 选择，08 的 198 师在 s4.11 被打光即列 s2.10/s3.10 两条。单落点仍由规则层自动放置；直接调 `CombatResult.resolve` 未给多落点时，原生会话把它转成 `pendingCombat` 待决窗口，侧栏只列落点，选中后沿同一损失序列重放并清窗。
-   仍未移植：折分离场（breakdown）、与 Extender 崩塌位移；Kessel 司令部入盒/移除、被毁返还与特规行军（`kessel-move`）已接；加油尚未开始；卸货点数的「本阶段不可再装」溯源（`scorpionUnloadedTokens`）与内部补给回收（`internalStocks`）仍缺。进格夺取本身已原生（`capture.gd`，`08-capture.json` 8 场景 9 步）；残部落点候选已公开（`Remnants.destinations`/`destinations_from`，战损结算挂起时 `pending.candidates` 带名单），战果行已按合法损失序列透传多落点选择；移动阶段侧栏已能走子（点邻格出 `ground-move` 行，`ground_move.check` 与落地同源），机械化战斗面单枚付油已接（`fuel.gd`，`fuelDumpId` 随 `ground-move` 一起付 1T），暂驻运输队付油、编队/司令部批量油、已加油司令部向独立单位投送与运输点重新打包（`transport_points.gd`）也已接，运输分母的库存上限已按 `transportRows[].limit` 校验，有货载运输也逐种分盒装法出行（≤24 条）；移动进格夺取已接（`ground_move` 逐格走 `Capture.resolve_entry`），夺取归属即时结算（控制/机场/补给/工事不等确认），窗口只在出现真实位移选择时挂起（player 默认 / manual 夹具 / auto AI 代选）；多机多落点时按候选组合逐套成行（≤8 套）；战斗/进击阶段的攻击行已接（_append_engage_menu，付弹药或动用部队储备两路）；地面炮击已接（地面目标、整轮炮组费用与共同司令部投送支付；机场/设施目标表未迁），飞机任务同样未接；整备阶段的逐架激活已接（`refit-aircraft`），减员恢复与转场仍未接。
+   仍未移植：与 Extender 崩塌位移；折分离场已原生（`breakdown.gd`：开始移动拆出、段末强制吸收、侧栏逐条选择；20.0a/20.0d）。Kessel 司令部入盒/移除、被毁返还与特规行军（`kessel-move`）已接；加油尚未开始；卸货点数的「本阶段不可再装」溯源（`scorpionUnloadedTokens`）与内部补给回收（`internalStocks`）仍缺。进格夺取本身已原生（`capture.gd`，`08-capture.json` 8 场景 9 步）；残部落点候选已公开（`Remnants.destinations`/`destinations_from`，战损结算挂起时 `pending.candidates` 带名单），战果行已按合法损失序列透传多落点选择；移动阶段侧栏已能走子（点邻格出 `ground-move` 行，`ground_move.check` 与落地同源），机械化战斗面单枚付油已接（`fuel.gd`，`fuelDumpId` 随 `ground-move` 一起付 1T），暂驻运输队付油、编队/司令部批量油、已加油司令部向独立单位投送与运输点重新打包（`transport_points.gd`）也已接，运输分母的库存上限已按 `transportRows[].limit` 校验，有货载运输也逐种分盒装法出行（≤24 条）；移动进格夺取已接（`ground_move` 逐格走 `Capture.resolve_entry`），夺取归属即时结算（控制/机场/补给/工事不等确认），窗口只在出现真实位移选择时挂起（player 默认 / manual 夹具 / auto AI 代选）；多机多落点时按候选组合逐套成行（≤8 套）；战斗/进击阶段的攻击行已接（_append_engage_menu，付弹药或动用部队储备两路）；地面炮击已接（地面目标、整轮炮组费用与共同司令部投送支付；机场/设施目标表未迁），飞机任务同样未接；整备阶段的逐架激活已接（`refit-aircraft`），减员恢复与转场仍未接。
 2. 存档与续档：`schemaVersion`、数据指纹、原子写入与恢复。
 3. 通过同一会话接入双人和多人 PVP、单人和多人 PVE、Linux 无头 AI 与可选 LLM 指挥适配器。
 4. 验证 Windows 独立导出以及 Linux 无头会话。

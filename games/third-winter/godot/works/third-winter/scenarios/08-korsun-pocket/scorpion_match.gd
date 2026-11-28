@@ -23,6 +23,7 @@ const TransportPoints := preload("res://works/third-winter/rules/transport_point
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
+const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
 
 
 static func submit(record: Dictionary, seat: String, command: Dictionary, data: Dictionary) -> Dictionary:
@@ -38,6 +39,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return Result.failure("combat_pending", "须先为被消灭的师选择残部落点")
 	if state.get("pendingRetreat") is Dictionary and str(action.get("type", "")) != "resolve-combat":
 		return Result.failure("retreat_pending", "须先选定撤退路线或处理撤退格内选择")
+	if state.get("breakdownAbsorb") is Dictionary and str(action.get("type", "")) != "absorb-breakdown":
+		return Result.failure("breakdown_absorb_pending", "须先完成段末拆分单位吸收")
 	if action.get("type") == "settle-capture":
 		return Capture.settle(state, actor, action, data)
 	if action.get("type") in ["base-aircraft", "place-setup-alert", "choose-setup-loss", "confirm-setup"]:
@@ -57,7 +60,11 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		if not stacked.ok:
 			return stacked
 		return Reinforcement.enter(state, actor, data)
-	# OCS 13.6 / TTW 1.7a — the reinforcement phase of src/match/scorpion-reinforcement.ts.
+	# OCS 20.0a/20.0d — split and absorb are movement-window rules, not reinforcement.
+	if action.get("type") == "detach-breakdown":
+		return Breakdown.detach(state, actor, action, data)
+	if action.get("type") == "absorb-breakdown":
+		return Breakdown.absorb(state, actor, action, data)
 	if action.get("type") == "ground-move":
 		return GroundMove.apply(state, actor, action, data)
 	if action.get("type") == "fuel-from-paused-transport":
@@ -76,6 +83,12 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 	if action.get("type") == "kessel-move":
 		return Kessel.move_apply(state, actor, action, data)
 	if action.get("type") == "complete-movement":
+		if state.get("breakdownAbsorb") == null:
+			var absorb_obligations: Array = Breakdown.obligations(state, actor)
+			if not absorb_obligations.is_empty():
+				var gated: Dictionary = state.duplicate(true)
+				gated["breakdownAbsorb"] = {"side": actor, "obligations": absorb_obligations}
+				return Result.success(gated)
 		return SupplyPhase.complete_movement(state, actor, data)
 	if action.get("type") == "check-attrition":
 		return SupplyPhase.check_attrition(state, actor, data)

@@ -38,6 +38,17 @@ const arrivalCatalogSource = data.board.reinforcements({
   kind: 'playing', units: opening.units, pieces: opening.pieces, dumps: opening.dumps, airBases: [],
   cursor: { turn: 1, first: 'soviet', phasing: 'soviet', phase: 'aircraft-refit', retention: 'soviet' },
 }).catalog
+// TTW 1.6e — the scenario's breakdown pool is the authoritative counter roster. `pools.breakdown`
+// gives counts only; the row names encode nationality and Guard/regular infantry assignment.
+const breakdownPoolSource = ['axis', 'soviet'].flatMap((side) =>
+  (data.setup.pools?.breakdown?.[side] ?? []).flatMap((row) => {
+    const match = catalog.aliases.get(row.ref)?.[0]
+    if (!match || match.kind !== 'land') return []
+    const name = match.source.name
+    const pool = name.startsWith('Sov Gd') ? 'soviet:guard'
+      : name.startsWith('Sov') ? 'soviet:regular' : 'axis:inf'
+    return [{ definition: match.key, side: match.source.side, pool, copies: row.count }]
+  }))
 // Every definition referenced by an on-board unit, a dead-pile piece, the opening Alert pool or the
 // reinforcement catalog. Aircraft, markers and formation headings have no ground counter profile.
 const referencedIds = [...new Set([
@@ -45,6 +56,7 @@ const referencedIds = [...new Set([
   ...opening.pool.map(({ definition }) => definition),
   ...Object.values(opening.units).map((unit) => unit.definition),
   ...opening.pieces.map((piece) => piece.definition),
+  ...breakdownPoolSource.map(({ definition }) => definition),
 ])]
 const deployableDefinition = (id) => {
   const definition = catalog.definitions.get(id)
@@ -108,6 +120,20 @@ const definitions = Object.fromEntries([...definitionIds].map((id) => {
     faces: {
       combat: source.faces.combat?.asset ?? null, move: source.faces.move?.asset ?? null } }]
 }))
+// OCS 20.0/20.0f — only multi-step infantry-size divisions can detach; the pool assignment is
+// explicit here and never inferred in GDScript. Arty/Tank/Mech divisions stay out.
+const breakdownParentPool = (definition) => {
+  const source = definition?.source
+  if (!source || definition.kind !== 'land' || source.re <= 1 || !['infantry', 'other'].includes(source.category)) return null
+  if (source.side === 'axis' && source.name.includes('Inf Div')) return 'axis:inf'
+  if (source.side !== 'soviet' || !(source.name.includes('Rifle Div') || source.name.includes('Abn Div'))) return null
+  return source.name.includes('Gd') || (source.abilities ?? []).includes('guard') ? 'soviet:guard' : 'soviet:regular'
+}
+const breakdownParents = Object.fromEntries([...new Set(Object.values(opening.units).map((unit) => unit.definition))]
+  .flatMap((id) => {
+    const pool = breakdownParentPool(catalog.definitions.get(id))
+    return pool ? [[id, pool]] : []
+  }))
 const markerRefs = [...['Airbase Strength 1', 'Airbase Strength 2', 'Airbase Strength 3'],
   ...[1, 2, 3, 4, 5].map((points) => `Supply Point ${points}`),
   ...[1, 2, 3, 4, 5].map((tons) => `Supply Ton ${tons}T`),
@@ -136,10 +162,7 @@ const airstrips = [...scorpionAirstripPool({ airBases: [] }, catalog)].map(({ ke
 // Printed transport denominations for both sides; the project keeps inUse at zero, the view counts it.
 const transportRows = [...scorpionTransportStock({}, 'axis', data.assets), ...scorpionTransportStock({}, 'soviet', data.assets)]
   .map(({ side, mobility, allowance, points, limit }) => ({ side, mobility, allowance, points, limit }))
-const breakdownRows = data.assets.breakdowns
-  ? [...data.assets.breakdowns.counters].map(([definition, { pool, copies }]) => ({
-    definition, side: catalog.definitions.get(definition)?.source.side ?? null, pool, copies }))
-  : []
+const breakdownRows = breakdownPoolSource
 // Undirected topology for the native supply layer: adjacency, printed edges, cities and rail gauges.
 // Keys are normalised so GDScript needs no direction bookkeeping.
 const edgeKeyOf = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
@@ -176,7 +199,7 @@ const view = {
   dates: [...scorpionDates],
   firstTurn: { number: firstTurn.number, date: scorpionDates[firstTurn.number - 1],
     ground: firstTurn.weather.ground, flight: firstTurn.weather.flight, vp: firstTurn.vp },
-  airstrips, transportRows, breakdownRows, arrivals: arrivalCatalog,
+  airstrips, transportRows, breakdownRows, breakdownParents, arrivals: arrivalCatalog,
   fixedSupply: scorpionFixedSupply.map(({ side, turn, sp, destinations }) => ({ side, turn, sp, destinations })),
   mapGraph,
   supplySources: { axis: [...scorpionSupplySources.axis], soviet: [...scorpionSupplySources.soviet] },

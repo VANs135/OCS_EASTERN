@@ -22,6 +22,7 @@ const Capture := preload("res://works/third-winter/rules/capture.gd")
 const Kessel := preload("res://works/third-winter/rules/kessel.gd")
 const Overrun := preload("res://works/third-winter/rules/overrun.gd")
 const AirRefit := preload("res://works/third-winter/rules/air_refit.gd")
+const Breakdown := preload("res://works/third-winter/rules/breakdown.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1137,9 +1138,13 @@ static func menu_entries(state: Dictionary, side: String, selection: Dictionary,
 	if state.get("capture") != null:
 		_append_capture_menu(state, side, data, menu)
 		return menu
+	if state.get("breakdownAbsorb") is Dictionary:
+		_append_breakdown_absorb_menu(state, side, data, menu)
+		return menu
 	_append_unit_menu(state, side, selection, data, menu)
 	_append_air_refit_menu(state, side, data, menu)
 	_append_move_menu(state, side, selection, data, menu)
+	_append_breakdown_menu(state, side, selection, data, menu)
 	_append_overrun_rows(state, side, selection, data, menu)
 	_append_overrun_continue_rows(state, side, selection, data, menu)
 	_append_kessel_move_rows(state, side, selection, data, menu)
@@ -1209,6 +1214,39 @@ static func _append_unit_menu(state: Dictionary, side: String, selection: Dictio
 	if unit.get("reserve") != null and phase != "movement":
 		menu.append({"label": "释放预备队", "group": "预备队",
 			"actions": [{"type": "release-reserve", "unitId": uid}]})
+
+
+## OCS 20.0a — 选中多步战斗单位且本阶段尚未移动时，逐条列出可拆出的 1 RE 拆分单位。
+static func _append_breakdown_menu(state: Dictionary, side: String, selection: Dictionary, data: Dictionary,
+		menu: Array) -> void:
+	var parent_id := _selected_unit_id(selection)
+	if parent_id.is_empty():
+		return
+	for option: Dictionary in Breakdown.options(state, side, parent_id, data):
+		menu.append({"label": "拆出 %s · 1 步" % str(option.name), "group": "拆分",
+			"actions": [{"type": "detach-breakdown", "parentId": parent_id,
+				"definitions": [str(option.definition)]}]})
+
+
+## OCS 20.0d — 段末吸收窗口：只列义务清单里的母单位与拆分单位，玩家逐条并回。
+static func _append_breakdown_absorb_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
+	var window: Dictionary = state.get("breakdownAbsorb", {})
+	if str(window.get("side", "")) != side:
+		return
+	var units: Dictionary = state.get("units", {})
+	var names: Dictionary = data.get("view", {}).get("catalog", {}).get("definitions", {})
+	for obligation: Dictionary in (window.get("obligations", []) as Array):
+		var parent_id := str(obligation.get("parentId", ""))
+		var parent: Dictionary = units.get(parent_id, {})
+		var parent_name := str((names.get(parent.get("definition", ""), {}) as Dictionary).get(
+			"name", parent_id))
+		for detached_id: Variant in (obligation.get("breakdownIds", []) as Array):
+			var detached: Dictionary = units.get(str(detached_id), {})
+			var detached_name := str((names.get(detached.get("definition", ""), {}) as Dictionary).get(
+				"name", str(detached_id)))
+			menu.append({"label": "吸收 %s 回 %s" % [detached_name, parent_name], "group": "拆分吸收",
+				"actions": [{"type": "absorb-breakdown", "parentId": parent_id,
+					"breakdownId": str(detached_id)}]})
 
 
 ## OCS v4.3 §2.2 / §14.2 — 飞机整备阶段逐架列出本方机场的 Inactive 飞机；首架带 1T 机场费，
