@@ -1624,18 +1624,75 @@ static func _append_hedgehog_menu(state: Dictionary, side: String, selection: Di
 		return
 	if level_now < 2:
 		var ledger := SpPayment.new(state, side, data)
-		var sources: Array = ledger.available(workers)
-		for source: Dictionary in sources:
-			if int(source.get("tokens", 0)) < 8:
-				continue
-			var dump_id := str(source.get("dumpId", ""))
-			menu.append({"label": "构筑刺猬 · 格 %s（8T · %s）" % [hex_id, dump_id], "group": "刺猬",
-				"actions": [{"type": "work-hedgehog", "operation": "build", "hex": hex_id,
-					"unitIds": worker_ids, "payments": [{"dumpId": dump_id, "tokens": 8}]}]})
+		_append_hedgehog_build_rows(menu, hex_id, worker_ids, ledger.available(workers))
 	if level_now > 0:
 		menu.append({"label": "拆除刺猬 · 格 %s" % hex_id, "group": "刺猬",
 			"actions": [{"type": "work-hedgehog", "operation": "reduce", "hex": hex_id,
 				"unitIds": worker_ids, "payments": []}]})
+
+
+## OCS 13.2c — 8T 可以从多个补给堆拼：先枚单一来源，再列至多三源的组合，
+## 每条只带真实存在的 Token 份额；规则层仍按 `payments` 总额复核。
+static func _append_hedgehog_build_rows(menu: Array, hex_id: String, worker_ids: Array, sources: Array) -> void:
+	var usable: Array = []
+	for source: Dictionary in sources:
+		if int(source.get("tokens", 0)) > 0:
+			usable.append(source)
+	if usable.is_empty():
+		return
+	var subsets: Array = []
+	_hedgehog_subsets(usable, 3, subsets)
+	var seen := {}
+	var emitted := 0
+	for subset: Array in subsets:
+		var plan := _hedgehog_plan(subset, 8)
+		if plan.is_empty():
+			continue
+		var signature := ""
+		var labels: Array = []
+		for payment: Dictionary in plan:
+			signature += "%s:%d|" % [str(payment.dumpId), int(payment.tokens)]
+			labels.append("%s %dT" % [_tail(str(payment.dumpId)), int(payment.tokens)])
+		if seen.has(signature):
+			continue
+		seen[signature] = true
+		menu.append({"label": "构筑刺猬 · 格 %s（8T · %s）" % [hex_id, " + ".join(labels)], "group": "刺猬",
+			"actions": [{"type": "work-hedgehog", "operation": "build", "hex": hex_id,
+				"unitIds": worker_ids, "payments": plan}]})
+		emitted += 1
+		if emitted >= 8:
+			return
+
+
+## 按来源数分层列出组合：先单源，再多源；首行总是最省事的单堆支付。
+static func _hedgehog_subsets(sources: Array, max_sources: int, out: Array) -> void:
+	var count := sources.size()
+	for first in range(count):
+		out.append([sources[first]])
+	if max_sources >= 2:
+		for first in range(count):
+			for second in range(first + 1, count):
+				out.append([sources[first], sources[second]])
+	if max_sources >= 3:
+		for first in range(count):
+			for second in range(first + 1, count):
+				for third in range(second + 1, count):
+					out.append([sources[first], sources[second], sources[third]])
+
+
+## 从选中的来源里按顺序取到恰好 8T；单源够付时自然只留一笔。
+static func _hedgehog_plan(subset: Array, total: int) -> Array:
+	var plan: Array = []
+	var left := total
+	for source: Dictionary in subset:
+		var take := mini(int(source.get("tokens", 0)), left)
+		if take <= 0:
+			continue
+		plan.append({"dumpId": str(source.get("dumpId", "")), "tokens": take})
+		left -= take
+		if left == 0:
+			return plan
+	return []
 
 
 static func _append_combat_menu(state: Dictionary, side: String, data: Dictionary, menu: Array) -> void:
