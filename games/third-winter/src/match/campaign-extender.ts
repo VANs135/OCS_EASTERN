@@ -17,6 +17,16 @@ export const CAMPAIGN_EXTENDER_RANGE: Readonly<Record<ExtenderTransportKind, num
 
 export interface CampaignExtender { id: string; side: Side; hex: string; kind: ExtenderTransportKind; range: number }
 
+/** 9.14d：敌方可攻击单位进格触发的强制崩溃窗口；原主选落点后翻回 5 点运输点数。 */
+export interface CampaignForcedExtenderCollapse {
+  id: string
+  owner: Side
+  captor: Side
+  hex: string
+  kind: ExtenderTransportKind
+  range: number
+}
+
 export interface CampaignExtenderTransport {
   id: string
   kind: ExtenderTransportKind
@@ -132,10 +142,9 @@ export function flipCampaignExtender(state: Readonly<CampaignTurnState>, side: S
 }
 
 /** 12.7f：崩溃落点——射程内、除原点外、本方有 trace 的格；无视中间地形与敌军。 */
-export function campaignExtenderCollapseDestinations(state: Readonly<CampaignTurnState>, side: Side,
-  id: string, board: CampaignExtenderBoard): readonly string[] {
-  const extender = (state.extenders ?? []).find((item) => item.id === id && item.side === side)
-  if (!extender || !collapseWindow(state, side) || !board.hasTrace) return []
+function collapseDestinations(state: Readonly<CampaignTurnState>, extender: CampaignExtender,
+  board: CampaignExtenderBoard, requireWindow: boolean): readonly string[] {
+  if (!board.hasTrace || (requireWindow && !collapseWindow(state, extender.side))) return []
   const origin = board.map.resolveHex(extender.hex) ?? extender.hex
   const seen = new Set([origin])
   const destinations: string[] = []
@@ -146,14 +155,76 @@ export function campaignExtenderCollapseDestinations(state: Readonly<CampaignTur
       if (seen.has(neighbor)) continue
       seen.add(neighbor)
       next.push(neighbor)
-      if (board.hasTrace(state, side, neighbor)) destinations.push(neighbor)
+      if (board.hasTrace(state, extender.side, neighbor)) destinations.push(neighbor)
     }
     frontier = next
   }
   return destinations
 }
 
-/** UI 只读投影：本方未行动延补队及其崩溃落点；不替玩家选择落点。 */
+export function campaignExtenderCollapseDestinations(state: Readonly<CampaignTurnState>, side: Side,
+  id: string, board: CampaignExtenderBoard): readonly string[] {
+  const extender = (state.extenders ?? []).find((item) => item.id === id && item.side === side)
+  return extender ? collapseDestinations(state, extender, board, true) : []
+}
+
+/** 9.14d：不要求本方移动窗；强制崩溃窗口引用同一射程/trace 规则。 */
+export function campaignForcedExtenderCollapseDestinations(state: Readonly<CampaignTurnState>, id: string,
+  board: CampaignExtenderBoard): readonly string[] {
+  const extender = (state.extenders ?? []).find((item) => item.id === id)
+  return extender ? collapseDestinations(state, extender, board, false) : []
+}
+
+/** 9.14d：敌方可攻击单位进格，若延补队有合法崩溃落点则挂起原主窗口；无合法落点时不自动改盘。 */
+export function beginCampaignForcedExtenderCollapseOnEntry(state: Readonly<CampaignTurnState>, captor: Side,
+  hex: string, ids: readonly string[], board: CampaignExtenderBoard,
+  attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  if (!ids.some((id) => state.counters[id]?.side === captor && attackCapable(state, id))) return state
+  const owner: Side = captor === 'axis' ? 'soviet' : 'axis'
+  const at = board.map.resolveHex(hex) ?? hex
+  const extender = (state.extenders ?? []).find((item) => item.side === owner &&
+    (board.map.resolveHex(item.hex) ?? item.hex) === at)
+  if (!extender || !campaignForcedExtenderCollapseDestinations(state, extender.id, board).length) return state
+  return { ...state, forcedExtenderCollapse: { id: extender.id, owner, captor, hex: at,
+    kind: extender.kind, range: extender.range } }
+}
+
+/** 9.14d：一次 move 的整条路径逐格检查；已有待决窗口保留，后续格排入队列。 */
+export function beginCampaignForcedExtenderCollapsesForPath(state: Readonly<CampaignTurnState>, captor: Side,
+  path: readonly string[], ids: readonly string[], board: CampaignExtenderBoard,
+  attackCapable: (state: Readonly<CampaignTurnState>, id: string) => boolean): CampaignTurnState {
+  const pending: CampaignForcedExtenderCollapse[] = []
+  const seen = new Set<string>()
+  let next: CampaignTurnState = state
+  for (const hex of path) {
+    const at = board.map.resolveHex(hex) ?? hex
+    if (seen.has(at)) continue
+    seen.add(at)
+    const built = beginCampaignForcedExtenderCollapseOnEntry(
+      { ...next, forcedExtenderCollapse: undefined, forcedExtenderCollapseQueue: [] },
+      captor, at, ids, board, attackCapable)
+    if (built.forcedExtenderCollapse) pending.push(built.forcedExtenderCollapse)
+    next = { ...next, rng: built.rng }
+  }
+  if (!pending.length) return state
+  const all = [...(state.forcedExtenderCollapse ? [state.forcedExtenderCollapse] : []),
+    ...(state.forcedExtenderCollapseQueue ?? []), ...pending]
+  return { ...next, forcedExtenderCollapse: all[0], forcedExtenderCollapseQueue: all.slice(1) }
+}
+
+/** 9.14d UI 只读投影：只向原主返回强制崩溃的延补队与射程内 trace 落点。 */
+export function campaignForcedExtenderCollapseOptions(state: Readonly<CampaignTurnState>, viewer: Side,
+  board?: CampaignExtenderBoard) {
+  if (!board || !state.forcedExtenderCollapse || state.forcedExtenderCollapse.owner !== viewer) return null
+  const pending = state.forcedExtenderCollapse
+  const extender = (state.extenders ?? []).find((item) => item.id === pending.id)
+  if (!extender) return null
+  return { id: extender.id, kind: extender.kind, hex: pending.hex, range: extender.range,
+    captor: pending.captor, queued: state.forcedExtenderCollapseQueue?.length ?? 0,
+    destinations: campaignForcedExtenderCollapseDestinations(state, extender.id, board) }
+}
+
+/** 12.7f UI 只读投影：本方未行动延补队及其崩溃落点；不替玩家选择落点。 */
 export function campaignExtenderCollapseOptions(state: Readonly<CampaignTurnState>, side: Side,
   board?: CampaignExtenderBoard) {
   if (!board || !collapseWindow(state, side)) return null
@@ -164,23 +235,31 @@ export function campaignExtenderCollapseOptions(state: Readonly<CampaignTurnStat
   return extenders.length ? { extenders } : null
 }
 
-/** 12.7f：玩家选择崩溃落点；延补器翻回 5 点普通运输点数并记为已行动。 */
+/** 12.7f / 9.14d：玩家选择崩溃落点；强制崩溃允许在原主非移动段由原主结算。 */
 export function collapseCampaignExtender(state: Readonly<CampaignTurnState>, side: Side,
   action: Extract<CampaignExtenderAction, { type: 'collapse-campaign-extender' }>,
   board: CampaignExtenderBoard): CampaignTurnState {
-  if (!collapseWindow(state, side)) throw new Error('Extender collapse is available in your movement segment')
+  const forced = state.forcedExtenderCollapse?.id === action.id ? state.forcedExtenderCollapse : undefined
+  if (!forced && !collapseWindow(state, side)) throw new Error('Extender collapse is available in your movement segment')
+  if (forced && forced.owner !== side) throw new Error('Choose your own extender')
   const extender = (state.extenders ?? []).find((item) => item.id === action.id)
   if (!extender || extender.side !== side) throw new Error('Choose your own extender')
-  if ((state.groundMovement?.moved ?? []).includes(extender.id)) throw new Error('That extender already acted this segment')
+  if (!forced && (state.groundMovement?.moved ?? []).includes(extender.id)) throw new Error('That extender already acted this segment')
   if (!board.placeTransport) throw new Error('The extender collapse needs a placeTransport hook')
   if (!board.hasTrace) throw new Error('The extender collapse needs a trace board')
   const destination = board.map.resolveHex(action.destination)
   if (!destination) throw new Error('Choose an on-map extender collapse destination')
-  const allowed = campaignExtenderCollapseDestinations(state, side, extender.id, board)
+  const allowed = forced
+    ? campaignForcedExtenderCollapseDestinations(state, extender.id, board)
+    : campaignExtenderCollapseDestinations(state, side, extender.id, board)
   if (!allowed.includes(destination)) throw new Error('The collapse destination needs supply trace within the extender range')
   const moved = board.placeTransport(state, side, { kind: extender.kind, points: 5, hex: destination })
+  const queue = [...(state.forcedExtenderCollapseQueue ?? [])]
+  const promoted = forced ? queue.shift() : undefined
   return { ...moved,
     extenders: (moved.extenders ?? []).filter((item) => item.id !== extender.id),
+    forcedExtenderCollapse: forced ? promoted : state.forcedExtenderCollapse,
+    forcedExtenderCollapseQueue: forced ? (queue.length ? queue : undefined) : state.forcedExtenderCollapseQueue,
     groundMovement: { ...moved.groundMovement,
       moved: [...new Set([...(moved.groundMovement?.moved ?? []), extender.id])],
       zocLocks: moved.groundMovement?.zocLocks ?? [] } }

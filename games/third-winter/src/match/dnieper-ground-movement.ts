@@ -9,6 +9,8 @@ import type { CampaignHqCatalog } from './campaign-hq-boards.ts'
 import { resolveCampaignEntryCapture, type CampaignEntryAirBase } from './campaign-entry-capture.ts'
 import { beginCampaignTransportCapturesForPath } from './campaign-transport-capture.ts'
 import type { CampaignTransportCaptureBoard } from './campaign-transport-capture.ts'
+import { beginCampaignForcedExtenderCollapsesForPath } from './campaign-extender.ts'
+import type { CampaignExtenderBoard } from './campaign-extender.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
@@ -27,7 +29,7 @@ export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campa
 export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
   terrain: ReturnType<typeof import('../import/campaign-terrain.ts').campaignTerrain>,
   catalog: ReadonlyMap<string, Definition<BackupUnit>>, airBase?: CampaignEntryAirBase,
-  transportCapture?: CampaignTransportCaptureBoard) {
+  transportCapture?: CampaignTransportCaptureBoard, extenderWork?: CampaignExtenderBoard) {
   const definitions: Record<string, Definition<BackupUnit>> = Object.fromEntries(catalog)
   const profiles = campaignMovementProfiles(definitions)
   const hqCatalog: CampaignHqCatalog = Object.fromEntries(Object.entries(definitions).map(([key, definition]) => [key, {
@@ -72,10 +74,18 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
       { attackCapable: (current, id) => profiles.profileOf(current, id)?.attackCapable === true, airBase }, afterCombat),
     railOnly: hq.railOnly,
     // OCS 9.14c：整条 move 路径逐格检查敌方运输点，按进入顺序挂起原主选择窗口；
-    // 不替玩家选被夺取计数器或位移格。9.14d 延补队崩溃另由 collapse 动作处理。
-    afterMove: transportCapture ? (state, side, move) => beginCampaignTransportCapturesForPath(state, side, move.path,
-      move.movers.map((mover) => mover.id), transportCapture,
-      (current, id) => profiles.profileOf(current, id)?.attackCapable === true) : undefined,
+    // 9.14d：同路径检查敌方延补队，按进入顺序挂起强制崩溃窗口。两者都不替玩家选择。
+    afterMove: transportCapture || extenderWork ? (state, side, move) => {
+      const attackCapable = (current: Readonly<Parameters<typeof profiles.profileOf>[0]>, id: string) =>
+        profiles.profileOf(current, id)?.attackCapable === true
+      const ids = move.movers.map((mover) => mover.id)
+      let next = transportCapture
+        ? beginCampaignTransportCapturesForPath(state, side, move.path, ids, transportCapture, attackCapable)
+        : state
+      if (extenderWork) next = beginCampaignForcedExtenderCollapsesForPath(next, side, move.path, ids,
+        extenderWork, attackCapable)
+      return next
+    } : undefined,
     // OCS 4.8a：段末必须满足每格 10 RE 上限；超堆叠返回 blocker，交给调用方整枚
     // 战斗算子移除（本板只报告，不擅自替玩家选择损失）。
     endBlockers: (state, side) => stackingBlockers(state, side),

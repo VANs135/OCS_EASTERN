@@ -178,6 +178,10 @@ export interface CampaignTurnState extends CampaignBoardState {
   transportCaptureQueue?: import('./campaign-transport-capture.ts').CampaignTransportCapture[]
   /** OCS 12.7a：在图延补器（翻转普通运输点数产生；throw 半径 20/10）。 */
   extenders?: readonly import('./campaign-extender.ts').CampaignExtender[]
+  /** OCS 9.14d：敌方可攻击单位进格后的强制崩溃窗口（原主选落点前阻塞）。 */
+  forcedExtenderCollapse?: import('./campaign-extender.ts').CampaignForcedExtenderCollapse
+  /** OCS 9.14d：同一 move 路径上后续格的强制崩溃窗口（按进入顺序）。 */
+  forcedExtenderCollapseQueue?: import('./campaign-extender.ts').CampaignForcedExtenderCollapse[]
   /** OCS 12.7a：延补器编号计数器（同格多枚唯一）。 */
   extenderSerial?: number
   trainbusting?: readonly TrainbustingMarker[]

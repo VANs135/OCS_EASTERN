@@ -1,4 +1,4 @@
-// 剧本 01 的最小生产盘面装配：只装地面移动、运输点夺取、延补队与 4.8a 堆叠。
+// 剧本 01 的最小生产盘面装配：只装地面移动、9.14c 运输点夺取、9.14d 强制崩溃、12.7 延补队与 4.8a 堆叠。
 // 补给 trace、战斗、空军、增援等仍由调用方注入，避免用测试夹具冒充完整会话。
 import type { Definition } from '../import/unit-catalog.ts'
 import type { BackupUnit } from '../import/unit-backup.ts'
@@ -29,7 +29,7 @@ Pick<CampaignTurnContext, 'groundMovement' | 'transportCapture' | 'extenderWork'
   const transportCapture = dnieperTransportCaptureBoard(input.playable, input.catalog.definitions)
   const extenderWork = dnieperExtenderBoard(input.playable, input.catalog.definitions, { hasTrace: options.hasTrace })
   const groundMovement = dnieperGroundMovementBoard(input.playable, input.terrain, input.catalog.definitions,
-    options.airBase, transportCapture)
+    options.airBase, transportCapture, extenderWork)
   const stacking = dnieperStackingBoard(input.playable, input.catalog.definitions)
   return { groundMovement, transportCapture, extenderWork, stacking }
 }
