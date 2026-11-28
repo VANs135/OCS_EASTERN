@@ -67,5 +67,8 @@ test('scenario 01 opening control covers settlement/VP sites and Railheads, not 
   assert.ok(sites.size > 8, 'all settlement/VP hexes carry opening control')
   assert.equal(opening.hexControl?.['D55.5'], 'soviet')
   assert.equal(opening.hexControl?.['B41.6'], 'axis', 'Poltava starts Axis-held')
+  for (const hex of ['B3.24', 'C55.4', 'C55.5', 'C56.4', 'A58.1', 'A41.12', 'A42.11', 'A14.22']) {
+    assert.ok(opening.hexControl?.[hex], `${hex} is a victory-point city hex and must carry opening control`)
+  }
   assert.equal(opening.hexControl?.['D54.5'], undefined, 'a plain rail hex has no control record')
 })
