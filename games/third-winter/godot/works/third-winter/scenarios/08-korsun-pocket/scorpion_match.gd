@@ -35,6 +35,8 @@ static func _apply(state: Dictionary, actor: String, action: Dictionary, data: D
 		return Result.failure("capture_pending", "须先结算待决的进格夺取")
 	if state.get("pendingCombat") is Dictionary and str(action.get("type", "")) != "resolve-combat":
 		return Result.failure("combat_pending", "须先为被消灭的师选择残部落点")
+	if state.get("pendingRetreat") is Dictionary and str(action.get("type", "")) != "resolve-combat":
+		return Result.failure("retreat_pending", "须先选定撤退路线或处理撤退格内选择")
 	if action.get("type") == "settle-capture":
 		return Capture.settle(state, actor, action, data)
 	if action.get("type") in ["base-aircraft", "place-setup-alert", "choose-setup-loss", "confirm-setup"]:
@@ -155,8 +157,8 @@ static func _combat_result_command(state: Dictionary, actor: String, action: Dic
 	return Result.failure("unsupported_action", "该战斗结果命令尚未接入原生 08 对局")
 
 
-## `resolve-combat` 遇到多落点残部时，把规则层的 `pending` 存成会话级待决窗口；
-## 下一次同一条损失序列带上所选落点重放，成功后清窗口。规则层本身仍保持原子性。
+## `resolve-combat` 遇到多落点残部或撤退选择时，把规则层的 `pending` 存成会话级待决窗口；
+## 下一次沿用原损失序列，只补落点/路线/ZOC 损失，成功后清窗口。规则层本身仍保持原子性。
 static func _resolve_combat_command(state: Dictionary, actor: String, action: Dictionary,
 		data: Dictionary, board: Dictionary) -> Dictionary:
 	var waiting: Variant = state.get("pendingCombat")
@@ -166,21 +168,58 @@ static func _resolve_combat_command(state: Dictionary, actor: String, action: Di
 				or int(action.get("optionLosses", 0)) != int(saved.get("optionLosses", 0)) \
 				or action.get("ignoreDefenderOption", false) != saved.get("ignoreDefenderOption", false):
 			return Result.failure("combat_pending", "待决残部须沿用原损失序列，只补落点")
+	var waiting_retreat: Variant = state.get("pendingRetreat")
+	if waiting_retreat is Dictionary:
+		var saved_retreat: Dictionary = waiting_retreat.get("action", {})
+		if action.get("lossOrder", []) != saved_retreat.get("lossOrder", []) \
+				or int(action.get("optionLosses", 0)) != int(saved_retreat.get("optionLosses", 0)) \
+				or action.get("ignoreDefenderOption", false) != saved_retreat.get("ignoreDefenderOption", false):
+			return Result.failure("retreat_pending", "待决撤退须沿用原损失序列")
+		var request: Dictionary = waiting_retreat.get("pending", {})
+		if str(request.get("kind", "")) != "retreat-route" \
+				and not _same_retreat_shapes(action.get("retreats", []), saved_retreat.get("retreats", [])):
+			return Result.failure("retreat_pending", "待决撤退只能补选择，不能改路线")
 	var resolved: Dictionary = CombatResult.resolve(state, actor, action, data, board)
 	if not resolved.ok:
 		var pending: Variant = resolved.get("pending")
-		if pending is Dictionary and str(pending.get("kind", "")) == "combat-remnant":
-			var holding := state.duplicate(true)
-			holding["pendingCombat"] = {"actor": actor, "action": action.duplicate(true),
-				"pending": pending.duplicate(true)}
-			return Result.success(holding)
+		if pending is Dictionary:
+			var kind := str(pending.get("kind", ""))
+			if kind == "combat-remnant":
+				var holding := state.duplicate(true)
+				holding.erase("pendingRetreat")
+				holding["pendingCombat"] = {"actor": actor, "action": action.duplicate(true),
+					"pending": pending.duplicate(true)}
+				return Result.success(holding)
+			if kind in ["retreat-route", "retreat-zoc-loss", "retreat-remnant"]:
+				var waiting_state := state.duplicate(true)
+				waiting_state.erase("pendingCombat")
+				waiting_state["pendingRetreat"] = {"actor": actor, "action": action.duplicate(true),
+					"pending": pending.duplicate(true)}
+				return Result.success(waiting_state)
 		return resolved
 	var unwrapped: Dictionary = _unwrap_match_state(resolved)
 	if unwrapped.ok:
 		var next: Variant = unwrapped.value
-		if next is Dictionary and next.has("pendingCombat"):
+		if next is Dictionary:
 			next.erase("pendingCombat")
+			next.erase("pendingRetreat")
 	return unwrapped
+
+
+## 待决撤退的路线形状（组/单位/路径）必须保持一致；ZOC 损失与残部落点可在其上追加。
+static func _same_retreat_shapes(proposed: Variant, saved: Variant) -> bool:
+	if not (proposed is Array) or not (saved is Array) or proposed.size() != saved.size():
+		return false
+	for index: int in proposed.size():
+		if not (proposed[index] is Dictionary) or not (saved[index] is Dictionary):
+			return false
+		var left: Dictionary = proposed[index]
+		var right: Dictionary = saved[index]
+		if str(left.get("group", "")) != str(right.get("group", "")) \
+				or left.get("units", []) != right.get("units", []) \
+				or left.get("path", []) != right.get("path", []):
+			return false
+	return true
 
 
 ## CombatResult.resolve/advance 返回 {state, granted/advanced/entrants} 包装；对局记录只落盘面状态，解包出 state。

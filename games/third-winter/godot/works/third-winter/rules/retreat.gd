@@ -18,6 +18,39 @@ const CombatLosses := preload("res://works/third-winter/rules/combat_losses.gd")
 const ReinforcementBoard := preload("res://works/third-winter/rules/reinforcement_board.gd")
 const Capture := preload("res://works/third-winter/rules/capture.gd")
 
+## 每条路线选择窗口最多铺开的合法终点数。
+const ROUTE_OPTION_LIMIT := 24
+
+
+## 完整撤退路线候选：从原点走满 distance 格的所有合法路径（不含 ZOC/残部选择）。
+## 仅返回路径数组；玩家仍须选路线，规则层不代选。
+static func route_options(state: Dictionary, side: String, units: Array, distance: int,
+		combat: Dictionary, data: Dictionary) -> Array:
+	if distance <= 0 or units.is_empty():
+		return []
+	var origin := str(state.get("units", {}).get(str(units[0]), {}).get("hex", ""))
+	if origin == "":
+		return []
+	var options: Array = []
+	_walk_routes(state, side, origin, units, distance, combat, data, [], options)
+	return options
+
+
+static func _walk_routes(state: Dictionary, side: String, origin: String, units: Array,
+		distance: int, combat: Dictionary, data: Dictionary, path: Array, options: Array) -> void:
+	if options.size() >= ROUTE_OPTION_LIMIT:
+		return
+	if path.size() == distance:
+		options.append(path.duplicate())
+		return
+	var route := {"origin": origin, "units": units, "path": path}
+	for hex_id: String in path_options(state, side, route, combat, data):
+		path.append(hex_id)
+		_walk_routes(state, side, origin, units, distance, combat, data, path, options)
+		path.pop_back()
+		if options.size() >= ROUTE_OPTION_LIMIT:
+			return
+
 
 ## scorpionRetreatPathOptions：当前路径末端相邻、未被战斗开始时敌方占用、非敌方补给源且
 ## 撤退堆全体可通过的可选格。route: { units, path, ... }。
@@ -55,6 +88,14 @@ static func retreat(state: Dictionary, side: String, involved: Array, distance: 
 	var all: Array = []
 	for plan: Dictionary in plans:
 		all.append_array(plan.get("units", []))
+	if plans.is_empty() and distance > 0:
+		var options: Array = route_options(state, side, expected, distance, combat, data)
+		if options.is_empty():
+			return Result.failure("retreat_plan", "没有任何合法撤退路线")
+		var choice := Result.failure("retreat_route_choice", "请选择撤退路线")
+		choice["pending"] = {"kind": "retreat-route", "side": side, "distance": distance,
+			"units": expected.duplicate(), "options": options}
+		return choice
 	if distance <= 0 or all.is_empty() or all.size() != _distinct(all).size() \
 			or expected.any(func(id): return not all.has(str(id))):
 		return Result.failure("retreat_plan", "每条存活参战名单都必须给出一条撤退路线")
@@ -344,7 +385,11 @@ static func _retreat_step(state: Dictionary, side: String, route: Dictionary, in
 	if not applied.ok:
 		if applied.get("errorCode", "") in ["remnant_choice", "remnant_unmatched"]:
 			var descriptor := {"kind": "retreat-remnant", "origin": str(route.get("origin", "")),
-				"step": index, "division": str(loss), "group": str(route.get("group", ""))}
+				"step": index, "divisionId": str(loss), "group": str(route.get("group", ""))}
+			var detail: Variant = applied.get("pending")
+			if detail is Dictionary:
+				descriptor["hex"] = str(detail.get("hex", to))
+				descriptor["candidates"] = detail.get("candidates", []).duplicate()
 			var pending := Result.failure("retreat_remnant_choice", "请选择撤退残部落点")
 			pending["pending"] = descriptor
 			return pending

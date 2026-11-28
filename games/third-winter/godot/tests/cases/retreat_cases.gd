@@ -9,6 +9,8 @@ const JsonFile := preload("res://scripts/data/json_file.gd")
 const CombatResult := preload("res://works/third-winter/rules/combat_result.gd")
 const Retreat := preload("res://works/third-winter/rules/retreat.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
+const ScorpionMatch := preload("res://works/third-winter/scenarios/08-korsun-pocket/scorpion_match.gd")
+const ScorpionView := preload("res://scripts/view/scorpion_view.gd")
 const Crt := preload("res://scripts/rules/series/crt.gd")
 
 const FIXTURE_REL := "../../../dist/godot/08-retreat.json"
@@ -30,6 +32,88 @@ static func run(ctx: Dictionary) -> void:
 			_compare_scenario(ctx, scenario, bundle, board)
 	_reject_paths(ctx, bundle, board)
 	_hedgehog_unit(ctx, bundle, board)
+	_session_retreat_choices(ctx, fixture, bundle, board)
+
+
+## 会话层撤退选择：空路线先出路线窗口；选 ZOC 路线后再出损步窗口；补选后按 TS 切片落地。
+static func _session_retreat_choices(ctx: Dictionary, fixture: Dictionary, bundle: Dictionary,
+		board: Dictionary) -> void:
+	var expect: Callable = ctx.expect
+	var scenario: Dictionary = _scenario_by_name(fixture, "zoc-loss")
+	if scenario.is_empty():
+		expect.call(false, "会话撤退选择缺少 zoc-loss 场景")
+		return
+	var state: Dictionary = scenario.get("base", {}).duplicate(true)
+	state.combat = scenario.get("steps", [])[0].get("combat", {}).duplicate(true)
+	var defender_id: String = str(scenario.get("defenderId", ""))
+	var bare := {"type": "resolve-combat", "lossOrder": [], "optionLosses": 0,
+		"ignoreDefenderOption": false, "retreats": [], "remnants": []}
+	var first: Dictionary = ScorpionMatch._apply(state, "axis", bare, bundle)
+	expect.call(first.ok, "空撤退路线转成会话窗口 · " + str(first.get("errorCode", "")))
+	if not first.ok:
+		return
+	var waiting: Dictionary = first.value
+	var request: Dictionary = waiting.get("pendingRetreat", {}).get("pending", {})
+	expect.call(str(request.get("kind", "")) == "retreat-route", "待决窗口记录路线选择")
+	expect.call(waiting.get("units", {}).has(defender_id), "路线选择前盘面不变")
+	var endpoints: Array = []
+	for path: Array in request.get("options", []):
+		if path.size() > 0:
+			endpoints.append(str(path[-1]))
+	expect.call(_same(endpoints, scenario.get("pathOptions", [])), "路线候选与 TS pathOptions 一致")
+	var blocked: Dictionary = ScorpionMatch._apply(waiting, "axis", {"type": "pass-alert"}, bundle)
+	expect.call(not blocked.ok and str(blocked.get("errorCode", "")) == "retreat_pending",
+		"待决撤退时挡住其它命令")
+	var menu: Array = ScorpionView.menu_entries(waiting, "axis", {}, bundle)
+	expect.call(_count_retreat_actions(menu) == 3, "路线窗口列出三条合法终点")
+	var route_action: Dictionary = _retreat_action(menu, "s2.10")
+	expect.call(not route_action.is_empty(), "可从路线窗口取 s2.10 路线")
+	if route_action.is_empty():
+		return
+	var second: Dictionary = ScorpionMatch._apply(waiting, "axis", route_action, bundle)
+	expect.call(second.ok, "选定 ZOC 路线后进入损步窗口 · " + str(second.get("errorCode", "")))
+	if not second.ok:
+		return
+	var zoc_state: Dictionary = second.value
+	var zoc: Dictionary = zoc_state.get("pendingRetreat", {}).get("pending", {})
+	expect.call(str(zoc.get("kind", "")) == "retreat-zoc-loss", "ZOC 格要求选择损步单位")
+	expect.call(zoc.get("candidates", []).has(defender_id), "损步候选含 3951")
+	var zoc_menu: Array = ScorpionView.menu_entries(zoc_state, "axis", {}, bundle)
+	expect.call(_count_retreat_actions(zoc_menu) == 1, "ZOC 窗口列出一条损步行")
+	var zoc_action: Dictionary = zoc_menu[0].get("actions", [])[0] if zoc_menu.size() > 0 else {}
+	var third: Dictionary = ScorpionMatch._apply(zoc_state, "axis", zoc_action, bundle)
+	expect.call(third.ok, "补 ZOC 损步后撤退结算 · " + str(third.get("errorCode", "")))
+	if not third.ok:
+		return
+	var expected: Dictionary = scenario.get("steps", [])[1].get("units", {}).get(defender_id, {})
+	expect.call(third.value.get("pendingRetreat") == null, "撤退成功后清空待决窗口")
+	expect.call(_same(third.value.get("units", {}).get(defender_id), expected), "撤退落点与 TS 一致（s2.10、损一步）")
+	var direct_action: Dictionary = _retreat_action(menu, "s1.09")
+	var direct: Dictionary = ScorpionMatch._apply(waiting, "axis", direct_action, bundle)
+	expect.call(direct.ok and direct.value.get("pendingRetreat") == null,
+		"非 ZOC 路线选定后直接结算 · " + str(direct.get("errorCode", "")))
+	if direct.ok:
+		expect.call(str(direct.value.get("units", {}).get(defender_id, {}).get("hex", "")) == "s1.09",
+			"非 ZOC 路线落到 s1.09")
+
+
+static func _count_retreat_actions(menu: Array) -> int:
+	var count := 0
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			if str(action.get("type", "")) == "resolve-combat" and action.get("retreats", []).size() > 0:
+				count += 1
+	return count
+
+
+static func _retreat_action(menu: Array, endpoint: String) -> Dictionary:
+	for row: Dictionary in menu:
+		for action: Dictionary in row.get("actions", []):
+			for route: Dictionary in action.get("retreats", []):
+				var path: Array = route.get("path", [])
+				if path.size() > 0 and str(path[-1]) == endpoint:
+					return action
+	return {}
 
 
 ## 普通撤退 / 小河 / ZOC 损步 / 歼灭：回放守方结算并比对算子、死人堆与战斗记录切片。

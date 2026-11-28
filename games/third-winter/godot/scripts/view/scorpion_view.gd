@@ -1885,6 +1885,12 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 			menu.append({"label": "残部 %s → %s" % [_unit_name(state, division, data), hex],
 				"group": "地面战斗", "actions": [action]})
 		return
+	var retreat_waiting: Variant = state.get("pendingRetreat")
+	if retreat_waiting is Dictionary:
+		if str(retreat_waiting.get("actor", "")) != side:
+			return
+		_append_retreat_pending(retreat_waiting, state, data, menu)
+		return
 	var action_type := str(decision.get("actionType", ""))
 	var attacker := str(combat.get("attacker", ""))
 	var involved: Array = combat.get("attackers", []) if side == attacker else combat.get("defenders", [])
@@ -1922,6 +1928,60 @@ static func _append_combat_menu(state: Dictionary, side: String, data: Dictionar
 		"continue-combat-retreat":
 			menu.append({"label": "继续撤退 · 原地续跑", "group": "地面战斗",
 				"actions": [{"type": "continue-combat-retreat"}]})
+
+
+## 待决撤退：先列完整路线；选定后若格内需要 ZOC 损步/残部落点，再列对应单位或落点。
+static func _append_retreat_pending(waiting: Dictionary, state: Dictionary, data: Dictionary, menu: Array) -> void:
+	var request: Dictionary = waiting.get("pending", {})
+	var stored: Dictionary = waiting.get("action", {})
+	var kind := str(request.get("kind", ""))
+	if kind == "retreat-route":
+		var units: Array = request.get("units", [])
+		for path: Array in request.get("options", []):
+			var action: Dictionary = stored.duplicate(true)
+			action["retreats"] = [{"group": "group:0", "units": units.duplicate(),
+				"path": path.duplicate()}]
+			menu.append({"label": "撤退 %d 格 → %s" % [int(request.get("distance", path.size())),
+				str(path[-1] if path.size() > 0 else "")],
+				"group": "地面战斗", "actions": [action]})
+		return
+	var step := int(request.get("step", 0))
+	var group := str(request.get("group", ""))
+	if kind == "retreat-zoc-loss":
+		for id: String in request.get("candidates", []):
+			var action := _with_retreat_choice(stored, group, step, "zocLosses", str(id))
+			if action.is_empty():
+				continue
+			menu.append({"label": "ZOC 被迫损 %s · %s" % [_unit_name(state, id, data),
+				str(request.get("hex", ""))], "group": "地面战斗", "actions": [action]})
+		return
+	if kind == "retreat-remnant":
+		var division := str(request.get("divisionId", ""))
+		for hex: String in request.get("candidates", []):
+			var action := _with_retreat_choice(stored, group, step, "remnantHexes", hex)
+			if action.is_empty():
+				continue
+			menu.append({"label": "撤退残部 %s → %s" % [_unit_name(state, division, data), hex],
+				"group": "地面战斗", "actions": [action]})
+
+
+## 复制原命令，只改指定撤退堆在该步的选择；组/步不存在时返回空字典。
+static func _with_retreat_choice(stored: Dictionary, group: String, step: int,
+		field: String, value: String) -> Dictionary:
+	var action: Dictionary = stored.duplicate(true)
+	var routes: Array = action.get("retreats", [])
+	for index: int in routes.size():
+		var route: Dictionary = routes[index]
+		if str(route.get("group", "")) != group:
+			continue
+		var merged: Dictionary = route.duplicate(true)
+		var choices: Dictionary = merged.get(field, {}).duplicate(true)
+		choices[str(step)] = value
+		merged[field] = choices
+		routes[index] = merged
+		action["retreats"] = routes
+		return action
+	return {}
 
 
 ## 战果行的可读摘要：损失步数、可选损失、后撤距离，以及会被消灭的师与其残部落点。
