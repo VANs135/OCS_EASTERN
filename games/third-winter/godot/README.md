@@ -107,7 +107,7 @@ godot --headless --path games/third-winter/godot --script res://tests/runner.gd 
 
 视图对照覆盖 `revision`、`actor`、`headline`、`phase`、`phaseId`、`roster`、`actions`（标签与动作类型）、当前选择、`frame.mapStacks`、盒内清单、回合轨、辅助卡、`transportStock` 与 `breakdownStock`（含印面额 `inUse` 与拆分副本 `availableIds`）。`menu` 字段不参与对照，新增的界面入口只能落在 `menu`。详见 [08 原生会话与开局投影](../docs/2026-11-27-08原生会话与开局投影.md)。
 
-本轮各数值层与命令层都带独立夹具：`godot-combat-terrain.mjs`（967 条）、`godot-mode-commands.mjs`（78 行）、`godot-barrage.mjs`（9 例）、`godot-combat.mjs`（6 场景 43 步）、`godot-remnant-gen.mjs`（5 场景 6 步）、`godot-retreat.mjs`（6 场景 12 步）、`godot-capture.mjs`（6 场景 7 步）；用例放在 `tests/cases/<名>_cases.gd`，由 `tests/runner.gd` 扫描目录自动加载（每个文件暴露 `static func run(ctx)`，`ctx` 给出 `expect`/`compare`/`reject`/`state_slice` 与 `args`）。当前基线：六参数 **2986/2986**、两参数 **2958/2958**。战斗掷骰已回本局 `state.rng`（`combat_rolls.gd`，对照 TS `scorpionRolls`）：`surprise` 2 枚 → `surprise-shift` 1 枚（仅极端时）→ `combat` 2 枚，`offer` 只服务重掷回放与对照夹具。
+本轮各数值层与命令层都带独立夹具：`godot-combat-terrain.mjs`（967 条）、`godot-mode-commands.mjs`（78 行）、`godot-barrage.mjs`（9 例）、`godot-combat.mjs`（6 场景 43 步）、`godot-remnant-gen.mjs`（5 场景 6 步）、`godot-retreat.mjs`（6 场景 12 步）、`godot-capture.mjs`（6 场景 7 步）；用例放在 `tests/cases/<名>_cases.gd`，由 `tests/runner.gd` 扫描目录自动加载（每个文件暴露 `static func run(ctx)`，`ctx` 给出 `expect`/`compare`/`reject`/`state_slice` 与 `args`）。当前基线：六参数 **2990/2990**、两参数 **2962/2962**。战斗掷骰已回本局 `state.rng`（`combat_rolls.gd`，对照 TS `scorpionRolls`）：`surprise` 2 枚 → `surprise-shift` 1 枚（仅极端时）→ `combat` 2 枚，`offer` 只服务重掷回放与对照夹具。
 
 ## 已实现
 
