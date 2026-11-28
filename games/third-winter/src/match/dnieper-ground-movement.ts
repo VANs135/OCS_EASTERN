@@ -10,6 +10,7 @@ import { resolveCampaignEntryCapture } from './campaign-entry-capture.ts'
 import { createCampaignOrdinaryMovementBoard } from './campaign-movement-board.ts'
 import { campaignMovementProfiles } from './campaign-movement-profiles.ts'
 import type { CampaignStackingBoard } from './campaign-stacking.ts'
+import { campaignOverstackedHexes } from './campaign-stacking.ts'
 
 /** 01 的 4.8a 结算板：真实战斗 profile＋整枚移除进 Dead Pile 的损失事实。 */
 export function dnieperStackingBoard(map: ReturnType<typeof import('../ttw/campaign/play-area.ts').campaignMapInPlayArea>,
@@ -54,15 +55,8 @@ export function dnieperGroundMovementBoard(map: ReturnType<typeof import('../ttw
     return undefined
   }
   function stackingBlockers(state: Parameters<typeof profiles.profileOf>[0], side: 'axis' | 'soviet') {
-    const stacks = new Map<string, number>()
-    for (const counter of Object.values(state.counters)) {
-      if (counter.location.kind !== 'map' || counter.side !== side || counter.kind === 'aircraft' ||
-        counter.specialTruckExtender) continue
-      const re = counter.currentRe ?? 1
-      if (re <= 0) continue
-      stacks.set(counter.location.hex, (stacks.get(counter.location.hex) ?? 0) + re)
-    }
-    return [...stacks].filter(([, re]) => re > 10).map(([hex, re]) => `overstack:${hex}:${re}`)
+    return campaignOverstackedHexes(state, side, dnieperStackingBoard(map, catalog))
+      .map(({ hex, re }) => `overstack:${hex}:${re}`)
   }
   return createCampaignOrdinaryMovementBoard({
     map,

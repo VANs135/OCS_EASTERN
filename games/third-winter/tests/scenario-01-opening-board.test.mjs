@@ -165,7 +165,7 @@ test('dnieper ground board reports an end-of-segment 4.8a overstack', async () =
   const state = openCampaignMatch(prepareDnieperBoard(loaded), createRngState(1)).state
   const board = dnieperGroundMovementBoard(loaded.playable, loaded.terrain, loaded.catalog.definitions)
   const counters = Object.fromEntries(Array.from({ length: 11 }, (_, index) => [`stack:${index}`, {
-    definition: 'stack-test', kind: 'land', side: 'soviet', location: { kind: 'map', hex: 'D39.30' }, currentRe: 1,
+    definition: 'land:id:2070', kind: 'land', side: 'soviet', location: { kind: 'map', hex: 'D39.30' }, currentRe: 1,
   }]))
   assert.deepEqual(board.endBlockers?.({ ...state, counters }, 'soviet'), ['overstack:D39.30:11'])
 })
