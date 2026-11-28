@@ -54,6 +54,16 @@ function setupCounter(definition: Definition<BackupUnit> | undefined, side: Side
     stepsLost: 0, currentRe: re, mode: 'combat' }
 }
 
+function transportDefinition(catalog: DnieperSetupData['catalog'], side: Side, ref: string) {
+  const sourceId = ref === 'Truck Points'
+    ? (side === 'soviet' ? 'tp_013' : 'tp_003')
+    : (side === 'soviet' ? 'tp_011' : 'tp_001')
+  const definition = [...catalog.definitions.values()].find((candidate) =>
+    candidate.kind === 'transport' && candidate.sourceId === sourceId)
+  if (!definition || definition.source.side !== side) throw new Error(`Missing 01 fixed transport definition: ${ref}`)
+  return definition
+}
+
 function hexOf(map: TtwCampaignMapIndex, hex: unknown, label: string) {
   if (typeof hex !== 'string') throw new Error(`Missing ${label} hex`)
   const key = tryCampaignHexKey(hex)
@@ -145,6 +155,7 @@ export function prepareDnieperBoard(
   const supplyDumps: Record<Side, Record<string, number>> = { axis: {}, soviet: {} }
   const initialHedgehogs: Record<string, CampaignHedgehog> = {}
   for (const row of setup.initialHedgehogs) initialHedgehogs[row.hex] = { side: row.side, level: row.level }
+  let fixedTransportIndex = 0
   for (const marker of rows(setupRaw.markers)) {
     if (typeof marker.ref !== 'string' || (marker.side !== 'axis' && marker.side !== 'soviet')) continue
     const at = marker.at == null ? undefined : record(marker.at)
@@ -155,6 +166,16 @@ export function prepareDnieperBoard(
     } else if (/^Supply Ton ([1-3])T$/.test(marker.ref)) {
       supplyDumps[marker.side][hex] = (supplyDumps[marker.side][hex] ?? 0) +
         Number(/^Supply Ton ([1-3])T$/.exec(marker.ref)?.[1]) * Number(marker.count)
+    } else if (marker.ref === 'Truck Points' || marker.ref === 'Wagon Points') {
+      const count = Number(marker.count)
+      if (!Number.isSafeInteger(count) || count <= 0) throw new Error(`Invalid 01 transport marker count: ${marker.ref}`)
+      const definition = transportDefinition(catalog, marker.side, marker.ref)
+      for (let copy = 1; copy <= count; copy += 1) {
+        fixedTransportIndex += 1
+        add(`01-fixed-transport:${fixedTransportIndex}`, { definition: definition.key, kind: 'transport',
+          side: marker.side, location: { kind: 'map', hex }, stepsLost: 0, currentRe: 0, mode: 'combat',
+          transportPoints: 1, transportCargoTokens: 0 })
+      }
     }
   }
 

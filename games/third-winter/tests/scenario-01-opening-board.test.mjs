@@ -32,7 +32,22 @@ test('scenario 01 opening board places every fixed counter, aircraft, marker and
   const choices = dnieperOpeningChoices(loaded)
   const record = openCampaignMatch(opening, createRngState(1))
   const state = record.state
-  assert.equal(Object.keys(state.counters).length, 774 + 104 + 26 + 9 + 1)
+  assert.equal(Object.keys(state.counters).length, 774 + 104 + 26 + 9 + 1 + 15)
+  assert.equal(Object.keys(state.counters).filter((id) => id.startsWith('01-fixed-transport:')).length, 15)
+  const fixedTransport = Object.entries(state.counters).filter(([id]) => id.startsWith('01-fixed-transport:'))
+    .map(([, counter]) => counter)
+  assert.equal(fixedTransport.filter((counter) => counter.definition.endsWith(':tp_013')).length, 6)
+  assert.equal(fixedTransport.filter((counter) => counter.definition.endsWith(':tp_011')).length, 6)
+  assert.equal(fixedTransport.filter((counter) => counter.definition.endsWith(':tp_001')).length, 3)
+  for (const counter of fixedTransport) {
+    assert.equal(counter.transportPoints, 1)
+    assert.equal(counter.currentRe, 0)
+  }
+  const b3517 = loaded.playable.resolveHex('B35.17')
+  assert.equal(fixedTransport.filter((counter) => counter.location.hex === b3517 &&
+    counter.definition.endsWith(':tp_013')).length, 2)
+  assert.equal(fixedTransport.filter((counter) => counter.location.hex === b3517 &&
+    counter.definition.endsWith(':tp_011')).length, 1)
   assert.equal(state.counters['01-air:1'].kind, 'aircraft')
   assert.equal(state.airBases.length, 59)
   assert.equal(Object.keys(state.hedgehogs).length, 18)
