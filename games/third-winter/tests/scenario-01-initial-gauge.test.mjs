@@ -9,6 +9,7 @@ import { campaignTerrain } from '../src/import/campaign-terrain.ts'
 import { loadThirdWinterV2Units } from '../src/import/unit-v2.ts'
 import { campaignMapInPlayArea, ttwCampaignPlayArea } from '../src/ttw/campaign/play-area.ts'
 import { prepareDnieperBoard } from '../src/match/dnieper-opening.ts'
+import { dnieperControlSites } from '../src/match/dnieper-initial-control.ts'
 import { dnieperInitialRailGauge, dnieperRailNetwork } from '../src/match/dnieper-initial-gauge.ts'
 
 const ROOT = 'D:/war game/OCS各作数据库/OCS第三个冬天'
@@ -55,11 +56,16 @@ test('scenario 01 railheads are the only broad-gauge junctions and B16.35 has no
   assert.equal(network.edge('B16.35', 'B15.35')?.gauge ?? 'standard', 'standard')
 })
 
-test('scenario 01 opening control records only the eight Railhead sites', async () => {
+test('scenario 01 opening control covers settlement/VP sites and Railheads, not ordinary rail hexes', async () => {
   const loaded = await load()
   const opening = prepareDnieperBoard(loaded)
-  assert.equal(Object.keys(opening.hexControl ?? {}).length, 8,
-    'ordinary rail hexes are not persisted as per-hex control')
+  const sites = dnieperControlSites({
+    citySites: loaded.map.cities,
+    railheads: opening.initialRailheadMarkers ?? [],
+  })
+  assert.deepEqual(new Set(Object.keys(opening.hexControl ?? {})), sites)
+  assert.ok(sites.size > 8, 'all settlement/VP hexes carry opening control')
   assert.equal(opening.hexControl?.['D55.5'], 'soviet')
-  assert.equal(opening.hexControl?.['D54.5'], undefined, 'no control record for a plain rail hex')
+  assert.equal(opening.hexControl?.['B41.6'], 'axis', 'Poltava starts Axis-held')
+  assert.equal(opening.hexControl?.['D54.5'], undefined, 'a plain rail hex has no control record')
 })

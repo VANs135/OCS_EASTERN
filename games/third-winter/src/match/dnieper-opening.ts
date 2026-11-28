@@ -13,6 +13,7 @@ import type { CampaignHedgehog } from './campaign-hedgehogs.ts'
 import type { CampaignAirBase } from './campaign-airfield.ts'
 import type { CampaignFortress } from './campaign-fortress.ts'
 import { dnieperEdgeSupplySources } from './dnieper-edge-supply.ts'
+import { dnieperOpeningControl } from './dnieper-initial-control.ts'
 import {
   buildCampaignOpeningChoices,
   resolveCampaignOpeningChoices,
@@ -230,12 +231,20 @@ export function prepareDnieperBoard(
     add(`01-alert:${index + 1}`, { ...setupCounter(def, 'axis', hexOf(map, draw.hex, 'alert')), definition: def.key })
   }
 
-  // 普通格不持久记录控制；只写剧本指定地点。01 的铁路卸载点由 Railhead 标记指定，
-  // 其所属方就是该格的开局控制，后续仍由夺取/清理的 hexControl 覆盖。
+  // 普通格不持久记录控制；只写剧本指定地点：可卸载/VP 聚落与书明 Railhead。
+  // 铁路通行由单位/ZOC/轨距阻断，换轨由铁路工兵处理，不靠逐格控制台账。
   const initialRailheadMarkers = rows(setupRaw.markers).filter((marker) => marker.ref === 'Railhead')
     .map((marker) => ({ side: marker.side as Side, hex: markerHex(map, marker, 'railhead') }))
-  const initialControl: Record<string, Side> = {}
-  for (const marker of initialRailheadMarkers) initialControl[marker.hex] = marker.side
+  const initialLandUnits = Object.values(counters).flatMap((counter) =>
+    counter.kind === 'land' && counter.location.kind === 'map'
+      ? [{ side: counter.side, hex: counter.location.hex }]
+      : [])
+  const initialControl = dnieperOpeningControl({
+    citySites: map.cities,
+    railheads: initialRailheadMarkers,
+    neighbors: (hex) => data.playable?.neighbors(hex) ?? map.neighbors(hex),
+    landUnits: initialLandUnits,
+  })
   const rvgkMarkers: Record<string, string> = {}
   for (const marker of rows(setupRaw.markers)) {
     if (typeof marker.ref !== 'string' || !/^RVGK-[12] Marker$/.test(marker.ref)) continue
