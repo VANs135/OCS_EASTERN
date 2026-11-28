@@ -15,6 +15,7 @@ const StepLoss := preload("res://scripts/rules/series/step_loss.gd")
 const Remnants := preload("res://works/third-winter/rules/remnants.gd")
 const Hedgehogs := preload("res://works/third-winter/rules/hedgehogs.gd")
 const GroundMove := preload("res://works/third-winter/rules/ground_move.gd")
+const Fuel := preload("res://works/third-winter/rules/fuel.gd")
 
 const SIDE_NAMES := {"axis": "轴心", "soviet": "苏军"}
 const PHASE_NAMES := {
@@ -1166,8 +1167,8 @@ static func _append_unit_menu(state: Dictionary, side: String, selection: Dictio
 
 
 ## OCS 6.1 — the move rows of desktop `moveChoices`: the clicked hex (or an explicit path) is offered
-## only when the whole leg passes the same check the command runs. Fuel payment rows are not native
-## yet, so a mechanised combat face that still needs fuel offers nothing rather than a doomed row.
+## only when the whole leg passes the same check the command runs. A mechanised combat face that still
+## needs fuel gets one row per payable source, carrying `fuelDumpId`.
 static func _append_move_menu(state: Dictionary, side: String, selection: Dictionary,
 		data: Dictionary, menu: Array) -> void:
 	if str(state.get("cursor", {}).get("phase", "")) != "movement":
@@ -1189,8 +1190,6 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 		return
 	if int(unit.get("allowance", 0)) <= 0:
 		return
-	if unit.get("combat") == true and str(unit.get("mobility")) != "leg" and unit.get("fueled") != true:
-		return
 	var from := str(unit.get("hex", ""))
 	var path: Array = []
 	var requested: Variant = selection.get("path")
@@ -1204,10 +1203,23 @@ static func _append_move_menu(state: Dictionary, side: String, selection: Dictio
 	## 与桌面一致：没点邻格（或点的是自己那格）就不出移动行，避免把整圈邻格摊在侧栏。
 	if path.is_empty():
 		return
-	if GroundMove.check(state, side, unit_id, path, data).ok:
+	var needs_fuel := Fuel.needs_fuel(unit, side) and not Fuel.has_bulk_fuel(state, unit_id)
+	if not needs_fuel and GroundMove.check(state, side, unit_id, path, data).ok:
 		var destination := str(path[path.size() - 1])
 		menu.append({"label": "移动到 %s" % destination, "group": "移动",
 			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path}]})
+		return
+	if not needs_fuel or not GroundMove.check(state, side, unit_id, path, data, true).ok:
+		return
+	## OCS 12.5c — 机械面逐枚付 1T：只列该算子真能抽到的油源，行里带 `fuelDumpId`。
+	var ledger := SpPayment.new(state, side, data)
+	for source: Dictionary in ledger.available([unit]):
+		var dump_id := str(source.get("dumpId", ""))
+		if int(source.get("tokens", 0)) < Fuel.SINGLE_UNIT_FUEL_COST or not ledger.can_use(unit, dump_id):
+			continue
+		var tail := dump_id.substr(dump_id.rfind(":") + 1)
+		menu.append({"label": "移动到 %s · %s 支付 1T" % [str(path[path.size() - 1]), tail], "group": "移动",
+			"actions": [{"type": "ground-move", "unitId": unit_id, "path": path, "fuelDumpId": dump_id}]})
 
 
 static func _neighbors(data: Dictionary) -> Dictionary:

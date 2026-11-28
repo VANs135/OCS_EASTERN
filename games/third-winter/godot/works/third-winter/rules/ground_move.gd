@@ -3,6 +3,7 @@ extends RefCounted
 const Result := preload("res://scripts/core/result.gd")
 const TerrainCost := preload("res://works/third-winter/rules/terrain_cost.gd")
 const SupplyPosition := preload("res://works/third-winter/rules/supply_position.gd")
+const Fuel := preload("res://works/third-winter/rules/fuel.gd")
 
 
 ## OCS 6.1 and 14.8c — one normal single-counter ground move of src/match/scorpion-movement.ts.
@@ -12,7 +13,18 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 	var path: Array = []
 	for hex: Variant in action.get("path", []):
 		path.append(str(hex))
-	var checked := check(state, actor, unit_id, path, data)
+	## 桌面 `ground-move` 可以顺带付油：先按 TS `fuelScorpionMovement` 走单枚油源，
+	## 付完再校验路线；只认补给堆/运输车油源，已加油司令部投送还没原生。
+	if action.get("fuelHeadquartersId") != null:
+		return Result.failure("fuel_headquarters", "已加油司令部投送还没移植，请改用补给堆付油")
+	var fuel_paid := false
+	var dump_id := str(action.get("fuelDumpId", ""))
+	if not dump_id.is_empty():
+		var fueled := Fuel.fuel_with_dump(state, actor, unit_id, dump_id, data)
+		if not fueled.ok:
+			return fueled
+		fuel_paid = true
+	var checked := check(state, actor, unit_id, path, data, fuel_paid)
 	if not checked.ok:
 		return Result.failure(str(checked.errorCode), str(checked.message))
 	var spent: int = int(checked.spent)
@@ -33,7 +45,8 @@ static func apply(state: Dictionary, actor: String, action: Dictionary, data: Di
 
 ## 同一套校验的纯函数版（不改盘面）：视图用它决定要不要给出「移动到 X」，
 ## 规则用它落地，两侧不会因为各写一份判断而漂移。
-static func check(state: Dictionary, actor: String, unit_id: String, path: Array, data: Dictionary) -> Dictionary:
+static func check(state: Dictionary, actor: String, unit_id: String, path: Array, data: Dictionary,
+		fuel_paid: bool = false) -> Dictionary:
 	if state.kind != "playing":
 		return _refuse("match_not_started", "请先开始 08 对局")
 	if state.get("victory") != null:
@@ -54,7 +67,7 @@ static func check(state: Dictionary, actor: String, unit_id: String, path: Array
 	if allowance <= 0:
 		return _refuse("movement_allowance", "该算子没有可用移动力")
 	# OCS 6.1 — a combat counter with a mechanised face needs fuel before it can use that face.
-	if unit.get("combat") == true and str(unit.get("mobility")) != "leg" and unit.get("fueled") != true:
+	if not fuel_paid and unit.get("combat") == true and str(unit.get("mobility")) != "leg" and unit.get("fueled") != true:
 		return _refuse("movement_fuel", "机械化战斗面需要先加油")
 	var moved: Array = state.get("moved", [])
 	if moved.has(unit_id):
